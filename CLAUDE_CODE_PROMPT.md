@@ -31,9 +31,8 @@ You are continuing development of **mc-webui** - a lightweight web interface for
 
 ```
 mc-webui/
-├── docker/
-│   ├── Dockerfile
-│   └── docker-compose.yml
+├── Dockerfile
+├── docker-compose.yml
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # Flask entry point

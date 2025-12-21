@@ -3,8 +3,8 @@ version: '3.8'
 services:
   mc-webui:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     container_name: mc-webui
     restart: unless-stopped
     ports:
@@ -23,7 +23,7 @@ services:
       - FLASK_PORT=${FLASK_PORT:-5000}
       - FLASK_DEBUG=${FLASK_DEBUG:-false}
     env_file:
-      - ../.env
+      - .env
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/status')"]
       interval: 30s

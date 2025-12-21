@@ -57,6 +57,8 @@ FLASK_PORT        - Web server port (default: 5000)
 
 ```
 mc-webui/
+├── Dockerfile
+├── docker-compose.yml
 ├── app/
 │   ├── main.py           # Flask entry point
 │   ├── config.py         # Environment config
@@ -68,9 +70,6 @@ mc-webui/
 │   │   └── views.py      # HTML views
 │   ├── static/           # CSS, JS
 │   └── templates/        # Jinja2 templates
-├── docker/
-│   ├── Dockerfile
-│   └── docker-compose.yml
 ├── PRD.md               # Full requirements doc
 └── README.md
 ```
@@ -107,5 +106,5 @@ POST /api/contacts/cleanup  - Remove inactive contacts
 1. Develop locally (Windows/WSL)
 2. Push to GitHub
 3. Pull on server (192.168.131.80)
-4. Build and run with docker-compose
+4. Build and run: `docker compose up -d --build`
 5. Test on http://192.168.131.80:5000

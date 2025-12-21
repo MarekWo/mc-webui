@@ -52,8 +52,7 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 4. **Build and run**
    ```bash
-   # Run from the project root directory
-   docker compose -f docker/docker-compose.yml up -d --build
+   docker compose up -d --build
    ```
 
 5. **Access the web interface**
@@ -87,9 +86,8 @@ See [.env.example](.env.example) for a complete example.
 
 ```
 mc-webui/
-├── docker/
-│   ├── Dockerfile              # Docker image definition
-│   └── docker-compose.yml      # Docker Compose configuration
+├── Dockerfile                  # Docker image definition
+├── docker-compose.yml          # Docker Compose configuration
 ├── app/
 │   ├── __init__.py
 │   ├── main.py                 # Flask entry point
@@ -120,17 +118,17 @@ mc-webui/
 
 ## Development Status
 
-🚧 **Current Phase: 0 - Environment Setup** ✅
+🚧 **Current Phase: 1 - Backend Basics** ✅
 
 ### Roadmap
 
 - [x] Phase 0: Environment Setup
-- [ ] Phase 1: Backend Basics
-- [ ] Phase 2: Frontend Chat View
-- [ ] Phase 3: Message Sending
-- [ ] Phase 4: Auto-refresh
-- [ ] Phase 5: Contact Management
-- [ ] Phase 6: Polish & Documentation
+- [x] Phase 1: Backend Basics (REST API, message parsing, CLI wrapper)
+- [x] Phase 2: Frontend Chat View (Bootstrap UI, message display)
+- [x] Phase 3: Message Sending (Send form, reply functionality)
+- [x] Phase 4: Auto-refresh (60s polling, live updates)
+- [x] Phase 5: Contact Management (Cleanup modal)
+- [ ] Phase 6: Polish & Documentation (Testing, optimization)
 
 See [PRD.md](PRD.md) for detailed requirements and implementation plan.
 
@@ -160,23 +158,21 @@ Access the settings panel to clean up inactive contacts:
 
 ## Docker Commands
 
-**Note:** Run all commands from the project root directory (where .env file is located)
-
 ```bash
 # Start the application
-docker compose -f docker/docker-compose.yml up -d
+docker compose up -d
 
 # View logs
-docker compose -f docker/docker-compose.yml logs -f
+docker compose logs -f
 
 # Stop the application
-docker compose -f docker/docker-compose.yml down
+docker compose down
 
 # Rebuild after code changes
-docker compose -f docker/docker-compose.yml up -d --build
+docker compose up -d --build
 
 # Check container status
-docker compose -f docker/docker-compose.yml ps
+docker compose ps
 ```
 
 ## Troubleshooting
@@ -193,10 +189,10 @@ sudo chmod 666 /dev/serial/by-id/usb-Espressif*
 ### Container won't start
 ```bash
 # Check logs
-docker-compose logs mc-webui
+docker compose logs mc-webui
 
 # Verify .env file exists
-ls -la ../.env
+ls -la .env
 
 # Check if port 5000 is available
 sudo netstat -tulpn | grep 5000
