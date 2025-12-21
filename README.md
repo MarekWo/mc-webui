@@ -52,8 +52,8 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 4. **Build and run**
    ```bash
-   cd docker
-   docker-compose up -d
+   # Run from the project root directory
+   docker compose -f docker/docker-compose.yml up -d --build
    ```
 
 5. **Access the web interface**
@@ -160,22 +160,23 @@ Access the settings panel to clean up inactive contacts:
 
 ## Docker Commands
 
+**Note:** Run all commands from the project root directory (where .env file is located)
+
 ```bash
 # Start the application
-cd docker
-docker-compose up -d
+docker compose -f docker/docker-compose.yml up -d
 
 # View logs
-docker-compose logs -f
+docker compose -f docker/docker-compose.yml logs -f
 
 # Stop the application
-docker-compose down
+docker compose -f docker/docker-compose.yml down
 
 # Rebuild after code changes
-docker-compose up -d --build
+docker compose -f docker/docker-compose.yml up -d --build
 
 # Check container status
-docker-compose ps
+docker compose -f docker/docker-compose.yml ps
 ```
 
 ## Troubleshooting
