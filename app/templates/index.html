@@ -2,6 +2,47 @@
 
 {% block title %}Chat - mc-webui{% endblock %}
 
+{% block extra_head %}
+<!-- Emoji Picker -->
+<script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+<style>
+    emoji-picker {
+        --emoji-size: 1.5rem;
+        --num-columns: 8;
+    }
+    .emoji-picker-container {
+        position: relative;
+    }
+    .emoji-picker-popup {
+        position: absolute;
+        bottom: 100%;
+        right: 0;
+        z-index: 1000;
+        margin-bottom: 0.5rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+    .emoji-picker-popup.hidden {
+        display: none;
+    }
+
+    /* Mobile responsive adjustments */
+    @media (max-width: 576px) {
+        emoji-picker {
+            --emoji-size: 1.25rem;
+            --num-columns: 6;
+        }
+        .emoji-picker-popup {
+            right: auto;
+            left: 0;
+            width: 100%;
+            max-width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid d-flex flex-column" style="height: 100%;">
     <!-- Messages Container -->
@@ -25,18 +66,25 @@
     <div class="row border-top bg-light">
         <div class="col-12">
             <form id="sendMessageForm" class="p-3">
-                <div class="input-group">
-                    <textarea
-                        id="messageInput"
-                        class="form-control"
-                        placeholder="Type a message..."
-                        rows="2"
-                        maxlength="500"
-                        required
-                    ></textarea>
-                    <button type="submit" class="btn btn-primary px-4" id="sendBtn">
-                        <i class="bi bi-send"></i> Send
-                    </button>
+                <div class="emoji-picker-container">
+                    <div class="input-group">
+                        <textarea
+                            id="messageInput"
+                            class="form-control"
+                            placeholder="Type a message..."
+                            rows="2"
+                            maxlength="500"
+                            required
+                        ></textarea>
+                        <button type="button" class="btn btn-outline-secondary" id="emojiBtn" title="Insert emoji">
+                            <i class="bi bi-emoji-smile"></i>
+                        </button>
+                        <button type="submit" class="btn btn-primary px-4" id="sendBtn">
+                            <i class="bi bi-send"></i> Send
+                        </button>
+                    </div>
+                    <!-- Emoji picker popup (hidden by default) -->
+                    <div id="emojiPickerPopup" class="emoji-picker-popup hidden"></div>
                 </div>
                 <div class="d-flex justify-content-between">
                     <small class="text-muted">Shift+Enter: new line, Enter: send</small>

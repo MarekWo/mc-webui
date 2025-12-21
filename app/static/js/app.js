@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup event listeners
     setupEventListeners();
 
+    // Setup emoji picker
+    setupEmojiPicker();
+
     // Load device status
     loadStatus();
 });
@@ -472,4 +475,59 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+/**
+ * Setup emoji picker
+ */
+function setupEmojiPicker() {
+    const emojiBtn = document.getElementById('emojiBtn');
+    const emojiPickerPopup = document.getElementById('emojiPickerPopup');
+    const messageInput = document.getElementById('messageInput');
+
+    if (!emojiBtn || !emojiPickerPopup || !messageInput) {
+        console.error('Emoji picker elements not found');
+        return;
+    }
+
+    // Create emoji-picker element
+    const picker = document.createElement('emoji-picker');
+    emojiPickerPopup.appendChild(picker);
+
+    // Toggle emoji picker on button click
+    emojiBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        emojiPickerPopup.classList.toggle('hidden');
+    });
+
+    // Insert emoji into textarea when selected
+    picker.addEventListener('emoji-click', function(event) {
+        const emoji = event.detail.unicode;
+        const cursorPos = messageInput.selectionStart;
+        const textBefore = messageInput.value.substring(0, cursorPos);
+        const textAfter = messageInput.value.substring(messageInput.selectionEnd);
+
+        // Insert emoji at cursor position
+        messageInput.value = textBefore + emoji + textAfter;
+
+        // Update cursor position (after emoji)
+        const newCursorPos = cursorPos + emoji.length;
+        messageInput.setSelectionRange(newCursorPos, newCursorPos);
+
+        // Update character counter
+        updateCharCounter();
+
+        // Focus back on input
+        messageInput.focus();
+
+        // Hide picker after selection
+        emojiPickerPopup.classList.add('hidden');
+    });
+
+    // Close emoji picker when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!emojiPickerPopup.contains(e.target) && e.target !== emojiBtn && !emojiBtn.contains(e.target)) {
+            emojiPickerPopup.classList.add('hidden');
+        }
+    });
 }
