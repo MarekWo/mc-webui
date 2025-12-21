@@ -45,6 +45,11 @@ function setupEventListeners() {
         }
     });
 
+    // Character counter
+    input.addEventListener('input', function() {
+        updateCharCounter();
+    });
+
     // Manual refresh button
     document.getElementById('refreshBtn').addEventListener('click', function() {
         loadMessages();
@@ -183,6 +188,7 @@ async function sendMessage() {
 
         if (data.success) {
             input.value = '';
+            updateCharCounter();
             showNotification('Message sent', 'success');
 
             // Reload messages after short delay
@@ -205,6 +211,7 @@ async function sendMessage() {
 function replyTo(username) {
     const input = document.getElementById('messageInput');
     input.value = `@[${username}] `;
+    updateCharCounter();
     input.focus();
 }
 
@@ -359,6 +366,30 @@ function formatTime(timestamp) {
     } else {
         // Older - show date and time
         return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+}
+
+/**
+ * Update character counter
+ */
+function updateCharCounter() {
+    const input = document.getElementById('messageInput');
+    const counter = document.getElementById('charCounter');
+    const length = input.value.length;
+    const maxLength = 200;
+
+    counter.textContent = `${length} / ${maxLength}`;
+
+    // Visual warning when approaching limit
+    if (length >= maxLength * 0.9) {
+        counter.classList.remove('text-muted', 'text-warning');
+        counter.classList.add('text-danger', 'fw-bold');
+    } else if (length >= maxLength * 0.75) {
+        counter.classList.remove('text-muted', 'text-danger');
+        counter.classList.add('text-warning', 'fw-bold');
+    } else {
+        counter.classList.remove('text-warning', 'text-danger', 'fw-bold');
+        counter.classList.add('text-muted');
     }
 }
 

@@ -72,6 +72,13 @@ def send_message():
                 'error': 'Message text cannot be empty'
             }), 400
 
+        # MeshCore message length limit (~180-200 bytes for LoRa)
+        if len(text) > 200:
+            return jsonify({
+                'success': False,
+                'error': f'Message too long ({len(text)} chars). Maximum 200 characters allowed due to LoRa constraints.'
+            }), 400
+
         reply_to = data.get('reply_to')
 
         # Send message via meshcli

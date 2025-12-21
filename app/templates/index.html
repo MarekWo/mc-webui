@@ -31,13 +31,17 @@
                         class="form-control"
                         placeholder="Type a message..."
                         rows="2"
+                        maxlength="200"
                         required
                     ></textarea>
                     <button type="submit" class="btn btn-primary px-4" id="sendBtn">
                         <i class="bi bi-send"></i> Send
                     </button>
                 </div>
-                <small class="text-muted">Press Shift+Enter for new line, Enter to send</small>
+                <div class="d-flex justify-content-between">
+                    <small class="text-muted">Press Shift+Enter for new line, Enter to send</small>
+                    <small id="charCounter" class="text-muted">0 / 200</small>
+                </div>
             </form>
         </div>
     </div>
