@@ -162,6 +162,17 @@ main {
     #messageInput {
         font-size: 0.9rem;
     }
+
+    /* Reduce padding on mobile to save vertical space */
+    #sendMessageForm {
+        padding: 0.5rem !important;
+    }
+
+    /* Make status bar more compact */
+    .row.border-top .p-2 {
+        padding: 0.3rem !important;
+        font-size: 0.7rem;
+    }
 }
 
 /* Loading State */
