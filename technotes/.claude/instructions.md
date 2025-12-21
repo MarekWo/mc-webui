@@ -89,7 +89,23 @@ POST /api/contacts/cleanup  - Remove inactive contacts
 - **PRD.md** - Complete requirements, wireframes, architecture
 - **CLAUDE_CODE_PROMPT.md** - Detailed implementation guide
 
-## Testing
+## Testing Environment
 
-Device: Heltec V4 connected via USB to this Debian VM.
-Test with real meshcore network - no mock available locally.
+**Production/Test Server:** http://192.168.131.80:5000
+- Debian VM with Heltec V4 device connected via USB
+- All testing must be done on this server (local testing not possible)
+- Real meshcore network - no mock available
+
+**Server Requirements:**
+- Docker (20.10+)
+- Docker Compose (2.0+)
+- Git
+- meshcore-cli installed on host (for device configuration)
+- USB device access permissions configured
+
+**Deployment Workflow:**
+1. Develop locally (Windows/WSL)
+2. Push to GitHub
+3. Pull on server (192.168.131.80)
+4. Build and run with docker-compose
+5. Test on http://192.168.131.80:5000
