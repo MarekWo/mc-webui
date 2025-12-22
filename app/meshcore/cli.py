@@ -4,7 +4,8 @@ MeshCore CLI wrapper - executes meshcli commands via subprocess
 
 import subprocess
 import logging
-from typing import Tuple, Optional
+import re
+from typing import Tuple, Optional, List, Dict
 from app.config import config
 
 logger = logging.getLogger(__name__)
@@ -75,13 +76,14 @@ def recv_messages() -> Tuple[bool, str]:
     return success, stdout or stderr
 
 
-def send_message(text: str, reply_to: Optional[str] = None) -> Tuple[bool, str]:
+def send_message(text: str, reply_to: Optional[str] = None, channel_index: int = 0) -> Tuple[bool, str]:
     """
-    Send a message to the Public channel.
+    Send a message to a specific channel.
 
     Args:
         text: Message content
         reply_to: Optional username to reply to (will format as @[username])
+        channel_index: Channel to send to (default: 0 = Public)
 
     Returns:
         Tuple of (success, message)
@@ -91,7 +93,13 @@ def send_message(text: str, reply_to: Optional[str] = None) -> Tuple[bool, str]:
     else:
         message = text
 
-    success, stdout, stderr = _run_command(['public', message])
+    if channel_index == 0:
+        # Public channel - backward compatibility
+        success, stdout, stderr = _run_command(['public', message])
+    else:
+        # Other channels - use 'chan' command
+        success, stdout, stderr = _run_command(['chan', str(channel_index), message])
+
     return success, stdout or stderr
 
 
@@ -144,3 +152,107 @@ def check_connection() -> bool:
     """
     success, _, _ = _run_command(['infos'], timeout=5)
     return success
+
+
+def get_channels() -> Tuple[bool, List[Dict]]:
+    """
+    Get list of configured channels.
+
+    Returns:
+        Tuple of (success, list of channel dicts)
+        Each dict: {
+            'index': int,
+            'name': str,
+            'key': str
+        }
+    """
+    success, stdout, stderr = _run_command(['get_channels'])
+
+    if not success:
+        return False, []
+
+    channels = []
+    for line in stdout.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+
+        # Parse: "0: Public [8b3387e9c5cdea6ac9e5edbaa115cd72]"
+        match = re.match(r'^(\d+):\s+(.+?)\s+\[([a-f0-9]{32})\]$', line)
+        if match:
+            channels.append({
+                'index': int(match.group(1)),
+                'name': match.group(2),
+                'key': match.group(3)
+            })
+
+    return True, channels
+
+
+def add_channel(name: str) -> Tuple[bool, str, Optional[str]]:
+    """
+    Add a new channel with auto-generated key.
+
+    Args:
+        name: Channel name
+
+    Returns:
+        Tuple of (success, message, key_or_none)
+        key_or_none: The generated key if successful, None otherwise
+    """
+    success, stdout, stderr = _run_command(['add_channel', name])
+
+    if not success:
+        return False, stderr or stdout, None
+
+    # Get channels to find the newly created one
+    success_ch, channels = get_channels()
+    if success_ch:
+        for ch in channels:
+            if ch['name'] == name:
+                return True, f"Channel '{name}' created", ch['key']
+
+    return True, stdout or stderr, None
+
+
+def set_channel(index: int, name: str, key: str) -> Tuple[bool, str]:
+    """
+    Set/join a channel at specific index with name and key.
+
+    Args:
+        index: Channel slot number
+        name: Channel name
+        key: 32-char hex key
+
+    Returns:
+        Tuple of (success, message)
+    """
+    # Validate key format
+    if not re.match(r'^[a-f0-9]{32}$', key.lower()):
+        return False, "Invalid key format (must be 32 hex characters)"
+
+    success, stdout, stderr = _run_command([
+        'set_channel',
+        str(index),
+        name,
+        key.lower()
+    ])
+
+    return success, stdout or stderr
+
+
+def remove_channel(index: int) -> Tuple[bool, str]:
+    """
+    Remove a channel.
+
+    Args:
+        index: Channel number to remove
+
+    Returns:
+        Tuple of (success, message)
+    """
+    if index == 0:
+        return False, "Cannot remove Public channel (channel 0)"
+
+    success, stdout, stderr = _run_command(['remove_channel', str(index)])
+    return success, stdout or stderr

@@ -7,10 +7,21 @@ let lastMessageCount = 0;
 let autoRefreshInterval = null;
 let isUserScrolling = false;
 let currentArchiveDate = null;  // Current selected archive date (null = live)
+let currentChannelIdx = 0;  // Current active channel (0 = Public)
+let availableChannels = [];  // List of channels from API
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     console.log('mc-webui initialized');
+
+    // Load channels list
+    loadChannels();
+
+    // Restore last selected channel from localStorage
+    const savedChannel = localStorage.getItem('mc_active_channel');
+    if (savedChannel !== null) {
+        currentChannelIdx = parseInt(savedChannel);
+    }
 
     // Load archive list
     loadArchiveList();
@@ -85,6 +96,95 @@ function setupEventListeners() {
     settingsModal.addEventListener('show.bs.modal', function() {
         loadDeviceInfo();
     });
+
+    // Channel selector
+    document.getElementById('channelSelector').addEventListener('change', function(e) {
+        currentChannelIdx = parseInt(e.target.value);
+        localStorage.setItem('mc_active_channel', currentChannelIdx);
+        loadMessages();
+
+        const channelName = e.target.options[e.target.selectedIndex].text;
+        showNotification(`Switched to channel: ${channelName}`, 'info');
+    });
+
+    // Channels modal - load channels when opened
+    const channelsModal = document.getElementById('channelsModal');
+    channelsModal.addEventListener('show.bs.modal', function() {
+        loadChannelsList();
+    });
+
+    // Create channel form
+    document.getElementById('createChannelForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const name = document.getElementById('newChannelName').value.trim();
+
+        try {
+            const response = await fetch('/api/channels', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: name })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showNotification(`Channel "${name}" created!`, 'success');
+                document.getElementById('newChannelName').value = '';
+                document.getElementById('addChannelForm').classList.remove('show');
+
+                // Reload channels
+                await loadChannels();
+                loadChannelsList();
+            } else {
+                showNotification('Failed to create channel: ' + data.error, 'danger');
+            }
+        } catch (error) {
+            showNotification('Failed to create channel', 'danger');
+        }
+    });
+
+    // Join channel form
+    document.getElementById('joinChannelFormSubmit').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const name = document.getElementById('joinChannelName').value.trim();
+        const key = document.getElementById('joinChannelKey').value.trim().toLowerCase();
+
+        try {
+            const response = await fetch('/api/channels/join', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: name, key: key })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showNotification(`Joined channel "${name}"!`, 'success');
+                document.getElementById('joinChannelName').value = '';
+                document.getElementById('joinChannelKey').value = '';
+                document.getElementById('joinChannelForm').classList.remove('show');
+
+                // Reload channels
+                await loadChannels();
+                loadChannelsList();
+            } else {
+                showNotification('Failed to join channel: ' + data.error, 'danger');
+            }
+        } catch (error) {
+            showNotification('Failed to join channel', 'danger');
+        }
+    });
+
+    // Scan QR button (placeholder)
+    document.getElementById('scanQRBtn').addEventListener('click', function() {
+        showNotification('QR scanning feature coming soon! For now, manually enter the channel details.', 'info');
+    });
 }
 
 /**
@@ -94,6 +194,9 @@ async function loadMessages() {
     try {
         // Build URL with appropriate parameters
         let url = '/api/messages?limit=500';
+
+        // Add channel filter
+        url += `&channel_idx=${currentChannelIdx}`;
 
         if (currentArchiveDate) {
             // Loading archive
@@ -205,7 +308,10 @@ async function sendMessage() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ text: text })
+            body: JSON.stringify({
+                text: text,
+                channel_idx: currentChannelIdx
+            })
         });
 
         const data = await response.json();
@@ -530,4 +636,191 @@ function setupEmojiPicker() {
             emojiPickerPopup.classList.add('hidden');
         }
     });
+}
+
+/**
+ * Load list of available channels
+ */
+async function loadChannels() {
+    try {
+        const response = await fetch('/api/channels');
+        const data = await response.json();
+
+        if (data.success) {
+            availableChannels = data.channels;
+            populateChannelSelector(data.channels);
+        } else {
+            console.error('Error loading channels:', data.error);
+        }
+    } catch (error) {
+        console.error('Error loading channels:', error);
+    }
+}
+
+/**
+ * Populate channel selector dropdown
+ */
+function populateChannelSelector(channels) {
+    const selector = document.getElementById('channelSelector');
+
+    // Clear current options
+    selector.innerHTML = '';
+
+    // Add channels
+    channels.forEach(channel => {
+        const option = document.createElement('option');
+        option.value = channel.index;
+        option.textContent = channel.name;
+        selector.appendChild(option);
+    });
+
+    // Set current selection
+    selector.value = currentChannelIdx;
+
+    console.log(`Loaded ${channels.length} channels`);
+}
+
+/**
+ * Load channels list in management modal
+ */
+async function loadChannelsList() {
+    const listEl = document.getElementById('channelsList');
+    listEl.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+
+    try {
+        const response = await fetch('/api/channels');
+        const data = await response.json();
+
+        if (data.success) {
+            displayChannelsList(data.channels);
+        } else {
+            listEl.innerHTML = '<div class="alert alert-danger">Error loading channels</div>';
+        }
+    } catch (error) {
+        listEl.innerHTML = '<div class="alert alert-danger">Failed to load channels</div>';
+    }
+}
+
+/**
+ * Display channels in management modal
+ */
+function displayChannelsList(channels) {
+    const listEl = document.getElementById('channelsList');
+
+    if (channels.length === 0) {
+        listEl.innerHTML = '<div class="text-muted text-center py-3">No channels configured</div>';
+        return;
+    }
+
+    listEl.innerHTML = '';
+
+    channels.forEach(channel => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+        const isPublic = channel.index === 0;
+
+        item.innerHTML = `
+            <div>
+                <strong>${escapeHtml(channel.name)}</strong>
+                <br>
+                <small class="text-muted font-monospace">${channel.key}</small>
+            </div>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-primary" onclick="shareChannel(${channel.index})" title="Share">
+                    <i class="bi bi-share"></i>
+                </button>
+                ${!isPublic ? `
+                    <button class="btn btn-outline-danger" onclick="deleteChannel(${channel.index})" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                ` : ''}
+            </div>
+        `;
+
+        listEl.appendChild(item);
+    });
+}
+
+/**
+ * Delete channel
+ */
+async function deleteChannel(index) {
+    const channel = availableChannels.find(ch => ch.index === index);
+    if (!channel) return;
+
+    if (!confirm(`Remove channel "${channel.name}"?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/channels/${index}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showNotification(`Channel "${channel.name}" removed`, 'success');
+
+            // If deleted current channel, switch to Public
+            if (currentChannelIdx === index) {
+                currentChannelIdx = 0;
+                localStorage.setItem('mc_active_channel', '0');
+                loadMessages();
+            }
+
+            // Reload channels
+            await loadChannels();
+            loadChannelsList();
+        } else {
+            showNotification('Failed to remove channel: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showNotification('Failed to remove channel', 'danger');
+    }
+}
+
+/**
+ * Share channel (show QR code)
+ */
+async function shareChannel(index) {
+    try {
+        const response = await fetch(`/api/channels/${index}/qr`);
+        const data = await response.json();
+
+        if (data.success) {
+            // Populate share modal
+            document.getElementById('shareChannelName').textContent = `Channel: ${data.qr_data.name}`;
+            document.getElementById('shareChannelQR').src = data.qr_image;
+            document.getElementById('shareChannelKey').value = data.qr_data.key;
+
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('shareChannelModal'));
+            modal.show();
+        } else {
+            showNotification('Failed to generate QR code: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        showNotification('Failed to generate QR code', 'danger');
+    }
+}
+
+/**
+ * Copy channel key to clipboard
+ */
+function copyChannelKey() {
+    const input = document.getElementById('shareChannelKey');
+    input.select();
+    document.execCommand('copy');
+    showNotification('Channel key copied to clipboard!', 'success');
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }

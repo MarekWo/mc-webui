@@ -12,12 +12,13 @@ from app.config import config
 logger = logging.getLogger(__name__)
 
 
-def parse_message(line: Dict) -> Optional[Dict]:
+def parse_message(line: Dict, allowed_channels: Optional[List[int]] = None) -> Optional[Dict]:
     """
     Parse a single message line from .msgs file.
 
     Args:
         line: Raw JSON object from .msgs file
+        allowed_channels: List of channel indices to include (None = all channels)
 
     Returns:
         Parsed message dict or None if not a valid chat message
@@ -25,8 +26,8 @@ def parse_message(line: Dict) -> Optional[Dict]:
     msg_type = line.get('type')
     channel_idx = line.get('channel_idx', 0)
 
-    # Only process Public channel (channel 0) messages
-    if channel_idx != 0:
+    # Filter by allowed channels
+    if allowed_channels is not None and channel_idx not in allowed_channels:
         return None
 
     # Only process CHAN (received) and SENT_CHAN (sent) messages
@@ -65,11 +66,12 @@ def parse_message(line: Dict) -> Optional[Dict]:
         'datetime': datetime.fromtimestamp(timestamp).isoformat() if timestamp > 0 else None,
         'is_own': is_own,
         'snr': line.get('SNR'),
-        'path_len': line.get('path_len')
+        'path_len': line.get('path_len'),
+        'channel_idx': channel_idx
     }
 
 
-def read_messages(limit: Optional[int] = None, offset: int = 0, archive_date: Optional[str] = None, days: Optional[int] = None) -> List[Dict]:
+def read_messages(limit: Optional[int] = None, offset: int = 0, archive_date: Optional[str] = None, days: Optional[int] = None, channel_idx: Optional[int] = None) -> List[Dict]:
     """
     Read and parse messages from .msgs file or archive file.
 
@@ -78,19 +80,23 @@ def read_messages(limit: Optional[int] = None, offset: int = 0, archive_date: Op
         offset: Number of messages to skip from the end
         archive_date: If provided, read from archive file for this date (YYYY-MM-DD)
         days: If provided, filter messages from the last N days (only for live .msgs)
+        channel_idx: Filter messages by channel (None = all channels)
 
     Returns:
         List of parsed message dictionaries, sorted by timestamp (oldest first)
     """
     # If archive_date is provided, read from archive
     if archive_date:
-        return read_archive_messages(archive_date, limit, offset)
+        return read_archive_messages(archive_date, limit, offset, channel_idx)
 
     msgs_file = config.msgs_file_path
 
     if not msgs_file.exists():
         logger.warning(f"Messages file not found: {msgs_file}")
         return []
+
+    # Determine allowed channels
+    allowed_channels = [channel_idx] if channel_idx is not None else None
 
     messages = []
 
@@ -103,7 +109,7 @@ def read_messages(limit: Optional[int] = None, offset: int = 0, archive_date: Op
 
                 try:
                     data = json.loads(line)
-                    parsed = parse_message(data)
+                    parsed = parse_message(data, allowed_channels=allowed_channels)
                     if parsed:
                         messages.append(parsed)
                 except json.JSONDecodeError as e:
@@ -159,7 +165,7 @@ def count_messages() -> int:
     return len(read_messages())
 
 
-def read_archive_messages(archive_date: str, limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
+def read_archive_messages(archive_date: str, limit: Optional[int] = None, offset: int = 0, channel_idx: Optional[int] = None) -> List[Dict]:
     """
     Read messages from an archive file.
 
@@ -167,6 +173,7 @@ def read_archive_messages(archive_date: str, limit: Optional[int] = None, offset
         archive_date: Archive date in YYYY-MM-DD format
         limit: Maximum number of messages to return (None = all)
         offset: Number of messages to skip from the end
+        channel_idx: Filter messages by channel (None = all channels)
 
     Returns:
         List of parsed message dictionaries, sorted by timestamp (oldest first)
@@ -179,6 +186,9 @@ def read_archive_messages(archive_date: str, limit: Optional[int] = None, offset
         logger.warning(f"Archive file not found: {archive_file}")
         return []
 
+    # Determine allowed channels
+    allowed_channels = [channel_idx] if channel_idx is not None else None
+
     messages = []
 
     try:
@@ -190,7 +200,7 @@ def read_archive_messages(archive_date: str, limit: Optional[int] = None, offset
 
                 try:
                     data = json.loads(line)
-                    parsed = parse_message(data)
+                    parsed = parse_message(data, allowed_channels=allowed_channels)
                     if parsed:
                         messages.append(parsed)
                 except json.JSONDecodeError as e:

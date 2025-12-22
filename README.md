@@ -10,8 +10,10 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 ### Key Features
 
-- 📱 **View messages** - Display chat history from Public channel with auto-refresh
-- ✉️ **Send messages** - Publish to Public channel (200 char limit for LoRa)
+- 📱 **View messages** - Display chat history with auto-refresh
+- ✉️ **Send messages** - Publish to any channel (200 char limit for LoRa)
+- 📡 **Channel management** - Create, join, and switch between encrypted channels
+- 🔐 **Channel sharing** - Share channels via QR code or encrypted keys
 - 💬 **Reply to users** - Quick reply with `@[UserName]` format
 - 🧹 **Clean contacts** - Remove inactive contacts with configurable threshold
 - 📦 **Message archiving** - Automatic daily archiving with browse-by-date selector
@@ -142,15 +144,39 @@ See [PRD.md](PRD.md) for detailed requirements and implementation plan.
 
 ### Viewing Messages
 
-The main page displays chat history from the Public channel (channel 0). Messages auto-refresh every 60 seconds by default.
+The main page displays chat history from the currently selected channel. Messages auto-refresh every 60 seconds by default.
 
 By default, the live view shows messages from the last 7 days. Older messages are automatically archived and can be accessed via the date selector.
+
+### Managing Channels
+
+Access channel management by clicking the broadcast icon (📡) in the navbar:
+
+#### Creating a New Channel
+1. Click "Add New Channel"
+2. Enter a channel name (letters, numbers, _ and - only)
+3. Click "Create & Auto-generate Key"
+4. The channel is created with a secure encryption key
+
+#### Sharing a Channel
+1. In the Channels modal, click the share icon next to any channel
+2. Share the QR code (scan with another device) or copy the encryption key
+3. Others can join using the "Join Existing" option
+
+#### Joining a Channel
+1. Click "Join Existing"
+2. Enter the channel name and encryption key (received from channel creator)
+3. Click "Join Channel"
+4. The channel will be added to your available channels
+
+#### Switching Channels
+Use the channel selector dropdown in the navbar to switch between channels. Your selection is remembered between sessions.
 
 ### Viewing Message Archives
 
 Access historical messages using the date selector in the navbar:
 
-1. Click the date dropdown in the navbar (next to Refresh button)
+1. Click the date dropdown in the navbar
 2. Select a date to view archived messages for that day
 3. Select "Today (Live)" to return to live view
 
@@ -158,9 +184,10 @@ Archives are created automatically at midnight (00:00 UTC) each day. The live vi
 
 ### Sending Messages
 
-1. Type your message in the text field at the bottom
-2. Press Enter or click "Send"
-3. Your message will be published to the Public channel
+1. Select your target channel using the channel selector
+2. Type your message in the text field at the bottom
+3. Press Enter or click "Send"
+4. Your message will be published to the selected channel
 
 ### Replying to Users
 
