@@ -10,13 +10,16 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 ### Key Features
 
-- 📱 **View messages** - Display chat history with auto-refresh
+- 📱 **View messages** - Display chat history with intelligent auto-refresh
+- 🔔 **Smart notifications** - Bell icon with unread message counter across all channels
+- 📊 **Per-channel badges** - Unread count displayed on each channel in selector
 - ✉️ **Send messages** - Publish to any channel (200 char limit for LoRa)
 - 📡 **Channel management** - Create, join, and switch between encrypted channels
 - 🔐 **Channel sharing** - Share channels via QR code or encrypted keys
 - 💬 **Reply to users** - Quick reply with `@[UserName]` format
 - 🧹 **Clean contacts** - Remove inactive contacts with configurable threshold
 - 📦 **Message archiving** - Automatic daily archiving with browse-by-date selector
+- ⚡ **Efficient polling** - Lightweight update checks every 10s, UI refreshes only when needed
 
 ## Tech Stack
 
@@ -165,7 +168,13 @@ See [PRD.md](PRD.md) for detailed requirements and implementation plan.
 
 ### Viewing Messages
 
-The main page displays chat history from the currently selected channel. Messages auto-refresh every 60 seconds by default.
+The main page displays chat history from the currently selected channel. The app uses an intelligent refresh system that checks for new messages every 10 seconds and updates the UI only when new messages actually arrive.
+
+**Unread notifications:**
+- **Bell icon** in navbar shows total unread count across all channels
+- **Channel badges** display unread count per channel (e.g., "Malopolska (3)")
+- Messages are automatically marked as read when you view them
+- Read status persists across browser sessions
 
 By default, the live view shows messages from the last 7 days. Older messages are automatically archived and can be accessed via the date selector.
 
