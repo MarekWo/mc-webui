@@ -253,3 +253,51 @@ main {
     margin-bottom: 1rem;
     opacity: 0.5;
 }
+
+/* Notification Bell Badge */
+.notification-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background-color: #dc3545;
+    color: white;
+    border-radius: 10px;
+    padding: 2px 6px;
+    font-size: 0.65rem;
+    font-weight: bold;
+    line-height: 1;
+    min-width: 18px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+}
+
+/* Bell Ring Animation */
+@keyframes bell-ring {
+    0% { transform: rotate(0deg); }
+    10% { transform: rotate(14deg); }
+    20% { transform: rotate(-8deg); }
+    30% { transform: rotate(14deg); }
+    40% { transform: rotate(-4deg); }
+    50% { transform: rotate(10deg); }
+    60% { transform: rotate(0deg); }
+    100% { transform: rotate(0deg); }
+}
+
+.bell-ring {
+    animation: bell-ring 1s ease-in-out;
+    transform-origin: 50% 4px;
+}
+
+/* Notification Bell Container */
+#notificationBell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#notificationBell:hover .notification-badge {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
+}

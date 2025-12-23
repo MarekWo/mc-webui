@@ -643,3 +643,103 @@ def get_channel_qr(index):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@api_bp.route('/messages/updates', methods=['GET'])
+def get_messages_updates():
+    """
+    Check for new messages across all channels without fetching full message content.
+    Used for intelligent refresh mechanism and unread notifications.
+
+    Query parameters:
+        last_seen (str): JSON object with last seen timestamps per channel
+                        Format: {"0": 1234567890, "1": 1234567891, ...}
+
+    Returns:
+        JSON with update information per channel:
+        {
+            "success": true,
+            "channels": [
+                {
+                    "index": 0,
+                    "name": "Public",
+                    "has_updates": true,
+                    "latest_timestamp": 1234567900,
+                    "unread_count": 5
+                },
+                ...
+            ],
+            "total_unread": 10
+        }
+    """
+    try:
+        # Parse last_seen timestamps from query param
+        last_seen_str = request.args.get('last_seen', '{}')
+        try:
+            last_seen = json.loads(last_seen_str)
+            # Convert keys to integers and values to floats
+            last_seen = {int(k): float(v) for k, v in last_seen.items()}
+        except (json.JSONDecodeError, ValueError):
+            last_seen = {}
+
+        # Get list of channels
+        success_ch, channels = cli.get_channels()
+        if not success_ch:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to get channels'
+            }), 500
+
+        updates = []
+        total_unread = 0
+
+        # Check each channel for new messages
+        for channel in channels:
+            channel_idx = channel['index']
+
+            # Get latest message for this channel
+            messages = parser.read_messages(
+                limit=1,
+                channel_idx=channel_idx,
+                days=7  # Only check recent messages
+            )
+
+            latest_timestamp = 0
+            if messages and len(messages) > 0:
+                latest_timestamp = messages[0]['timestamp']
+
+            # Check if there are updates
+            last_seen_ts = last_seen.get(channel_idx, 0)
+            has_updates = latest_timestamp > last_seen_ts
+
+            # Count unread messages (messages newer than last_seen)
+            unread_count = 0
+            if has_updates:
+                all_messages = parser.read_messages(
+                    limit=500,
+                    channel_idx=channel_idx,
+                    days=7
+                )
+                unread_count = sum(1 for msg in all_messages if msg['timestamp'] > last_seen_ts)
+                total_unread += unread_count
+
+            updates.append({
+                'index': channel_idx,
+                'name': channel['name'],
+                'has_updates': has_updates,
+                'latest_timestamp': latest_timestamp,
+                'unread_count': unread_count
+            })
+
+        return jsonify({
+            'success': True,
+            'channels': updates,
+            'total_unread': total_unread
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error checking message updates: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

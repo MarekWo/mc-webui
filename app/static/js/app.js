@@ -9,10 +9,15 @@ let isUserScrolling = false;
 let currentArchiveDate = null;  // Current selected archive date (null = live)
 let currentChannelIdx = 0;  // Current active channel (0 = Public)
 let availableChannels = [];  // List of channels from API
+let lastSeenTimestamps = {};  // Track last seen message timestamp per channel
+let unreadCounts = {};  // Track unread message counts per channel
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     console.log('mc-webui initialized');
+
+    // Load last seen timestamps from localStorage
+    loadLastSeenTimestamps();
 
     // Load channels list
     loadChannels();
@@ -69,8 +74,9 @@ function setupEventListeners() {
     });
 
     // Manual refresh button
-    document.getElementById('refreshBtn').addEventListener('click', function() {
-        loadMessages();
+    document.getElementById('refreshBtn').addEventListener('click', async function() {
+        await loadMessages();
+        await checkForUpdates();
     });
 
     // Date selector (archive selection)
@@ -260,6 +266,12 @@ function displayMessages(messages) {
     }
 
     lastMessageCount = messages.length;
+
+    // Mark current channel as read (update last seen timestamp to latest message)
+    if (messages.length > 0 && !currentArchiveDate) {
+        const latestTimestamp = Math.max(...messages.map(m => m.timestamp));
+        markChannelAsRead(currentChannelIdx, latestTimestamp);
+    }
 }
 
 /**
@@ -425,16 +437,23 @@ async function cleanupContacts() {
 }
 
 /**
- * Setup auto-refresh
+ * Setup intelligent auto-refresh
+ * Checks for updates regularly but only refreshes UI when new messages arrive
  */
 function setupAutoRefresh() {
-    const interval = window.MC_CONFIG?.refreshInterval || 60000;
+    // Check every 10 seconds for new messages (lightweight check)
+    const checkInterval = 10000;
 
-    autoRefreshInterval = setInterval(() => {
-        loadMessages();
-    }, interval);
+    autoRefreshInterval = setInterval(async () => {
+        // Don't check for updates when viewing archives
+        if (currentArchiveDate) {
+            return;
+        }
 
-    console.log(`Auto-refresh enabled: every ${interval / 1000}s`);
+        await checkForUpdates();
+    }, checkInterval);
+
+    console.log(`Intelligent auto-refresh enabled: checking every ${checkInterval / 1000}s`);
 }
 
 /**
@@ -588,6 +607,135 @@ function escapeHtml(text) {
 }
 
 /**
+ * Load last seen timestamps from localStorage
+ */
+function loadLastSeenTimestamps() {
+    try {
+        const saved = localStorage.getItem('mc_last_seen_timestamps');
+        if (saved) {
+            lastSeenTimestamps = JSON.parse(saved);
+            console.log('Loaded last seen timestamps:', lastSeenTimestamps);
+        }
+    } catch (error) {
+        console.error('Error loading last seen timestamps:', error);
+        lastSeenTimestamps = {};
+    }
+}
+
+/**
+ * Save last seen timestamps to localStorage
+ */
+function saveLastSeenTimestamps() {
+    try {
+        localStorage.setItem('mc_last_seen_timestamps', JSON.stringify(lastSeenTimestamps));
+    } catch (error) {
+        console.error('Error saving last seen timestamps:', error);
+    }
+}
+
+/**
+ * Update last seen timestamp for current channel
+ */
+function markChannelAsRead(channelIdx, timestamp) {
+    lastSeenTimestamps[channelIdx] = timestamp;
+    unreadCounts[channelIdx] = 0;
+    saveLastSeenTimestamps();
+    updateUnreadBadges();
+}
+
+/**
+ * Check for new messages across all channels
+ */
+async function checkForUpdates() {
+    try {
+        // Build query with last seen timestamps
+        const lastSeenParam = encodeURIComponent(JSON.stringify(lastSeenTimestamps));
+        const response = await fetch(`/api/messages/updates?last_seen=${lastSeenParam}`);
+        const data = await response.json();
+
+        if (data.success) {
+            // Update unread counts
+            data.channels.forEach(channel => {
+                unreadCounts[channel.index] = channel.unread_count;
+            });
+
+            // Update UI badges
+            updateUnreadBadges();
+
+            // If current channel has updates, refresh the view
+            const currentChannelUpdate = data.channels.find(ch => ch.index === currentChannelIdx);
+            if (currentChannelUpdate && currentChannelUpdate.has_updates) {
+                console.log(`New messages detected on channel ${currentChannelIdx}, refreshing...`);
+                await loadMessages();
+            }
+        }
+    } catch (error) {
+        console.error('Error checking for updates:', error);
+    }
+}
+
+/**
+ * Update unread badges on channel selector and notification bell
+ */
+function updateUnreadBadges() {
+    // Update channel selector options
+    const selector = document.getElementById('channelSelector');
+    if (selector) {
+        Array.from(selector.options).forEach(option => {
+            const channelIdx = parseInt(option.value);
+            const unreadCount = unreadCounts[channelIdx] || 0;
+
+            // Get base channel name (remove existing badge if any)
+            let channelName = option.textContent.replace(/\s*\(\d+\)$/, '');
+
+            // Add badge if there are unread messages and it's not the current channel
+            if (unreadCount > 0 && channelIdx !== currentChannelIdx) {
+                option.textContent = `${channelName} (${unreadCount})`;
+            } else {
+                option.textContent = channelName;
+            }
+        });
+    }
+
+    // Update notification bell
+    const totalUnread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
+    updateNotificationBell(totalUnread);
+}
+
+/**
+ * Update notification bell icon with unread count
+ */
+function updateNotificationBell(count) {
+    const bellContainer = document.getElementById('notificationBell');
+    if (!bellContainer) return;
+
+    const bellIcon = bellContainer.querySelector('i');
+    let badge = bellContainer.querySelector('.notification-badge');
+
+    if (count > 0) {
+        // Show badge
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'notification-badge';
+            bellContainer.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = 'inline-block';
+
+        // Animate bell icon
+        if (bellIcon) {
+            bellIcon.classList.add('bell-ring');
+            setTimeout(() => bellIcon.classList.remove('bell-ring'), 1000);
+        }
+    } else {
+        // Hide badge
+        if (badge) {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+/**
  * Setup emoji picker
  */
 function setupEmojiPicker() {
@@ -657,6 +805,9 @@ async function loadChannels() {
             availableChannels = data.channels;
             console.log('[loadChannels] Channels loaded:', availableChannels.length);
             populateChannelSelector(data.channels);
+
+            // Check for unread messages after channels are loaded
+            await checkForUpdates();
         } else {
             console.error('[loadChannels] Error loading channels:', data.error);
         }
