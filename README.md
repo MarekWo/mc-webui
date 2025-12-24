@@ -17,6 +17,7 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - ✉️ **Send messages** - Publish to any channel (140 byte limit for LoRa)
 - 📡 **Channel management** - Create, join, and switch between encrypted channels
 - 🔐 **Channel sharing** - Share channels via QR code or encrypted keys
+- 🔓 **Public channels** - Join public channels (starting with #) without encryption keys
 - 🎯 **Reply to users** - Quick reply with `@[UserName]` format
 - 🧹 **Clean contacts** - Remove inactive contacts with configurable threshold
 - 📦 **Message archiving** - Automatic daily archiving with browse-by-date selector
@@ -197,10 +198,26 @@ Access channel management:
 3. Others can join using the "Join Existing" option
 
 #### Joining a Channel
+
+**For private channels:**
 1. Click "Join Existing"
 2. Enter the channel name and encryption key (received from channel creator)
 3. Click "Join Channel"
 4. The channel will be added to your available channels
+
+**For public channels (starting with #):**
+1. Click "Join Existing"
+2. Enter the channel name (e.g., `#test`, `#krakow`)
+3. Leave the encryption key field empty (key is auto-generated based on channel name)
+4. Click "Join Channel"
+5. You can now chat with other users on the same public channel
+
+#### Deleting a Channel
+1. In the Channels modal, click the delete icon (trash) next to any channel
+2. Confirm the deletion
+3. The channel configuration and **all its messages** will be permanently removed
+
+**Note:** Deleting a channel removes all message history for that channel from your device to prevent data leakage when reusing channel slots.
 
 #### Switching Channels
 Use the channel selector dropdown in the navbar to switch between channels. Your selection is remembered between sessions.

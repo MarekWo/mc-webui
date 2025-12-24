@@ -495,7 +495,7 @@ def join_channel():
 
     JSON body:
         name (str): Channel name (required)
-        key (str): 32-char hex key (required)
+        key (str): 32-char hex key (optional for channels starting with #)
         index (int): Channel slot (optional, auto-detect if not provided)
 
     Returns:
@@ -504,14 +504,21 @@ def join_channel():
     try:
         data = request.get_json()
 
-        if not data or 'name' not in data or 'key' not in data:
+        if not data or 'name' not in data:
             return jsonify({
                 'success': False,
-                'error': 'Missing required fields: name, key'
+                'error': 'Missing required field: name'
             }), 400
 
         name = data['name'].strip()
-        key = data['key'].strip().lower()
+        key = data.get('key', '').strip().lower() if 'key' in data else None
+
+        # Validate: key is optional for channels starting with #
+        if not name.startswith('#') and not key:
+            return jsonify({
+                'success': False,
+                'error': 'Key is required for channels not starting with #'
+            }), 400
 
         # Auto-detect free slot if not provided
         if 'index' in data:
@@ -548,7 +555,7 @@ def join_channel():
                 'channel': {
                     'index': index,
                     'name': name,
-                    'key': key
+                    'key': key if key else 'auto-generated'
                 }
             }), 200
         else:
@@ -568,7 +575,7 @@ def join_channel():
 @api_bp.route('/channels/<int:index>', methods=['DELETE'])
 def delete_channel(index):
     """
-    Remove a channel.
+    Remove a channel and delete all its messages.
 
     Args:
         index: Channel index to remove
@@ -577,13 +584,19 @@ def delete_channel(index):
         JSON with result
     """
     try:
+        # First, delete all messages for this channel
+        messages_deleted = parser.delete_channel_messages(index)
+        if not messages_deleted:
+            logger.warning(f"Failed to delete messages for channel {index}, continuing with channel removal")
+
+        # Then remove the channel itself
         success, message = cli.remove_channel(index)
 
         if success:
             invalidate_channels_cache()  # Clear cache to force refresh
             return jsonify({
                 'success': True,
-                'message': f'Channel {index} removed'
+                'message': f'Channel {index} removed and messages deleted'
             }), 200
         else:
             return jsonify({

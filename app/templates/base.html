@@ -143,12 +143,11 @@
                                     <input type="text" class="form-control" id="joinChannelName" required>
                                 </div>
                                 <div class="mb-2">
-                                    <label for="joinChannelKey" class="form-label">Channel Key (32 hex chars)</label>
+                                    <label for="joinChannelKey" class="form-label">Channel Key (32 hex chars) <small class="text-muted">- optional for channels starting with #</small></label>
                                     <input type="text" class="form-control" id="joinChannelKey"
-                                           placeholder="485af7e164459d280d8818d9c99fb30d"
+                                           placeholder="485af7e164459d280d8818d9c99fb30d (leave empty for # channels)"
                                            pattern="[a-fA-F0-9]{32}"
-                                           maxlength="32"
-                                           required>
+                                           maxlength="32">
                                 </div>
                                 <div class="d-flex gap-2">
                                     <button type="submit" class="btn btn-success">

@@ -254,3 +254,55 @@ def filter_messages_by_days(messages: List[Dict], days: int) -> List[Dict]:
 
     logger.info(f"Filtered {len(filtered)} messages from last {days} days (out of {len(messages)} total)")
     return filtered
+
+
+def delete_channel_messages(channel_idx: int) -> bool:
+    """
+    Delete all messages for a specific channel from the .msgs file.
+
+    Args:
+        channel_idx: Channel index to delete messages from
+
+    Returns:
+        True if successful, False otherwise
+    """
+    msgs_file = config.msgs_file_path
+
+    if not msgs_file.exists():
+        logger.warning(f"Messages file not found: {msgs_file}")
+        return True  # No messages to delete
+
+    try:
+        # Read all lines
+        lines_to_keep = []
+        deleted_count = 0
+
+        with open(msgs_file, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    data = json.loads(line)
+                    # Keep messages from other channels
+                    if data.get('channel_idx', 0) != channel_idx:
+                        lines_to_keep.append(line)
+                    else:
+                        deleted_count += 1
+                except json.JSONDecodeError as e:
+                    # Keep malformed lines (don't delete them)
+                    logger.warning(f"Invalid JSON at line {line_num}, keeping: {e}")
+                    lines_to_keep.append(line)
+
+        # Write back the filtered lines
+        with open(msgs_file, 'w', encoding='utf-8') as f:
+            for line in lines_to_keep:
+                f.write(line + '\n')
+
+        logger.info(f"Deleted {deleted_count} messages from channel {channel_idx}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error deleting channel messages: {e}")
+        return False

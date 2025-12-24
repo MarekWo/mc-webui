@@ -172,13 +172,30 @@ function setupEventListeners() {
         const name = document.getElementById('joinChannelName').value.trim();
         const key = document.getElementById('joinChannelKey').value.trim().toLowerCase();
 
+        // Validate: key is optional for channels starting with #, but required for others
+        if (!name.startsWith('#') && !key) {
+            showNotification('Channel key is required for channels not starting with #', 'warning');
+            return;
+        }
+
+        // Validate key format if provided
+        if (key && !/^[a-f0-9]{32}$/.test(key)) {
+            showNotification('Invalid key format. Must be 32 hex characters.', 'warning');
+            return;
+        }
+
         try {
+            const payload = { name: name };
+            if (key) {
+                payload.key = key;
+            }
+
             const response = await fetch('/api/channels/join', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ name: name, key: key })
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();

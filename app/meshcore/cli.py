@@ -222,28 +222,29 @@ def add_channel(name: str) -> Tuple[bool, str, Optional[str]]:
     return True, stdout or stderr, None
 
 
-def set_channel(index: int, name: str, key: str) -> Tuple[bool, str]:
+def set_channel(index: int, name: str, key: Optional[str] = None) -> Tuple[bool, str]:
     """
-    Set/join a channel at specific index with name and key.
+    Set/join a channel at specific index with name and optional key.
 
     Args:
         index: Channel slot number
         name: Channel name
-        key: 32-char hex key
+        key: 32-char hex key (optional for channels starting with #)
 
     Returns:
         Tuple of (success, message)
     """
-    # Validate key format
-    if not re.match(r'^[a-f0-9]{32}$', key.lower()):
-        return False, "Invalid key format (must be 32 hex characters)"
+    # Build command arguments
+    cmd_args = ['set_channel', str(index), name]
 
-    success, stdout, stderr = _run_command([
-        'set_channel',
-        str(index),
-        name,
-        key.lower()
-    ])
+    # Add key if provided
+    if key:
+        # Validate key format
+        if not re.match(r'^[a-f0-9]{32}$', key.lower()):
+            return False, "Invalid key format (must be 32 hex characters)"
+        cmd_args.append(key.lower())
+
+    success, stdout, stderr = _run_command(cmd_args)
 
     return success, stdout or stderr
 
