@@ -10,13 +10,14 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 ### Key Features
 
-- 📱 **View messages** - Display chat history with intelligent auto-refresh
+- 📱 **Mobile-first design** - Optimized responsive UI with slide-out menu for small screens
+- 💬 **View messages** - Display chat history with intelligent auto-refresh
 - 🔔 **Smart notifications** - Bell icon with unread message counter across all channels
 - 📊 **Per-channel badges** - Unread count displayed on each channel in selector
-- ✉️ **Send messages** - Publish to any channel (200 char limit for LoRa)
+- ✉️ **Send messages** - Publish to any channel (140 byte limit for LoRa)
 - 📡 **Channel management** - Create, join, and switch between encrypted channels
 - 🔐 **Channel sharing** - Share channels via QR code or encrypted keys
-- 💬 **Reply to users** - Quick reply with `@[UserName]` format
+- 🎯 **Reply to users** - Quick reply with `@[UserName]` format
 - 🧹 **Clean contacts** - Remove inactive contacts with configurable threshold
 - 📦 **Message archiving** - Automatic daily archiving with browse-by-date selector
 - ⚡ **Efficient polling** - Lightweight update checks every 10s, UI refreshes only when needed
@@ -180,7 +181,9 @@ By default, the live view shows messages from the last 7 days. Older messages ar
 
 ### Managing Channels
 
-Access channel management by clicking the broadcast icon (📡) in the navbar:
+Access channel management:
+1. Click the menu icon (☰) in the navbar
+2. Select "Manage Channels" from the slide-out menu
 
 #### Creating a New Channel
 1. Click "Add New Channel"
@@ -204,10 +207,10 @@ Use the channel selector dropdown in the navbar to switch between channels. Your
 
 ### Viewing Message Archives
 
-Access historical messages using the date selector in the navbar:
+Access historical messages using the date selector:
 
-1. Click the date dropdown in the navbar
-2. Select a date to view archived messages for that day
+1. Click the menu icon (☰) in the navbar
+2. Under "Message History" select a date to view archived messages for that day
 3. Select "Today (Live)" to return to live view
 
 Archives are created automatically at midnight (00:00 UTC) each day. The live view always shows the most recent messages (last 7 days by default).
