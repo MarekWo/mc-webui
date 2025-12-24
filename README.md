@@ -340,7 +340,7 @@ This is an open-source project. Contributions are welcome!
 ## References
 
 - [MeshCore Documentation](https://meshcore.org)
-- [meshcore-cli GitHub](https://github.com/meshcore/meshcore-cli)
+- [meshcore-cli GitHub](https://github.com/meshcore-dev/meshcore-cli)
 - [Product Requirements Document](PRD.md)
 
 
