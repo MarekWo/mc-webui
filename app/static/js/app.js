@@ -74,12 +74,24 @@ function setupEventListeners() {
     document.getElementById('refreshBtn').addEventListener('click', async function() {
         await loadMessages();
         await checkForUpdates();
+
+        // Close offcanvas menu after refresh
+        const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('mainMenu'));
+        if (offcanvas) {
+            offcanvas.hide();
+        }
     });
 
     // Date selector (archive selection)
     document.getElementById('dateSelector').addEventListener('change', function(e) {
         currentArchiveDate = e.target.value || null;
         loadMessages();
+
+        // Close offcanvas menu after selecting date
+        const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('mainMenu'));
+        if (offcanvas) {
+            offcanvas.hide();
+        }
     });
 
     // Cleanup contacts button
@@ -536,7 +548,7 @@ function updateCharCounter() {
     // Count UTF-8 bytes, not Unicode characters
     const encoder = new TextEncoder();
     const byteLength = encoder.encode(input.value).length;
-    const maxBytes = 200;
+    const maxBytes = 140;
 
     counter.textContent = `${byteLength} / ${maxBytes}`;
 
@@ -1045,9 +1057,20 @@ async function shareChannel(index) {
 /**
  * Copy channel key to clipboard
  */
-function copyChannelKey() {
+async function copyChannelKey() {
     const input = document.getElementById('shareChannelKey');
-    input.select();
-    document.execCommand('copy');
-    showNotification('Channel key copied to clipboard!', 'success');
+    try {
+        // Use modern Clipboard API
+        await navigator.clipboard.writeText(input.value);
+        showNotification('Channel key copied to clipboard!', 'success');
+    } catch (error) {
+        // Fallback for older browsers
+        input.select();
+        try {
+            document.execCommand('copy');
+            showNotification('Channel key copied to clipboard!', 'success');
+        } catch (fallbackError) {
+            showNotification('Failed to copy to clipboard', 'danger');
+        }
+    }
 }

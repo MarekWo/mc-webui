@@ -151,6 +151,41 @@ main {
     background: #555;
 }
 
+/* Channel selector and date selector - larger font size */
+#channelSelector,
+#dateSelector {
+    font-size: 1rem;
+}
+
+/* Offcanvas menu styling */
+.offcanvas {
+    width: 280px !important;
+}
+
+.offcanvas-body .list-group-item {
+    padding: 1rem 0.75rem;
+    border: none;
+    border-bottom: 1px solid #dee2e6;
+    font-size: 1rem;
+}
+
+.offcanvas-body .list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+.offcanvas-body .list-group-item i {
+    color: #0d6efd;
+    min-width: 1.5rem;
+}
+
+.offcanvas-body .list-group-item span {
+    font-weight: 500;
+}
+
+.offcanvas-body .list-group-item .form-select {
+    font-size: 1rem;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .message {
@@ -176,22 +211,15 @@ main {
         font-size: 0.7rem;
     }
 
-    /* Navbar: Hide "Refresh" text on mobile, show only icon */
-    #refreshBtn .btn-text {
-        display: none;
-    }
-
     /* Navbar: Reduce gap between elements */
     .navbar .d-flex {
         gap: 0.25rem !important;
     }
 
-    /* Navbar: Smaller selectors on mobile */
-    #channelSelector,
-    #dateSelector {
-        min-width: 80px !important;
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
+    /* Navbar: Channel selector on mobile */
+    #channelSelector {
+        min-width: 100px !important;
+        font-size: 0.9rem;
     }
 
     /* Navbar: Smaller buttons */
@@ -216,7 +244,7 @@ main {
     }
 
     /* Modal: Compact channel list */
-    .list-group-item {
+    .modal .list-group-item {
         padding: 0.5rem;
     }
 

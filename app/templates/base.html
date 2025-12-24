@@ -29,33 +29,57 @@
             <span class="navbar-brand mb-0 h1">
                 <i class="bi bi-broadcast"></i> mc-webui
                 {% if device_name %}
-                <small class="text-white-50">- {{ device_name }}</small>
+                <small class="text-white-50 d-none d-sm-inline">- {{ device_name }}</small>
                 {% endif %}
             </span>
             <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-outline-light btn-sm" id="refreshBtn" title="Refresh messages">
-                    <i class="bi bi-arrow-clockwise"></i> <span class="btn-text">Refresh</span>
-                </button>
                 <div id="notificationBell" class="btn btn-outline-light btn-sm position-relative" style="cursor: default;" title="Unread messages">
                     <i class="bi bi-bell"></i>
                 </div>
-                <select id="channelSelector" class="form-select form-select-sm" style="width: auto; min-width: 120px;" title="Select channel">
+                <select id="channelSelector" class="form-select form-select-sm" style="width: auto; min-width: 100px;" title="Select channel">
                     <option value="0">Public</option>
                     <!-- Channels loaded dynamically via JavaScript -->
                 </select>
-                <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#channelsModal" title="Manage Channels">
-                    <i class="bi bi-broadcast-pin"></i>
-                </button>
-                <select id="dateSelector" class="form-select form-select-sm" style="width: auto; min-width: 150px;" title="Select date">
-                    <option value="">Today (Live)</option>
-                    <!-- Archive dates loaded dynamically via JavaScript -->
-                </select>
-                <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#settingsModal" title="Settings">
-                    <i class="bi bi-gear"></i>
+                <button class="btn btn-outline-light btn-sm" data-bs-toggle="offcanvas" data-bs-target="#mainMenu" title="Menu">
+                    <i class="bi bi-list" style="font-size: 1.25rem;"></i>
                 </button>
             </div>
         </div>
     </nav>
+
+    <!-- Offcanvas Menu -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="mainMenu">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title"><i class="bi bi-menu-button-wide"></i> Menu</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body">
+            <div class="list-group list-group-flush">
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" id="refreshBtn">
+                    <i class="bi bi-arrow-clockwise" style="font-size: 1.5rem;"></i>
+                    <span>Refresh Messages</span>
+                </button>
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#channelsModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-broadcast-pin" style="font-size: 1.5rem;"></i>
+                    <span>Manage Channels</span>
+                </button>
+                <div class="list-group-item">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <i class="bi bi-calendar3" style="font-size: 1.5rem;"></i>
+                        <label for="dateSelector" class="form-label mb-0">Message History</label>
+                    </div>
+                    <select id="dateSelector" class="form-select" title="Select date">
+                        <option value="">Today (Live)</option>
+                        <!-- Archive dates loaded dynamically via JavaScript -->
+                    </select>
+                </div>
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#settingsModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-gear" style="font-size: 1.5rem;"></i>
+                    <span>Settings</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main>
