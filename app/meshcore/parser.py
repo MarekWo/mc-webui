@@ -452,8 +452,8 @@ def _parse_sent_dm_entry(entry: Dict) -> Optional[Dict]:
     text_hash = hash(text[:50]) & 0xFFFFFFFF
     dedup_key = f"sent_{timestamp}_{text_hash}"
 
-    # Status is always timeout for old messages (we don't have ACK tracking)
-    status = 'timeout'
+    # Keep the status from log file (pending by default, no ACK tracking available)
+    status = entry.get('status', 'pending')
 
     return {
         'type': 'dm',
@@ -610,21 +610,31 @@ def get_dm_conversations(days: Optional[int] = 7) -> List[Dict]:
     """
     messages, pubkey_to_name = read_dm_messages(days=days)
 
+    # Build reverse mapping: name -> pubkey_prefix
+    name_to_pubkey = {name: pk for pk, name in pubkey_to_name.items()}
+
     # Group messages by conversation
+    # Use canonical conversation_id: prefer pk_ if we know the pubkey for this name
     conversations = {}
 
-    for msg in messages:
+    def get_canonical_conv_id(msg):
+        """Get canonical conversation ID, preferring pubkey-based IDs."""
         conv_id = msg['conversation_id']
 
-        # For incoming messages with pubkey, also try to merge with name-based
         if conv_id.startswith('pk_'):
-            pk = conv_id[3:]
-            name = pubkey_to_name.get(pk)
-            # Check if there's a name-based conversation we should merge
-            name_conv_id = f"name_{name}" if name else None
-            if name_conv_id and name_conv_id in conversations:
-                # Merge into pubkey-based conversation
-                conversations[conv_id] = conversations.pop(name_conv_id)
+            return conv_id
+
+        # For name-based IDs, check if we have a pubkey mapping
+        if conv_id.startswith('name_'):
+            name = conv_id[5:]
+            pk = name_to_pubkey.get(name)
+            if pk:
+                return f"pk_{pk}"
+
+        return conv_id
+
+    for msg in messages:
+        conv_id = get_canonical_conv_id(msg)
 
         if conv_id not in conversations:
             conversations[conv_id] = {

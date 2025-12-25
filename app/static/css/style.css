@@ -362,6 +362,13 @@ main {
     background-color: #fafafa;
 }
 
+/* DM Messages List (flex container for message alignment) */
+#dmMessagesList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
 @media (max-width: 576px) {
     .dm-messages-container {
         height: calc(100vh - 200px);

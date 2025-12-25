@@ -269,13 +269,14 @@ Access the Direct Messages feature:
 
 **Using the DM page:**
 1. Select a conversation from the dropdown at the top (or one opens automatically if started from a message)
-2. Type your message in the input field (max 200 bytes)
-3. Press Enter or click Send
-4. Click "Back" button to return to the main chat view
+2. Type your message in the input field (max 140 bytes, same as channels)
+3. Use the emoji picker button to insert emojis
+4. Press Enter or click Send
+5. Click "Back" button to return to the main chat view
 
 **Message status indicators:**
-- ⏳ **Pending** (yellow) - Message sent, waiting for delivery confirmation
-- ⏱️ **Timeout** (red) - Delivery confirmation not received within expected time
+- ⏳ **Pending** (clock icon, yellow) - Message sent, awaiting delivery confirmation
+- Note: Due to meshcore-cli limitations, we cannot track actual delivery status
 
 **Notifications:**
 - The bell icon shows a secondary green badge for unread DMs

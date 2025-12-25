@@ -19,6 +19,45 @@
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <!-- Emoji Picker -->
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+    <style>
+        emoji-picker {
+            --emoji-size: 1.5rem;
+            --num-columns: 8;
+        }
+        .emoji-picker-container {
+            position: relative;
+        }
+        .emoji-picker-popup {
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            z-index: 1000;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .emoji-picker-popup.hidden {
+            display: none;
+        }
+
+        /* Mobile responsive adjustments */
+        @media (max-width: 576px) {
+            emoji-picker {
+                --emoji-size: 1.25rem;
+                --num-columns: 6;
+            }
+            .emoji-picker-popup {
+                right: auto;
+                left: 0;
+                width: 100%;
+                max-width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Navbar for DM page -->
@@ -64,19 +103,26 @@
             <div class="row border-top bg-light">
                 <div class="col-12">
                     <form id="dmSendForm" class="p-3">
-                        <div class="input-group">
-                            <input type="text"
-                                   id="dmMessageInput"
-                                   class="form-control"
-                                   placeholder="Type a message..."
-                                   maxlength="200"
-                                   disabled>
-                            <button type="submit" class="btn btn-success px-4" id="dmSendBtn" disabled>
-                                <i class="bi bi-send"></i>
-                            </button>
+                        <div class="emoji-picker-container">
+                            <div class="input-group">
+                                <input type="text"
+                                       id="dmMessageInput"
+                                       class="form-control"
+                                       placeholder="Type a message..."
+                                       maxlength="200"
+                                       disabled>
+                                <button type="button" class="btn btn-outline-secondary" id="dmEmojiBtn" title="Insert emoji">
+                                    <i class="bi bi-emoji-smile"></i>
+                                </button>
+                                <button type="submit" class="btn btn-success px-4" id="dmSendBtn" disabled>
+                                    <i class="bi bi-send"></i>
+                                </button>
+                            </div>
+                            <!-- Emoji picker popup (hidden by default) -->
+                            <div id="dmEmojiPickerPopup" class="emoji-picker-popup hidden"></div>
                         </div>
                         <div class="d-flex justify-content-end">
-                            <small class="text-muted"><span id="dmCharCounter">0</span> / 200</small>
+                            <small class="text-muted"><span id="dmCharCounter">0</span> / 140</small>
                         </div>
                     </form>
                 </div>

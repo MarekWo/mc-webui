@@ -9,6 +9,7 @@ let currentRecipient = null;
 let dmConversations = [];
 let dmLastSeenTimestamps = {};
 let autoRefreshInterval = null;
+let lastMessageTimestamp = 0;  // Track latest message timestamp for smart refresh
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async function() {
@@ -19,6 +20,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Setup event listeners
     setupEventListeners();
+
+    // Setup emoji picker
+    setupEmojiPicker();
 
     // Load conversations into dropdown
     await loadConversations();
@@ -272,8 +276,12 @@ function displayMessages(messages) {
                 <small class="text-muted">Send a message to start the conversation</small>
             </div>
         `;
+        lastMessageTimestamp = 0;
         return;
     }
+
+    // Update last message timestamp for smart refresh
+    lastMessageTimestamp = Math.max(...messages.map(m => m.timestamp));
 
     container.innerHTML = '';
 
@@ -371,7 +379,8 @@ async function sendMessage() {
 }
 
 /**
- * Setup auto-refresh
+ * Setup intelligent auto-refresh
+ * Only refreshes UI when new messages arrive
  */
 function setupAutoRefresh() {
     const checkInterval = 10000; // 10 seconds
@@ -380,17 +389,43 @@ function setupAutoRefresh() {
         // Reload conversations to update unread indicators
         await loadConversations();
 
-        // If viewing a conversation, reload messages
+        // If viewing a conversation, check for new messages
         if (currentConversationId) {
-            await loadMessages();
+            await checkForNewMessages();
         }
     }, checkInterval);
 
-    console.log('Auto-refresh enabled');
+    console.log('Intelligent auto-refresh enabled');
 }
 
 /**
- * Update character counter
+ * Check for new messages without full reload
+ * Only reloads UI when new messages are detected
+ */
+async function checkForNewMessages() {
+    if (!currentConversationId) return;
+
+    try {
+        // Fetch only to check for updates
+        const response = await fetch(`/api/dm/messages?conversation_id=${encodeURIComponent(currentConversationId)}&limit=1`);
+        const data = await response.json();
+
+        if (data.success && data.messages && data.messages.length > 0) {
+            const latestTs = data.messages[data.messages.length - 1].timestamp;
+
+            // Only reload if there are newer messages
+            if (latestTs > lastMessageTimestamp) {
+                console.log('New DM messages detected, refreshing...');
+                await loadMessages();
+            }
+        }
+    } catch (error) {
+        console.error('Error checking for new messages:', error);
+    }
+}
+
+/**
+ * Update character counter (counts UTF-8 bytes, limit is 140)
  */
 function updateCharCounter() {
     const input = document.getElementById('dmMessageInput');
@@ -399,17 +434,75 @@ function updateCharCounter() {
 
     const encoder = new TextEncoder();
     const byteLength = encoder.encode(input.value).length;
+    const maxBytes = 140;
     counter.textContent = byteLength;
 
-    if (byteLength > 180) {
+    // Visual warning when approaching limit
+    if (byteLength >= maxBytes * 0.9) {
         counter.classList.add('text-danger');
-        counter.classList.remove('text-warning');
-    } else if (byteLength > 150) {
-        counter.classList.remove('text-danger');
+        counter.classList.remove('text-warning', 'text-muted');
+    } else if (byteLength >= maxBytes * 0.75) {
+        counter.classList.remove('text-danger', 'text-muted');
         counter.classList.add('text-warning');
     } else {
         counter.classList.remove('text-danger', 'text-warning');
+        counter.classList.add('text-muted');
     }
+}
+
+/**
+ * Setup emoji picker
+ */
+function setupEmojiPicker() {
+    const emojiBtn = document.getElementById('dmEmojiBtn');
+    const emojiPickerPopup = document.getElementById('dmEmojiPickerPopup');
+    const messageInput = document.getElementById('dmMessageInput');
+
+    if (!emojiBtn || !emojiPickerPopup || !messageInput) {
+        console.log('Emoji picker elements not found');
+        return;
+    }
+
+    // Create emoji-picker element
+    const picker = document.createElement('emoji-picker');
+    emojiPickerPopup.appendChild(picker);
+
+    // Toggle emoji picker on button click
+    emojiBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        emojiPickerPopup.classList.toggle('hidden');
+    });
+
+    // Insert emoji into input when selected
+    picker.addEventListener('emoji-click', function(event) {
+        const emoji = event.detail.unicode;
+        const cursorPos = messageInput.selectionStart;
+        const textBefore = messageInput.value.substring(0, cursorPos);
+        const textAfter = messageInput.value.substring(messageInput.selectionEnd);
+
+        // Insert emoji at cursor position
+        messageInput.value = textBefore + emoji + textAfter;
+
+        // Update cursor position (after emoji)
+        const newCursorPos = cursorPos + emoji.length;
+        messageInput.setSelectionRange(newCursorPos, newCursorPos);
+
+        // Update character counter
+        updateCharCounter();
+
+        // Focus back on input
+        messageInput.focus();
+
+        // Hide picker after selection
+        emojiPickerPopup.classList.add('hidden');
+    });
+
+    // Close emoji picker when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!emojiPickerPopup.contains(e.target) && e.target !== emojiBtn && !emojiBtn.contains(e.target)) {
+            emojiPickerPopup.classList.add('hidden');
+        }
+    });
 }
 
 /**
