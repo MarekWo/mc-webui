@@ -895,3 +895,273 @@ def get_messages_updates():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# =============================================================================
+# Direct Messages (DM) Endpoints
+# =============================================================================
+
+@api_bp.route('/dm/conversations', methods=['GET'])
+def get_dm_conversations():
+    """
+    Get list of DM conversations.
+
+    Query params:
+        days (int): Filter to last N days (default: 7)
+
+    Returns:
+        JSON with conversations list:
+        {
+            "success": true,
+            "conversations": [
+                {
+                    "conversation_id": "pk_4563b1621b58",
+                    "display_name": "daniel5120",
+                    "pubkey_prefix": "4563b1621b58",
+                    "last_message_timestamp": 1766491173,
+                    "last_message_preview": "Hello there...",
+                    "unread_count": 0,
+                    "message_count": 15
+                }
+            ],
+            "count": 5
+        }
+    """
+    try:
+        days = request.args.get('days', default=7, type=int)
+
+        conversations = parser.get_dm_conversations(days=days)
+
+        return jsonify({
+            'success': True,
+            'conversations': conversations,
+            'count': len(conversations)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting DM conversations: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/dm/messages', methods=['GET'])
+def get_dm_messages():
+    """
+    Get DM messages for a specific conversation.
+
+    Query params:
+        conversation_id (str): Required - conversation identifier (pk_xxx or name_xxx)
+        limit (int): Max messages to return (default: 100)
+        days (int): Filter to last N days (default: 7)
+
+    Returns:
+        JSON with messages list:
+        {
+            "success": true,
+            "conversation_id": "pk_4563b1621b58",
+            "display_name": "daniel5120",
+            "messages": [...],
+            "count": 25
+        }
+    """
+    try:
+        conversation_id = request.args.get('conversation_id', type=str)
+        if not conversation_id:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required parameter: conversation_id'
+            }), 400
+
+        limit = request.args.get('limit', default=100, type=int)
+        days = request.args.get('days', default=7, type=int)
+
+        messages, pubkey_to_name = parser.read_dm_messages(
+            limit=limit,
+            conversation_id=conversation_id,
+            days=days
+        )
+
+        # Determine display name from conversation_id or messages
+        display_name = 'Unknown'
+        if conversation_id.startswith('pk_'):
+            pk = conversation_id[3:]
+            display_name = pubkey_to_name.get(pk, pk[:8] + '...')
+        elif conversation_id.startswith('name_'):
+            display_name = conversation_id[5:]
+
+        # Also check messages for better name
+        for msg in messages:
+            if msg['direction'] == 'incoming' and msg.get('sender'):
+                display_name = msg['sender']
+                break
+            elif msg['direction'] == 'outgoing' and msg.get('recipient'):
+                display_name = msg['recipient']
+
+        return jsonify({
+            'success': True,
+            'conversation_id': conversation_id,
+            'display_name': display_name,
+            'messages': messages,
+            'count': len(messages)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting DM messages: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/dm/messages', methods=['POST'])
+def send_dm_message():
+    """
+    Send a direct message.
+
+    JSON body:
+        recipient (str): Contact name (required)
+        text (str): Message content (required)
+
+    Returns:
+        JSON with send result:
+        {
+            "success": true,
+            "message": "DM sent",
+            "recipient": "daniel5120",
+            "status": "pending"
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing JSON body'
+            }), 400
+
+        recipient = data.get('recipient', '').strip()
+        text = data.get('text', '').strip()
+
+        if not recipient:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: recipient'
+            }), 400
+
+        if not text:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: text'
+            }), 400
+
+        # MeshCore message length limit
+        byte_length = len(text.encode('utf-8'))
+        if byte_length > 200:
+            return jsonify({
+                'success': False,
+                'error': f'Message too long ({byte_length} bytes). Maximum 200 bytes allowed.'
+            }), 400
+
+        # Send via CLI
+        success, message = cli.send_dm(recipient, text)
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'DM sent',
+                'recipient': recipient,
+                'status': 'pending'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': message
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error sending DM: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/dm/updates', methods=['GET'])
+def get_dm_updates():
+    """
+    Check for new DMs across all conversations.
+    Used for notification badge updates.
+
+    Query params:
+        last_seen (str): JSON object with last seen timestamps per conversation
+                        Format: {"pk_xxx": 1234567890, "name_yyy": 1234567891, ...}
+
+    Returns:
+        JSON with update information:
+        {
+            "success": true,
+            "total_unread": 5,
+            "conversations": [
+                {
+                    "conversation_id": "pk_4563b1621b58",
+                    "display_name": "daniel5120",
+                    "unread_count": 3,
+                    "latest_timestamp": 1766491173
+                }
+            ]
+        }
+    """
+    try:
+        # Parse last_seen timestamps
+        last_seen_str = request.args.get('last_seen', '{}')
+        try:
+            last_seen = json.loads(last_seen_str)
+        except json.JSONDecodeError:
+            last_seen = {}
+
+        # Get all conversations
+        conversations = parser.get_dm_conversations(days=7)
+
+        updates = []
+        total_unread = 0
+
+        for conv in conversations:
+            conv_id = conv['conversation_id']
+            last_seen_ts = last_seen.get(conv_id, 0)
+
+            # Count unread
+            if conv['last_message_timestamp'] > last_seen_ts:
+                # Need to count actual unread messages
+                messages, _ = parser.read_dm_messages(
+                    conversation_id=conv_id,
+                    days=7
+                )
+                unread_count = sum(1 for m in messages if m['timestamp'] > last_seen_ts)
+            else:
+                unread_count = 0
+
+            total_unread += unread_count
+
+            if unread_count > 0:
+                updates.append({
+                    'conversation_id': conv_id,
+                    'display_name': conv['display_name'],
+                    'unread_count': unread_count,
+                    'latest_timestamp': conv['last_message_timestamp']
+                })
+
+        return jsonify({
+            'success': True,
+            'total_unread': total_unread,
+            'conversations': updates
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error checking DM updates: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

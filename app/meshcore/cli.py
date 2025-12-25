@@ -300,3 +300,30 @@ def floodadv() -> Tuple[bool, str]:
     """
     success, stdout, stderr = _run_command(['floodadv'])
     return success, stdout or stderr
+
+
+# =============================================================================
+# Direct Messages (DM)
+# =============================================================================
+
+def send_dm(recipient: str, text: str) -> Tuple[bool, str]:
+    """
+    Send a direct/private message to a contact.
+
+    Uses meshcli 'msg' command: msg <name> <message>
+
+    Args:
+        recipient: Contact name to send to
+        text: Message content
+
+    Returns:
+        Tuple of (success, message)
+    """
+    if not recipient or not recipient.strip():
+        return False, "Recipient name is required"
+
+    if not text or not text.strip():
+        return False, "Message text is required"
+
+    success, stdout, stderr = _run_command(['msg', recipient.strip(), text.strip()])
+    return success, stdout or stderr

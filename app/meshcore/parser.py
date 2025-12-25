@@ -1,11 +1,13 @@
 """
 Message parser - reads and parses .msgs file (JSON Lines format)
+Supports channel messages (CHAN, SENT_CHAN) and direct messages (PRIV, SENT_MSG)
 """
 
 import json
 import logging
+import time
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 from app.config import config
 
@@ -306,3 +308,318 @@ def delete_channel_messages(channel_idx: int) -> bool:
     except Exception as e:
         logger.error(f"Error deleting channel messages: {e}")
         return False
+
+
+# =============================================================================
+# Direct Messages (DM) Parsing
+# =============================================================================
+
+def _parse_priv_message(line: Dict) -> Optional[Dict]:
+    """
+    Parse incoming private message (PRIV type).
+
+    Args:
+        line: Raw JSON object from .msgs file with type='PRIV'
+
+    Returns:
+        Parsed DM dict or None if invalid
+    """
+    text = line.get('text', '').strip()
+    if not text:
+        return None
+
+    timestamp = line.get('timestamp', 0)
+    pubkey_prefix = line.get('pubkey_prefix', '')
+    sender = line.get('name', 'Unknown')
+    sender_timestamp = line.get('sender_timestamp', 0)
+
+    # Generate conversation ID - prefer pubkey_prefix if available
+    if pubkey_prefix:
+        conversation_id = f"pk_{pubkey_prefix}"
+    else:
+        conversation_id = f"name_{sender}"
+
+    # Generate deduplication key
+    text_hash = hash(text[:50]) & 0xFFFFFFFF  # 32-bit positive hash
+    dedup_key = f"priv_{pubkey_prefix}_{sender_timestamp}_{text_hash}"
+
+    return {
+        'type': 'dm',
+        'direction': 'incoming',
+        'sender': sender,
+        'content': text,
+        'timestamp': timestamp,
+        'sender_timestamp': sender_timestamp,
+        'datetime': datetime.fromtimestamp(timestamp).isoformat() if timestamp > 0 else None,
+        'is_own': False,
+        'snr': line.get('SNR'),
+        'path_len': line.get('path_len'),
+        'pubkey_prefix': pubkey_prefix,
+        'txt_type': line.get('txt_type', 0),
+        'conversation_id': conversation_id,
+        'dedup_key': dedup_key
+    }
+
+
+def _parse_sent_msg(line: Dict) -> Optional[Dict]:
+    """
+    Parse outgoing private message (SENT_MSG type).
+
+    Args:
+        line: Raw JSON object from .msgs file with type='SENT_MSG'
+
+    Returns:
+        Parsed DM dict or None if invalid
+    """
+    text = line.get('text', '').strip()
+    if not text:
+        return None
+
+    timestamp = line.get('timestamp', 0)
+    recipient = line.get('name', 'Unknown')
+    expected_ack = line.get('expected_ack', '')
+    suggested_timeout = line.get('suggested_timeout', 10000)  # Default 10s
+
+    # Generate conversation ID from recipient name
+    conversation_id = f"name_{recipient}"
+
+    # Deduplication key - use expected_ack if available
+    if expected_ack:
+        dedup_key = f"sent_{expected_ack}"
+    else:
+        text_hash = hash(text[:50]) & 0xFFFFFFFF
+        dedup_key = f"sent_{timestamp}_{text_hash}"
+
+    # Calculate status based on timeout
+    age_ms = (time.time() - timestamp) * 1000
+    if age_ms > suggested_timeout:
+        status = 'timeout'
+    else:
+        status = 'pending'
+
+    return {
+        'type': 'dm',
+        'direction': 'outgoing',
+        'recipient': recipient,
+        'content': text,
+        'timestamp': timestamp,
+        'datetime': datetime.fromtimestamp(timestamp).isoformat() if timestamp > 0 else None,
+        'is_own': True,
+        'expected_ack': expected_ack,
+        'suggested_timeout': suggested_timeout,
+        'status': status,
+        'txt_type': line.get('txt_type', 0),
+        'conversation_id': conversation_id,
+        'dedup_key': dedup_key
+    }
+
+
+def parse_dm_message(line: Dict) -> Optional[Dict]:
+    """
+    Parse a DM message (PRIV or SENT_MSG) from .msgs file.
+
+    Args:
+        line: Raw JSON object from .msgs file
+
+    Returns:
+        Parsed DM dict or None if not a valid DM message
+    """
+    msg_type = line.get('type')
+
+    if msg_type == 'PRIV':
+        return _parse_priv_message(line)
+    elif msg_type == 'SENT_MSG':
+        return _parse_sent_msg(line)
+
+    return None
+
+
+def read_dm_messages(
+    limit: Optional[int] = None,
+    conversation_id: Optional[str] = None,
+    days: Optional[int] = 7
+) -> Tuple[List[Dict], Dict[str, str]]:
+    """
+    Read and parse DM messages from .msgs file.
+
+    Args:
+        limit: Maximum messages to return (None = all)
+        conversation_id: Filter by specific conversation (None = all)
+        days: Filter to last N days (None = no filter)
+
+    Returns:
+        Tuple of (messages_list, pubkey_to_name_mapping)
+        The mapping helps correlate outgoing messages (name only) with incoming (pubkey)
+    """
+    msgs_file = config.msgs_file_path
+
+    if not msgs_file.exists():
+        logger.warning(f"Messages file not found: {msgs_file}")
+        return [], {}
+
+    messages = []
+    seen_dedup_keys = set()
+    pubkey_to_name = {}  # Map pubkey_prefix -> most recent name
+
+    try:
+        with open(msgs_file, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    data = json.loads(line)
+                    parsed = parse_dm_message(data)
+
+                    if not parsed:
+                        continue
+
+                    # Update pubkey->name mapping from incoming messages
+                    if parsed['direction'] == 'incoming' and parsed.get('pubkey_prefix'):
+                        pubkey_to_name[parsed['pubkey_prefix']] = parsed['sender']
+
+                    # Deduplicate
+                    if parsed['dedup_key'] in seen_dedup_keys:
+                        continue
+                    seen_dedup_keys.add(parsed['dedup_key'])
+
+                    # Filter by conversation if specified
+                    if conversation_id:
+                        if parsed['conversation_id'] != conversation_id:
+                            # Also check if it matches via pubkey->name mapping
+                            # For outgoing messages, conversation_id is name-based
+                            # but incoming might be pk-based
+                            if conversation_id.startswith('pk_'):
+                                pk = conversation_id[3:]
+                                name = pubkey_to_name.get(pk)
+                                if name and parsed['conversation_id'] == f"name_{name}":
+                                    # Match via name
+                                    pass
+                                else:
+                                    continue
+                            elif conversation_id.startswith('name_'):
+                                name = conversation_id[5:]
+                                # Check if any pubkey maps to this name
+                                matching_pk = None
+                                for pk, n in pubkey_to_name.items():
+                                    if n == name:
+                                        matching_pk = pk
+                                        break
+                                if matching_pk and parsed['conversation_id'] == f"pk_{matching_pk}":
+                                    # Match via pubkey
+                                    pass
+                                else:
+                                    continue
+                            else:
+                                continue
+
+                    messages.append(parsed)
+
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Invalid JSON at line {line_num}: {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error parsing DM at line {line_num}: {e}")
+                    continue
+
+    except FileNotFoundError:
+        logger.error(f"Messages file not found: {msgs_file}")
+        return [], {}
+    except Exception as e:
+        logger.error(f"Error reading messages file: {e}")
+        return [], {}
+
+    # Sort by timestamp (oldest first)
+    messages.sort(key=lambda m: m['timestamp'])
+
+    # Filter by days if specified
+    if days is not None and days > 0:
+        cutoff_timestamp = (datetime.now() - timedelta(days=days)).timestamp()
+        messages = [m for m in messages if m['timestamp'] >= cutoff_timestamp]
+
+    # Apply limit (return most recent)
+    if limit is not None and limit > 0:
+        messages = messages[-limit:]
+
+    logger.info(f"Loaded {len(messages)} DM messages")
+    return messages, pubkey_to_name
+
+
+def get_dm_conversations(days: Optional[int] = 7) -> List[Dict]:
+    """
+    Get list of DM conversations with metadata.
+
+    Args:
+        days: Filter to last N days (None = no filter)
+
+    Returns:
+        List of conversation dicts sorted by most recent activity:
+        [
+            {
+                'conversation_id': str,
+                'display_name': str,
+                'pubkey_prefix': str or None,
+                'last_message_timestamp': int,
+                'last_message_preview': str,
+                'unread_count': int,  # Always 0 here, frontend tracks unread
+                'message_count': int
+            }
+        ]
+    """
+    messages, pubkey_to_name = read_dm_messages(days=days)
+
+    # Group messages by conversation
+    conversations = {}
+
+    for msg in messages:
+        conv_id = msg['conversation_id']
+
+        # For incoming messages with pubkey, also try to merge with name-based
+        if conv_id.startswith('pk_'):
+            pk = conv_id[3:]
+            name = pubkey_to_name.get(pk)
+            # Check if there's a name-based conversation we should merge
+            name_conv_id = f"name_{name}" if name else None
+            if name_conv_id and name_conv_id in conversations:
+                # Merge into pubkey-based conversation
+                conversations[conv_id] = conversations.pop(name_conv_id)
+
+        if conv_id not in conversations:
+            conversations[conv_id] = {
+                'conversation_id': conv_id,
+                'display_name': '',
+                'pubkey_prefix': None,
+                'last_message_timestamp': 0,
+                'last_message_preview': '',
+                'unread_count': 0,
+                'message_count': 0
+            }
+
+        conv = conversations[conv_id]
+        conv['message_count'] += 1
+
+        # Update display name
+        if msg['direction'] == 'incoming':
+            conv['display_name'] = msg['sender']
+            if msg.get('pubkey_prefix'):
+                conv['pubkey_prefix'] = msg['pubkey_prefix']
+        elif msg['direction'] == 'outgoing' and not conv['display_name']:
+            conv['display_name'] = msg.get('recipient', 'Unknown')
+
+        # Update last message info
+        if msg['timestamp'] > conv['last_message_timestamp']:
+            conv['last_message_timestamp'] = msg['timestamp']
+            preview = msg['content'][:50]
+            if len(msg['content']) > 50:
+                preview += '...'
+            if msg['is_own']:
+                preview = f"You: {preview}"
+            conv['last_message_preview'] = preview
+
+    # Convert to list and sort by most recent
+    result = list(conversations.values())
+    result.sort(key=lambda c: c['last_message_timestamp'], reverse=True)
+
+    logger.info(f"Found {len(result)} DM conversations")
+    return result

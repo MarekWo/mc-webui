@@ -63,6 +63,13 @@
                     <i class="bi bi-broadcast-pin" style="font-size: 1.5rem;"></i>
                     <span>Manage Channels</span>
                 </button>
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#dmModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-envelope" style="font-size: 1.5rem;"></i>
+                    <div class="d-flex flex-grow-1 justify-content-between align-items-center">
+                        <span>Direct Messages</span>
+                        <span id="dmMenuBadge" class="badge bg-success rounded-pill" style="display: none;">0</span>
+                    </div>
+                </button>
                 <div class="list-group-item">
                     <div class="d-flex align-items-center gap-3 mb-2">
                         <i class="bi bi-calendar3" style="font-size: 1.5rem;"></i>
@@ -249,6 +256,51 @@
                     <h6>Device Information</h6>
                     <div id="deviceInfo" class="small text-muted">
                         Loading...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Direct Messages Modal -->
+    <div class="modal fade" id="dmModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-envelope"></i> Direct Messages</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <!-- Conversation list (shown when no conversation selected) -->
+                    <div id="dmConversationList">
+                        <div class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm"></div> Loading...
+                        </div>
+                    </div>
+
+                    <!-- Conversation thread (shown when conversation selected) -->
+                    <div id="dmThread" style="display: none;">
+                        <div class="p-2 bg-light border-bottom d-flex align-items-center">
+                            <button class="btn btn-sm btn-outline-secondary me-2" onclick="closeDmThread()">
+                                <i class="bi bi-arrow-left"></i>
+                            </button>
+                            <strong id="dmThreadRecipient"></strong>
+                        </div>
+                        <div id="dmMessagesList" class="dm-messages-container">
+                            <!-- Messages loaded here -->
+                        </div>
+                        <div class="p-2 border-top">
+                            <form id="dmSendForm" class="d-flex gap-2">
+                                <input type="text" id="dmMessageInput" class="form-control form-control-sm"
+                                       placeholder="Type a message..." maxlength="200">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-send"></i>
+                                </button>
+                            </form>
+                            <div class="d-flex justify-content-end mt-1">
+                                <small class="text-muted"><span id="dmCharCounter">0</span>/200</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

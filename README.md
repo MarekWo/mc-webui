@@ -15,6 +15,7 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - 🔔 **Smart notifications** - Bell icon with unread message counter across all channels
 - 📊 **Per-channel badges** - Unread count displayed on each channel in selector
 - ✉️ **Send messages** - Publish to any channel (140 byte limit for LoRa)
+- 💌 **Direct messages (DM)** - Send and receive private messages with delivery status tracking
 - 📡 **Channel management** - Create, join, and switch between encrypted channels
 - 🔐 **Channel sharing** - Share channels via QR code or encrypted keys
 - 🔓 **Public channels** - Join public channels (starting with #) without encryption keys
@@ -166,10 +167,10 @@ mc-webui/
 - [x] Public Channels (# prefix support, auto-key generation)
 - [x] Message Archiving (Daily archiving with browse-by-date selector)
 - [x] Smart Notifications (Unread counters per channel and total)
+- [x] Direct Messages (DM) - Private messaging with delivery status tracking
 
 ### Next Steps
 
-- [ ] **Private Messages (DM)** - Send and receive direct messages with delivery status tracking
 - [ ] Performance Optimization - Frontend and backend improvements
 - [ ] Enhanced Testing - Unit and integration tests
 - [ ] Documentation Polish - API docs and usage guides
@@ -250,6 +251,32 @@ Archives are created automatically at midnight (00:00 UTC) each day. The live vi
 ### Replying to Users
 
 Click the reply button on any message to insert `@[UserName]` into the text field, then type your reply.
+
+### Direct Messages (DM)
+
+Access the Direct Messages feature from the slide-out menu:
+
+1. Click the menu icon (☰) in the navbar
+2. Select "Direct Messages" from the menu
+3. View your conversation list with unread indicators
+
+**Starting a new conversation:**
+- Click the "DM" button next to any channel message to start a private chat with that user
+- Or select an existing conversation from the DM list
+
+**Sending a direct message:**
+1. Open a conversation
+2. Type your message (max 200 characters)
+3. Press Enter or click Send
+
+**Message status indicators:**
+- ⏳ **Pending** (yellow) - Message sent, waiting for delivery confirmation
+- ⏱️ **Timeout** (red) - Delivery confirmation not received within expected time
+
+**Notifications:**
+- The bell icon shows a secondary green badge for unread DMs
+- Each conversation shows unread count in the conversation list
+- DM badge in the menu shows total unread DM count
 
 ### Managing Contacts
 
