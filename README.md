@@ -43,6 +43,8 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 **Note:** meshcore-cli is automatically installed inside the Docker container - no host installation required!
 
+**Important:** This application requires meshcore-cli version **1.3.12 or newer** for proper Direct Messages (DM) functionality. The Docker container automatically installs the latest version.
+
 ### Installation
 
 1. **Clone the repository**
