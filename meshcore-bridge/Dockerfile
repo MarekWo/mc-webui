@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install meshcore-cli (from PyPI)
-RUN pip install --no-cache-dir meshcore-cli
+RUN pip install --no-cache-dir meshcore-cli==1.3.12
 
 # Copy bridge application
 COPY requirements.txt .
