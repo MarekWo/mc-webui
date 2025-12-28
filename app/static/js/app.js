@@ -11,7 +11,6 @@ let currentChannelIdx = 0;  // Current active channel (0 = Public)
 let availableChannels = [];  // List of channels from API
 let lastSeenTimestamps = {};  // Track last seen message timestamp per channel
 let unreadCounts = {};  // Track unread message counts per channel
-let contactsList = [];  // List of contacts from API (for DM button visibility)
 
 // DM state (for badge updates on main page)
 let dmLastSeenTimestamps = {};  // Track last seen DM timestamp per conversation
@@ -40,9 +39,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     // CRITICAL: Load channels FIRST before anything else
     // This ensures channels are available for checkForUpdates()
     await loadChannels();
-
-    // Load contacts list (for DM button visibility)
-    loadContacts();
 
     // Now load other data (can run in parallel)
     loadArchiveList();
@@ -339,9 +335,6 @@ function createMessageElement(msg) {
         metaInfo += ` | Hops: ${msg.path_len}`;
     }
 
-    // Check if sender is in contacts (for DM button visibility)
-    const senderInContacts = contactsList.includes(msg.sender);
-
     div.innerHTML = `
         <div class="message-header">
             <span class="message-sender">${escapeHtml(msg.sender)}</span>
@@ -354,11 +347,9 @@ function createMessageElement(msg) {
                 <button class="btn btn-outline-secondary btn-sm btn-reply" onclick="replyTo('${escapeHtml(msg.sender)}')">
                     <i class="bi bi-reply"></i> Reply
                 </button>
-                ${senderInContacts ? `
-                    <button class="btn btn-outline-secondary btn-sm btn-reply" onclick="startDmTo('${escapeHtml(msg.sender)}')">
-                        <i class="bi bi-envelope"></i> DM
-                    </button>
-                ` : ''}
+                <button class="btn btn-outline-secondary btn-sm btn-reply" onclick="startDmTo('${escapeHtml(msg.sender)}')">
+                    <i class="bi bi-envelope"></i> DM
+                </button>
             </div>
         ` : ''}
     `;
@@ -963,30 +954,6 @@ async function loadChannels() {
         }
         // Fallback: ensure at least Public channel exists
         ensurePublicChannel();
-    }
-}
-
-/**
- * Load contacts list from device
- * This is used to determine if DM button should be shown for a sender
- */
-async function loadContacts() {
-    try {
-        console.log('[loadContacts] Fetching contacts from API...');
-
-        const response = await fetch('/api/contacts');
-        const data = await response.json();
-
-        if (data.success) {
-            contactsList = data.contacts || [];
-            console.log(`[loadContacts] Loaded ${contactsList.length} contacts:`, contactsList);
-        } else {
-            console.error('[loadContacts] Error loading contacts:', data.error);
-            contactsList = [];
-        }
-    } catch (error) {
-        console.error('[loadContacts] Exception:', error.message || error);
-        contactsList = [];
     }
 }
 

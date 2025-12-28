@@ -269,14 +269,19 @@ Access the Direct Messages feature:
 **From channel messages:**
 - Click the "DM" button next to any message to start a private chat with that user
 - You'll be redirected to the DM page with that conversation selected
-- **Note:** The DM button is only visible for users who are in your contacts list (meshcli: `contacts`). This ensures that direct messages will actually be delivered to the recipient.
 
 **Using the DM page:**
-1. Select a conversation from the dropdown at the top (or one opens automatically if started from a message)
+1. **Select a recipient** from the dropdown at the top:
+   - **Existing conversations** are shown first (with message history)
+   - Separator: "--- Available contacts ---"
+   - **All contacts from your device** (meshcli: `contacts`) appear below
+   - You can start a new conversation with anyone in your contacts list
 2. Type your message in the input field (max 140 bytes, same as channels)
 3. Use the emoji picker button to insert emojis
 4. Press Enter or click Send
 5. Click "Back" button to return to the main chat view
+
+**Note:** You can only send DMs to users in your contacts list. The dropdown shows all available contacts, making it easy to start new conversations.
 
 **Message status indicators:**
 - ⏳ **Pending** (clock icon, yellow) - Message sent, awaiting delivery confirmation

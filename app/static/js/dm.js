@@ -7,6 +7,7 @@
 let currentConversationId = null;
 let currentRecipient = null;
 let dmConversations = [];
+let contactsList = [];  // List of all contacts from device
 let dmLastSeenTimestamps = {};
 let autoRefreshInterval = null;
 let lastMessageTimestamp = 0;  // Track latest message timestamp for smart refresh
@@ -114,18 +115,46 @@ function setupEventListeners() {
 }
 
 /**
+ * Load contacts from device
+ */
+async function loadContacts() {
+    try {
+        const response = await fetch('/api/contacts');
+        const data = await response.json();
+
+        if (data.success) {
+            contactsList = data.contacts || [];
+            console.log(`[DM] Loaded ${contactsList.length} contacts:`, contactsList);
+        } else {
+            console.error('[DM] Failed to load contacts:', data.error);
+            contactsList = [];
+        }
+    } catch (error) {
+        console.error('[DM] Error loading contacts:', error);
+        contactsList = [];
+    }
+}
+
+/**
  * Load conversations from API
  */
 async function loadConversations() {
     try {
-        const response = await fetch('/api/dm/conversations?days=7');
-        const data = await response.json();
+        // Load both conversations and contacts in parallel
+        const [convResponse, _] = await Promise.all([
+            fetch('/api/dm/conversations?days=7'),
+            loadContacts()
+        ]);
 
-        if (data.success) {
-            dmConversations = data.conversations || [];
+        const convData = await convResponse.json();
+
+        if (convData.success) {
+            dmConversations = convData.conversations || [];
             populateConversationSelector();
         } else {
-            console.error('Failed to load conversations:', data.error);
+            console.error('Failed to load conversations:', convData.error);
+            // Still populate selector with just contacts
+            populateConversationSelector();
         }
     } catch (error) {
         console.error('Error loading conversations:', error);
@@ -134,39 +163,73 @@ async function loadConversations() {
 
 /**
  * Populate the conversation selector dropdown
+ * Shows both existing conversations and all contacts
  */
 function populateConversationSelector() {
     const selector = document.getElementById('dmConversationSelector');
     if (!selector) return;
 
-    // Clear existing options (keep first placeholder)
+    // Clear existing options
     selector.innerHTML = '<option value="">Select chat...</option>';
 
-    if (dmConversations.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'No conversations yet';
-        opt.disabled = true;
-        selector.appendChild(opt);
-        return;
+    // Track which names are already in conversations
+    const conversationNames = new Set();
+
+    // 1. Add existing conversations (with history)
+    if (dmConversations.length > 0) {
+        dmConversations.forEach(conv => {
+            const opt = document.createElement('option');
+            opt.value = conv.conversation_id;
+
+            // Show unread indicator
+            const lastSeen = dmLastSeenTimestamps[conv.conversation_id] || 0;
+            const isUnread = conv.last_message_timestamp > lastSeen;
+
+            let label = conv.display_name;
+            if (isUnread) {
+                label = `* ${label}`;
+            }
+
+            opt.textContent = label;
+            selector.appendChild(opt);
+
+            // Track this name
+            conversationNames.add(conv.display_name);
+        });
     }
 
-    dmConversations.forEach(conv => {
+    // 2. Add separator if we have both conversations and contacts
+    if (dmConversations.length > 0 && contactsList.length > 0) {
+        const separator = document.createElement('option');
+        separator.disabled = true;
+        separator.textContent = '--- Available contacts ---';
+        selector.appendChild(separator);
+    }
+
+    // 3. Add all contacts from device (skip those already in conversations)
+    if (contactsList.length > 0) {
+        contactsList.forEach(contactName => {
+            // Skip if already in conversations
+            if (conversationNames.has(contactName)) {
+                return;
+            }
+
+            const opt = document.createElement('option');
+            // Create conversation_id as name_<contactName>
+            opt.value = `name_${contactName}`;
+            opt.textContent = contactName;
+            selector.appendChild(opt);
+        });
+    }
+
+    // Show message if no conversations and no contacts
+    if (dmConversations.length === 0 && contactsList.length === 0) {
         const opt = document.createElement('option');
-        opt.value = conv.conversation_id;
-
-        // Show unread indicator
-        const lastSeen = dmLastSeenTimestamps[conv.conversation_id] || 0;
-        const isUnread = conv.last_message_timestamp > lastSeen;
-
-        let label = conv.display_name;
-        if (isUnread) {
-            label = `* ${label}`;
-        }
-
-        opt.textContent = label;
+        opt.value = '';
+        opt.textContent = 'No contacts available';
+        opt.disabled = true;
         selector.appendChild(opt);
-    });
+    }
 
     // If we have a current conversation, select it
     if (currentConversationId) {
