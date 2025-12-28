@@ -121,7 +121,7 @@ def get_contacts() -> Tuple[bool, str]:
     return success, stdout or stderr
 
 
-def parse_contacts(output: str) -> List[str]:
+def parse_contacts(output: str, filter_types: Optional[List[str]] = None) -> List[str]:
     """
     Parse meshcli contacts output to extract contact names.
 
@@ -133,6 +133,8 @@ def parse_contacts(output: str) -> List[str]:
 
     Args:
         output: Raw output from meshcli contacts command
+        filter_types: Optional list of contact types to include (e.g., ['CLI'])
+                     If None, all types are included.
 
     Returns:
         List of contact names (unique)
@@ -160,8 +162,10 @@ def parse_contacts(output: str) -> List[str]:
 
             # Validate that second column looks like a type
             if contact_type in ['CLI', 'REP', 'ROOM', 'SENS'] and contact_name:
-                if contact_name not in contacts:
-                    contacts.append(contact_name)
+                # Apply type filter if specified
+                if filter_types is None or contact_type in filter_types:
+                    if contact_name not in contacts:
+                        contacts.append(contact_name)
 
     return contacts
 
@@ -169,6 +173,7 @@ def parse_contacts(output: str) -> List[str]:
 def get_contacts_list() -> Tuple[bool, List[str], str]:
     """
     Get parsed list of contact names from the device.
+    Only returns CLI (client) contacts, excluding REP, ROOM, and SENS.
 
     Returns:
         Tuple of (success, contact_names_list, error_message)
@@ -178,7 +183,8 @@ def get_contacts_list() -> Tuple[bool, List[str], str]:
     if not success:
         return False, [], output
 
-    contacts = parse_contacts(output)
+    # Filter only CLI (client) contacts - no repeaters, rooms, or sensors
+    contacts = parse_contacts(output, filter_types=['CLI'])
     return True, contacts, ""
 
 
