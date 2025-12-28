@@ -47,8 +47,8 @@ def parse_message(line: Dict, allowed_channels: Optional[List[int]] = None) -> O
 
     # Extract sender name
     if is_own:
-        # For sent messages, use device name from config or 'name' field
-        sender = line.get('name', config.MC_DEVICE_NAME)
+        # For sent messages, use 'sender' field (meshcore-cli 1.3.12+)
+        sender = line.get('sender', config.MC_DEVICE_NAME)
         content = text
     else:
         # For received messages, extract sender from "SenderName: message" format
