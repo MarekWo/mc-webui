@@ -12,6 +12,8 @@ services:
       - "${MC_CONFIG_DIR}:/root/.config/meshcore:rw"
     environment:
       - MC_SERIAL_PORT=${MC_SERIAL_PORT}
+      - MC_CONFIG_DIR=/root/.config/meshcore
+      - MC_DEVICE_NAME=${MC_DEVICE_NAME}
     networks:
       - meshcore-net
     healthcheck:
