@@ -347,9 +347,6 @@ function createMessageElement(msg) {
                 <button class="btn btn-outline-secondary btn-sm btn-reply" onclick="replyTo('${escapeHtml(msg.sender)}')">
                     <i class="bi bi-reply"></i> Reply
                 </button>
-                <button class="btn btn-outline-secondary btn-sm btn-reply" onclick="startDmTo('${escapeHtml(msg.sender)}')">
-                    <i class="bi bi-envelope"></i> DM
-                </button>
             </div>
         ` : ''}
     `;

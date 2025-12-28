@@ -121,6 +121,73 @@ def get_contacts() -> Tuple[bool, str]:
     return success, stdout or stderr
 
 
+def parse_contacts(output: str, filter_types: Optional[List[str]] = None) -> List[str]:
+    """
+    Parse meshcli contacts output to extract contact names.
+
+    Expected format from meshcli contacts:
+    ContactName                    CLI   pubkey_prefix  path
+    ContactName 🔫                 CLI   pubkey_prefix  path
+
+    Contact name is separated from type column (CLI/REP/ROOM/SENS) by multiple spaces.
+
+    Args:
+        output: Raw output from meshcli contacts command
+        filter_types: Optional list of contact types to include (e.g., ['CLI'])
+                     If None, all types are included.
+
+    Returns:
+        List of contact names (unique)
+    """
+    contacts = []
+
+    for line in output.split('\n'):
+        line_stripped = line.strip()
+
+        # Skip empty lines, headers, and INFO lines
+        if not line_stripped or line_stripped.startswith('---') or \
+           line.lower().startswith('contact') or line.startswith('INFO:'):
+            continue
+
+        # Split by 2+ consecutive spaces (columns separator in meshcli output)
+        # Format: "ContactName         CLI   pubkey  path"
+        parts = re.split(r'\s{2,}', line)
+
+        if len(parts) >= 2:
+            # First part is the contact name (may include emoji and spaces)
+            contact_name = parts[0].strip()
+
+            # Second part should be type (CLI, REP, ROOM, SENS)
+            contact_type = parts[1].strip()
+
+            # Validate that second column looks like a type
+            if contact_type in ['CLI', 'REP', 'ROOM', 'SENS'] and contact_name:
+                # Apply type filter if specified
+                if filter_types is None or contact_type in filter_types:
+                    if contact_name not in contacts:
+                        contacts.append(contact_name)
+
+    return contacts
+
+
+def get_contacts_list() -> Tuple[bool, List[str], str]:
+    """
+    Get parsed list of contact names from the device.
+    Only returns CLI (client) contacts, excluding REP, ROOM, and SENS.
+
+    Returns:
+        Tuple of (success, contact_names_list, error_message)
+    """
+    success, output = get_contacts()
+
+    if not success:
+        return False, [], output
+
+    # Filter only CLI (client) contacts - no repeaters, rooms, or sensors
+    contacts = parse_contacts(output, filter_types=['CLI'])
+    return True, contacts, ""
+
+
 def clean_inactive_contacts(hours: int = 48) -> Tuple[bool, str]:
     """
     Remove contacts inactive for specified hours.

@@ -224,6 +224,39 @@ def get_status():
         }), 500
 
 
+@api_bp.route('/contacts', methods=['GET'])
+def get_contacts():
+    """
+    Get list of contacts from the device.
+
+    Returns:
+        JSON with list of contact names
+    """
+    try:
+        success, contacts, error = cli.get_contacts_list()
+
+        if success:
+            return jsonify({
+                'success': True,
+                'contacts': contacts,
+                'count': len(contacts)
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': error or 'Failed to get contacts',
+                'contacts': []
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error getting contacts: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'contacts': []
+        }), 500
+
+
 @api_bp.route('/contacts/cleanup', methods=['POST'])
 def cleanup_contacts():
     """

@@ -266,16 +266,18 @@ Access the Direct Messages feature:
 2. Select "Direct Messages" from the menu
 3. Opens a dedicated full-page DM view
 
-**From channel messages:**
-- Click the "DM" button next to any message to start a private chat with that user
-- You'll be redirected to the DM page with that conversation selected
-
 **Using the DM page:**
-1. Select a conversation from the dropdown at the top (or one opens automatically if started from a message)
+1. **Select a recipient** from the dropdown at the top:
+   - **Existing conversations** are shown first (with message history)
+   - Separator: "--- Available contacts ---"
+   - **All client contacts** from your device (only CLI type, no repeaters/rooms)
+   - You can start a new conversation with anyone in your contacts list
 2. Type your message in the input field (max 140 bytes, same as channels)
 3. Use the emoji picker button to insert emojis
 4. Press Enter or click Send
 5. Click "Back" button to return to the main chat view
+
+**Note:** Only client contacts (CLI) are shown in the dropdown. Repeaters (REP), rooms (ROOM), and sensors (SENS) are automatically filtered out.
 
 **Message status indicators:**
 - ⏳ **Pending** (clock icon, yellow) - Message sent, awaiting delivery confirmation
