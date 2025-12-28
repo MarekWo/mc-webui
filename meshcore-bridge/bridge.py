@@ -326,8 +326,20 @@ class MeshCLISession:
             Dict with success, stdout, stderr, returncode
         """
         cmd_id = str(uuid.uuid4())[:8]
-        # Properly quote arguments containing spaces/special chars
-        command = ' '.join(shlex.quote(arg) for arg in args)
+
+        # Build command line - use double quotes for args with spaces/special chars
+        # meshcli doesn't parse like shell, so we need simple double-quote wrapping
+        quoted_args = []
+        for arg in args:
+            # If argument contains spaces or special chars, wrap in double quotes
+            if ' ' in arg or '"' in arg or "'" in arg:
+                # Escape internal double quotes
+                escaped = arg.replace('"', '\\"')
+                quoted_args.append(f'"{escaped}"')
+            else:
+                quoted_args.append(arg)
+
+        command = ' '.join(quoted_args)
         event = threading.Event()
         response_dict = {
             "event": event,
