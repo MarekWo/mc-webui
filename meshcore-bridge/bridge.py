@@ -128,9 +128,9 @@ class MeshCLISession:
             try:
                 self.process.stdin.write('set json_log_rx on\n')
                 self.process.stdin.write('set print_adverts on\n')
-                self.process.stdin.write('msg_subscribe\n')
+                self.process.stdin.write('msgs_subscribe\n')
                 self.process.stdin.flush()
-                logger.info("Session settings applied: json_log_rx=on, print_adverts=on, msg_subscribe")
+                logger.info("Session settings applied: json_log_rx=on, print_adverts=on, msgs_subscribe")
             except Exception as e:
                 logger.error(f"Failed to apply session settings: {e}")
 
