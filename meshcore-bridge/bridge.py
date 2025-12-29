@@ -539,13 +539,28 @@ def get_pending_contacts():
         if stdout:
             for line in stdout.split('\n'):
                 line = line.strip()
+
+                # Skip empty lines
+                if not line:
+                    continue
+
+                # Skip JSON lines (adverts, messages, or other JSON output from meshcli)
+                if line.startswith('{') or line.startswith('['):
+                    continue
+
+                # Skip meshcli prompt lines (e.g., "MarWoj|*")
+                if line.endswith('|*'):
+                    continue
+
                 # Parse lines with format: "Name: <hex_public_key>"
                 if ':' in line:
                     parts = line.split(':', 1)
                     if len(parts) == 2:
                         name = parts[0].strip()
                         public_key = parts[1].strip().replace(' ', '')  # Remove spaces from hex
-                        if name and public_key:
+
+                        # Additional validation: pubkey should be hex characters only
+                        if name and public_key and all(c in '0123456789abcdefABCDEF' for c in public_key):
                             pending.append({
                                 'name': name,
                                 'public_key': public_key
