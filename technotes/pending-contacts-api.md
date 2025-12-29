@@ -138,9 +138,9 @@ Content-Type: application/json
 ```
 
 **Selector formats supported** (by meshcli):
-- Full contact name: `"Skyllancer"`
-- Public key prefix: `"f9ef123"`
-- Full public key: `"f9ef123abc456..."`
+- Full contact name: `"Skyllancer"` (works for CLI contacts)
+- Public key prefix: `"f9ef123"` (works for CLI contacts, may not work for ROOM)
+- Full public key: `"f9ef123abc456..."` (**RECOMMENDED - works for all contact types**)
 
 **Response** (success):
 ```json
@@ -180,6 +180,77 @@ if not isinstance(selector, str) or not selector.strip():
     }), 400
 ```
 
+### Important Discovery: Contact Type Differences
+
+**🔍 Testing revealed different behavior for different contact types:**
+
+#### CLI Contacts (Clients)
+**Examples**: `StNMobile T1000e`, `ML2056`, `olekstomek`
+
+✅ **All selector formats work:**
+- Full name: `"StNMobile T1000e"` → **SUCCESS**
+- Name prefix: `"StN"` → **SUCCESS**
+- Public key prefix: `"2ce5514"` → **SUCCESS**
+- Full public key: `"2ce5514826d39a44d23eb8eb9539676b57cae234528573c45d44bdd6ed01eeb5"` → **SUCCESS**
+
+#### ROOM Contacts (Group Rooms)
+**Examples**: `TK room cwiczebny🔆`
+
+❌ **Name-based selectors DO NOT work:**
+- Full name: `"TK room cwiczebny🔆"` → **FAILED** (also UTF-8 encoding issues in shell)
+- Name prefix: `"TK room"` → **FAILED**
+
+❌ **Public key prefix DOES NOT work:**
+- Prefix: `"b3fec489"` → **FAILED**
+
+✅ **Only FULL public key works:**
+- Full public key: `"b3fec489e1ee2d0277bd16de957253c8f5aa44a721df722224bbdc1edc5829b6"` → **SUCCESS**
+
+#### Root Cause Analysis
+
+The `add_pending` command in meshcli appears to use different matching logic for different contact types:
+
+- **CLI contacts**: Flexible matching - accepts name prefix, key prefix, or full key
+- **ROOM contacts**: Strict matching - requires exact full public key
+
+This may be intentional behavior to prevent accidental approval of group rooms, which have different security/privacy implications than individual client contacts.
+
+#### Recommendation for UI Implementation
+
+**Always use full public key for `add_pending` calls:**
+
+```javascript
+// Good - works for all contact types
+fetch('/add_pending', {
+  method: 'POST',
+  body: JSON.stringify({
+    selector: pendingContact.public_key  // Full key from GET /pending_contacts
+  })
+})
+
+// Bad - may fail for ROOM contacts
+fetch('/add_pending', {
+  method: 'POST',
+  body: JSON.stringify({
+    selector: pendingContact.name  // Won't work for ROOMs
+  })
+})
+```
+
+**UI Design Consideration:**
+
+Since `GET /pending_contacts` already returns both `name` and `public_key`, the UI should:
+1. Display human-readable name for user
+2. **Send full public_key to API** (not name)
+3. This ensures compatibility with all contact types
+
+Example UI flow:
+```
+User sees: "TK room cwiczebny🔆" [Approve button]
+User clicks: Approve
+Frontend sends: {"selector": "b3fec489e1ee...5829b6"}  ← Full public key
+```
+
 ## Testing
 
 ### Prerequisites
@@ -196,22 +267,45 @@ The bridge container must have:
 # List pending contacts
 curl -s http://meshcore-bridge:5001/pending_contacts | jq
 
-# Add a pending contact by name
+# Add a CLI contact by name (works for CLI, not ROOM)
 curl -s -X POST http://meshcore-bridge:5001/add_pending \
   -H 'Content-Type: application/json' \
-  -d '{"selector":"Skyllancer"}' | jq
+  -d '{"selector":"ML2056"}' | jq
 
-# Add by public key prefix
+# Add by full public key (RECOMMENDED - works for all types)
 curl -s -X POST http://meshcore-bridge:5001/add_pending \
   -H 'Content-Type: application/json' \
-  -d '{"selector":"f9ef123"}' | jq
+  -d '{"selector":"b3fec489e1ee2d0277bd16de957253c8f5aa44a721df722224bbdc1edc5829b6"}' | jq
 ```
+
+**Real-world test results** (2025-12-29):
+
+1. **CLI contacts** - flexible matching:
+   ```bash
+   # All worked successfully
+   curl -d '{"selector":"StNMobile T1000e"}' → ✅ SUCCESS
+   curl -d '{"selector":"ML2056"}' → ✅ SUCCESS
+   curl -d '{"selector":"2ce5514"}' → ✅ SUCCESS (prefix)
+   ```
+
+2. **ROOM contact** - strict matching:
+   ```bash
+   # Failed attempts
+   curl -d '{"selector":"TK room cwiczebny🔆"}' → ❌ FAILED (UTF-8 encoding)
+   curl -d '{"selector":"TK room"}' → ❌ FAILED (name prefix)
+   curl -d '{"selector":"b3fec489"}' → ❌ FAILED (key prefix)
+
+   # Success
+   curl -d '{"selector":"b3fec489e1ee...5829b6"}' → ✅ SUCCESS (full key)
+   ```
 
 **Expected workflow**:
 1. New node attempts connection
-2. `GET /pending_contacts` shows the node in pending list
-3. `POST /add_pending` with node name/key approves the contact
+2. `GET /pending_contacts` shows the node in pending list with `name` and `public_key`
+3. `POST /add_pending` with **full `public_key`** (not name!) approves the contact
 4. `GET /pending_contacts` no longer shows the approved contact (moved to regular contacts)
+
+**Best Practice**: Always use full `public_key` from the `GET /pending_contacts` response to ensure compatibility with all contact types (CLI, ROOM, REP, SENS).
 
 ## Architecture Benefits
 
