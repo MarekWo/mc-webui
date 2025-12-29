@@ -120,7 +120,7 @@ class MeshCLISession:
             raise
 
     def _init_session_settings(self):
-        """Configure meshcli session for advert logging and message subscription"""
+        """Configure meshcli session for advert logging, message subscription, and manual contact approval"""
         logger.info("Configuring meshcli session settings")
 
         # Send configuration commands directly to stdin (bypass queue for init)
@@ -128,9 +128,10 @@ class MeshCLISession:
             try:
                 self.process.stdin.write('set json_log_rx on\n')
                 self.process.stdin.write('set print_adverts on\n')
+                self.process.stdin.write('set manual_add_contacts on\n')
                 self.process.stdin.write('msgs_subscribe\n')
                 self.process.stdin.flush()
-                logger.info("Session settings applied: json_log_rx=on, print_adverts=on, msgs_subscribe")
+                logger.info("Session settings applied: json_log_rx=on, print_adverts=on, manual_add_contacts=on, msgs_subscribe")
             except Exception as e:
                 logger.error(f"Failed to apply session settings: {e}")
 
