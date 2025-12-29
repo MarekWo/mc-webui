@@ -129,6 +129,39 @@
         flex: 1;
         min-width: 150px;
     }
+
+    /* Scrollable contacts lists */
+    #existingList,
+    #pendingList {
+        max-height: 600px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        /* Smooth scrolling on mobile */
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Custom scrollbar styling (optional, for better UX) */
+    #existingList::-webkit-scrollbar,
+    #pendingList::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    #existingList::-webkit-scrollbar-track,
+    #pendingList::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    #existingList::-webkit-scrollbar-thumb,
+    #pendingList::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+
+    #existingList::-webkit-scrollbar-thumb:hover,
+    #pendingList::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
 </style>
 {% endblock %}
 
