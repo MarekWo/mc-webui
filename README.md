@@ -359,6 +359,52 @@ docker compose up -d --build
 docker compose ps
 ```
 
+## Testing Bridge API
+
+The `meshcore-bridge` container exposes HTTP endpoints for pending contact management.
+
+### Test Pending Contacts Endpoints
+
+```bash
+# List pending contacts (from inside mc-webui container or server)
+curl -s http://meshcore-bridge:5001/pending_contacts | jq
+
+# Add a pending contact
+curl -s -X POST http://meshcore-bridge:5001/add_pending \
+  -H 'Content-Type: application/json' \
+  -d '{"selector":"Skyllancer"}' | jq
+
+# Example response for GET /pending_contacts:
+# {
+#   "success": true,
+#   "pending": [
+#     {
+#       "name": "Skyllancer",
+#       "public_key": "f9ef..."
+#     },
+#     {
+#       "name": "KRA Reksio mob2🐕",
+#       "public_key": "41d5..."
+#     }
+#   ],
+#   "raw_stdout": "Skyllancer: f9ef...\nKRA Reksio mob2🐕: 41d5..."
+# }
+
+# Example response for POST /add_pending:
+# {
+#   "success": true,
+#   "stdout": "Contact added successfully",
+#   "stderr": "",
+#   "returncode": 0
+# }
+```
+
+**Note:** These endpoints require `manual_add_contacts` mode to be enabled in meshcli:
+```bash
+# Enable manual contact approval (run in meshcli interactive mode)
+set manual_add_contacts on
+```
+
 ## Troubleshooting
 
 ### Device not found

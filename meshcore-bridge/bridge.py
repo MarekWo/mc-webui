@@ -496,6 +496,139 @@ def execute_cli():
         }), 500
 
 
+@app.route('/pending_contacts', methods=['GET'])
+def get_pending_contacts():
+    """
+    Get list of pending contacts awaiting approval.
+
+    Response JSON:
+        {
+            "success": true,
+            "pending": [
+                {"name": "Skyllancer", "public_key": "f9ef..."},
+                {"name": "KRA Reksio mob2🐕", "public_key": "41d5..."}
+            ],
+            "raw_stdout": "..."
+        }
+    """
+    try:
+        # Check session health
+        if not meshcli_session or not meshcli_session.process:
+            return jsonify({
+                'success': False,
+                'error': 'meshcli session not initialized',
+                'pending': []
+            }), 503
+
+        # Execute pending_contacts command
+        result = meshcli_session.execute_command(['pending_contacts'], timeout=DEFAULT_TIMEOUT)
+
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': result.get('stderr', 'Command failed'),
+                'pending': [],
+                'raw_stdout': result.get('stdout', '')
+            }), 200
+
+        # Parse stdout
+        stdout = result.get('stdout', '').strip()
+        pending = []
+
+        if stdout:
+            for line in stdout.split('\n'):
+                line = line.strip()
+                # Parse lines with format: "Name: <hex_public_key>"
+                if ':' in line:
+                    parts = line.split(':', 1)
+                    if len(parts) == 2:
+                        name = parts[0].strip()
+                        public_key = parts[1].strip().replace(' ', '')  # Remove spaces from hex
+                        if name and public_key:
+                            pending.append({
+                                'name': name,
+                                'public_key': public_key
+                            })
+
+        return jsonify({
+            'success': True,
+            'pending': pending,
+            'raw_stdout': stdout
+        }), 200
+
+    except Exception as e:
+        logger.error(f"API error in /pending_contacts: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'pending': []
+        }), 500
+
+
+@app.route('/add_pending', methods=['POST'])
+def add_pending_contact():
+    """
+    Add a pending contact by name or public key.
+
+    Request JSON:
+        {
+            "selector": "<name_or_pubkey_prefix_or_pubkey>"
+        }
+
+    Response JSON:
+        {
+            "success": true,
+            "stdout": "...",
+            "stderr": "",
+            "returncode": 0
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'selector' not in data:
+            return jsonify({
+                'success': False,
+                'stdout': '',
+                'stderr': 'Missing required field: selector',
+                'returncode': -1
+            }), 400
+
+        selector = data['selector']
+
+        # Validate selector is non-empty string
+        if not isinstance(selector, str) or not selector.strip():
+            return jsonify({
+                'success': False,
+                'stdout': '',
+                'stderr': 'selector must be a non-empty string',
+                'returncode': -1
+            }), 400
+
+        # Check session health
+        if not meshcli_session or not meshcli_session.process:
+            return jsonify({
+                'success': False,
+                'stdout': '',
+                'stderr': 'meshcli session not initialized',
+                'returncode': -1
+            }), 503
+
+        # Execute add_pending command
+        result = meshcli_session.execute_command(['add_pending', selector.strip()], timeout=DEFAULT_TIMEOUT)
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        logger.error(f"API error in /add_pending: {e}")
+        return jsonify({
+            'success': False,
+            'stdout': '',
+            'stderr': str(e),
+            'returncode': -1
+        }), 500
+
+
 if __name__ == '__main__':
     logger.info(f"Starting MeshCore Bridge on port 5001")
     logger.info(f"Serial port: {MC_SERIAL_PORT}")
