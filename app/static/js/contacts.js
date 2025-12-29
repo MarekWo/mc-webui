@@ -26,6 +26,12 @@ let contactToDelete = null;
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Contact Management UI initialized');
 
+    // Initialize Bootstrap tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
     // Attach event listeners
     attachEventListeners();
 

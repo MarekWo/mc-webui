@@ -5,11 +5,25 @@
 {% block extra_head %}
 <style>
     /* Mobile-first custom styles for Contact Management */
-    .settings-section {
+    /* Compact manual approval section */
+    .compact-setting {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
         background-color: #f8f9fa;
         border-radius: 0.5rem;
-        padding: 1.25rem;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .info-icon {
+        color: #6c757d;
+        cursor: help;
+        font-size: 1.1rem;
+    }
+
+    .info-icon:hover {
+        color: #0d6efd;
     }
 
     .pending-contact-card {
@@ -44,14 +58,23 @@
 
     .empty-state {
         text-align: center;
-        padding: 3rem 1rem;
+        padding: 1.5rem 1rem;
         color: #6c757d;
     }
 
     .empty-state i {
-        font-size: 3rem;
-        margin-bottom: 1rem;
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
         opacity: 0.5;
+    }
+
+    .empty-state.compact {
+        padding: 1rem;
+    }
+
+    .empty-state.compact i {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
     }
 
     .info-badge {
@@ -131,16 +154,30 @@
     }
 
     /* Scrollable contacts lists */
-    #existingList,
     #pendingList {
-        max-height: 600px;
+        max-height: 200px;
         overflow-y: auto;
         overflow-x: hidden;
-        /* Smooth scrolling on mobile */
         -webkit-overflow-scrolling: touch;
     }
 
-    /* Custom scrollbar styling (optional, for better UX) */
+    #existingList {
+        /* No max-height limit - let it use available space */
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        /* Dynamic height based on viewport */
+        max-height: calc(100vh - 400px);
+        min-height: 300px;
+    }
+
+    @media (max-width: 768px) {
+        #existingList {
+            max-height: calc(100vh - 450px);
+        }
+    }
+
+    /* Custom scrollbar styling */
     #existingList::-webkit-scrollbar,
     #pendingList::-webkit-scrollbar {
         width: 8px;
@@ -162,6 +199,11 @@
     #pendingList::-webkit-scrollbar-thumb:hover {
         background: #555;
     }
+
+    /* Compact section headers */
+    .section-compact {
+        margin-bottom: 0.75rem;
+    }
 </style>
 {% endblock %}
 
@@ -179,59 +221,51 @@
                 </button>
             </div>
 
-            <!-- Manual Approval Settings Section -->
-            <div class="settings-section">
-                <h5 class="mb-3">
-                    <i class="bi bi-shield-check"></i> Manual Contact Approval
-                </h5>
-                <p class="text-muted small mb-3">
-                    When enabled, new contacts must be manually approved before they can communicate with your node.
-                </p>
-
-                <div class="form-check form-switch">
+            <!-- Manual Approval Settings Section (Compact) -->
+            <div class="compact-setting">
+                <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
                     <input class="form-check-input" type="checkbox" role="switch" id="manualApprovalSwitch" style="cursor: pointer; min-width: 3rem; min-height: 1.5rem;">
-                    <label class="form-check-label" for="manualApprovalSwitch" style="cursor: pointer; font-weight: 500;">
+                    <label class="form-check-label mb-0" for="manualApprovalSwitch" style="cursor: pointer; font-weight: 500;">
                         <span id="switchLabel">Loading...</span>
                     </label>
                 </div>
-
-                <div class="info-badge" id="approvalInfo" style="display: none;">
-                    <i class="bi bi-info-circle"></i> Pending contacts will only appear when manual approval is enabled.
-                </div>
+                <i class="bi bi-info-circle info-icon"
+                   data-bs-toggle="tooltip"
+                   data-bs-placement="top"
+                   title="When enabled, new contacts must be manually approved before they can communicate with your node"></i>
             </div>
 
-            <!-- Pending Contacts Section -->
-            <div class="mb-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0">
+            <!-- Pending Contacts Section (Compact) -->
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center section-compact">
+                    <h6 class="mb-0">
                         <i class="bi bi-hourglass-split"></i> Pending Contacts
                         <span class="badge bg-primary rounded-pill" id="pendingCount" style="display: none;">0</span>
-                    </h5>
+                    </h6>
                     <button class="btn btn-sm btn-outline-primary" id="refreshPendingBtn">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                        <i class="bi bi-arrow-clockwise"></i>
                     </button>
                 </div>
 
                 <!-- Loading State -->
-                <div id="pendingLoading" class="text-center py-3" style="display: none;">
+                <div id="pendingLoading" class="text-center py-2" style="display: none;">
                     <div class="spinner-border spinner-border-sm text-primary"></div>
-                    <span class="ms-2 text-muted">Loading pending contacts...</span>
+                    <span class="ms-2 text-muted small">Loading...</span>
                 </div>
 
-                <!-- Empty State -->
-                <div id="pendingEmpty" class="empty-state" style="display: none;">
+                <!-- Empty State (Compact) -->
+                <div id="pendingEmpty" class="empty-state compact" style="display: none;">
                     <i class="bi bi-check-circle"></i>
-                    <p class="mb-0">No pending contact requests</p>
-                    <small class="text-muted">New contacts will appear here for approval</small>
+                    <p class="mb-0 small">No pending requests</p>
                 </div>
 
                 <!-- Pending Contacts List -->
                 <div id="pendingList"></div>
 
                 <!-- Error State -->
-                <div id="pendingError" class="alert alert-danger" style="display: none;" role="alert">
+                <div id="pendingError" class="alert alert-danger py-2 mb-0" style="display: none;" role="alert">
                     <i class="bi bi-exclamation-triangle"></i>
-                    <span id="errorMessage">Failed to load pending contacts</span>
+                    <span class="small" id="errorMessage">Failed to load pending contacts</span>
                 </div>
             </div>
 
