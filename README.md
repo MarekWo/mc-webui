@@ -42,18 +42,19 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 ### Prerequisites
 
-- Docker and Docker Compose installed
-- Heltec V4 device connected via USB
+- **Docker** and **Docker Compose** installed ([installation guide](https://wiki.wojtaszek.it/pl/home/apps/docker/installation))
+- **Meshcore device** connected via USB (tested on Heltec V4)
 
-**Note:** meshcore-cli is automatically installed inside the Docker container - no host installation required!
-
-**Important:** This application requires meshcore-cli version **1.3.12 or newer** for proper Direct Messages (DM) functionality. The Docker container automatically installs the latest version.
+**Important Notes:**
+- ✅ **No meshcore-cli installation required on host** - meshcore-cli is automatically installed inside the Docker container
+- ✅ **No manual directory setup needed** - all data is stored in `./data/` inside the project directory
+- ✅ **meshcore-cli version 1.3.12+** is automatically installed for proper Direct Messages (DM) functionality
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/MarekWo/mc-webui
    cd mc-webui
    ```
 
@@ -66,14 +67,23 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 3. **Find your serial device**
    ```bash
-   ls -l /dev/serial/by-id/
+   ls /dev/serial/by-id/
    ```
-   Update `MC_SERIAL_PORT` in `.env` with your device path.
+   You should see a device name starting with `usb-Espressif_Systems_...`. For Heltec V4 it looks like:
+   ```
+   usb-Espressif_Systems_heltec_wifi_lora_32_v4__16_MB_FLASH__2_MB_PSRAM__90706984A000-if00
+   ```
+   Copy the **full device ID** and update `MC_SERIAL_PORT` in `.env`:
+   ```bash
+   MC_SERIAL_PORT=/dev/serial/by-id/usb-Espressif_Systems_heltec_wifi_lora_32_v4__16_MB_FLASH__2_MB_PSRAM__90706984A000-if00
+   ```
 
 4. **Build and run**
    ```bash
    docker compose up -d --build
    ```
+
+   **Note:** Docker will automatically create the `./data/` directory with necessary subdirectories (`meshcore/` and `archive/`) on first run. All runtime data (messages, contacts, settings, archives) will be stored there.
 
 5. **Access the web interface**
    Open your browser and navigate to:
@@ -82,27 +92,36 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
    ```
    Or from another device on your network:
    ```
-   http://<server-ip>:5000
+   http://<your-server-ip>:5000
    ```
 
 ## Configuration
 
-All configuration is done via environment variables in the `.env` file:
+All configuration is done via environment variables in the `.env` file.
+
+**Important:** All data files (messages, contacts, settings, archives) are stored in the `./data/` directory inside your project folder. This directory is automatically created by Docker and should be included in your backups.
+
+### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MC_SERIAL_PORT` | Path to serial device | `/dev/ttyUSB0` |
+| `MC_SERIAL_PORT` | Serial device path (use /dev/serial/by-id/ for stability) | `/dev/ttyUSB0` |
 | `MC_DEVICE_NAME` | Device name (for .msgs and .adverts.jsonl files) | `MeshCore` |
-| `MC_CONFIG_DIR` | meshcore configuration directory | `/root/.config/meshcore` |
-| `MC_REFRESH_INTERVAL` | Auto-refresh interval (seconds) | `60` |
-| `MC_INACTIVE_HOURS` | Inactivity threshold for cleanup | `48` |
-| `MC_ARCHIVE_DIR` | Archive directory path | `/mnt/archive/meshcore` |
+| `MC_CONFIG_DIR` | Configuration directory (shared between containers) | `./data/meshcore` |
+| `MC_INACTIVE_HOURS` | Inactivity threshold for contact cleanup (hours) | `48` |
+| `MC_ARCHIVE_DIR` | Archive directory path | `./data/archive` |
 | `MC_ARCHIVE_ENABLED` | Enable automatic archiving | `true` |
 | `MC_ARCHIVE_RETENTION_DAYS` | Days to show in live view | `7` |
 | `FLASK_HOST` | Listen address | `0.0.0.0` |
 | `FLASK_PORT` | Application port | `5000` |
 | `FLASK_DEBUG` | Debug mode | `false` |
 | `TZ` | Timezone for container logs | `UTC` |
+
+**Notes:**
+- `MC_CONFIG_DIR` is mounted as a shared volume for both containers (meshcore-bridge and mc-webui)
+- All paths starting with `./` are relative to the project root directory
+- The `data/` directory is excluded from git via `.gitignore`
+- Auto-refresh is intelligent: checks for new messages every 10 seconds, updates UI only when needed (no configuration required)
 
 See [.env.example](.env.example) for a complete example.
 

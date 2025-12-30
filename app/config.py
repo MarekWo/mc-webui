@@ -18,7 +18,6 @@ class Config:
     MC_BRIDGE_URL = os.getenv('MC_BRIDGE_URL', 'http://meshcore-bridge:5001/cli')
 
     # Application settings
-    MC_REFRESH_INTERVAL = int(os.getenv('MC_REFRESH_INTERVAL', '60'))
     MC_INACTIVE_HOURS = int(os.getenv('MC_INACTIVE_HOURS', '48'))
 
     # Archive configuration

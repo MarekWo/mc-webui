@@ -212,8 +212,7 @@ def get_status():
             'device_name': config.MC_DEVICE_NAME,
             'serial_port': config.MC_SERIAL_PORT,
             'message_count': message_count,
-            'latest_message_timestamp': latest_timestamp,
-            'refresh_interval': config.MC_REFRESH_INTERVAL
+            'latest_message_timestamp': latest_timestamp
         }), 200
 
     except Exception as e:

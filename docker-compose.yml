@@ -40,7 +40,6 @@ services:
       - MC_BRIDGE_URL=http://meshcore-bridge:5001/cli
       - MC_DEVICE_NAME=${MC_DEVICE_NAME}
       - MC_CONFIG_DIR=/root/.config/meshcore
-      - MC_REFRESH_INTERVAL=${MC_REFRESH_INTERVAL:-60}
       - MC_INACTIVE_HOURS=${MC_INACTIVE_HOURS:-48}
       - MC_ARCHIVE_DIR=/root/.archive/meshcore
       - MC_ARCHIVE_ENABLED=${MC_ARCHIVE_ENABLED:-true}

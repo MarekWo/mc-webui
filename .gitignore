@@ -1,0 +1,110 @@
+# mc-webui .gitignore
+
+# ============================================
+# Environment and Configuration
+# ============================================
+.env
+*.env
+!.env.example
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ============================================
+# Virtual Environment
+# ============================================
+venv/
+ENV/
+env/
+.venv
+
+# ============================================
+# IDE and Editors
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ============================================
+# Testing and Coverage
+# ============================================
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# ============================================
+# Docker
+# ============================================
+docker-compose.override.yml
+
+# ============================================
+# Runtime Data (Docker volumes)
+# ============================================
+data/
+
+# ============================================
+# Logs and Databases
+# ============================================
+*.log
+*.sql
+*.sqlite
+*.db
+
+# ============================================
+# OS
+# ============================================
+Thumbs.db
+.DS_Store
+
+# ============================================
+# Miscellaneous
+# ============================================
+.claude/
+technotes/prompt-dms.md
+technotes/channels.md
+technotes/limity.md
+technotes/smart-refresh-feature.md
+docs/Pomoc w zwiększeniu zasięgu.pdf
+PRD.md
+.gitignore
+CLAUDE_CODE_PROMPT.md
+technotes/advert-vs-floodadv.md
+technotes/conversation-with-user-Xahgmah.md
+technotes/issue_diagnosis_missing_recv.md
+technotes/reddit_response.txt
+technotes/troubleshooting_guide_for_user.md
+technotes/reddit_response_final.txt
+docs/Mesh Core – Lista Zakupowa (repeater Dachowy).pdf
+docs/contact-management-next-step.md
+docs/response-to-xahgmah.md
+docs/UI-Contact-Management-MVP-v1.md
+docs/TEST-PLAN-Contact-Management-v2.md
+technotes/API-Diagnostic-Commands-private.md
+docs/github-discussion-*.md

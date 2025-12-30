@@ -169,7 +169,6 @@
     <script>
         // Pass configuration from Flask to JavaScript
         window.MC_CONFIG = {
-            refreshInterval: {{ refresh_interval }} * 1000,
             deviceName: "{{ device_name }}",
             initialConversation: "{{ initial_conversation or '' }}"
         };

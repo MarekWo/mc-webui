@@ -18,8 +18,7 @@ def index():
     """
     return render_template(
         'index.html',
-        device_name=config.MC_DEVICE_NAME,
-        refresh_interval=config.MC_REFRESH_INTERVAL
+        device_name=config.MC_DEVICE_NAME
     )
 
 
@@ -36,7 +35,6 @@ def direct_messages():
     return render_template(
         'dm.html',
         device_name=config.MC_DEVICE_NAME,
-        refresh_interval=config.MC_REFRESH_INTERVAL,
         initial_conversation=initial_conversation
     )
 
@@ -48,8 +46,7 @@ def contact_management():
     """
     return render_template(
         'contacts-manage.html',
-        device_name=config.MC_DEVICE_NAME,
-        refresh_interval=config.MC_REFRESH_INTERVAL
+        device_name=config.MC_DEVICE_NAME
     )
 
 
@@ -60,8 +57,7 @@ def contact_pending_list():
     """
     return render_template(
         'contacts-pending.html',
-        device_name=config.MC_DEVICE_NAME,
-        refresh_interval=config.MC_REFRESH_INTERVAL
+        device_name=config.MC_DEVICE_NAME
     )
 
 
@@ -72,8 +68,7 @@ def contact_existing_list():
     """
     return render_template(
         'contacts-existing.html',
-        device_name=config.MC_DEVICE_NAME,
-        refresh_interval=config.MC_REFRESH_INTERVAL
+        device_name=config.MC_DEVICE_NAME
     )
 
 
