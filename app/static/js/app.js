@@ -99,10 +99,13 @@ function setupEventListeners() {
         }
     });
 
-    // Cleanup contacts button
-    document.getElementById('cleanupBtn').addEventListener('click', function() {
-        cleanupContacts();
-    });
+    // Cleanup contacts button (only exists on contact management page)
+    const cleanupBtn = document.getElementById('cleanupBtn');
+    if (cleanupBtn) {
+        cleanupBtn.addEventListener('click', function() {
+            cleanupContacts();
+        });
+    }
 
     // Track user scrolling
     const container = document.getElementById('messagesContainer');
