@@ -717,6 +717,9 @@ function showNotification(message, type = 'info') {
         }
     }
 
-    const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+    const toast = new bootstrap.Toast(toastEl, {
+        autohide: true,
+        delay: 1500
+    });
     toast.show();
 }

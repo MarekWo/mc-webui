@@ -581,7 +581,7 @@ function showToast(message, type = 'info') {
     // Show toast
     const toast = new bootstrap.Toast(toastEl, {
         autohide: true,
-        delay: 3000
+        delay: 1500
     });
     toast.show();
 }

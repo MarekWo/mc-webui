@@ -587,7 +587,10 @@ function showNotification(message, type = 'info') {
     toastBody.textContent = message;
     toastEl.className = `toast bg-${type} text-white`;
 
-    const toast = new bootstrap.Toast(toastEl);
+    const toast = new bootstrap.Toast(toastEl, {
+        autohide: true,
+        delay: 1500
+    });
     toast.show();
 }
 
