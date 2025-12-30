@@ -172,10 +172,11 @@
 
         /* Scrollable contacts lists */
         #pendingList {
-            max-height: 200px;
+            height: calc(100vh - 280px);
             overflow-y: auto;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
+            min-height: 300px;
         }
 
         #existingList {
@@ -329,6 +330,10 @@
         @media (max-width: 768px) {
             #existingList {
                 height: calc(100vh - 300px);
+            }
+
+            #pendingList {
+                height: calc(100vh - 320px);
             }
 
             .contacts-list-fullscreen {
