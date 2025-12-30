@@ -974,13 +974,23 @@ function createExistingContactCard(contact, index) {
     copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy Key';
     copyBtn.onclick = () => copyContactKey(contact.public_key_prefix, copyBtn);
 
+    actionsDiv.appendChild(copyBtn);
+
+    // Map button (only if GPS coordinates available)
+    if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
+        const mapBtn = document.createElement('button');
+        mapBtn.className = 'btn btn-sm btn-outline-primary';
+        mapBtn.innerHTML = '<i class="bi bi-geo-alt"></i> Map';
+        mapBtn.onclick = () => openGoogleMaps(contact.adv_lat, contact.adv_lon);
+        actionsDiv.appendChild(mapBtn);
+    }
+
     // Delete button
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn btn-sm btn-outline-danger';
     deleteBtn.innerHTML = '<i class="bi bi-trash"></i> Delete';
     deleteBtn.onclick = () => showDeleteModal(contact);
 
-    actionsDiv.appendChild(copyBtn);
     actionsDiv.appendChild(deleteBtn);
 
     // Assemble card
@@ -1012,6 +1022,14 @@ function copyContactKey(publicKeyPrefix, buttonEl) {
         console.error('Failed to copy:', err);
         showToast('Failed to copy to clipboard', 'danger');
     });
+}
+
+function openGoogleMaps(lat, lon) {
+    // Create Google Maps URL with coordinates
+    const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+
+    // Open in new tab
+    window.open(mapsUrl, '_blank');
 }
 
 function showDeleteModal(contact) {
