@@ -7,8 +7,6 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 **mc-webui** is a Flask-based web application that wraps `meshcore-cli`, eliminating the need for SSH/terminal access when using MeshCore chat on a LoRa device connected to a Debian VM via BLE or USB. Tested on Heltec V4.
 
-<img src="images/main_window.png" alt="Main Chat Window" width="200px"> <img src="images/unread_msgs.png" alt="Unread messages" width="200px"> <img src="images/menu.png" alt="Menu" width="200px"> <img src="images/channel_management.png" alt="Channel management" width="200px"> <img src="images/msg_archive.png" alt="Message history" width="200px"> <img src="images/settings.png" alt="Settings" width="200px">
-
 ### Key Features
 
 - 📱 **Mobile-first design** - Optimized responsive UI with slide-out menu for small screens
@@ -576,6 +574,10 @@ docker compose exec meshcore-bridge meshcli -s /dev/ttyUSB0 infos
 - Check that `.msgs` file exists in `MC_CONFIG_DIR`
 - Verify bridge service is healthy: `docker compose ps`
 - Check bridge logs for command errors
+
+## Gallery
+
+<img src="images/main_window.png" alt="Main Chat Window" width="200px"> <img src="images/unread_msgs.png" alt="Unread messages" width="200px"> <img src="images/menu.png" alt="Menu" width="200px"> <img src="images/channel_management.png" alt="Channel management" width="200px"> <img src="images/msg_archive.png" alt="Message history" width="200px"> <img src="images/contact_management.png" alt="Contact management" width="200px"> <img src="images/approve_contact.png" alt="Pending contacts" width="200px"> <img src="images/existing_contacts.png" alt="Existing contacts" width="200px">
 
 ## Security Notes
 
