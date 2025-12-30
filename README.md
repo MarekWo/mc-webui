@@ -21,6 +21,7 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - 🔐 **Channel sharing** - Share channels via QR code or encrypted keys
 - 🔓 **Public channels** - Join public channels (starting with #) without encryption keys
 - 🎯 **Reply to users** - Quick reply with `@[UserName]` format
+- 👥 **Contact management** - Manual contact approval mode with pending contacts list (persistent settings)
 - 🧹 **Clean contacts** - Remove inactive contacts with configurable threshold
 - 📦 **Message archiving** - Automatic daily archiving with browse-by-date selector
 - ⚡ **Efficient polling** - Lightweight update checks every 10s, UI refreshes only when needed
@@ -88,7 +89,7 @@ All configuration is done via environment variables in the `.env` file:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MC_SERIAL_PORT` | Path to serial device | `/dev/ttyUSB0` |
-| `MC_DEVICE_NAME` | Device name (for .msgs file) | `MeshCore` |
+| `MC_DEVICE_NAME` | Device name (for .msgs and .adverts.jsonl files) | `MeshCore` |
 | `MC_CONFIG_DIR` | meshcore configuration directory | `/root/.config/meshcore` |
 | `MC_REFRESH_INTERVAL` | Auto-refresh interval (seconds) | `60` |
 | `MC_INACTIVE_HOURS` | Inactivity threshold for cleanup | `48` |
@@ -98,6 +99,7 @@ All configuration is done via environment variables in the `.env` file:
 | `FLASK_HOST` | Listen address | `0.0.0.0` |
 | `FLASK_PORT` | Application port | `5000` |
 | `FLASK_DEBUG` | Debug mode | `false` |
+| `TZ` | Timezone for container logs | `UTC` |
 
 See [.env.example](.env.example) for a complete example.
 
@@ -106,9 +108,12 @@ See [.env.example](.env.example) for a complete example.
 mc-webui uses a **2-container architecture** for improved USB stability:
 
 1. **meshcore-bridge** - Lightweight service with exclusive USB device access
-   - Runs meshcore-cli subprocess calls
+   - Maintains a **persistent meshcli session** (single long-lived process)
+   - Multiplexes stdout: JSON adverts → `.adverts.jsonl` log, CLI commands → HTTP responses
+   - Real-time message reception via `msgs_subscribe` (no polling)
+   - Thread-safe command queue with event-based synchronization
+   - Watchdog thread for automatic crash recovery
    - Exposes HTTP API on port 5001 (internal only)
-   - Automatically restarts on USB communication issues
 
 2. **mc-webui** - Main web application
    - Flask-based web interface
@@ -116,6 +121,21 @@ mc-webui uses a **2-container architecture** for improved USB stability:
    - No direct USB access (prevents device locking)
 
 This separation solves USB timeout/deadlock issues common in Docker + VM environments.
+
+### Bridge Session Architecture
+
+The meshcore-bridge maintains a **single persistent meshcli session** instead of spawning new processes per request:
+
+- **Single subprocess.Popen** - One long-lived meshcli process with stdin/stdout pipes
+- **Multiplexing** - Intelligently routes output:
+  - JSON adverts (with `payload_typename: "ADVERT"`) → logged to `{device_name}.adverts.jsonl`
+  - CLI command responses → returned via HTTP API
+- **Real-time messages** - `msgs_subscribe` command enables instant message reception without polling
+- **Thread-safe queue** - Commands are serialized through a queue.Queue for FIFO execution
+- **Timeout-based detection** - Response completion detected when no new lines arrive for 300ms
+- **Auto-restart watchdog** - Monitors process health and restarts on crash
+
+This architecture enables advanced features like pending contact management (`manual_add_contacts`) and provides better stability and performance.
 
 ## Project Structure
 
@@ -288,7 +308,116 @@ Access the Direct Messages feature:
 - Each conversation shows unread indicator (*) in the dropdown
 - DM badge in the menu shows total unread DM count
 
-### Managing Contacts
+### Contact Management
+
+Access the Contact Management feature to control who can connect to your node:
+
+**From the menu:**
+1. Click the menu icon (☰) in the navbar
+2. Select "Contact Management" from the menu
+3. Opens the contact management page
+
+#### Manual Contact Approval
+
+By default, new contacts attempting to connect are automatically added to your contacts list. You can enable manual approval to control who can communicate with your node.
+
+**Enable manual approval:**
+1. On the Contact Management page, toggle the "Manual Contact Approval" switch
+2. When enabled, new contact requests will appear in the Pending Contacts list
+3. This setting persists across container restarts
+
+**Security benefits:**
+- **Control over network access** - Only approved contacts can communicate with your node
+- **Prevention of spam/unwanted contacts** - Filter out random nodes attempting connection
+- **Explicit trust model** - You decide who to trust on the mesh network
+
+#### Pending Contacts
+
+When manual approval is enabled, new contacts appear in the Pending Contacts list for review:
+
+**Approve a contact:**
+1. View the contact name and truncated public key
+2. Click "Copy Full Key" to copy the complete public key (useful for verification)
+3. Click "Approve" to add the contact to your contacts list
+4. The contact is moved from pending to regular contacts
+
+**Note:** Always use the full public key for approval (not name or prefix). This ensures compatibility with all contact types (CLI, ROOM, REP, SENS).
+
+**Refresh pending list:**
+- Click the "Refresh" button to check for new pending contacts
+- The page automatically loads pending contacts when first opened
+
+#### Existing Contacts
+
+The Existing Contacts section displays all contacts currently stored on your device (CLI, REP, ROOM, SENS types).
+
+**Features:**
+- **Counter badge** - Shows current contact count vs. 350 limit (MeshCore device max)
+  - Green: Normal (< 300 contacts)
+  - Yellow: Warning (300-339 contacts)
+  - Red (pulsing): Alarm (≥ 340 contacts)
+- **Search** - Filter contacts by name or public key prefix
+- **Type filter** - Show only specific contact types (All / CLI / REP / ROOM / SENS)
+- **Contact cards** - Display name, type badge, public key prefix, path info, and last seen timestamp
+- **Last Seen** - Shows when each contact was last active with activity indicators:
+  - 🟢 **Active** (seen < 5 minutes ago)
+  - 🟡 **Recent** (seen < 1 hour ago)
+  - 🔴 **Inactive** (seen > 1 hour ago)
+  - ⚫ **Unknown** (no timestamp available)
+  - Relative time format: "5 minutes ago", "2 hours ago", "3 days ago", etc.
+
+**Managing contacts:**
+1. **Search contacts:**
+   - Type in the search box to filter by name or public key prefix
+   - Results update instantly as you type
+
+2. **Filter by type:**
+   - Use the type dropdown to show only:
+     - **CLI** - Client devices (blue badge)
+     - **REP** - Repeaters (green badge)
+     - **ROOM** - Room servers (cyan badge)
+     - **SENS** - Sensors (yellow badge)
+
+3. **Copy public key:**
+   - Click "Copy Key" button to copy the public key prefix to clipboard
+   - Useful for sharing or verification
+
+4. **Delete a contact:**
+   - Click the "Delete" button (red trash icon)
+   - Confirm deletion in the modal dialog
+   - Contact is permanently removed from device
+   - **Warning:** This action cannot be undone
+
+**Refresh contacts list:**
+- Click the "Refresh" button to reload the contacts list
+- The page automatically loads contacts when first opened
+
+**Monitoring contact capacity:**
+- MeshCore devices have a limit of 350 contacts
+- The counter badge changes color as you approach the limit:
+  - **0-299**: Green (plenty of space)
+  - **300-339**: Yellow warning (nearing limit)
+  - **340-350**: Red alarm (critical - delete some contacts soon)
+
+#### Debugging
+
+If you encounter issues with contact management:
+
+**Check logs:**
+```bash
+# mc-webui container logs
+docker compose logs -f mc-webui
+
+# meshcore-bridge container logs (where settings are applied)
+docker compose logs -f meshcore-bridge
+```
+
+**Look for:**
+- "Loaded webui settings" - confirms settings file is being read
+- "manual_add_contacts set to on/off" - confirms setting is applied to meshcli session
+- "Saved manual_add_contacts=..." - confirms setting is persisted to file
+
+### Managing Contacts (Cleanup)
 
 Access the settings panel to clean up inactive contacts:
 1. Click the settings icon
@@ -338,6 +467,52 @@ docker compose up -d --build
 
 # Check container status
 docker compose ps
+```
+
+## Testing Bridge API
+
+The `meshcore-bridge` container exposes HTTP endpoints for pending contact management.
+
+### Test Pending Contacts Endpoints
+
+```bash
+# List pending contacts (from inside mc-webui container or server)
+curl -s http://meshcore-bridge:5001/pending_contacts | jq
+
+# Add a pending contact
+curl -s -X POST http://meshcore-bridge:5001/add_pending \
+  -H 'Content-Type: application/json' \
+  -d '{"selector":"Skyllancer"}' | jq
+
+# Example response for GET /pending_contacts:
+# {
+#   "success": true,
+#   "pending": [
+#     {
+#       "name": "Skyllancer",
+#       "public_key": "f9ef..."
+#     },
+#     {
+#       "name": "KRA Reksio mob2🐕",
+#       "public_key": "41d5..."
+#     }
+#   ],
+#   "raw_stdout": "Skyllancer: f9ef...\nKRA Reksio mob2🐕: 41d5..."
+# }
+
+# Example response for POST /add_pending:
+# {
+#   "success": true,
+#   "stdout": "Contact added successfully",
+#   "stderr": "",
+#   "returncode": 0
+# }
+```
+
+**Note:** These endpoints require `manual_add_contacts` mode to be enabled in meshcli:
+```bash
+# Enable manual contact approval (run in meshcli interactive mode)
+set manual_add_contacts on
 ```
 
 ## Troubleshooting

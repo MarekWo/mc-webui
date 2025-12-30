@@ -12,6 +12,9 @@ services:
       - "${MC_CONFIG_DIR}:/root/.config/meshcore:rw"
     environment:
       - MC_SERIAL_PORT=${MC_SERIAL_PORT}
+      - MC_CONFIG_DIR=/root/.config/meshcore
+      - MC_DEVICE_NAME=${MC_DEVICE_NAME}
+      - TZ=${TZ:-UTC}
     networks:
       - meshcore-net
     healthcheck:
@@ -45,6 +48,7 @@ services:
       - FLASK_HOST=${FLASK_HOST:-0.0.0.0}
       - FLASK_PORT=${FLASK_PORT:-5000}
       - FLASK_DEBUG=${FLASK_DEBUG:-false}
+      - TZ=${TZ:-UTC}
     env_file:
       - .env
     depends_on:

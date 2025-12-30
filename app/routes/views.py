@@ -41,6 +41,18 @@ def direct_messages():
     )
 
 
+@views_bp.route('/contacts/manage')
+def contact_management():
+    """
+    Contact Management view - manual approval settings and pending contacts list.
+    """
+    return render_template(
+        'contacts.html',
+        device_name=config.MC_DEVICE_NAME,
+        refresh_interval=config.MC_REFRESH_INTERVAL
+    )
+
+
 @views_bp.route('/health')
 def health():
     """

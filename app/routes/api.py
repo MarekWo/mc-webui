@@ -1198,3 +1198,342 @@ def get_dm_updates():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# =============================================================================
+# Contact Management (Existing, Pending Contacts & Settings)
+# =============================================================================
+
+@api_bp.route('/contacts/detailed', methods=['GET'])
+def get_contacts_detailed_api():
+    """
+    Get detailed list of ALL existing contacts on the device (CLI, REP, ROOM, SENS).
+
+    Returns:
+        JSON with contacts list:
+        {
+            "success": true,
+            "count": 263,
+            "limit": 350,
+            "contacts": [
+                {
+                    "name": "TK Zalesie Test 🦜",
+                    "public_key_prefix": "df2027d3f2ef",
+                    "type_label": "REP",
+                    "path_or_mode": "Flood",
+                    "last_seen": 1735429453,  // Unix timestamp from last_advert
+                    "raw_line": "..."
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        # Get basic contacts list
+        success, contacts, total_count, error = cli.get_all_contacts_detailed()
+
+        if not success:
+            return jsonify({
+                'success': False,
+                'error': error or 'Failed to get contacts list',
+                'contacts': [],
+                'count': 0,
+                'limit': 350
+            }), 500
+
+        # Get detailed contact info with last_advert timestamps
+        success_detailed, contacts_detailed, error_detailed = cli.get_contacts_with_last_seen()
+
+        if success_detailed:
+            # Merge last_advert data with contacts
+            # Match by public_key_prefix (first 12 chars of full public_key)
+            for contact in contacts:
+                prefix = contact.get('public_key_prefix', '').lower()
+
+                # Find matching contact in detailed data
+                for full_key, details in contacts_detailed.items():
+                    if full_key.lower().startswith(prefix):
+                        # Add last_seen timestamp
+                        contact['last_seen'] = details.get('last_advert', None)
+                        break
+        else:
+            # If detailed fetch failed, log warning but still return contacts without last_seen
+            logger.warning(f"Failed to get last_seen data: {error_detailed}")
+
+        return jsonify({
+            'success': True,
+            'contacts': contacts,
+            'count': total_count,
+            'limit': 350  # MeshCore device limit
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting detailed contacts list: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'contacts': [],
+            'count': 0,
+            'limit': 350
+        }), 500
+
+
+@api_bp.route('/contacts/delete', methods=['POST'])
+def delete_contact_api():
+    """
+    Delete a contact from the device.
+
+    JSON body:
+        {
+            "selector": "<public_key_prefix_or_name>"
+        }
+
+    Using public_key_prefix is recommended for reliability.
+
+    Returns:
+        JSON with deletion result:
+        {
+            "success": true,
+            "message": "Contact removed successfully"
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'selector' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: selector'
+            }), 400
+
+        selector = data['selector']
+
+        if not isinstance(selector, str) or not selector.strip():
+            return jsonify({
+                'success': False,
+                'error': 'selector must be a non-empty string'
+            }), 400
+
+        success, message = cli.delete_contact(selector)
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': message
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error deleting contact: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# =============================================================================
+# Contact Management (Pending Contacts & Settings)
+# =============================================================================
+
+@api_bp.route('/contacts/pending', methods=['GET'])
+def get_pending_contacts_api():
+    """
+    Get list of contacts awaiting manual approval.
+
+    Returns:
+        JSON with pending contacts list:
+        {
+            "success": true,
+            "pending": [
+                {
+                    "name": "Skyllancer",
+                    "public_key": "f9ef123abc..."
+                },
+                ...
+            ],
+            "count": 2
+        }
+    """
+    try:
+        success, pending, error = cli.get_pending_contacts()
+
+        if success:
+            return jsonify({
+                'success': True,
+                'pending': pending,
+                'count': len(pending)
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': error or 'Failed to get pending contacts',
+                'pending': []
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error getting pending contacts: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'pending': []
+        }), 500
+
+
+@api_bp.route('/contacts/pending/approve', methods=['POST'])
+def approve_pending_contact_api():
+    """
+    Approve and add a pending contact.
+
+    JSON body:
+        {
+            "public_key": "<full_public_key>"
+        }
+
+    IMPORTANT: Always send the full public_key (not name or prefix).
+    Full public key works for all contact types (CLI, ROOM, REP, SENS).
+
+    Returns:
+        JSON with approval result:
+        {
+            "success": true,
+            "message": "Contact approved successfully"
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'public_key' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: public_key'
+            }), 400
+
+        public_key = data['public_key']
+
+        if not isinstance(public_key, str) or not public_key.strip():
+            return jsonify({
+                'success': False,
+                'error': 'public_key must be a non-empty string'
+            }), 400
+
+        success, message = cli.approve_pending_contact(public_key)
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message or 'Contact approved successfully'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': message
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error approving pending contact: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/device/settings', methods=['GET'])
+def get_device_settings_api():
+    """
+    Get persistent device settings.
+
+    Returns:
+        JSON with settings:
+        {
+            "success": true,
+            "settings": {
+                "manual_add_contacts": false
+            }
+        }
+    """
+    try:
+        success, settings = cli.get_device_settings()
+
+        if success:
+            return jsonify({
+                'success': True,
+                'settings': settings
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to get device settings',
+                'settings': {'manual_add_contacts': False}
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error getting device settings: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'settings': {'manual_add_contacts': False}
+        }), 500
+
+
+@api_bp.route('/device/settings', methods=['POST'])
+def update_device_settings_api():
+    """
+    Update persistent device settings.
+
+    JSON body:
+        {
+            "manual_add_contacts": true/false
+        }
+
+    This setting is:
+    1. Saved to .webui_settings.json for persistence across container restarts
+    2. Applied immediately to the running meshcli session
+
+    Returns:
+        JSON with update result:
+        {
+            "success": true,
+            "message": "manual_add_contacts set to on"
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'manual_add_contacts' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: manual_add_contacts'
+            }), 400
+
+        manual_add_contacts = data['manual_add_contacts']
+
+        if not isinstance(manual_add_contacts, bool):
+            return jsonify({
+                'success': False,
+                'error': 'manual_add_contacts must be a boolean'
+            }), 400
+
+        success, message = cli.set_manual_add_contacts(manual_add_contacts)
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message,
+                'settings': {'manual_add_contacts': manual_add_contacts}
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': message
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error updating device settings: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
