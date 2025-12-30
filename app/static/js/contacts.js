@@ -1042,8 +1042,8 @@ async function confirmDelete() {
     }
 
     try {
-        // Use full public key if available, otherwise fall back to prefix
-        const selector = contactToDelete.full_public_key || contactToDelete.public_key_prefix;
+        // Use contact name for deletion (meshcli remove_contact only works with name)
+        const selector = contactToDelete.name;
 
         const response = await fetch('/api/contacts/delete', {
             method: 'POST',
