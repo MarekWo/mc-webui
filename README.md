@@ -19,6 +19,9 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - 🔐 **Channel sharing** - Share channels via QR code or encrypted keys
 - 🔓 **Public channels** - Join public channels (starting with #) without encryption keys
 - 🎯 **Reply to users** - Quick reply with `@[UserName]` format
+- 🏷️ **Mention badges** - User mentions displayed as styled badges (like Android Meshcore app)
+- 🔗 **Clickable URLs** - Automatic URL detection and link conversion
+- 🖼️ **Image previews** - Inline image thumbnails with click-to-expand modal
 - 👥 **Contact management** - Manual contact approval mode with pending contacts list (persistent settings)
   - **Dedicated pages:** Separate full-screen views for pending and existing contacts
   - **Advanced sorting:** Sort contacts by name (A-Z/Z-A) or last advertisement time (newest/oldest)
@@ -187,7 +190,8 @@ mc-webui/
 │   │   └── js/
 │   │       ├── app.js              # Main page frontend logic
 │   │       ├── dm.js               # Direct Messages page logic
-│   │       └── contacts.js         # Contact Management multi-page logic
+│   │       ├── contacts.js         # Contact Management multi-page logic
+│   │       └── message-utils.js    # Message content processing (mentions, URLs, images)
 │   └── templates/
 │       ├── base.html               # Base template
 │       ├── index.html              # Main chat view
@@ -221,6 +225,7 @@ mc-webui/
 - [x] Smart Notifications (Unread counters per channel and total)
 - [x] Direct Messages (DM) - Private messaging with delivery status tracking
 - [x] Advanced Contact Management - Multi-page interface with sorting, filtering, and activity tracking
+- [x] Message Content Enhancements - Mention badges, clickable URLs, and image previews
 
 ### Next Steps
 
@@ -304,6 +309,31 @@ Archives are created automatically at midnight (00:00 UTC) each day. The live vi
 ### Replying to Users
 
 Click the reply button on any message to insert `@[UserName]` into the text field, then type your reply.
+
+### Message Content Features
+
+The application automatically enhances message content with interactive elements:
+
+#### Mention Badges
+User mentions in the format `@[Username]` are displayed as styled blue badges (similar to the Android Meshcore app), making it easier to identify who is being addressed in a conversation.
+
+**Example:** `@[MarWoj] test w Kielcach` displays with "MarWoj" as a blue badge.
+
+#### Clickable URLs
+URLs starting with `http://` or `https://` are automatically converted to clickable links that open in a new browser tab.
+
+**Example:** `https://example.com` becomes a clickable blue link.
+
+#### Image Previews
+URLs ending in `.jpg`, `.jpeg`, `.png`, `.gif`, or `.webp` are displayed as:
+- **Inline thumbnails** (max 300x200px on desktop, 200x150px on mobile)
+- **Click-to-expand** - Click any thumbnail to view the full-size image in a modal preview
+- **Lazy loading** - Images load only when needed for better performance
+- **Error handling** - Broken images show a placeholder
+
+**Example:** Sending `https://example.com/photo.jpg` shows a thumbnail of the image that can be clicked to view full-size.
+
+**Note:** All content enhancements work in both channel messages and Direct Messages (DM).
 
 ### Direct Messages (DM)
 
