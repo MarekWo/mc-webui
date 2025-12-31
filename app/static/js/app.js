@@ -343,7 +343,7 @@ function createMessageElement(msg) {
             <span class="message-sender">${escapeHtml(msg.sender)}</span>
             <span class="message-time">${time}</span>
         </div>
-        <p class="message-content">${escapeHtml(msg.content)}</p>
+        <p class="message-content">${processMessageContent(msg.content)}</p>
         ${metaInfo ? `<div class="message-meta">${metaInfo}</div>` : ''}
         ${!msg.is_own ? `
             <div class="mt-1">

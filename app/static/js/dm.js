@@ -415,7 +415,7 @@ function displayMessages(messages) {
                 <span class="text-muted">${formatTime(msg.timestamp)}</span>
                 ${statusIcon}
             </div>
-            <div>${escapeHtml(msg.content)}</div>
+            <div>${processMessageContent(msg.content)}</div>
             ${meta}
         `;
 

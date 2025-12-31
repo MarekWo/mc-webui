@@ -484,3 +484,93 @@ main {
 .dm-messages-container::-webkit-scrollbar-thumb:hover {
     background: #aaa;
 }
+
+/* =============================================================================
+   Message Content Enhancements (Mentions, Links, Images)
+   ============================================================================= */
+
+/* Mention Badge (similar to Android Meshcore app) */
+.mention-badge {
+    display: inline-block;
+    background-color: #0d6efd;
+    color: white;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.75rem;
+    font-size: 0.85em;
+    font-weight: 500;
+    margin: 0 0.1rem;
+    white-space: nowrap;
+}
+
+.message.own .mention-badge {
+    background-color: #084298;
+}
+
+/* Clickable Links in Messages */
+.message-link {
+    color: #0d6efd;
+    text-decoration: underline;
+    word-break: break-all;
+}
+
+.message-link:hover {
+    color: #0a58ca;
+    text-decoration: underline;
+}
+
+.message.own .message-link {
+    color: #084298;
+}
+
+.message.own .message-link:hover {
+    color: #052c65;
+}
+
+/* Image Thumbnails in Messages */
+.message-image-container {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.message-image-thumbnail {
+    max-width: 300px;
+    max-height: 200px;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid #dee2e6;
+}
+
+.message-image-thumbnail:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.message-image-url {
+    font-size: 0.75rem;
+    word-break: break-all;
+}
+
+/* Responsive image sizes on mobile */
+@media (max-width: 576px) {
+    .message-image-thumbnail {
+        max-width: 200px;
+        max-height: 150px;
+    }
+}
+
+/* Image Preview Modal */
+#imagePreviewModal .modal-content {
+    background-color: rgba(0, 0, 0, 0.95);
+}
+
+#imagePreviewModal .modal-body {
+    padding: 1rem;
+}
+
+#imagePreviewImg {
+    border-radius: 0.5rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
