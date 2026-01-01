@@ -192,6 +192,11 @@
                     dmFrame.src = dmFrame.src;
                 }
             });
+
+            // Reload page when DM modal is closed to update unread badges
+            dmModal.addEventListener('hidden.bs.modal', function () {
+                window.location.reload();
+            });
         }
 
         if (contactsModal) {
