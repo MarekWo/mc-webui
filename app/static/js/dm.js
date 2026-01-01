@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Load conversations into dropdown
     await loadConversations();
 
+    // Load connection status
+    await loadStatus();
+
     // Check for initial conversation from URL parameter
     if (window.MC_CONFIG && window.MC_CONFIG.initialConversation) {
         const convId = window.MC_CONFIG.initialConversation;
@@ -45,8 +48,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Setup auto-refresh
     setupAutoRefresh();
-
-    updateStatus('connected', 'Ready');
 });
 
 // Handle page restoration from cache (PWA back/forward navigation)
@@ -484,6 +485,9 @@ function setupAutoRefresh() {
         // Reload conversations to update unread indicators
         await loadConversations();
 
+        // Update connection status
+        await loadStatus();
+
         // If viewing a conversation, check for new messages
         if (currentConversationId) {
             await checkForNewMessages();
@@ -660,20 +664,36 @@ async function markAsRead(conversationId, timestamp) {
 }
 
 /**
+ * Load connection status
+ */
+async function loadStatus() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+
+        if (data.success) {
+            updateStatus(data.connected ? 'connected' : 'disconnected');
+        }
+    } catch (error) {
+        console.error('Error loading status:', error);
+        updateStatus('disconnected');
+    }
+}
+
+/**
  * Update status indicator
  */
-function updateStatus(status, message) {
+function updateStatus(status) {
     const statusEl = document.getElementById('dmStatusText');
     if (!statusEl) return;
 
-    const statusColors = {
-        'connected': 'success',
-        'disconnected': 'danger',
-        'connecting': 'warning'
+    const icons = {
+        connected: '<i class="bi bi-circle-fill status-connected"></i> Connected',
+        disconnected: '<i class="bi bi-circle-fill status-disconnected"></i> Disconnected',
+        connecting: '<i class="bi bi-circle-fill status-connecting"></i> Connecting...'
     };
 
-    const color = statusColors[status] || 'secondary';
-    statusEl.innerHTML = `<i class="bi bi-circle-fill text-${color}"></i> ${message}`;
+    statusEl.innerHTML = icons[status] || icons.connecting;
 }
 
 /**

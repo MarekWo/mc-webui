@@ -574,7 +574,7 @@ function updateStatus(status) {
 function updateLastRefresh() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString();
-    document.getElementById('lastRefresh').textContent = `Last refresh: ${timeStr}`;
+    document.getElementById('lastRefresh').textContent = `Updated: ${timeStr}`;
 }
 
 /**
