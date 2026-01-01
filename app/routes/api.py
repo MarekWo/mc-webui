@@ -267,7 +267,6 @@ def _filter_contacts_by_criteria(contacts: list, criteria: dict) -> list:
             - types (list[int]): Contact types to include [1,2,3,4]
             - date_field (str): "last_advert" or "lastmod"
             - days (int): Days of inactivity (0 = ignore)
-            - path_len (int): Minimum path length, >X (0 = ignore)
 
     Returns:
         List of contacts matching criteria
@@ -276,7 +275,6 @@ def _filter_contacts_by_criteria(contacts: list, criteria: dict) -> list:
     selected_types = criteria.get('types', [1, 2, 3, 4])
     date_field = criteria.get('date_field', 'last_advert')
     days = criteria.get('days', 0)
-    path_len = criteria.get('path_len', 0)
 
     # Calculate timestamp threshold for days filter
     current_time = int(time.time())
@@ -307,12 +305,6 @@ def _filter_contacts_by_criteria(contacts: list, criteria: dict) -> list:
                     # Still active within threshold
                     continue
 
-        # Filter by path length (> path_len)
-        if path_len > 0:
-            contact_path_len = contact.get('out_path_len', -1)
-            if contact_path_len <= path_len:
-                continue
-
         # Contact matches all criteria
         filtered.append(contact)
 
@@ -329,8 +321,7 @@ def preview_cleanup_contacts():
             "name_filter": "",              # Partial name match (empty = ignore)
             "types": [1, 2, 3, 4],          # Contact types (1=CLI, 2=REP, 3=ROOM, 4=SENS)
             "date_field": "last_advert",    # "last_advert" or "lastmod"
-            "days": 2,                      # Days of inactivity (0 = ignore)
-            "path_len": 0                   # Path length > X (0 = ignore)
+            "days": 2                       # Days of inactivity (0 = ignore)
         }
 
     Returns:
@@ -349,8 +340,7 @@ def preview_cleanup_contacts():
             'name_filter': data.get('name_filter', ''),
             'types': data.get('types', [1, 2, 3, 4]),
             'date_field': data.get('date_field', 'last_advert'),
-            'days': data.get('days', 0),
-            'path_len': data.get('path_len', 0)
+            'days': data.get('days', 0)
         }
 
         # Validate types
@@ -372,12 +362,6 @@ def preview_cleanup_contacts():
             return jsonify({
                 'success': False,
                 'error': 'Invalid days (must be non-negative integer)'
-            }), 400
-
-        if not isinstance(criteria['path_len'], int) or criteria['path_len'] < 0:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid path_len (must be non-negative integer)'
             }), 400
 
         # Get all contacts
@@ -433,8 +417,7 @@ def cleanup_contacts():
             "name_filter": "",              # Partial name match (empty = ignore)
             "types": [1, 2, 3, 4],          # Contact types (1=CLI, 2=REP, 3=ROOM, 4=SENS)
             "date_field": "last_advert",    # "last_advert" or "lastmod"
-            "days": 2,                      # Days of inactivity (0 = ignore)
-            "path_len": 0                   # Path length > X (0 = ignore)
+            "days": 2                       # Days of inactivity (0 = ignore)
         }
 
     Returns:
@@ -457,8 +440,7 @@ def cleanup_contacts():
             'name_filter': data.get('name_filter', ''),
             'types': data.get('types', [1, 2, 3, 4]),
             'date_field': data.get('date_field', 'last_advert'),
-            'days': data.get('days', 0),
-            'path_len': data.get('path_len', 0)
+            'days': data.get('days', 0)
         }
 
         # Validate types
@@ -480,12 +462,6 @@ def cleanup_contacts():
             return jsonify({
                 'success': False,
                 'error': 'Invalid days (must be non-negative integer)'
-            }), 400
-
-        if not isinstance(criteria['path_len'], int) or criteria['path_len'] < 0:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid path_len (must be non-negative integer)'
             }), 400
 
         # Get all contacts

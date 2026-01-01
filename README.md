@@ -28,7 +28,7 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
   - **Smart filtering:** Search by name/key, filter by contact type (CLI, REP, ROOM, SENS)
   - **Activity indicators:** Visual status icons (🟢 active, 🟡 recent, 🔴 inactive) based on last advertisement
   - **GPS location:** View contact location on Google Maps (when GPS coordinates available)
-  - **Advanced cleanup tool:** Filter and remove contacts by name, type (CLI/REP/ROOM/SENS), inactivity period, and path length with preview before deletion
+  - **Advanced cleanup tool:** Filter and remove contacts by name, type (CLI/REP/ROOM/SENS), and inactivity period with preview before deletion
 - 📦 **Message archiving** - Automatic daily archiving with browse-by-date selector
 - ⚡ **Efficient polling** - Lightweight update checks every 10s, UI refreshes only when needed
 - 📡 **Network commands** - Send advertisement (advert) or flood advertisement (floodadv) for network management
@@ -486,14 +486,12 @@ The advanced cleanup tool allows you to filter and remove contacts based on mult
      - **Contact Types:** Select which types to include (CLI, REP, ROOM, SENS)
      - **Date Field:** Choose between "Last Advert" (recommended) or "Last Modified"
      - **Days of Inactivity:** Contacts inactive for more than X days (0 = ignore)
-     - **Path Length >:** Contacts with path length greater than X (0 = ignore)
 4. Click **Preview Cleanup** to see matching contacts
 5. Review the list and confirm deletion
 
 **Example use cases:**
 - Remove all REP contacts inactive for 30+ days: Select REP, set days to 30
 - Clean specific contact names: Enter partial name (e.g., "test")
-- Remove distant contacts: Set path length > 5
 
 ### Network Commands
 

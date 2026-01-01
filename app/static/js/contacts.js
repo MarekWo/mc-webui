@@ -156,7 +156,7 @@ function collectCleanupCriteria() {
      * Collect cleanup filter criteria from form inputs.
      *
      * Returns:
-     *   Object with criteria: {name_filter, types, date_field, days, path_len}
+     *   Object with criteria: {name_filter, types, date_field, days}
      */
     // Name filter
     const nameFilter = document.getElementById('cleanupNameFilter')?.value?.trim() || '';
@@ -172,15 +172,11 @@ function collectCleanupCriteria() {
     // Days of inactivity
     const days = parseInt(document.getElementById('cleanupDays')?.value) || 0;
 
-    // Path length
-    const pathLen = parseInt(document.getElementById('cleanupPathLen')?.value) || 0;
-
     return {
         name_filter: nameFilter,
         types: types,
         date_field: dateField,
-        days: days,
-        path_len: pathLen
+        days: days
     };
 }
 
