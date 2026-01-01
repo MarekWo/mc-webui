@@ -11,6 +11,30 @@
  */
 
 // =============================================================================
+// Global Navigation Helper
+// =============================================================================
+
+/**
+ * Global navigation function - cleans up DOM before navigation
+ * This prevents viewport issues when navigating between pages
+ */
+window.navigateTo = function(url) {
+    // Remove any lingering Bootstrap classes/backdrops
+    document.body.classList.remove('modal-open', 'offcanvas-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+
+    // Remove any backdrops
+    const backdrops = document.querySelectorAll('.offcanvas-backdrop, .modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+
+    // Navigate after cleanup
+    setTimeout(() => {
+        window.location.href = url;
+    }, 100);
+};
+
+// =============================================================================
 // State Management
 // =============================================================================
 

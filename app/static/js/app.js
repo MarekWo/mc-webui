@@ -16,6 +16,35 @@ let unreadCounts = {};  // Track unread message counts per channel
 let dmLastSeenTimestamps = {};  // Track last seen DM timestamp per conversation
 let dmUnreadCounts = {};  // Track unread DM counts per conversation
 
+/**
+ * Global navigation function - closes offcanvas and cleans up before navigation
+ * This prevents Bootstrap backdrop/body classes from persisting after page change
+ */
+window.navigateTo = function(url) {
+    // Close offcanvas if open
+    const offcanvasEl = document.getElementById('mainMenu');
+    if (offcanvasEl) {
+        const offcanvas = bootstrap.Offcanvas.getInstance(offcanvasEl);
+        if (offcanvas) {
+            offcanvas.hide();
+        }
+    }
+
+    // Remove any lingering Bootstrap classes/backdrops
+    document.body.classList.remove('modal-open', 'offcanvas-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+
+    // Remove any backdrops
+    const backdrops = document.querySelectorAll('.offcanvas-backdrop, .modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+
+    // Navigate after cleanup
+    setTimeout(() => {
+        window.location.href = url;
+    }, 100);
+};
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('mc-webui initialized');
