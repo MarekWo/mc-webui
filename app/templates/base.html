@@ -266,13 +266,14 @@
     <script>
         // Fix viewport corruption on Android PWA after page reload
         window.addEventListener('load', function() {
-            // Force viewport recalculation
+            // Force viewport recalculation without modifying body height
             setTimeout(() => {
                 window.scrollTo(0, 0);
-                // Force reflow
-                document.body.style.height = '100%';
-                void(document.body.offsetHeight);
-            }, 100);
+                // Force reflow using a less invasive method
+                void(document.documentElement.offsetHeight);
+                // Trigger resize event to recalculate layout
+                window.dispatchEvent(new Event('resize'));
+            }, 150);
         });
     </script>
 
