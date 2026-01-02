@@ -395,8 +395,21 @@ def node_discover() -> Tuple[bool, List[Dict]]:
         return False, []
 
     try:
-        # Parse JSON array from stdout
-        nodes = json.loads(stdout)
+        # Clean output: remove prompt lines (e.g., "MarWoj|* .node_discover")
+        # and extract only the JSON array
+        cleaned_output = stdout.strip()
+
+        # Find the start of JSON array (first '[')
+        json_start = cleaned_output.find('[')
+        if json_start == -1:
+            logger.error(f"No JSON array found in output: {stdout}")
+            return False, []
+
+        # Extract JSON from first '[' to end
+        json_str = cleaned_output[json_start:]
+
+        # Parse JSON array
+        nodes = json.loads(json_str)
         if not isinstance(nodes, list):
             logger.error(f"node_discover returned non-array: {stdout}")
             return False, []
