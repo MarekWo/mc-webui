@@ -196,11 +196,16 @@
             // Update DM badges when modal is closed (without full page reload)
             dmModal.addEventListener('hidden.bs.modal', async function () {
                 try {
-                    // Fetch latest DM unread counts
-                    const response = await fetch('/api/dm/updates?last_seen={}');
+                    // Fetch latest DM conversations with unread counts
+                    const response = await fetch('/api/dm/conversations');
                     if (response.ok) {
                         const data = await response.json();
-                        const totalUnread = data.total_unread || 0;
+
+                        // Calculate total unread by summing unread counts from all conversations
+                        let totalUnread = 0;
+                        if (data.conversations && Array.isArray(data.conversations)) {
+                            totalUnread = data.conversations.reduce((sum, conv) => sum + (conv.unread || 0), 0);
+                        }
 
                         // Update the green DM badge on notification bell
                         const bellContainer = document.getElementById('notificationBell');
