@@ -85,6 +85,13 @@
                         <small class="d-block text-muted">Announce presence (normal)</small>
                     </div>
                 </button>
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" id="discoverNodesBtn" title="Discover nearby mesh repeaters" data-bs-toggle="modal" data-bs-target="#nodeDiscoveryModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-radar" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <span>Discover Nodes</span>
+                        <small class="d-block text-muted">Find nearby repeaters</small>
+                    </div>
+                </button>
                 <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 text-warning" id="floodadvBtn" title="Flood advertisement - use sparingly! High airtime usage.">
                     <i class="bi bi-broadcast" style="font-size: 1.5rem;"></i>
                     <div>
@@ -237,6 +244,58 @@
                     <div id="deviceInfo" class="small text-muted">
                         Loading...
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Node Discovery Modal -->
+    <div class="modal fade" id="nodeDiscoveryModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-radar"></i> Nearby Mesh Nodes</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="nodeDiscoveryStatus" class="text-center mb-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Discovering nodes...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Scanning for nearby repeaters...</p>
+                    </div>
+                    <div id="nodeDiscoveryResults" style="display: none;">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Node</th>
+                                        <th>SNR (dB)</th>
+                                        <th>RSSI (dBm)</th>
+                                        <th>SNR In (dB)</th>
+                                        <th>Hops</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="nodeDiscoveryTableBody">
+                                    <!-- Populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="nodeDiscoveryError" class="alert alert-warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <span id="nodeDiscoveryErrorMessage">Failed to discover nodes</span>
+                    </div>
+                    <div id="nodeDiscoveryEmpty" class="text-center text-muted py-3" style="display: none;">
+                        <i class="bi bi-info-circle" style="font-size: 2rem;"></i>
+                        <p class="mt-2">No nearby repeaters found</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="refreshDiscoveryBtn">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
                 </div>
             </div>
         </div>

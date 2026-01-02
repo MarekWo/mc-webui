@@ -577,6 +577,10 @@ SPECIAL_COMMANDS = {
         'function': cli.floodadv,
         'description': 'Flood advertisement (use sparingly!)',
     },
+    'node_discover': {
+        'function': cli.node_discover,
+        'description': 'Discover nearby mesh nodes (repeaters)',
+    },
 }
 
 
@@ -586,7 +590,7 @@ def execute_special_command():
     Execute a special device command.
 
     JSON body:
-        command (str): Command name (required) - one of: advert, floodadv
+        command (str): Command name (required) - one of: advert, floodadv, node_discover
 
     Returns:
         JSON with command result
@@ -610,20 +614,57 @@ def execute_special_command():
 
         # Execute the command
         cmd_info = SPECIAL_COMMANDS[command]
-        success, message = cmd_info['function']()
+        result = cmd_info['function']()
 
-        if success:
-            return jsonify({
-                'success': True,
-                'command': command,
-                'message': message or f'{command} executed successfully'
-            }), 200
+        # Handle different return types
+        if command == 'node_discover':
+            # node_discover returns (success, nodes_list)
+            success, nodes = result
+            if success:
+                return jsonify({
+                    'success': True,
+                    'command': command,
+                    'nodes': nodes,
+                    'count': len(nodes)
+                }), 200
+            else:
+                return jsonify({
+                    'success': False,
+                    'command': command,
+                    'error': 'Failed to discover nodes'
+                }), 500
+        elif command == 'advert':
+            # advert returns (success, message) - parse to show only "Advert sent"
+            success, message = result
+            if success:
+                # Extract clean message - just use "Advert sent" instead of full output
+                clean_message = "Advert sent"
+                return jsonify({
+                    'success': True,
+                    'command': command,
+                    'message': clean_message
+                }), 200
+            else:
+                return jsonify({
+                    'success': False,
+                    'command': command,
+                    'error': message
+                }), 500
         else:
-            return jsonify({
-                'success': False,
-                'command': command,
-                'error': message
-            }), 500
+            # Other commands (floodadv) return (success, message)
+            success, message = result
+            if success:
+                return jsonify({
+                    'success': True,
+                    'command': command,
+                    'message': message or f'{command} executed successfully'
+                }), 200
+            else:
+                return jsonify({
+                    'success': False,
+                    'command': command,
+                    'error': message
+                }), 500
 
     except Exception as e:
         logger.error(f"Error executing special command: {e}")

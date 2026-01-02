@@ -303,6 +303,17 @@ function setupEventListeners() {
         }
         await executeSpecialCommand('floodadv');
     });
+
+    // Node Discovery Modal: Load nodes when opened
+    const nodeDiscoveryModal = document.getElementById('nodeDiscoveryModal');
+    nodeDiscoveryModal.addEventListener('show.bs.modal', function() {
+        discoverNodes();
+    });
+
+    // Node Discovery: Refresh button
+    document.getElementById('refreshDiscoveryBtn').addEventListener('click', function() {
+        discoverNodes();
+    });
 }
 
 /**
@@ -1250,6 +1261,105 @@ async function copyChannelKey() {
             showNotification('Failed to copy to clipboard', 'danger');
         }
     }
+}
+
+
+/**
+ * Discover nearby mesh nodes (repeaters)
+ */
+async function discoverNodes() {
+    // Show loading state
+    document.getElementById('nodeDiscoveryStatus').style.display = 'block';
+    document.getElementById('nodeDiscoveryResults').style.display = 'none';
+    document.getElementById('nodeDiscoveryError').style.display = 'none';
+    document.getElementById('nodeDiscoveryEmpty').style.display = 'none';
+
+    // Disable refresh button during discovery
+    const refreshBtn = document.getElementById('refreshDiscoveryBtn');
+    refreshBtn.disabled = true;
+
+    try {
+        const response = await fetch('/api/device/command', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ command: 'node_discover' })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.nodes) {
+            displayNodeDiscoveryResults(data.nodes);
+        } else {
+            // Show error
+            document.getElementById('nodeDiscoveryStatus').style.display = 'none';
+            document.getElementById('nodeDiscoveryError').style.display = 'block';
+            document.getElementById('nodeDiscoveryErrorMessage').textContent = data.error || 'Failed to discover nodes';
+        }
+    } catch (error) {
+        console.error('Error discovering nodes:', error);
+        // Show error
+        document.getElementById('nodeDiscoveryStatus').style.display = 'none';
+        document.getElementById('nodeDiscoveryError').style.display = 'block';
+        document.getElementById('nodeDiscoveryErrorMessage').textContent = 'Network error: ' + error.message;
+    } finally {
+        refreshBtn.disabled = false;
+    }
+}
+
+/**
+ * Display node discovery results in table
+ */
+function displayNodeDiscoveryResults(nodes) {
+    const tableBody = document.getElementById('nodeDiscoveryTableBody');
+
+    // Hide loading state
+    document.getElementById('nodeDiscoveryStatus').style.display = 'none';
+
+    // Check if empty
+    if (nodes.length === 0) {
+        document.getElementById('nodeDiscoveryEmpty').style.display = 'block';
+        return;
+    }
+
+    // Show results table
+    document.getElementById('nodeDiscoveryResults').style.display = 'block';
+
+    // Clear previous results
+    tableBody.innerHTML = '';
+
+    // Sort nodes by SNR (descending - strongest signal first)
+    nodes.sort((a, b) => (b.SNR || 0) - (a.SNR || 0));
+
+    // Populate table
+    nodes.forEach(node => {
+        const row = document.createElement('tr');
+
+        // Determine signal quality class
+        let signalClass = '';
+        const snr = node.SNR || 0;
+        if (snr >= 10) {
+            signalClass = 'text-success fw-bold';
+        } else if (snr >= 5) {
+            signalClass = 'text-warning';
+        } else {
+            signalClass = 'text-danger';
+        }
+
+        row.innerHTML = `
+            <td>
+                <span class="font-monospace">${escapeHtml(node.pubkey?.substring(0, 12) || 'unknown')}</span>
+                ${node.tag ? `<br><small class="text-muted">Tag: ${escapeHtml(node.tag)}</small>` : ''}
+            </td>
+            <td class="${signalClass}">${snr.toFixed(2)}</td>
+            <td>${node.RSSI !== undefined ? node.RSSI : 'N/A'}</td>
+            <td>${node.SNR_in !== undefined ? node.SNR_in.toFixed(2) : 'N/A'}</td>
+            <td>${node.path_len !== undefined ? node.path_len : 'N/A'}</td>
+        `;
+
+        tableBody.appendChild(row);
+    });
 }
 
 

@@ -505,6 +505,24 @@ Sends a single advertisement frame to announce your node's presence in the mesh 
 2. Click "Send Advert" under Network Commands
 3. Wait for confirmation toast
 
+#### Discover Nodes
+Scans the mesh network to find nearby repeaters and displays their signal quality. Useful for network diagnostics and finding the best repeater connections.
+
+1. Click the menu icon (☰) in the navbar
+2. Click "Discover Nodes" under Network Commands
+3. A modal window opens showing nearby repeaters with:
+   - **Node ID**: Public key prefix and tag
+   - **SNR (Signal-to-Noise Ratio)**: Higher is better (>10dB = excellent, 5-10dB = good, <5dB = poor)
+   - **RSSI**: Received signal strength in dBm
+   - **SNR In**: Inbound signal quality
+   - **Hops**: Number of hops to reach the node
+4. Click "Refresh" to rescan for nodes
+
+Results are sorted by signal strength (strongest first) and color-coded:
+- 🟢 **Green**: SNR ≥ 10dB (excellent connection)
+- 🟡 **Yellow**: SNR 5-10dB (good connection)
+- 🔴 **Red**: SNR < 5dB (poor connection)
+
 #### Flood Advert (Use Sparingly!)
 Sends advertisement in flooding mode, forcing all nodes to retransmit. **Use only when:**
 - Starting a completely new network

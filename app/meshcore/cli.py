@@ -368,6 +368,47 @@ def floodadv() -> Tuple[bool, str]:
     return success, stdout or stderr
 
 
+def node_discover() -> Tuple[bool, List[Dict]]:
+    """
+    Discover nearby mesh nodes (repeaters).
+
+    Uses .node_discover command which returns JSON array of nearby repeaters
+    with SNR, RSSI, and other metadata.
+
+    Returns:
+        Tuple of (success, nodes_list)
+        Each node dict contains:
+        {
+            'SNR': float,
+            'RSSI': int,
+            'path_len': int,
+            'node_type': int (2=REP),
+            'SNR_in': float,
+            'tag': str (hex),
+            'pubkey': str (hex)
+        }
+    """
+    success, stdout, stderr = _run_command(['.node_discover'])
+
+    if not success:
+        logger.error(f"node_discover failed: {stderr}")
+        return False, []
+
+    try:
+        # Parse JSON array from stdout
+        nodes = json.loads(stdout)
+        if not isinstance(nodes, list):
+            logger.error(f"node_discover returned non-array: {stdout}")
+            return False, []
+
+        logger.info(f"Discovered {len(nodes)} nearby nodes")
+        return True, nodes
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse node_discover JSON: {e}, output: {stdout}")
+        return False, []
+
+
 # =============================================================================
 # Direct Messages (DM)
 # =============================================================================
