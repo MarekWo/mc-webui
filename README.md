@@ -391,19 +391,35 @@ By default, new contacts attempting to connect are automatically added to your c
 
 #### Pending Contacts
 
-When manual approval is enabled, new contacts appear in the Pending Contacts list for review:
+When manual approval is enabled, new contacts appear in the Pending Contacts list for review with enriched contact information:
 
-**Approve a contact:**
-1. View the contact name and truncated public key
-2. Click "Copy Full Key" to copy the complete public key (useful for verification)
-3. Click "Approve" to add the contact to your contacts list
-4. The contact is moved from pending to regular contacts
+**View contact details:**
+- Contact name with emoji (if present)
+- Type badge (CLI, REP, ROOM, SENS) with color coding:
+  - CLI (blue): Regular clients
+  - REP (green): Repeaters
+  - ROOM (cyan): Room servers
+  - SENS (yellow): Sensors
+- Public key prefix (first 12 characters)
+- Last seen timestamp (when available)
+- Map button (when GPS coordinates are available)
 
-**Note:** Always use the full public key for approval (not name or prefix). This ensures compatibility with all contact types (CLI, ROOM, REP, SENS).
+**Filter contacts:**
+- By type: Use checkboxes to show only specific contact types (default: CLI only)
+- By name or key: Search by partial contact name or public key prefix
 
-**Refresh pending list:**
-- Click the "Refresh" button to check for new pending contacts
-- The page automatically loads pending contacts when first opened
+**Approve contacts:**
+- **Single approval:** Click "Approve" on individual contacts
+- **Batch approval:** Click "Add Filtered" to approve all filtered contacts at once
+  - Confirmation modal shows list of contacts to be approved
+  - Progress indicator during batch approval
+
+**Other actions:**
+- Click "Map" button to view contact location on Google Maps (when GPS data available)
+- Click "Copy Key" to copy full public key to clipboard
+- Click "Refresh" to reload pending contacts list
+
+**Note:** Always use the full public key for approval (not name or prefix). This ensures compatibility with all contact types.
 
 #### Existing Contacts
 

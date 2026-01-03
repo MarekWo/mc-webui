@@ -650,9 +650,20 @@ def get_pending_contacts() -> Tuple[bool, List[Dict], str]:
 
     Returns:
         Tuple of (success, pending_contacts_list, error_message)
-        Each contact dict: {
-            'name': str,
-            'public_key': str
+        Each contact dict contains:
+        {
+            'name': str (adv_name from contact_info),
+            'public_key': str (full 64-char hex key),
+            'public_key_prefix': str (first 12 chars for display),
+            'type': int (1=CLI, 2=REP, 3=ROOM, 4=SENS),
+            'type_label': str (CLI/REP/ROOM/SENS),
+            'adv_lat': float (GPS latitude),
+            'adv_lon': float (GPS longitude),
+            'last_advert': int (Unix timestamp),
+            'lastmod': int (Unix timestamp),
+            'out_path_len': int,
+            'out_path': str,
+            'path_or_mode': str (computed: 'Flood' or path string)
         }
     """
     try:
@@ -671,6 +682,29 @@ def get_pending_contacts() -> Tuple[bool, List[Dict], str]:
             return False, [], error
 
         pending = data.get('pending', [])
+
+        # Add computed fields (same pattern as get_contacts_with_last_seen)
+        type_labels = {1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
+
+        for contact in pending:
+            # Public key prefix (first 12 chars for display)
+            public_key = contact.get('public_key', '')
+            contact['public_key_prefix'] = public_key[:12] if len(public_key) >= 12 else public_key
+
+            # Type label
+            contact_type = contact.get('type', 1)
+            contact['type_label'] = type_labels.get(contact_type, 'UNKNOWN')
+
+            # Path or mode display
+            out_path_len = contact.get('out_path_len', -1)
+            out_path = contact.get('out_path', '')
+            if out_path_len == -1:
+                contact['path_or_mode'] = 'Flood'
+            elif out_path:
+                contact['path_or_mode'] = out_path
+            else:
+                contact['path_or_mode'] = f'Path len: {out_path_len}'
+
         return True, pending, ""
 
     except requests.exceptions.Timeout:

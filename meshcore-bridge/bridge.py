@@ -538,10 +538,19 @@ def get_pending_contacts():
         {
             "success": true,
             "pending": [
-                {"name": "Skyllancer", "public_key": "f9ef..."},
-                {"name": "KRA Reksio mob2🐕", "public_key": "41d5..."}
+                {
+                    "name": "KRK - WD 🔌",
+                    "public_key": "2d86b4a7...",
+                    "type": 2,
+                    "adv_lat": 50.02377,
+                    "adv_lon": 19.96038,
+                    "last_advert": 1715889153,
+                    "lastmod": 1716372319,
+                    "out_path_len": -1,
+                    "out_path": ""
+                }
             ],
-            "raw_stdout": "..."
+            "count": 1
         }
     """
     try:
@@ -553,8 +562,8 @@ def get_pending_contacts():
                 'pending': []
             }), 503
 
-        # Execute pending_contacts command
-        result = meshcli_session.execute_command(['pending_contacts'], timeout=DEFAULT_TIMEOUT)
+        # Execute .pending_contacts command (JSON format)
+        result = meshcli_session.execute_command(['.pending_contacts'], timeout=DEFAULT_TIMEOUT)
 
         if not result['success']:
             return jsonify({
@@ -564,44 +573,52 @@ def get_pending_contacts():
                 'raw_stdout': result.get('stdout', '')
             }), 200
 
-        # Parse stdout
+        # Parse JSON stdout using brace-matching (handles prettified multi-line JSON)
         stdout = result.get('stdout', '').strip()
         pending = []
 
         if stdout:
-            for line in stdout.split('\n'):
-                line = line.strip()
+            # Use brace-matching to extract complete JSON objects
+            depth = 0
+            start_idx = None
 
-                # Skip empty lines
-                if not line:
-                    continue
+            for i, char in enumerate(stdout):
+                if char == '{':
+                    if depth == 0:
+                        start_idx = i
+                    depth += 1
+                elif char == '}':
+                    depth -= 1
+                    if depth == 0 and start_idx is not None:
+                        json_str = stdout[start_idx:i+1]
+                        try:
+                            # Parse the JSON object (nested dict structure)
+                            parsed = json.loads(json_str)
 
-                # Skip JSON lines (adverts, messages, or other JSON output from meshcli)
-                if line.startswith('{') or line.startswith('['):
-                    continue
-
-                # Skip meshcli prompt lines (e.g., "MarWoj|*")
-                if line.endswith('|*'):
-                    continue
-
-                # Parse lines with format: "Name: <hex_public_key>"
-                if ':' in line:
-                    parts = line.split(':', 1)
-                    if len(parts) == 2:
-                        name = parts[0].strip()
-                        public_key = parts[1].strip().replace(' ', '')  # Remove spaces from hex
-
-                        # Additional validation: pubkey should be hex characters only
-                        if name and public_key and all(c in '0123456789abcdefABCDEF' for c in public_key):
-                            pending.append({
-                                'name': name,
-                                'public_key': public_key
-                            })
+                            # Extract contacts from nested structure
+                            # Format: {public_key_hash: {public_key, type, adv_name, ...}}
+                            if isinstance(parsed, dict):
+                                for key_hash, contact_data in parsed.items():
+                                    if isinstance(contact_data, dict) and 'public_key' in contact_data:
+                                        pending.append({
+                                            'name': contact_data.get('adv_name', 'Unknown'),
+                                            'public_key': contact_data.get('public_key', ''),
+                                            'type': contact_data.get('type', 1),
+                                            'adv_lat': contact_data.get('adv_lat', 0.0),
+                                            'adv_lon': contact_data.get('adv_lon', 0.0),
+                                            'last_advert': contact_data.get('last_advert', 0),
+                                            'lastmod': contact_data.get('lastmod', 0),
+                                            'out_path_len': contact_data.get('out_path_len', -1),
+                                            'out_path': contact_data.get('out_path', '')
+                                        })
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"Failed to parse pending contact JSON: {e}")
+                        start_idx = None
 
         return jsonify({
             'success': True,
             'pending': pending,
-            'raw_stdout': stdout
+            'count': len(pending)
         }), 200
 
     except Exception as e:

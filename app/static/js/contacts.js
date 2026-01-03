@@ -41,6 +41,7 @@ window.navigateTo = function(url) {
 let currentPage = null; // 'manage', 'pending', 'existing'
 let manualApprovalEnabled = false;
 let pendingContacts = [];
+let filteredPendingContacts = []; // Filtered pending contacts (for pending page filtering)
 let existingContacts = [];
 let filteredContacts = [];
 let contactToDelete = null;
@@ -392,6 +393,40 @@ function attachPendingEventListeners() {
             loadPendingContacts();
         });
     }
+
+    // Search input - filter on typing
+    const searchInput = document.getElementById('pendingSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            applyPendingFilters();
+        });
+    }
+
+    // Type filter checkboxes - filter on change
+    ['typeFilterCLI', 'typeFilterREP', 'typeFilterROOM', 'typeFilterSENS'].forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) {
+            checkbox.addEventListener('change', () => {
+                applyPendingFilters();
+            });
+        }
+    });
+
+    // Add Filtered button - show batch approval modal
+    const addFilteredBtn = document.getElementById('addFilteredBtn');
+    if (addFilteredBtn) {
+        addFilteredBtn.addEventListener('click', () => {
+            showBatchApprovalModal();
+        });
+    }
+
+    // Confirm Batch Approval button - approve all filtered contacts
+    const confirmBatchBtn = document.getElementById('confirmBatchApprovalBtn');
+    if (confirmBatchBtn) {
+        confirmBatchBtn.addEventListener('click', () => {
+            batchApproveContacts();
+        });
+    }
 }
 
 // =============================================================================
@@ -566,9 +601,11 @@ async function loadPendingContacts() {
             if (pendingContacts.length === 0) {
                 // Show empty state
                 if (emptyEl) emptyEl.style.display = 'block';
+                if (countBadge) countBadge.style.display = 'none';
             } else {
-                // Render pending contacts list
-                renderPendingList(pendingContacts);
+                // Initialize filtered list and apply filters (default: CLI only)
+                filteredPendingContacts = [...pendingContacts];
+                applyPendingFilters();
 
                 // Update count badge (in navbar)
                 if (countBadge) {
@@ -601,6 +638,19 @@ function renderPendingList(contacts) {
 
     listEl.innerHTML = '';
 
+    // Show "no filtered results" message if filters eliminate all contacts
+    if (contacts.length === 0 && pendingContacts.length > 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.innerHTML = `
+            <i class="bi bi-funnel"></i>
+            <p class="mb-0">No contacts match filters</p>
+            <small class="text-muted">Try changing your filter criteria</small>
+        `;
+        listEl.appendChild(emptyDiv);
+        return;
+    }
+
     contacts.forEach((contact, index) => {
         const card = createContactCard(contact, index);
         listEl.appendChild(card);
@@ -612,21 +662,57 @@ function createContactCard(contact, index) {
     card.className = 'pending-contact-card';
     card.id = `contact-${index}`;
 
-    // Contact name
+    // Contact info row (name + type badge)
+    const infoRow = document.createElement('div');
+    infoRow.className = 'contact-info-row';
+
     const nameDiv = document.createElement('div');
-    nameDiv.className = 'contact-name';
+    nameDiv.className = 'contact-name flex-grow-1';
     nameDiv.textContent = contact.name;
 
-    // Public key (truncated)
+    const typeBadge = document.createElement('span');
+    typeBadge.className = 'badge type-badge';
+    typeBadge.textContent = contact.type_label || 'CLI';
+
+    // Color-code by type (same as existing contacts)
+    switch (contact.type_label) {
+        case 'CLI':
+            typeBadge.classList.add('bg-primary');
+            break;
+        case 'REP':
+            typeBadge.classList.add('bg-success');
+            break;
+        case 'ROOM':
+            typeBadge.classList.add('bg-info');
+            break;
+        case 'SENS':
+            typeBadge.classList.add('bg-warning', 'text-dark');
+            break;
+        default:
+            typeBadge.classList.add('bg-secondary');
+    }
+
+    infoRow.appendChild(nameDiv);
+    infoRow.appendChild(typeBadge);
+
+    // Public key row (use prefix for display)
     const keyDiv = document.createElement('div');
     keyDiv.className = 'contact-key';
-    const truncatedKey = contact.public_key.substring(0, 16) + '...';
-    keyDiv.textContent = truncatedKey;
-    keyDiv.title = contact.public_key; // Full key on hover
+    keyDiv.textContent = contact.public_key_prefix || contact.public_key.substring(0, 12);
+    keyDiv.title = 'Public Key Prefix';
+
+    // Last advert (optional - show if available)
+    let lastAdvertDiv = null;
+    if (contact.last_advert) {
+        lastAdvertDiv = document.createElement('div');
+        lastAdvertDiv.className = 'text-muted small';
+        const relativeTime = formatRelativeTime(contact.last_advert);
+        lastAdvertDiv.textContent = `Last seen: ${relativeTime}`;
+    }
 
     // Action buttons
     const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'd-flex gap-2 flex-wrap';
+    actionsDiv.className = 'd-flex gap-2 flex-wrap mt-2';
 
     // Approve button
     const approveBtn = document.createElement('button');
@@ -634,17 +720,29 @@ function createContactCard(contact, index) {
     approveBtn.innerHTML = '<i class="bi bi-check-circle"></i> Approve';
     approveBtn.onclick = () => approveContact(contact, index);
 
+    actionsDiv.appendChild(approveBtn);
+
+    // Map button (only if GPS coordinates available)
+    if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
+        const mapBtn = document.createElement('button');
+        mapBtn.className = 'btn btn-outline-primary btn-action';
+        mapBtn.innerHTML = '<i class="bi bi-geo-alt"></i> Map';
+        mapBtn.onclick = () => openGoogleMaps(contact.adv_lat, contact.adv_lon);
+        actionsDiv.appendChild(mapBtn);
+    }
+
     // Copy key button
     const copyBtn = document.createElement('button');
     copyBtn.className = 'btn btn-outline-secondary btn-action';
-    copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy Full Key';
+    copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy Key';
     copyBtn.onclick = () => copyPublicKey(contact.public_key, copyBtn);
 
-    actionsDiv.appendChild(approveBtn);
     actionsDiv.appendChild(copyBtn);
 
-    card.appendChild(nameDiv);
+    // Assemble card
+    card.appendChild(infoRow);
     card.appendChild(keyDiv);
+    if (lastAdvertDiv) card.appendChild(lastAdvertDiv);
     card.appendChild(actionsDiv);
 
     return card;
@@ -727,6 +825,169 @@ function copyPublicKey(publicKey, buttonEl) {
         console.error('Failed to copy:', err);
         showToast('Failed to copy to clipboard', 'danger');
     });
+}
+
+// =============================================================================
+// Pending Page - Filtering and Batch Approval
+// =============================================================================
+
+function applyPendingFilters() {
+    const searchInput = document.getElementById('pendingSearchInput');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
+    // Get selected types
+    const selectedTypes = [];
+    if (document.getElementById('typeFilterCLI')?.checked) selectedTypes.push('CLI');
+    if (document.getElementById('typeFilterREP')?.checked) selectedTypes.push('REP');
+    if (document.getElementById('typeFilterROOM')?.checked) selectedTypes.push('ROOM');
+    if (document.getElementById('typeFilterSENS')?.checked) selectedTypes.push('SENS');
+
+    // Filter contacts
+    filteredPendingContacts = pendingContacts.filter(contact => {
+        // Type filter
+        if (selectedTypes.length > 0 && !selectedTypes.includes(contact.type_label)) {
+            return false;
+        }
+
+        // Search filter (name or public_key_prefix)
+        if (searchTerm) {
+            const nameMatch = contact.name.toLowerCase().includes(searchTerm);
+            const keyMatch = (contact.public_key_prefix || contact.public_key).toLowerCase().includes(searchTerm);
+            return nameMatch || keyMatch;
+        }
+
+        return true;
+    });
+
+    // Update filtered count badge
+    const countBadge = document.getElementById('filteredCountBadge');
+    if (countBadge) {
+        countBadge.textContent = filteredPendingContacts.length;
+    }
+
+    // Render filtered list
+    renderPendingList(filteredPendingContacts);
+}
+
+function showBatchApprovalModal() {
+    if (filteredPendingContacts.length === 0) {
+        showToast('No contacts to approve', 'warning');
+        return;
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('batchApprovalModal'));
+    const countEl = document.getElementById('batchApprovalCount');
+    const listEl = document.getElementById('batchApprovalList');
+
+    // Update count
+    if (countEl) countEl.textContent = filteredPendingContacts.length;
+
+    // Populate list
+    if (listEl) {
+        listEl.innerHTML = '';
+        filteredPendingContacts.forEach(contact => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = contact.name;
+
+            const typeBadge = document.createElement('span');
+            typeBadge.className = 'badge';
+            typeBadge.textContent = contact.type_label;
+
+            switch (contact.type_label) {
+                case 'CLI':
+                    typeBadge.classList.add('bg-primary');
+                    break;
+                case 'REP':
+                    typeBadge.classList.add('bg-success');
+                    break;
+                case 'ROOM':
+                    typeBadge.classList.add('bg-info');
+                    break;
+                case 'SENS':
+                    typeBadge.classList.add('bg-warning', 'text-dark');
+                    break;
+                default:
+                    typeBadge.classList.add('bg-secondary');
+            }
+
+            item.appendChild(nameSpan);
+            item.appendChild(typeBadge);
+            listEl.appendChild(item);
+        });
+    }
+
+    modal.show();
+}
+
+async function batchApproveContacts() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('batchApprovalModal'));
+    const confirmBtn = document.getElementById('confirmBatchApprovalBtn');
+
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    let successCount = 0;
+    let failedCount = 0;
+    const failures = [];
+
+    // Approve contacts one by one (sequential HTTP requests)
+    for (let i = 0; i < filteredPendingContacts.length; i++) {
+        const contact = filteredPendingContacts[i];
+
+        // Update button with progress
+        if (confirmBtn) {
+            confirmBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> Approving ${i + 1}/${filteredPendingContacts.length}...`;
+        }
+
+        try {
+            const response = await fetch('/api/contacts/pending/approve', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    public_key: contact.public_key
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                successCount++;
+            } else {
+                failedCount++;
+                failures.push({ name: contact.name, error: data.error });
+            }
+        } catch (error) {
+            failedCount++;
+            failures.push({ name: contact.name, error: error.message });
+        }
+    }
+
+    // Close modal
+    if (modal) modal.hide();
+
+    // Show result
+    if (successCount > 0 && failedCount === 0) {
+        showToast(`Successfully approved ${successCount} contact${successCount !== 1 ? 's' : ''}`, 'success');
+    } else if (successCount > 0 && failedCount > 0) {
+        showToast(`Approved ${successCount}, failed ${failedCount}. Check console for details.`, 'warning');
+        console.error('Failed approvals:', failures);
+    } else {
+        showToast(`Failed to approve contacts. Check console for details.`, 'danger');
+        console.error('Failed approvals:', failures);
+    }
+
+    // Reload pending list
+    loadPendingContacts();
+
+    // Re-enable button
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Approve All';
+    }
 }
 
 // =============================================================================

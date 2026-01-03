@@ -1607,13 +1607,23 @@ def get_pending_contacts_api():
     Get list of contacts awaiting manual approval.
 
     Returns:
-        JSON with pending contacts list:
+        JSON with pending contacts list with enriched contact data:
         {
             "success": true,
             "pending": [
                 {
-                    "name": "Skyllancer",
-                    "public_key": "f9ef123abc..."
+                    "name": "KRK - WD 🔌",
+                    "public_key": "2d86b4a747b6565ad1...",
+                    "public_key_prefix": "2d86b4a747b6",
+                    "type": 2,
+                    "type_label": "REP",
+                    "adv_lat": 50.02377,
+                    "adv_lon": 19.96038,
+                    "last_advert": 1715889153,
+                    "lastmod": 1716372319,
+                    "out_path_len": -1,
+                    "out_path": "",
+                    "path_or_mode": "Flood"
                 },
                 ...
             ],
