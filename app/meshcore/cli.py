@@ -654,11 +654,6 @@ def get_contacts_json() -> Tuple[bool, Dict[str, Dict], str]:
     try:
         success, stdout, stderr = _run_command(['.contacts'])
 
-        # Debug logging to diagnose empty output
-        logger.info(f".contacts result: success={success}, stdout_len={len(stdout)}, stderr_len={len(stderr)}")
-        logger.info(f".contacts stdout preview (first 500 chars): {stdout[:500] if stdout else 'EMPTY'}")
-        logger.info(f".contacts stderr: {stderr if stderr else 'EMPTY'}")
-
         if not success:
             logger.error(f".contacts command failed: {stderr}")
             return False, {}, stderr or 'Failed to execute .contacts command'
@@ -668,15 +663,25 @@ def get_contacts_json() -> Tuple[bool, Dict[str, Dict], str]:
             logger.error(f".contacts returned empty output (success={success})")
             return False, {}, '.contacts command returned empty output'
 
-        # Parse JSON output
-        # The output is a single JSON object with public_keys as keys
+        # Parse JSON output - use brace-matching to skip prompt line
+        # stdout format: "MarWoj|* .contacts\n{...}"
+        # We need to find the first '{' and parse from there
         try:
-            contacts_dict = json.loads(stdout)
+            # Find first opening brace (skips prompt and command echo)
+            json_start = stdout.find('{')
+            if json_start == -1:
+                logger.error(f".contacts output has no JSON object (no opening brace found)")
+                return False, {}, 'No JSON object found in .contacts output'
+
+            # Extract JSON string from first brace to end
+            json_str = stdout[json_start:]
+
+            # Parse JSON
+            contacts_dict = json.loads(json_str)
             logger.info(f"Parsed {len(contacts_dict)} contacts from .contacts command")
             return True, contacts_dict, ""
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse .contacts JSON output: {e}")
-            logger.error(f"Problematic JSON string (first 1000 chars): {stdout[:1000]}")
             return False, {}, f'JSON parse error: {e}'
 
     except Exception as e:
