@@ -656,8 +656,8 @@ def get_contacts_json() -> Tuple[bool, Dict[str, Dict], str]:
 
         # Debug logging to diagnose empty output
         logger.info(f".contacts result: success={success}, stdout_len={len(stdout)}, stderr_len={len(stderr)}")
-        logger.debug(f".contacts stdout preview (first 500 chars): {stdout[:500] if stdout else 'EMPTY'}")
-        logger.debug(f".contacts stderr: {stderr if stderr else 'EMPTY'}")
+        logger.info(f".contacts stdout preview (first 500 chars): {stdout[:500] if stdout else 'EMPTY'}")
+        logger.info(f".contacts stderr: {stderr if stderr else 'EMPTY'}")
 
         if not success:
             logger.error(f".contacts command failed: {stderr}")
@@ -676,7 +676,7 @@ def get_contacts_json() -> Tuple[bool, Dict[str, Dict], str]:
             return True, contacts_dict, ""
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse .contacts JSON output: {e}")
-            logger.debug(f"Problematic JSON string (first 1000 chars): {stdout[:1000]}")
+            logger.error(f"Problematic JSON string (first 1000 chars): {stdout[:1000]}")
             return False, {}, f'JSON parse error: {e}'
 
     except Exception as e:
