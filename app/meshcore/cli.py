@@ -663,18 +663,32 @@ def get_contacts_json() -> Tuple[bool, Dict[str, Dict], str]:
             logger.error(f".contacts returned empty output (success={success})")
             return False, {}, '.contacts command returned empty output'
 
-        # Parse JSON output - use brace-matching to skip prompt line
-        # stdout format: "MarWoj|* .contacts\n{...}"
-        # We need to find the first '{' and parse from there
+        # Parse JSON output - use brace-matching to extract complete JSON object
+        # stdout format: "MarWoj|* .contacts\n{...}\nMarWoj|* "
+        # We need to find matching braces and parse only the JSON object
         try:
-            # Find first opening brace (skips prompt and command echo)
-            json_start = stdout.find('{')
-            if json_start == -1:
-                logger.error(f".contacts output has no JSON object (no opening brace found)")
-                return False, {}, 'No JSON object found in .contacts output'
+            # Use brace-matching to extract complete JSON object (same as bridge does)
+            depth = 0
+            start_idx = None
+            end_idx = None
 
-            # Extract JSON string from first brace to end
-            json_str = stdout[json_start:]
+            for i, char in enumerate(stdout):
+                if char == '{':
+                    if depth == 0:
+                        start_idx = i
+                    depth += 1
+                elif char == '}':
+                    depth -= 1
+                    if depth == 0 and start_idx is not None:
+                        end_idx = i + 1
+                        break  # Found complete JSON object
+
+            if start_idx is None or end_idx is None:
+                logger.error(f".contacts output has no complete JSON object")
+                return False, {}, 'No complete JSON object found in .contacts output'
+
+            # Extract only the JSON object (ignoring prompts before and after)
+            json_str = stdout[start_idx:end_idx]
 
             # Parse JSON
             contacts_dict = json.loads(json_str)
