@@ -611,13 +611,80 @@ def get_contacts_with_last_seen() -> Tuple[bool, Dict[str, Dict], str]:
         return False, {}, str(e)
 
 
+def get_contacts_json() -> Tuple[bool, Dict[str, Dict], str]:
+    """
+    Get all contacts using .contacts command (JSON format).
+
+    This command returns exact contact names including any trailing/leading spaces,
+    making it the most reliable way to get contact names for deletion operations.
+
+    The .contacts command returns a single JSON object with public_keys as keys:
+    {
+        "public_key_hash": {
+            "public_key": "...",
+            "type": 1,
+            "adv_name": "Contact Name",
+            "flags": 0,
+            "out_path_len": -1,
+            "out_path": "",
+            "last_advert": 1234567890,
+            "adv_lat": 50.123,
+            "adv_lon": 20.456,
+            "lastmod": 1234567890
+        },
+        ...
+    }
+
+    Returns:
+        Tuple of (success, contacts_dict, error_message)
+        contacts_dict maps public_key -> contact_details where each detail dict contains:
+        {
+            'public_key': str (full key),
+            'type': int (1=CLI, 2=REP, 3=ROOM, 4=SENS),
+            'adv_name': str (exact name with any spaces),
+            'flags': int,
+            'out_path_len': int,
+            'out_path': str,
+            'last_advert': int (Unix timestamp),
+            'adv_lat': float,
+            'adv_lon': float,
+            'lastmod': int (Unix timestamp)
+        }
+    """
+    try:
+        success, stdout, stderr = _run_command(['.contacts'])
+
+        if not success:
+            logger.error(f".contacts command failed: {stderr}")
+            return False, {}, stderr or 'Failed to execute .contacts command'
+
+        # Parse JSON output
+        # The output is a single JSON object with public_keys as keys
+        try:
+            contacts_dict = json.loads(stdout)
+            logger.info(f"Parsed {len(contacts_dict)} contacts from .contacts command")
+            return True, contacts_dict, ""
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse .contacts JSON output: {e}")
+            return False, {}, f'JSON parse error: {e}'
+
+    except Exception as e:
+        logger.error(f"Error executing .contacts command: {e}")
+        return False, {}, str(e)
+
+
 def delete_contact(selector: str) -> Tuple[bool, str]:
     """
     Delete a contact from the device.
 
+    Uses .contacts command to look up exact contact name before deletion,
+    ensuring names with trailing/leading spaces are handled correctly.
+
     Args:
-        selector: Contact selector (name, public_key_prefix, or full public key)
-                 Using public_key_prefix is recommended for reliability.
+        selector: Contact selector - can be:
+                 - full public_key (64 hex chars)
+                 - public_key_prefix (12+ hex chars)
+                 - contact name (exact or approximate match)
 
     Returns:
         Tuple of (success, message)
@@ -625,18 +692,58 @@ def delete_contact(selector: str) -> Tuple[bool, str]:
     if not selector or not selector.strip():
         return False, "Contact selector is required"
 
-    try:
-        success, stdout, stderr = _run_command(['remove_contact', selector.strip()])
+    selector = selector.strip()
 
-        # Log the meshcli response for debugging
-        logger.info(f"remove_contact {selector}: success={success}, stdout='{stdout}', stderr='{stderr}'")
+    try:
+        # Step 1: Fetch all contacts to find exact name
+        success_json, contacts_dict, error_json = get_contacts_json()
+
+        if not success_json:
+            # Fallback: try direct deletion if .contacts fails
+            logger.warning(f".contacts failed, attempting direct deletion: {error_json}")
+            success, stdout, stderr = _run_command(['remove_contact', selector])
+            logger.info(f"remove_contact (fallback) {selector}: success={success}, stdout='{stdout}', stderr='{stderr}'")
+
+            if success:
+                return True, stdout.strip() if stdout.strip() else f"Contact {selector} removed successfully"
+            else:
+                return False, stderr.strip() if stderr.strip() else "Failed to remove contact"
+
+        # Step 2: Find matching contact
+        exact_name = None
+        matched_pubkey = None
+
+        for public_key, details in contacts_dict.items():
+            # Match by public_key (full or prefix)
+            if public_key == selector or public_key.startswith(selector):
+                exact_name = details.get('adv_name', '')
+                matched_pubkey = public_key
+                logger.info(f"Found contact by public_key match: '{exact_name}' (pk: {public_key[:12]}...)")
+                break
+
+            # Match by name (case-sensitive exact match or stripped match)
+            contact_name = details.get('adv_name', '')
+            if contact_name == selector or contact_name.strip() == selector:
+                exact_name = contact_name
+                matched_pubkey = public_key
+                logger.info(f"Found contact by name match: '{exact_name}' (pk: {public_key[:12]}...)")
+                break
+
+        if not exact_name:
+            logger.warning(f"Contact not found in .contacts output: {selector}")
+            return False, f"Contact not found: {selector}"
+
+        # Step 3: Delete using exact name (preserving any trailing/leading spaces)
+        success, stdout, stderr = _run_command(['remove_contact', exact_name])
+
+        logger.info(f"remove_contact '{exact_name}': success={success}, stdout='{stdout}', stderr='{stderr}'")
 
         if success:
-            message = stdout.strip() if stdout.strip() else f"Contact {selector} removed successfully"
+            message = stdout.strip() if stdout.strip() else f"Contact {exact_name.strip()} removed successfully"
             return True, message
         else:
             error = stderr.strip() if stderr.strip() else "Failed to remove contact"
-            logger.warning(f"remove_contact failed for {selector}: {error}")
+            logger.warning(f"remove_contact failed for '{exact_name}': {error}")
             return False, error
 
     except Exception as e:
