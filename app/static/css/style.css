@@ -647,14 +647,14 @@ main {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* FAB Badge for Pending Contacts (orange/amber) */
+/* FAB Badge for Pending Contacts (red for consistency and contrast) */
 .fab-badge-pending {
-    background-color: #fd7e14;  /* Bootstrap orange */
+    background-color: #dc3545;  /* Bootstrap danger red - same as notification bell */
 }
 
-/* FAB Badge for Direct Messages (green) */
+/* FAB Badge for Direct Messages (red for consistency and contrast) */
 .fab-badge-dm {
-    background-color: #198754;  /* Bootstrap success green */
+    background-color: #dc3545;  /* Bootstrap danger red - same as notification bell */
 }
 
 /* Animation on hover */
