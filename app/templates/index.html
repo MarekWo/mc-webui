@@ -202,34 +202,9 @@
                         await loadDmLastSeenTimestampsFromServer();
                     }
 
-                    // Fetch latest DM conversations with unread counts
-                    const response = await fetch('/api/dm/conversations');
-                    if (response.ok) {
-                        const data = await response.json();
-
-                        // Calculate total unread by summing unread counts from all conversations
-                        let totalUnread = 0;
-                        if (data.conversations && Array.isArray(data.conversations)) {
-                            totalUnread = data.conversations.reduce((sum, conv) => sum + (conv.unread || 0), 0);
-                        }
-
-                        // Update the green DM badge on notification bell
-                        const bellContainer = document.getElementById('notificationBell');
-                        if (bellContainer) {
-                            let dmBadge = bellContainer.querySelector('.notification-badge-dm');
-
-                            if (totalUnread > 0) {
-                                if (!dmBadge) {
-                                    dmBadge = document.createElement('span');
-                                    dmBadge.className = 'notification-badge-dm';
-                                    bellContainer.appendChild(dmBadge);
-                                }
-                                dmBadge.textContent = totalUnread > 99 ? '99+' : totalUnread;
-                                dmBadge.style.display = 'inline-block';
-                            } else if (dmBadge) {
-                                dmBadge.style.display = 'none';
-                            }
-                        }
+                    // Trigger DM badge update (now handled by app.js on FAB button)
+                    if (typeof checkDmUpdates === 'function') {
+                        await checkDmUpdates();
                     }
                 } catch (error) {
                     console.error('Error updating DM badges:', error);
@@ -242,6 +217,18 @@
                 const contactsFrame = document.getElementById('contactsFrame');
                 if (contactsFrame) {
                     contactsFrame.src = contactsFrame.src;
+                }
+            });
+
+            // Update pending contacts badge when modal is closed
+            contactsModal.addEventListener('hidden.bs.modal', async function () {
+                try {
+                    // Trigger pending contacts badge update (handled by app.js on FAB button)
+                    if (typeof updatePendingContactsBadge === 'function') {
+                        await updatePendingContactsBadge();
+                    }
+                } catch (error) {
+                    console.error('Error updating pending contacts badge:', error);
                 }
             });
         }

@@ -80,6 +80,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Now load other data (can run in parallel)
     loadArchiveList();
     loadMessages();
+
+    // Initial badge updates
+    updatePendingContactsBadge();
     loadStatus();
 
     // Setup auto-refresh AFTER channels are loaded
@@ -609,6 +612,7 @@ function setupAutoRefresh() {
 
         await checkForUpdates();
         await checkDmUpdates();  // Also check for DM updates
+        await updatePendingContactsBadge();  // Also check for pending contacts
     }, checkInterval);
 
     console.log(`Intelligent auto-refresh enabled: checking every ${checkInterval / 1000}s`);
@@ -937,6 +941,35 @@ function updateNotificationBell(count) {
             bellIcon.classList.add('bell-ring');
             setTimeout(() => bellIcon.classList.remove('bell-ring'), 1000);
         }
+    } else {
+        // Hide badge
+        if (badge) {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+/**
+ * Update FAB button badge (universal function for all FAB badges)
+ * @param {string} fabSelector - CSS selector for FAB button (e.g., '.fab-dm', '.fab-contacts')
+ * @param {string} badgeClass - Badge class name (e.g., 'fab-badge-dm', 'fab-badge-pending')
+ * @param {number} count - Number to display (0 = hide badge)
+ */
+function updateFabBadge(fabSelector, badgeClass, count) {
+    const fabButton = document.querySelector(fabSelector);
+    if (!fabButton) return;
+
+    let badge = fabButton.querySelector(`.${badgeClass}`);
+
+    if (count > 0) {
+        // Show badge
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = `fab-badge ${badgeClass}`;
+            fabButton.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = 'inline-block';
     } else {
         // Hide badge
         if (badge) {
@@ -1367,29 +1400,58 @@ function updateDmBadges(totalUnread) {
         }
     }
 
-    // Update notification bell (secondary badge)
-    const bellContainer = document.getElementById('notificationBell');
-    if (!bellContainer) return;
+    // Update FAB badge (green badge on Direct Messages button)
+    updateFabBadge('.fab-dm', 'fab-badge-dm', totalUnread);
+}
 
-    let dmBadge = bellContainer.querySelector('.notification-badge-dm');
+/**
+ * Update pending contacts badge on Contact Management FAB button
+ * Fetches count from API using type filter from localStorage
+ */
+async function updatePendingContactsBadge() {
+    try {
+        // Load type filter from localStorage (uses same function as contacts.js)
+        const savedTypes = loadPendingTypeFilter();
 
-    if (totalUnread > 0) {
-        if (!dmBadge) {
-            dmBadge = document.createElement('span');
-            dmBadge.className = 'notification-badge-dm';
-            bellContainer.appendChild(dmBadge);
+        // Build query string with types parameter
+        const params = new URLSearchParams();
+        savedTypes.forEach(type => params.append('types', type));
+
+        // Fetch pending count with type filter
+        const response = await fetch(`/api/contacts/pending?${params.toString()}`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (data.success) {
+            const count = data.pending?.length || 0;
+            // Update FAB badge (orange badge on Contact Management button)
+            updateFabBadge('.fab-contacts', 'fab-badge-pending', count);
         }
-        dmBadge.textContent = totalUnread > 99 ? '99+' : totalUnread;
-        dmBadge.style.display = 'inline-block';
-
-        // Animate bell
-        const bellIcon = bellContainer.querySelector('i');
-        if (bellIcon) {
-            bellIcon.classList.add('bell-ring');
-            setTimeout(() => bellIcon.classList.remove('bell-ring'), 1000);
-        }
-    } else if (dmBadge) {
-        dmBadge.style.display = 'none';
+    } catch (error) {
+        console.error('Error updating pending contacts badge:', error);
     }
+}
+
+/**
+ * Load pending contacts type filter from localStorage.
+ * This is a duplicate of the function in contacts.js for use in app.js
+ * @returns {Array<number>} Array of contact types (default: [1] for CLI only)
+ */
+function loadPendingTypeFilter() {
+    try {
+        const stored = localStorage.getItem('pendingContactsTypeFilter');
+        if (stored) {
+            const types = JSON.parse(stored);
+            // Validate: must be array of valid types
+            if (Array.isArray(types) && types.every(t => [1, 2, 3, 4].includes(t))) {
+                return types;
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load pending type filter from localStorage:', e);
+    }
+    // Default: CLI only (most common use case)
+    return [1];
 }
 

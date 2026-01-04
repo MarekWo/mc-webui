@@ -595,6 +595,7 @@ main {
 }
 
 .fab {
+    position: relative;  /* For badge positioning */
     width: 56px;
     height: 56px;
     border-radius: 50%;
@@ -625,6 +626,41 @@ main {
 .fab-contacts {
     background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
     color: white;
+}
+
+/* FAB Badge (base style for all badges on FAB buttons) */
+.fab-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    padding: 2px 6px;
+    font-size: 0.65rem;
+    font-weight: bold;
+    line-height: 1.4;
+    text-align: center;
+    color: white;
+    display: none;
+    z-index: 1;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* FAB Badge for Pending Contacts (orange/amber) */
+.fab-badge-pending {
+    background-color: #fd7e14;  /* Bootstrap orange */
+}
+
+/* FAB Badge for Direct Messages (green) */
+.fab-badge-dm {
+    background-color: #198754;  /* Bootstrap success green */
+}
+
+/* Animation on hover */
+.fab:hover .fab-badge {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
 }
 
 /* Mobile optimization */
