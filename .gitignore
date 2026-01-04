@@ -87,26 +87,16 @@ Thumbs.db
 # Miscellaneous
 # ============================================
 .claude/
-technotes/prompt-dms.md
-technotes/channels.md
-technotes/limity.md
-technotes/smart-refresh-feature.md
+technotes/
 docs/Pomoc w zwiększeniu zasięgu.pdf
 PRD.md
 .gitignore
 CLAUDE_CODE_PROMPT.md
-technotes/advert-vs-floodadv.md
-technotes/conversation-with-user-Xahgmah.md
-technotes/issue_diagnosis_missing_recv.md
-technotes/reddit_response.txt
-technotes/troubleshooting_guide_for_user.md
-technotes/reddit_response_final.txt
 docs/Mesh Core – Lista Zakupowa (repeater Dachowy).pdf
 docs/contact-management-next-step.md
 docs/response-to-xahgmah.md
 docs/UI-Contact-Management-MVP-v1.md
 docs/UI-Contact-Management-MVP-v2.md
 docs/TEST-PLAN-Contact-Management-v2.md
-technotes/API-Diagnostic-Commands-private.md
 docs/github-discussion-*.md
 docs/github-response-spaces-in-device-name.md

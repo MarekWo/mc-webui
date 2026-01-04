@@ -1606,6 +1606,12 @@ def get_pending_contacts_api():
     """
     Get list of contacts awaiting manual approval.
 
+    Query parameters:
+        types (list[int]): Filter by contact types (optional)
+                          Example: ?types=1&types=2 (CLI and REP only)
+                          Valid values: 1 (CLI), 2 (REP), 3 (ROOM), 4 (SENS)
+                          If not provided, returns all pending contacts
+
     Returns:
         JSON with pending contacts list with enriched contact data:
         {
@@ -1631,9 +1637,26 @@ def get_pending_contacts_api():
         }
     """
     try:
+        # Get type filter from query params
+        types_param = request.args.getlist('types', type=int)
+
+        # Validate types (must be 1-4)
+        if types_param:
+            invalid_types = [t for t in types_param if t not in [1, 2, 3, 4]]
+            if invalid_types:
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid types: {invalid_types}. Valid types: 1 (CLI), 2 (REP), 3 (ROOM), 4 (SENS)',
+                    'pending': []
+                }), 400
+
         success, pending, error = cli.get_pending_contacts()
 
         if success:
+            # Filter by types if specified
+            if types_param:
+                pending = [contact for contact in pending if contact.get('type') in types_param]
+
             return jsonify({
                 'success': True,
                 'pending': pending,

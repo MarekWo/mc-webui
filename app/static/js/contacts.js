@@ -136,8 +136,15 @@ function attachManageEventListeners() {
 
 async function loadContactCounts() {
     try {
-        // Fetch pending count
-        const pendingResp = await fetch('/api/contacts/pending');
+        // Get saved type filter from localStorage
+        const savedTypes = loadPendingTypeFilter();
+
+        // Build query string with types parameter
+        const params = new URLSearchParams();
+        savedTypes.forEach(type => params.append('types', type));
+
+        // Fetch pending count (with type filter)
+        const pendingResp = await fetch(`/api/contacts/pending?${params.toString()}`);
         const pendingData = await pendingResp.json();
 
         const pendingBadge = document.getElementById('pendingBadge');
@@ -378,7 +385,11 @@ async function handleCleanupConfirm() {
 function initPendingPage() {
     console.log('Initializing Pending page...');
 
-    // Load pending contacts
+    // Load saved type filter and set checkboxes
+    const savedTypes = loadPendingTypeFilter();
+    setTypeFilterCheckboxes(savedTypes);
+
+    // Load pending contacts (will use filter from checkboxes)
     loadPendingContacts();
 
     // Attach event listeners for pending page
@@ -402,12 +413,17 @@ function attachPendingEventListeners() {
         });
     }
 
-    // Type filter checkboxes - filter on change
+    // Type filter checkboxes - save to localStorage and reload on change
     ['typeFilterCLI', 'typeFilterREP', 'typeFilterROOM', 'typeFilterSENS'].forEach(id => {
         const checkbox = document.getElementById(id);
         if (checkbox) {
             checkbox.addEventListener('change', () => {
-                applyPendingFilters();
+                // Save selected types to localStorage
+                const selectedTypes = getSelectedTypes();
+                savePendingTypeFilter(selectedTypes);
+
+                // Reload contacts from API with new filter
+                loadPendingContacts();
             });
         }
     });
@@ -572,6 +588,82 @@ function updateApprovalUI(enabled) {
 }
 
 // =============================================================================
+// Pending Type Filter (localStorage persistence)
+// =============================================================================
+
+/**
+ * Save pending contacts type filter to localStorage.
+ * This allows the filter to persist across page reloads and be used
+ * in different parts of the app (Pending page, Contact Management badge, etc.)
+ *
+ * @param {Array<number>} types - Array of contact types to filter (1=CLI, 2=REP, 3=ROOM, 4=SENS)
+ */
+function savePendingTypeFilter(types) {
+    try {
+        localStorage.setItem('pendingContactsTypeFilter', JSON.stringify(types));
+        console.log('Pending type filter saved:', types);
+    } catch (e) {
+        console.error('Failed to save pending type filter to localStorage:', e);
+    }
+}
+
+/**
+ * Load pending contacts type filter from localStorage.
+ *
+ * @returns {Array<number>} Array of contact types (default: [1] for CLI only)
+ */
+function loadPendingTypeFilter() {
+    try {
+        const stored = localStorage.getItem('pendingContactsTypeFilter');
+        if (stored) {
+            const types = JSON.parse(stored);
+            // Validate: must be array of valid types
+            if (Array.isArray(types) && types.every(t => [1, 2, 3, 4].includes(t))) {
+                console.log('Pending type filter loaded:', types);
+                return types;
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load pending type filter from localStorage:', e);
+    }
+    // Default: CLI only (most common use case)
+    return [1];
+}
+
+/**
+ * Set type filter checkboxes based on types array.
+ * @param {Array<number>} types - Array of contact types (1=CLI, 2=REP, 3=ROOM, 4=SENS)
+ */
+function setTypeFilterCheckboxes(types) {
+    const checkboxes = {
+        1: document.getElementById('typeFilterCLI'),
+        2: document.getElementById('typeFilterREP'),
+        3: document.getElementById('typeFilterROOM'),
+        4: document.getElementById('typeFilterSENS')
+    };
+
+    // Set checkboxes based on types array
+    for (const [type, checkbox] of Object.entries(checkboxes)) {
+        if (checkbox) {
+            checkbox.checked = types.includes(parseInt(type));
+        }
+    }
+}
+
+/**
+ * Get currently selected contact types from checkboxes.
+ * @returns {Array<number>} Array of selected types
+ */
+function getSelectedTypes() {
+    const types = [];
+    if (document.getElementById('typeFilterCLI')?.checked) types.push(1);
+    if (document.getElementById('typeFilterREP')?.checked) types.push(2);
+    if (document.getElementById('typeFilterROOM')?.checked) types.push(3);
+    if (document.getElementById('typeFilterSENS')?.checked) types.push(4);
+    return types;
+}
+
+// =============================================================================
 // Pending Contacts Management
 // =============================================================================
 
@@ -590,7 +682,14 @@ async function loadPendingContacts() {
     if (countBadge) countBadge.style.display = 'none';
 
     try {
-        const response = await fetch('/api/contacts/pending');
+        // Get selected types from checkboxes
+        const selectedTypes = getSelectedTypes();
+
+        // Build query string with types parameter
+        const params = new URLSearchParams();
+        selectedTypes.forEach(type => params.append('types', type));
+
+        const response = await fetch(`/api/contacts/pending?${params.toString()}`);
         const data = await response.json();
 
         if (loadingEl) loadingEl.style.display = 'none';
@@ -835,20 +934,8 @@ function applyPendingFilters() {
     const searchInput = document.getElementById('pendingSearchInput');
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
 
-    // Get selected types
-    const selectedTypes = [];
-    if (document.getElementById('typeFilterCLI')?.checked) selectedTypes.push('CLI');
-    if (document.getElementById('typeFilterREP')?.checked) selectedTypes.push('REP');
-    if (document.getElementById('typeFilterROOM')?.checked) selectedTypes.push('ROOM');
-    if (document.getElementById('typeFilterSENS')?.checked) selectedTypes.push('SENS');
-
-    // Filter contacts
+    // Apply search filter locally (type filter already applied by API)
     filteredPendingContacts = pendingContacts.filter(contact => {
-        // Type filter
-        if (selectedTypes.length > 0 && !selectedTypes.includes(contact.type_label)) {
-            return false;
-        }
-
         // Search filter (name or public_key_prefix)
         if (searchTerm) {
             const nameMatch = contact.name.toLowerCase().includes(searchTerm);
