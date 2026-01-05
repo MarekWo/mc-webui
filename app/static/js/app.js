@@ -644,7 +644,7 @@ function setupAutoRefresh() {
  */
 async function requestNotificationPermission() {
     if (!('Notification' in window)) {
-        showNotification('Powiadomienia nie są obsługiwane w tej przeglądarce', 'warning');
+        showNotification('Notifications are not supported in this browser', 'warning');
         return false;
     }
 
@@ -654,17 +654,17 @@ async function requestNotificationPermission() {
         if (permission === 'granted') {
             localStorage.setItem('mc_notifications_enabled', 'true');
             updateNotificationToggleUI();
-            showNotification('Powiadomienia zostały włączone', 'success');
+            showNotification('Notifications enabled', 'success');
             return true;
         } else if (permission === 'denied') {
             localStorage.setItem('mc_notifications_enabled', 'false');
             updateNotificationToggleUI();
-            showNotification('Powiadomienia zostały zablokowane. Zmień ustawienia przeglądarki aby je włączyć.', 'warning');
+            showNotification('Notifications blocked. Change browser settings to enable them.', 'warning');
             return false;
         }
     } catch (error) {
         console.error('Error requesting notification permission:', error);
-        showNotification('Błąd podczas włączania powiadomień', 'danger');
+        showNotification('Error enabling notifications', 'danger');
         return false;
     }
 }
@@ -697,22 +697,24 @@ function updateNotificationToggleUI() {
     if (!toggleBtn || !statusBadge) return;
 
     const permission = getNotificationPermission();
+    const isEnabled = localStorage.getItem('mc_notifications_enabled') === 'true';
 
     if (permission === 'unsupported') {
         statusBadge.className = 'badge bg-secondary';
-        statusBadge.textContent = 'Niedostępne';
+        statusBadge.textContent = 'Unavailable';
         toggleBtn.disabled = true;
     } else if (permission === 'denied') {
         statusBadge.className = 'badge bg-danger';
-        statusBadge.textContent = 'Zablokowane';
+        statusBadge.textContent = 'Blocked';
         toggleBtn.disabled = false;
-    } else if (permission === 'granted') {
+    } else if (permission === 'granted' && isEnabled) {
         statusBadge.className = 'badge bg-success';
-        statusBadge.textContent = 'Włączone';
+        statusBadge.textContent = 'Enabled';
         toggleBtn.disabled = false;
     } else {
+        // permission === 'default' OR (permission === 'granted' AND !isEnabled)
         statusBadge.className = 'badge bg-secondary';
-        statusBadge.textContent = 'Wyłączone';
+        statusBadge.textContent = 'Disabled';
         toggleBtn.disabled = false;
     }
 }
@@ -727,10 +729,10 @@ async function handleNotificationToggle() {
         // Already granted - toggle off
         localStorage.setItem('mc_notifications_enabled', 'false');
         updateNotificationToggleUI();
-        showNotification('Powiadomienia zostały wyłączone', 'info');
+        showNotification('Notifications disabled', 'info');
     } else if (permission === 'denied') {
         // Blocked - show help message
-        showNotification('Powiadomienia są zablokowane. Zmień ustawienia w przeglądarce: Ustawienia → Strony → mc-webui → Powiadomienia', 'warning');
+        showNotification('Notifications are blocked. Change browser settings: Settings → Site Settings → Notifications', 'warning');
     } else {
         // Not yet requested - ask for permission
         await requestNotificationPermission();
@@ -753,18 +755,18 @@ function sendBrowserNotification(channelCount, dmCount, pendingCount) {
     const parts = [];
 
     if (channelCount > 0) {
-        parts.push(`${channelCount} ${channelCount === 1 ? 'kanał' : 'kanały'}`);
+        parts.push(`${channelCount} ${channelCount === 1 ? 'channel' : 'channels'}`);
     }
     if (dmCount > 0) {
-        parts.push(`${dmCount} ${dmCount === 1 ? 'wiadomość prywatna' : 'wiadomości prywatne'}`);
+        parts.push(`${dmCount} ${dmCount === 1 ? 'private message' : 'private messages'}`);
     }
     if (pendingCount > 0) {
-        parts.push(`${pendingCount} ${pendingCount === 1 ? 'oczekujący kontakt' : 'oczekujące kontakty'}`);
+        parts.push(`${pendingCount} ${pendingCount === 1 ? 'pending contact' : 'pending contacts'}`);
     }
 
     if (parts.length === 0) return;
 
-    message = `Nowe: ${parts.join(', ')}`;
+    message = `New: ${parts.join(', ')}`;
 
     try {
         const notification = new Notification('mc-webui', {

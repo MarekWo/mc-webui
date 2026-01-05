@@ -813,7 +813,7 @@ function checkDmNotifications(conversations) {
 
         try {
             const notification = new Notification('mc-webui', {
-                body: `Nowe wiadomości prywatne: ${delta}`,
+                body: `New private messages: ${delta}`,
                 icon: '/static/images/android-chrome-192x192.png',
                 badge: '/static/images/android-chrome-192x192.png',
                 tag: 'mc-webui-dm',
