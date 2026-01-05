@@ -579,6 +579,8 @@ function setupEmojiPicker() {
 
     // Create emoji-picker element
     const picker = document.createElement('emoji-picker');
+    // Use local emoji data instead of CDN
+    picker.dataSource = '/static/vendor/emoji-picker-element-data/en/emojibase/data.json';
     emojiPickerPopup.appendChild(picker);
 
     // Toggle emoji picker on button click

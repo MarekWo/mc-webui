@@ -41,8 +41,8 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
   - Service Worker for PWA installability and offline support
   - Tested on Windows desktop (Firefox), requires further testing on Android mobile
 - 📴 **Full offline support** - Works without internet connection
-  - Bootstrap CSS/JS and icons hosted locally (no CDN dependency)
-  - Service Worker caches all UI assets automatically
+  - All external libraries hosted locally: Bootstrap CSS/JS, Bootstrap Icons, Emoji Picker
+  - Service Worker caches all UI assets automatically (~1.2 MB total)
   - Hybrid caching strategy: cache-first for libraries, network-first for app updates
   - Perfect for mesh networks operating in remote/emergency scenarios
 

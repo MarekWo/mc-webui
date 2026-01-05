@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mc-webui-v2';
+const CACHE_NAME = 'mc-webui-v3';
 const ASSETS_TO_CACHE = [
     '/',
     '/static/css/style.css',
@@ -14,7 +14,12 @@ const ASSETS_TO_CACHE = [
     // Bootstrap Icons 1.11.2 (local)
     '/static/vendor/bootstrap-icons/bootstrap-icons.css',
     '/static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff2',
-    '/static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff'
+    '/static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff',
+    // Emoji Picker Element 1.28.1 (local)
+    '/static/vendor/emoji-picker-element/index.js',
+    '/static/vendor/emoji-picker-element/picker.js',
+    '/static/vendor/emoji-picker-element/database.js',
+    '/static/vendor/emoji-picker-element-data/en/emojibase/data.json'
 ];
 
 // Install event - cache core assets
