@@ -65,81 +65,223 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - ✅ **No meshcore-cli installation required on host** - meshcore-cli is automatically installed inside the Docker container
 - ✅ **No manual directory setup needed** - all data is stored in `./data/` inside the project directory
 - ✅ **meshcore-cli version 1.3.12+** is automatically installed for proper Direct Messages (DM) functionality
-
+---
 ### Installation
+0. **Prepare the device**
+    - **Flash the device** at [https://flasher.meshcore.co.uk/](https://flasher.meshcore.co.uk/). Choose the `Companion USB` role.
+    - **Configure the device** with the Meshcore mobile app (from Google Play Store / App Store). 
+      - Name
+      - Location (optional)
+      - Preset
+    - **Install / prepare your Linux server**. You will need the following elements installed:
+      - git
+      - docker (you may want [to check this Docker installation guide](DOCKER_INSTALL.md))
 
 1. **Clone the repository**
-   ```bash
-   git clone https://github.com/MarekWo/mc-webui
-   cd mc-webui
-   ```
+    ```bash
+    # Navigate to your preferred directory
+    cd ~
 
-2. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your settings
-   nano .env
-   ```
+    # Clone the repository
+    git clone https://github.com/MarekWo/mc-webui
+    cd mc-webui
+    ```
 
-3. **Find your serial device**
+    **Verify:**
+    ```bash
+    pwd  # Should show: /home/<youruser>/mc-webui
+    ls   # Should show: README.md, docker-compose.yml, app/, etc.
+    ```
+
+2. **Find your serial device ID**
    ```bash
+   # List USB serial devices
    ls /dev/serial/by-id/
    ```
-   You should see a device name starting with `usb-Espressif_Systems_...`. For Heltec V4 it looks like:
+   You should see a device name starting with `usb-...`. For Heltec V4 may look like:
    ```
    usb-Espressif_Systems_heltec_wifi_lora_32_v4__16_MB_FLASH__2_MB_PSRAM__90706984A000-if00
    ```
-   Copy the **full device ID** and update `MC_SERIAL_PORT` in `.env`:
-   ```bash
-   MC_SERIAL_PORT=/dev/serial/by-id/usb-Espressif_Systems_heltec_wifi_lora_32_v4__16_MB_FLASH__2_MB_PSRAM__90706984A000-if00
+   For Heltec V3 it may be something similar to:
    ```
+   usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
+   ```
+    **Copy the full device ID** - you'll need it in the next step.
+    <br>
 
-4. **Build and run**
-   ```bash
-   docker compose up -d --build
-   ```
+3. **Configure your environment**
+    ```bash
+    # Copy example configuration
+    cp .env.example .env
 
-   **Note:** Docker will automatically create the `./data/` directory with necessary subdirectories (`meshcore/` and `archive/`) on first run. All runtime data (messages, contacts, settings, archives) will be stored there.
+    # Edit configuration
+    nano .env # or you can used your favorite text editor
+    ```
 
-5. **Access the web interface**
-   Open your browser and navigate to:
-   ```
-   http://localhost:5000
-   ```
-   Or from another device on your network:
+    **Required changes in .env:**
+
+    - **MC_SERIAL_PORT** - Update with your device from Step 2:
+        ```bash
+        MC_SERIAL_PORT=/dev/serial/by-id/<your-device-id>
+        ```
+
+    - **MC_DEVICE_NAME** - Set your device name (e.g., your callsign):
+        ```bash
+        MC_DEVICE_NAME=<your-device-name>
+        ```
+
+    - **TZ** - Set your timezone (optional):
+        ```bash
+        TZ=Europe/Warsaw  # Pick your timezone
+        ```
+      **Leave these as default**:
+      ```bash
+      MC_CONFIG_DIR=./data/meshcore     # ✅ Correct - inside project
+      MC_ARCHIVE_DIR=./data/archive      # ✅ Correct - inside project
+      ```
+
+    **Save and exit:**
+    - Press `Ctrl+O` to save
+    - Press `Enter` to confirm
+    - Press `Ctrl+X` to exit
+    <br>
+
+4. **Verify Serial Device Permissions**
+
+    ```bash
+    # Check device permissions
+    ls -l /dev/serial/by-id/usb-*    
+    ```
+    You should get something like this:
+    ```
+    lrwxrwxrwx 1 root root 13 Jan  6 14:07 /dev/serial/by-id/usb-<your-device-id> -> ../../ttyUSB0
+    ```
+    <br>
+
+    ```bash
+    # If needed, add your user to dialout group
+    sudo usermod -aG dialout $USER
+
+    # Log out and log back in for group changes to take effect
+    # Or use: newgrp dialout
+    ```
+
+5. **Build and run**
+    ```bash
+    # Build and start in detached mode
+    docker compose up -d --build
+    ```
+
+    **This will:**
+    - Download base images (Python, Alpine Linux)
+    - Install meshcore-cli inside containers (no host installation needed!)
+    - Create `./data/` directory structure automatically
+    - Start both containers (meshcore-bridge and mc-webui)
+
+    **Expected output:**
+    ```
+    [+] Building 45.2s (24/24) FINISHED
+    [+] Running 3/3
+    ✔ Network mc-webui_meshcore-net        Created
+    ✔ Container meshcore-bridge            Started
+    ✔ Container mc-webui                   Started
+    ```
+
+6. **Verify instalation**
+
+    **Check container status:**
+    ```bash
+    docker compose ps
+    ```
+
+    **Expected output:**
+    ```
+    NAME                IMAGE               STATUS              PORTS
+    meshcore-bridge     mc-webui-bridge     Up 10 seconds
+    mc-webui            mc-webui-app        Up 10 seconds       0.0.0.0:5000->5000/tcp
+    ```
+
+    Both containers should show `Up` status.
+
+    **Check logs:**
+    ```bash
+    # View all logs
+    docker compose logs -f
+
+    # Or specific container
+    docker compose logs -f mc-webui
+    docker compose logs -f meshcore-bridge
+    ```
+
+    **Look for:**
+    - ✅ "meshcli process started" (in meshcore-bridge logs)
+    - ✅ "Running on http://0.0.0.0:5000" (in mc-webui logs)
+    - ❌ No errors about USB device or permissions
+
+    Press `Ctrl+C` to stop viewing logs.
+
+    **Verify data directory:**
+    ```bash
+    ls -la data/
+    ```
+
+    **Expected output:**
+    ```
+    drwxr-xr-x meshcore/   # Configuration directory
+    drwxr-xr-x archive/    # Archive directory
+    ```
+
+
+7. **Access the web interface**
+   Open your browser and navigate to:   
    ```
    http://<your-server-ip>:5000
    ```
 
-## Configuration
+   **To find your server IP:**
+    ```bash
+    hostname -I | awk '{print $1}'
+    ```
 
-All configuration is done via environment variables in the `.env` file.
+8. **Initial Configuration (In Web UI)**
 
-**Important:** All data files (messages, contacts, settings, archives) are stored in the `./data/` directory inside your project folder. This directory is automatically created by Docker and should be included in your backups.
+    - **Main page loads** ✅
+      - You should see the chat interface
+      - Default channel is "Public"
 
-### Environment Variables
+    - **Wait for initial sync** (can take 1-2 minutes)
+      - Messages will appear as they arrive
+      - Check notification bell for updates
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MC_SERIAL_PORT` | Serial device path (use /dev/serial/by-id/ for stability) | `/dev/ttyUSB0` |
-| `MC_DEVICE_NAME` | Device name (for .msgs and .adverts.jsonl files) | `MeshCore` |
-| `MC_CONFIG_DIR` | Configuration directory (shared between containers) | `./data/meshcore` |
-| `MC_ARCHIVE_DIR` | Archive directory path | `./data/archive` |
-| `MC_ARCHIVE_ENABLED` | Enable automatic archiving | `true` |
-| `MC_ARCHIVE_RETENTION_DAYS` | Days to show in live view | `7` |
-| `FLASK_HOST` | Listen address | `0.0.0.0` |
-| `FLASK_PORT` | Application port | `5000` |
-| `FLASK_DEBUG` | Debug mode | `false` |
-| `TZ` | Timezone for container logs | `UTC` |
+    - **Optional but highly recommended: Enable manual contact approval**
+      - Open menu (☰)
+      - Select "Contact Management"
+      - Toggle "Manual Contact Approval"
 
-**Notes:**
-- `MC_CONFIG_DIR` is mounted as a shared volume for both containers (meshcore-bridge and mc-webui)
-- All paths starting with `./` are relative to the project root directory
-- The `data/` directory is excluded from git via `.gitignore`
-- Auto-refresh is intelligent: checks for new messages every 10 seconds, updates UI only when needed (no configuration required)
+    - **Test sending a message**
+      - Type a message in the input field
+      - Press Enter or click Send
+      - Message should appear in chat history
 
-See [.env.example](.env.example) for a complete example.
 
+## Installation Summary
+
+After completing this guide, you should have:
+
+- ✅ mc-webui running in Docker containers
+- ✅ Web interface accessible at http://YOUR_IP:5000
+- ✅ All data stored in `./data/` directory
+- ✅ meshcore-cli integrated (no host installation)
+- ✅ Basic understanding of Docker commands
+- ✅ Backup strategy in place
+
+**Congratulations! Your mc-webui installation is complete.** 🎉
+
+You can now use the web interface to chat on the MeshCore network without SSH/terminal access. 
+
+Please also check the Common Issues guide [here](COMMON_ISSUES.md).
+
+---
 ## Architecture
 
 mc-webui uses a **2-container architecture** for improved USB stability:
