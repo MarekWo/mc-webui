@@ -58,24 +58,27 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 
 ### Prerequisites
 
-- **Docker** and **Docker Compose** installed ([installation guide](https://wiki.wojtaszek.it/pl/home/apps/docker/installation))
-- **Meshcore device** connected via USB (tested on Heltec V4)
+Before starting, ensure you have:
+
+**1. Meshcore Device (tested on Heltec V4)**
+- **Flash the device** at [https://flasher.meshcore.co.uk/](https://flasher.meshcore.co.uk/). Choose the `Companion USB` role.
+- **Configure the device** with the Meshcore mobile app (from Google Play Store / App Store):
+  - Name
+  - Location (optional)
+  - Preset
+
+**2. Linux Server**
+- **Git** installed
+- **Docker** and **Docker Compose** installed ([installation guide](DOCKER_INSTALL.md))
 
 **Important Notes:**
 - ✅ **No meshcore-cli installation required on host** - meshcore-cli is automatically installed inside the Docker container
 - ✅ **No manual directory setup needed** - all data is stored in `./data/` inside the project directory
 - ✅ **meshcore-cli version 1.3.12+** is automatically installed for proper Direct Messages (DM) functionality
+
 ---
+
 ### Installation
-0. **Prepare the device**
-    - **Flash the device** at [https://flasher.meshcore.co.uk/](https://flasher.meshcore.co.uk/). Choose the `Companion USB` role.
-    - **Configure the device** with the Meshcore mobile app (from Google Play Store / App Store). 
-      - Name
-      - Location (optional)
-      - Preset
-    - **Install / prepare your Linux server**. You will need the following elements installed:
-      - git
-      - docker (you may want [to check this Docker installation guide](DOCKER_INSTALL.md))
 
 1. **Clone the repository**
     ```bash
@@ -115,7 +118,7 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
     cp .env.example .env
 
     # Edit configuration
-    nano .env # or you can used your favorite text editor
+    nano .env # or you can use your favorite text editor
     ```
 
     **Required changes in .env:**
