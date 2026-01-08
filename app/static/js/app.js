@@ -233,6 +233,14 @@ function setupEventListeners() {
 
             if (data.success) {
                 showNotification(`Channel "${name}" created!`, 'success');
+
+                // Show warning if returned (e.g., exceeding soft limit of 7 channels)
+                if (data.warning) {
+                    setTimeout(() => {
+                        showNotification(data.warning, 'warning');
+                    }, 2000);  // Show after success message
+                }
+
                 document.getElementById('newChannelName').value = '';
                 document.getElementById('addChannelForm').classList.remove('show');
 
@@ -284,6 +292,14 @@ function setupEventListeners() {
 
             if (data.success) {
                 showNotification(`Joined channel "${name}"!`, 'success');
+
+                // Show warning if returned (e.g., exceeding soft limit of 7 channels)
+                if (data.warning) {
+                    setTimeout(() => {
+                        showNotification(data.warning, 'warning');
+                    }, 2000);  // Show after success message
+                }
+
                 document.getElementById('joinChannelName').value = '';
                 document.getElementById('joinChannelKey').value = '';
                 document.getElementById('joinChannelForm').classList.remove('show');

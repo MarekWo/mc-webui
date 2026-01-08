@@ -825,14 +825,27 @@ def create_channel():
 
         if success:
             invalidate_channels_cache()  # Clear cache to force refresh
-            return jsonify({
+
+            # Build response
+            response = {
                 'success': True,
                 'message': message,
                 'channel': {
                     'name': name,
                     'key': key
                 }
-            }), 201
+            }
+
+            # Check channel count for soft limit warning
+            success_ch, channels = get_channels_cached()
+            if success_ch and len(channels) > 7:
+                response['warning'] = (
+                    f'You now have {len(channels)} channels. '
+                    'Some devices may only support up to 8 channels. '
+                    'Check your device specifications if you experience issues.'
+                )
+
+            return jsonify(response), 201
         else:
             return jsonify({
                 'success': False,
@@ -883,7 +896,9 @@ def join_channel():
         if 'index' in data:
             index = int(data['index'])
         else:
-            # Find first free slot (1-7, skip 0 which is Public)
+            # Find first free slot (1-40, skip 0 which is Public)
+            # Hard limit: 40 channels (most LoRa devices support up to 40)
+            # Soft limit: 7 channels (some devices may have lower limits)
             success_ch, channels = get_channels_cached()
             if not success_ch:
                 return jsonify({
@@ -893,7 +908,7 @@ def join_channel():
 
             used_indices = {ch['index'] for ch in channels}
             index = None
-            for i in range(1, 8):  # Assume max 8 channels
+            for i in range(1, 41):  # Max 40 channels (hard limit)
                 if i not in used_indices:
                     index = i
                     break
@@ -901,14 +916,16 @@ def join_channel():
             if index is None:
                 return jsonify({
                     'success': False,
-                    'error': 'No free channel slots available'
+                    'error': 'No free channel slots available (max 40 channels)'
                 }), 400
 
         success, message = cli.set_channel(index, name, key)
 
         if success:
             invalidate_channels_cache()  # Clear cache to force refresh
-            return jsonify({
+
+            # Build response
+            response = {
                 'success': True,
                 'message': f'Joined channel "{name}" at slot {index}',
                 'channel': {
@@ -916,7 +933,19 @@ def join_channel():
                     'name': name,
                     'key': key if key else 'auto-generated'
                 }
-            }), 200
+            }
+
+            # Add warning if exceeding soft limit (7 channels)
+            # Some older/smaller devices may only support 8 channels total
+            channel_count = len(used_indices) + 1  # +1 for newly added channel
+            if channel_count > 7:
+                response['warning'] = (
+                    f'You now have {channel_count} channels. '
+                    'Some devices may only support up to 8 channels. '
+                    'Check your device specifications if you experience issues.'
+                )
+
+            return jsonify(response), 200
         else:
             return jsonify({
                 'success': False,
