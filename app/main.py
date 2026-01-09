@@ -69,7 +69,7 @@ def create_app():
 def clean_console_output(output: str, command: str) -> str:
     """
     Clean meshcli console output by removing:
-    - Prompt lines (e.g., "MarWoj|*" or "DeviceName|*[N]")
+    - Prompt lines (e.g., "MarWoj|*" or "DeviceName|*[E]")
     - Echoed command line
     - Leading/trailing whitespace
     """
@@ -79,13 +79,10 @@ def clean_console_output(output: str, command: str) -> str:
     lines = output.split('\n')
     cleaned_lines = []
 
-    # Pattern to match prompt: <name>|*[optional] or <name>|*
-    # Examples: "MarWoj|*", "MarWoj|*[3]", "Device Name|*"
-    prompt_pattern = re.compile(r'^.+\|\*(\[\d+\])?\s*$')
-
-    # Pattern to match prompt followed by command echo
-    # Example: "MarWoj|* contacts" or "MarWoj|*[3] get_radio"
-    prompt_cmd_pattern = re.compile(r'^.+\|\*(\[\d+\])?\s+\S+')
+    # Pattern to match any line containing the meshcli prompt "|*"
+    # Examples: "MarWoj|*", "MarWoj|*[E]", "MarWoj|*[E] infos"
+    # The prompt is: <name>|*<optional_status><optional_space><optional_command>
+    prompt_pattern = re.compile(r'^[^|]+\|\*')
 
     for line in lines:
         stripped = line.rstrip()
@@ -94,19 +91,9 @@ def clean_console_output(output: str, command: str) -> str:
         if not cleaned_lines and not stripped:
             continue
 
-        # Skip lines that are just the prompt
+        # Skip any line that starts with the meshcli prompt pattern
         if prompt_pattern.match(stripped):
             continue
-
-        # Skip lines that are prompt + echoed command
-        if prompt_cmd_pattern.match(stripped):
-            # Check if this line is just echoing the command
-            # Extract the part after the prompt
-            match = re.match(r'^.+\|\*(\[\d+\])?\s+(.+)$', stripped)
-            if match:
-                echoed_part = match.group(2).strip()
-                if echoed_part == command.strip():
-                    continue
 
         cleaned_lines.append(line)
 
