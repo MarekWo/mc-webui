@@ -88,9 +88,8 @@ def handle_send_command(data):
     # Execute command via bridge HTTP API
     def execute_and_respond():
         try:
-            bridge_url = f"http://{config.MC_BRIDGE_HOST}:{config.MC_BRIDGE_PORT}/cli"
             response = requests.post(
-                bridge_url,
+                config.MC_BRIDGE_URL,
                 json={'command': command},
                 timeout=30
             )
