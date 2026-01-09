@@ -16,10 +16,10 @@ Technical documentation for mc-webui, covering system architecture, project stru
 
 ## Tech Stack
 
-- **Backend:** Python 3.11+, Flask
-- **Frontend:** HTML5, Bootstrap 5, vanilla JavaScript
+- **Backend:** Python 3.11+, Flask, Flask-SocketIO (gevent)
+- **Frontend:** HTML5, Bootstrap 5, vanilla JavaScript, Socket.IO client
 - **Deployment:** Docker / Docker Compose (2-container architecture)
-- **Communication:** HTTP bridge to meshcore-cli (USB isolation for stability)
+- **Communication:** HTTP bridge to meshcore-cli, WebSocket for interactive console
 - **Data source:** `~/.config/meshcore/<device_name>.msgs` (JSON Lines)
 
 ---
@@ -65,8 +65,9 @@ Lightweight service with exclusive USB device access:
 
 Main web application:
 
-- Flask-based web interface
-- Communicates with bridge via HTTP
+- Flask-based web interface with Flask-SocketIO
+- Communicates with bridge via HTTP API
+- WebSocket support for interactive Console (`/console` namespace)
 - No direct USB access (prevents device locking)
 
 This separation solves USB timeout/deadlock issues common in Docker + VM environments.
@@ -122,17 +123,20 @@ mc-webui/
 │   │   │   ├── app.js              # Main page frontend logic
 │   │   │   ├── dm.js               # Direct Messages page logic
 │   │   │   ├── contacts.js         # Contact Management logic
+│   │   │   ├── console.js          # Interactive console WebSocket client
 │   │   │   ├── message-utils.js    # Message content processing
 │   │   │   └── sw.js               # Service Worker for PWA
 │   │   ├── vendor/                 # Local vendor libraries (offline)
 │   │   │   ├── bootstrap/          # Bootstrap CSS/JS
 │   │   │   ├── bootstrap-icons/    # Icon fonts
+│   │   │   ├── socket.io/          # Socket.IO client library
 │   │   │   └── emoji-picker-element/
 │   │   └── manifest.json           # PWA manifest
 │   └── templates/
 │       ├── base.html               # Base template
 │       ├── index.html              # Main chat view
 │       ├── dm.html                 # Direct Messages view
+│       ├── console.html            # Interactive meshcli console
 │       ├── contacts_base.html      # Contact pages base template
 │       ├── contacts-manage.html    # Contact Management settings
 │       ├── contacts-pending.html   # Pending contacts view
@@ -203,11 +207,29 @@ Location: `~/.config/meshcore/<device_name>.msgs` (JSON Lines)
 | GET | `/api/archives` | List available archives |
 | POST | `/api/archive/trigger` | Manually trigger archiving |
 
+### WebSocket API (Console)
+
+Interactive meshcli console via Socket.IO WebSocket connection.
+
+**Namespace:** `/console`
+
+| Event | Direction | Description |
+|-------|-----------|-------------|
+| `send_command` | Client → Server | Execute command (`{command: "infos"}`) |
+| `console_status` | Server → Client | Connection status message |
+| `command_response` | Server → Client | Command result (`{success, command, output}`) |
+
+**Features:**
+- Command history navigation (up/down arrows)
+- Auto-reconnection on disconnect
+- Output cleaning (removes prompts like "DeviceName|*")
+- Slow command timeouts: `node_discover` (15s), `recv` (60s), `send` (15s)
+
 ### Bridge Internal API (Port 5001)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/cli` | Execute meshcli command |
+| POST | `/cli` | Execute meshcli command (`{args: ["cmd"], timeout?}`) |
 | GET | `/health` | Bridge health check |
 | GET | `/pending_contacts` | List pending contacts |
 | POST | `/add_pending` | Approve pending contact |
