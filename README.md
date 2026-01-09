@@ -17,6 +17,7 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - **Smart notifications** - Unread message counters per channel with cross-device sync
 - **Contact management** - Manual approval mode, filtering, cleanup tools
 - **Message archives** - Automatic daily archiving with browse-by-date selector
+- **Interactive Console** - Direct meshcli command execution via WebSocket
 - **PWA support** - Browser notifications and installable app (experimental)
 - **Full offline support** - Works without internet (local Bootstrap, icons, emoji picker)
 
@@ -132,6 +133,7 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
 3. **Switch channels** - Use the dropdown in navbar
 4. **Direct Messages** - Access via menu (☰) → "Direct Messages"
 5. **Manage contacts** - Access via menu (☰) → "Contact Management"
+6. **Console** - Access via menu (☰) → "Console" for direct meshcli commands
 
 For complete usage instructions, see the [User Guide](docs/user-guide.md).
 
@@ -173,6 +175,7 @@ For complete usage instructions, see the [User Guide](docs/user-guide.md).
 - [x] Message Content Enhancements - Mention badges, clickable URLs, image previews
 - [x] PWA Notifications (Experimental) - Browser notifications and app badge counters
 - [x] Full Offline Support - Local Bootstrap libraries and Service Worker caching
+- [x] Interactive Console - Direct meshcli access via WebSocket with command history
 
 ### Next Steps
 
