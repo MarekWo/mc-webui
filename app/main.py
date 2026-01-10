@@ -223,5 +223,6 @@ if __name__ == '__main__':
         app,
         host=config.FLASK_HOST,
         port=config.FLASK_PORT,
-        debug=config.FLASK_DEBUG
+        debug=config.FLASK_DEBUG,
+        allow_unsafe_werkzeug=True  # Required for threading mode
     )
