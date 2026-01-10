@@ -23,9 +23,7 @@ Pillow==10.1.0
 # HTTP Client for MeshCore Bridge communication
 requests==2.31.0
 
-# WebSocket support for console
+# WebSocket support for console (threading mode - no gevent needed)
 flask-socketio==5.3.6
 python-socketio==5.10.0
 python-engineio==4.8.1
-gevent==23.9.1
-gevent-websocket==0.10.1

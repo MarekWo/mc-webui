@@ -46,7 +46,9 @@ def create_app():
     app.register_blueprint(api_bp)
 
     # Initialize SocketIO with the app
-    socketio.init_app(app, cors_allowed_origins="*", async_mode='gevent')
+    # Using 'threading' mode for better compatibility with regular HTTP requests
+    # (gevent mode requires monkey-patching and slows down non-WebSocket requests)
+    socketio.init_app(app, cors_allowed_origins="*", async_mode='threading')
 
     # Initialize archive scheduler if enabled
     if config.MC_ARCHIVE_ENABLED:
