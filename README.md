@@ -68,11 +68,15 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
     ```
 
     **Required changes in .env:**
-    - `MC_SERIAL_PORT=/dev/serial/by-id/<your-device-id>`
+    - `MC_SERIAL_PORT=auto` (recommended) or `/dev/serial/by-id/<your-device-id>`
     - `MC_DEVICE_NAME=auto` (recommended) or your device name
     - `TZ=Europe/Warsaw` (optional, set your timezone)
 
-    **Note:** With `MC_DEVICE_NAME=auto`, the system automatically detects your device name from meshcli. This is the recommended setting as it ensures the `.msgs` file always matches your actual device name.
+    **Note:** With `auto` settings, the system automatically detects:
+    - **Serial port** from `/dev/serial/by-id/` (works if only one USB device connected)
+    - **Device name** from meshcli prompt (ensures `.msgs` file matches actual device)
+
+    If you have multiple USB serial devices, run `ls /dev/serial/by-id/` and specify `MC_SERIAL_PORT` explicitly.
 
     **Leave these as default:**
     ```bash

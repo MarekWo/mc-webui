@@ -6,14 +6,17 @@ services:
       dockerfile: Dockerfile
     container_name: meshcore-bridge
     restart: unless-stopped
-    devices:
-      - "${MC_SERIAL_PORT}:${MC_SERIAL_PORT}"
+    # Grant access to all ttyUSB devices (major 188) for auto-detection
+    # This allows MC_SERIAL_PORT=auto to work without specifying device upfront
+    device_cgroup_rules:
+      - 'c 188:* rmw'
     volumes:
       - "${MC_CONFIG_DIR}:/root/.config/meshcore:rw"
+      - "/dev:/dev"
     environment:
-      - MC_SERIAL_PORT=${MC_SERIAL_PORT}
+      - MC_SERIAL_PORT=${MC_SERIAL_PORT:-auto}
       - MC_CONFIG_DIR=/root/.config/meshcore
-      - MC_DEVICE_NAME=${MC_DEVICE_NAME}
+      - MC_DEVICE_NAME=${MC_DEVICE_NAME:-auto}
       - TZ=${TZ:-UTC}
     networks:
       - meshcore-net

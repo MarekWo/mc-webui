@@ -36,11 +36,70 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # Configuration
-MC_SERIAL_PORT = os.getenv('MC_SERIAL_PORT', '/dev/ttyUSB0')
 MC_CONFIG_DIR = os.getenv('MC_CONFIG_DIR', '/config')
 MC_DEVICE_NAME = os.getenv('MC_DEVICE_NAME', 'meshtastic')
 DEFAULT_TIMEOUT = 10
 RECV_TIMEOUT = 60
+
+# Serial port detection
+SERIAL_BY_ID_PATH = Path('/dev/serial/by-id')
+SERIAL_PORT_SOURCE = "config"  # Will be updated by detect_serial_port()
+
+
+def detect_serial_port() -> str:
+    """
+    Auto-detect serial port from /dev/serial/by-id/.
+
+    Returns:
+        Path to detected serial device
+
+    Raises:
+        RuntimeError: If no device found or multiple devices without explicit selection
+    """
+    global SERIAL_PORT_SOURCE
+
+    env_port = os.getenv('MC_SERIAL_PORT', 'auto')
+
+    # If explicit port specified (not "auto"), use it directly
+    if env_port and env_port.lower() != 'auto':
+        logger.info(f"Using configured serial port: {env_port}")
+        SERIAL_PORT_SOURCE = "config"
+        return env_port
+
+    # Auto-detect from /dev/serial/by-id/
+    logger.info("Auto-detecting serial port...")
+
+    if not SERIAL_BY_ID_PATH.exists():
+        raise RuntimeError(
+            "No serial devices found: /dev/serial/by-id/ does not exist. "
+            "Make sure a MeshCore device is connected via USB."
+        )
+
+    devices = list(SERIAL_BY_ID_PATH.iterdir())
+
+    if len(devices) == 0:
+        raise RuntimeError(
+            "No serial devices found in /dev/serial/by-id/. "
+            "Make sure a MeshCore device is connected via USB."
+        )
+
+    if len(devices) == 1:
+        device_path = str(devices[0])
+        logger.info(f"Auto-detected serial port: {device_path}")
+        SERIAL_PORT_SOURCE = "detected"
+        return device_path
+
+    # Multiple devices found - list them and fail
+    device_list = '\n  - '.join(str(d.name) for d in devices)
+    raise RuntimeError(
+        f"Multiple serial devices found. Please specify MC_SERIAL_PORT in .env:\n"
+        f"  - {device_list}\n\n"
+        f"Example: MC_SERIAL_PORT=/dev/serial/by-id/{devices[0].name}"
+    )
+
+
+# Detect serial port at startup
+MC_SERIAL_PORT = detect_serial_port()
 
 class MeshCLISession:
     """
@@ -608,6 +667,7 @@ def health():
     return jsonify({
         'status': session_status,
         'serial_port': MC_SERIAL_PORT,
+        'serial_port_source': SERIAL_PORT_SOURCE,
         'advert_log': str(meshcli_session.advert_log_path) if meshcli_session else None,
         'device_name': device_name,
         'device_name_source': name_source
