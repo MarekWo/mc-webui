@@ -51,51 +51,39 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
     cd mc-webui
     ```
 
-2. **Find your serial device ID**
-   ```bash
-   ls /dev/serial/by-id/
-   ```
-   You should see a device name starting with `usb-...`. For Heltec V4 may look like:
-   ```
-   usb-Espressif_Systems_heltec_wifi_lora_32_v4__16_MB_FLASH__2_MB_PSRAM__90706984A000-if00
-   ```
-   **Copy the full device ID** - you'll need it in the next step.
-
-3. **Configure your environment**
+2. **Create configuration file**
     ```bash
     cp .env.example .env
-    nano .env
     ```
 
-    **Required changes in .env:**
-    - `MC_SERIAL_PORT=auto` (recommended) or `/dev/serial/by-id/<your-device-id>`
-    - `MC_DEVICE_NAME=auto` (recommended) or your device name
-    - `TZ=Europe/Warsaw` (optional, set your timezone)
+    **In most cases, no changes are needed!** The defaults work automatically:
+    - `MC_SERIAL_PORT=auto` - auto-detects your USB device
+    - `MC_DEVICE_NAME=auto` - auto-detects device name from meshcli
 
-    **Note:** With `auto` settings, the system automatically detects:
-    - **Serial port** from `/dev/serial/by-id/` (works if only one USB device connected)
-    - **Device name** from meshcli prompt (ensures `.msgs` file matches actual device)
+    Optionally edit `.env` to set your timezone: `TZ=Europe/Warsaw`
 
-    If you have multiple USB serial devices, run `ls /dev/serial/by-id/` and specify `MC_SERIAL_PORT` explicitly.
+    <details>
+    <summary><b>Troubleshooting: Multiple USB devices or detection fails</b></summary>
 
-    **Leave these as default:**
+    Check available serial devices:
     ```bash
-    MC_CONFIG_DIR=./data/meshcore
-    MC_ARCHIVE_DIR=./data/archive
+    ls /dev/serial/by-id/
     ```
 
-4. **Verify Serial Device Permissions**
+    If you see multiple devices, edit `.env` and set `MC_SERIAL_PORT` explicitly:
     ```bash
-    ls -l /dev/serial/by-id/usb-*
+    MC_SERIAL_PORT=/dev/serial/by-id/usb-Espressif_Systems_heltec_...
     ```
 
-    If needed, add your user to dialout group:
+    </details>
+
+3. **Verify Serial Device Permissions** (if needed)
     ```bash
     sudo usermod -aG dialout $USER
     # Log out and log back in for changes to take effect
     ```
 
-5. **Build and run**
+4. **Build and run**
     ```bash
     docker compose up -d --build
     ```
@@ -106,7 +94,7 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
     - Create `./data/` directory structure automatically
     - Start both containers (meshcore-bridge and mc-webui)
 
-6. **Verify installation**
+5. **Verify installation**
     ```bash
     docker compose ps
     ```
@@ -116,7 +104,7 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
     docker compose logs -f
     ```
 
-7. **Access the web interface**
+6. **Access the web interface**
 
    Open your browser and navigate to:
    ```
@@ -125,7 +113,7 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
 
    To find your server IP: `hostname -I | awk '{print $1}'`
 
-8. **Initial Configuration (In Web UI)**
+7. **Initial Configuration (In Web UI)**
     - Main page loads with chat interface on "Public" channel
     - Wait for initial sync (1-2 minutes)
     - Optional: Enable manual contact approval in Contact Management
