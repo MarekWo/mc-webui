@@ -21,9 +21,6 @@ class Config:
     # MeshCore Bridge configuration
     MC_BRIDGE_URL = os.getenv('MC_BRIDGE_URL', 'http://meshcore-bridge:5001/cli')
 
-    # Application settings
-    MC_INACTIVE_HOURS = int(os.getenv('MC_INACTIVE_HOURS', '48'))
-
     # Archive configuration
     MC_ARCHIVE_DIR = os.getenv('MC_ARCHIVE_DIR', '/root/.archive/meshcore')
     MC_ARCHIVE_ENABLED = os.getenv('MC_ARCHIVE_ENABLED', 'true').lower() == 'true'
