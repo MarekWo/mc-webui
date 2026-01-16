@@ -716,3 +716,18 @@ main {
 .leaflet-bottom {
     z-index: 1000;
 }
+
+/* =============================================================================
+   Message Action Buttons
+   ============================================================================= */
+
+/* Icon-only action buttons on message bubbles */
+.btn-msg-action {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}

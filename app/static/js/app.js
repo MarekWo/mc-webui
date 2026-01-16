@@ -583,13 +583,13 @@ function createMessageElement(msg) {
         <p class="message-content">${processMessageContent(msg.content)}</p>
         ${metaInfo ? `<div class="message-meta">${metaInfo}</div>` : ''}
         ${!msg.is_own ? `
-            <div class="mt-1">
-                <button class="btn btn-outline-secondary btn-sm btn-reply" onclick="replyTo('${escapeHtml(msg.sender)}')">
-                    <i class="bi bi-reply"></i> Reply
+            <div class="mt-1 d-flex gap-1">
+                <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="Reply">
+                    <i class="bi bi-reply"></i>
                 </button>
                 ${contactsGeoCache[msg.sender] ? `
-                    <button class="btn btn-outline-primary btn-sm ms-1" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})">
-                        <i class="bi bi-geo-alt"></i> Map
+                    <button class="btn btn-outline-primary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="Show on map">
+                        <i class="bi bi-geo-alt"></i>
                     </button>
                 ` : ''}
             </div>
