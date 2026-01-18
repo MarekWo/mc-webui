@@ -24,6 +24,12 @@ _channels_cache = None
 _channels_cache_timestamp = 0
 CHANNELS_CACHE_TTL = 30  # seconds
 
+# Cache for contacts/detailed to reduce USB calls (4 calls per request!)
+# Contacts change infrequently, 60s cache is safe
+_contacts_detailed_cache = None
+_contacts_detailed_cache_timestamp = 0
+CONTACTS_DETAILED_CACHE_TTL = 60  # seconds
+
 
 def get_channels_cached(force_refresh=False):
     """
@@ -64,6 +70,48 @@ def invalidate_channels_cache():
     _channels_cache = None
     _channels_cache_timestamp = 0
     logger.debug("Channels cache invalidated")
+
+
+def get_contacts_detailed_cached(force_refresh=False):
+    """
+    Get detailed contacts with caching to reduce USB/meshcli calls.
+    This endpoint makes 4 USB calls (one per contact type), so caching is critical.
+
+    Args:
+        force_refresh: If True, bypass cache and fetch fresh data
+
+    Returns:
+        Tuple of (success, contacts_dict, error_message)
+    """
+    global _contacts_detailed_cache, _contacts_detailed_cache_timestamp
+
+    current_time = time.time()
+
+    # Return cached data if valid and not forcing refresh
+    if (not force_refresh and
+        _contacts_detailed_cache is not None and
+        (current_time - _contacts_detailed_cache_timestamp) < CONTACTS_DETAILED_CACHE_TTL):
+        logger.debug(f"Returning cached contacts (age: {current_time - _contacts_detailed_cache_timestamp:.1f}s)")
+        return True, _contacts_detailed_cache, None
+
+    # Fetch fresh data (this makes 4 USB calls!)
+    logger.debug("Fetching fresh contacts from meshcli (4 USB calls)")
+    success, contacts, error = cli.get_contacts_with_last_seen()
+
+    if success:
+        _contacts_detailed_cache = contacts
+        _contacts_detailed_cache_timestamp = current_time
+        logger.debug(f"Contacts cached ({len(contacts)} contacts)")
+
+    return success, contacts, error
+
+
+def invalidate_contacts_cache():
+    """Invalidate contacts cache (call after contact changes)"""
+    global _contacts_detailed_cache, _contacts_detailed_cache_timestamp
+    _contacts_detailed_cache = None
+    _contacts_detailed_cache_timestamp = 0
+    logger.debug("Contacts cache invalidated")
 
 
 @api_bp.route('/messages', methods=['GET'])
@@ -517,6 +565,10 @@ def cleanup_contacts():
                     'name': contact_name,
                     'error': message
                 })
+
+        # Invalidate contacts cache after deletions
+        if deleted_count > 0:
+            invalidate_contacts_cache()
 
         return jsonify({
             'success': True,
@@ -1104,6 +1156,9 @@ def get_messages_updates():
     Check for new messages across all channels without fetching full message content.
     Used for intelligent refresh mechanism and unread notifications.
 
+    OPTIMIZED: Reads messages file only ONCE and computes stats for all channels.
+    Previously read the file N*2 times (once per channel, twice if updates).
+
     Query parameters:
         last_seen (str): JSON object with last seen timestamps per channel
                         Format: {"0": 1234567890, "1": 1234567891, ...}
@@ -1143,44 +1198,52 @@ def get_messages_updates():
                 'error': 'Failed to get channels'
             }), 500
 
+        # OPTIMIZATION: Read ALL messages ONCE (no channel filter)
+        # Then compute per-channel statistics in memory
+        all_messages = parser.read_messages(
+            limit=None,  # Get all messages
+            days=7       # Only last 7 days
+        )
+
+        # Group messages by channel and compute stats
+        channel_stats = {}  # channel_idx -> {latest_ts, messages_after_last_seen}
+        for msg in all_messages:
+            ch_idx = msg.get('channel_idx', 0)
+            ts = msg.get('timestamp', 0)
+
+            if ch_idx not in channel_stats:
+                channel_stats[ch_idx] = {
+                    'latest_timestamp': 0,
+                    'unread_count': 0
+                }
+
+            # Track latest timestamp per channel
+            if ts > channel_stats[ch_idx]['latest_timestamp']:
+                channel_stats[ch_idx]['latest_timestamp'] = ts
+
+            # Count unread messages (newer than last_seen)
+            last_seen_ts = last_seen.get(ch_idx, 0)
+            if ts > last_seen_ts:
+                channel_stats[ch_idx]['unread_count'] += 1
+
+        # Build response
         updates = []
         total_unread = 0
 
-        # Check each channel for new messages
         for channel in channels:
             channel_idx = channel['index']
+            stats = channel_stats.get(channel_idx, {'latest_timestamp': 0, 'unread_count': 0})
 
-            # Get latest message for this channel
-            messages = parser.read_messages(
-                limit=1,
-                channel_idx=channel_idx,
-                days=7  # Only check recent messages
-            )
-
-            latest_timestamp = 0
-            if messages and len(messages) > 0:
-                latest_timestamp = messages[0]['timestamp']
-
-            # Check if there are updates
             last_seen_ts = last_seen.get(channel_idx, 0)
-            has_updates = latest_timestamp > last_seen_ts
-
-            # Count unread messages (messages newer than last_seen)
-            unread_count = 0
-            if has_updates:
-                all_messages = parser.read_messages(
-                    limit=500,
-                    channel_idx=channel_idx,
-                    days=7
-                )
-                unread_count = sum(1 for msg in all_messages if msg['timestamp'] > last_seen_ts)
-                total_unread += unread_count
+            has_updates = stats['latest_timestamp'] > last_seen_ts
+            unread_count = stats['unread_count'] if has_updates else 0
+            total_unread += unread_count
 
             updates.append({
                 'index': channel_idx,
                 'name': channel['name'],
                 'has_updates': has_updates,
-                'latest_timestamp': latest_timestamp,
+                'latest_timestamp': stats['latest_timestamp'],
                 'unread_count': unread_count
             })
 
@@ -1505,8 +1568,9 @@ def get_contacts_detailed_api():
         }
     """
     try:
-        # Get detailed contact info from meshcli (includes all fields)
-        success_detailed, contacts_detailed, error_detailed = cli.get_contacts_with_last_seen()
+        # Get detailed contact info from cache (reduces 4 USB calls to 0 on cache hit)
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        success_detailed, contacts_detailed, error_detailed = get_contacts_detailed_cached(force_refresh)
 
         if not success_detailed:
             return jsonify({
@@ -1609,6 +1673,8 @@ def delete_contact_api():
         success, message = cli.delete_contact(selector)
 
         if success:
+            # Invalidate contacts cache after deletion
+            invalidate_contacts_cache()
             return jsonify({
                 'success': True,
                 'message': message
@@ -1748,6 +1814,8 @@ def approve_pending_contact_api():
         success, message = cli.approve_pending_contact(public_key)
 
         if success:
+            # Invalidate contacts cache after adding new contact
+            invalidate_contacts_cache()
             return jsonify({
                 'success': True,
                 'message': message or 'Contact approved successfully'

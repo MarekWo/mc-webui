@@ -245,6 +245,7 @@ async function loadContactsGeoCache() {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('mc-webui initialized');
+    const initStart = performance.now();
 
     // Force viewport recalculation on PWA navigation
     // This fixes the bottom bar visibility issue when navigating from other pages
@@ -254,34 +255,45 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Force reflow to ensure proper layout calculation
     document.body.offsetHeight;
 
-    // Load last seen timestamps from server
-    await loadLastSeenTimestampsFromServer();
-    await loadDmLastSeenTimestampsFromServer();
-
-    // Restore last selected channel from localStorage
+    // Restore last selected channel from localStorage (sync, fast)
     const savedChannel = localStorage.getItem('mc_active_channel');
     if (savedChannel !== null) {
         currentChannelIdx = parseInt(savedChannel);
     }
 
-    // Setup event listeners (do this early)
+    // Setup event listeners and emoji picker early (sync, fast)
     setupEventListeners();
-
-    // Setup emoji picker
     setupEmojiPicker();
 
-    // CRITICAL: Load channels FIRST before anything else
-    // This ensures channels are available for checkForUpdates()
+    // OPTIMIZATION: Load timestamps in parallel (both are independent API calls)
+    console.log('[init] Loading timestamps in parallel...');
+    await Promise.all([
+        loadLastSeenTimestampsFromServer(),
+        loadDmLastSeenTimestampsFromServer()
+    ]);
+
+    // Load channels (required before loading messages)
+    // NOTE: checkForUpdates() was removed from loadChannels() to speed up init
+    console.log('[init] Loading channels...');
     await loadChannels();
 
-    // Load contacts geo cache BEFORE messages (needed for Map buttons on bubbles)
-    await loadContactsGeoCache();
+    // OPTIMIZATION: Load messages immediately, don't wait for geo cache
+    // Map buttons will appear once geo cache loads (non-blocking UX improvement)
+    console.log('[init] Loading messages (priority) and geo cache (background)...');
 
-    // Now load other data (can run in parallel)
+    // Start these in parallel - messages are critical, geo cache can load async
+    const messagesPromise = loadMessages();
+    const geoCachePromise = loadContactsGeoCache();  // Non-blocking, Map buttons update when ready
+
+    // Also start archive list loading in parallel
     loadArchiveList();
-    loadMessages();
 
-    // Initial badge updates
+    // Wait for messages to display (this is what the user wants to see ASAP)
+    await messagesPromise;
+
+    console.log(`[init] Messages loaded in ${(performance.now() - initStart).toFixed(0)}ms`);
+
+    // Initial badge updates (fast, sync-ish)
     updatePendingContactsBadge();
     loadStatus();
 
@@ -299,8 +311,18 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Update notification toggle UI
     updateNotificationToggleUI();
 
-    // Setup auto-refresh AFTER channels are loaded
+    // DEFERRED: Check for updates AFTER messages are displayed
+    // This updates the unread badges without blocking initial load
+    console.log('[init] Checking for updates (deferred)...');
+    checkForUpdates();  // No await - runs in background
+
+    // Wait for geo cache to complete before setting up auto-refresh
+    await geoCachePromise;
+
+    // Setup auto-refresh AFTER initial load is complete
     setupAutoRefresh();
+
+    console.log(`[init] Full initialization complete in ${(performance.now() - initStart).toFixed(0)}ms`);
 });
 
 // Handle page restoration from cache (PWA back/forward navigation)
@@ -1555,9 +1577,8 @@ async function loadChannels() {
             availableChannels = data.channels;
             console.log('[loadChannels] Channels loaded:', availableChannels.length);
             populateChannelSelector(data.channels);
-
-            // Check for unread messages after channels are loaded
-            await checkForUpdates();
+            // NOTE: checkForUpdates() is now called separately after messages are displayed
+            // to avoid blocking the initial page load
         } else {
             console.error('[loadChannels] Error loading channels:', data.error || 'No channels returned');
             // Fallback: ensure at least Public channel exists
