@@ -12,6 +12,7 @@ from flask_socketio import SocketIO, emit
 from app.config import config, runtime_config
 from app.routes.views import views_bp
 from app.routes.api import api_bp
+from app.version import VERSION_STRING
 from app.archiver.manager import schedule_daily_archiving
 from app.meshcore.cli import fetch_device_name_from_bridge
 
@@ -42,6 +43,11 @@ def create_app():
     # Load configuration
     app.config['DEBUG'] = config.FLASK_DEBUG
     app.config['SECRET_KEY'] = 'mc-webui-secret-key-change-in-production'
+
+    # Inject version into all templates
+    @app.context_processor
+    def inject_version():
+        return {'version': VERSION_STRING}
 
     # Register blueprints
     app.register_blueprint(views_bp)

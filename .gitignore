@@ -11,6 +11,8 @@
 # Python
 # ============================================
 __pycache__/
+# Auto-generated version file (created during Docker build)
+app/version_frozen.py
 *.py[cod]
 *$py.class
 *.so

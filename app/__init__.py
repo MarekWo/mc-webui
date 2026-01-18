@@ -1,5 +1,5 @@
 """
 mc-webui - Flask application package
-"""
 
-__version__ = "0.1.0"
+Version is managed dynamically via app/version.py based on Git metadata.
+"""

@@ -1910,6 +1910,27 @@ def get_read_status_api():
         }), 500
 
 
+@api_bp.route('/version', methods=['GET'])
+def get_version():
+    """
+    Get application version.
+
+    Returns:
+        JSON with version info:
+        {
+            "success": true,
+            "version": "2025.01.18+576c8ca9",
+            "docker_tag": "2025.01.18-576c8ca9"
+        }
+    """
+    from app.version import VERSION_STRING, DOCKER_TAG
+    return jsonify({
+        'success': True,
+        'version': VERSION_STRING,
+        'docker_tag': DOCKER_TAG
+    }), 200
+
+
 @api_bp.route('/read_status/mark_read', methods=['POST'])
 def mark_read_api():
     """

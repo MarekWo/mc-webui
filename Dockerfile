@@ -16,6 +16,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
+# Note: Run 'python -m app.version freeze' before build to include version info
+# The version_frozen.py file will be copied automatically if it exists
 COPY app/ ./app/
 
 # Expose Flask port
