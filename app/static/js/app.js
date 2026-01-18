@@ -311,18 +311,21 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Update notification toggle UI
     updateNotificationToggleUI();
 
-    // DEFERRED: Check for updates AFTER messages are displayed
-    // This updates the unread badges without blocking initial load
-    console.log('[init] Checking for updates (deferred)...');
-    checkForUpdates();  // No await - runs in background
-
-    // Wait for geo cache to complete before setting up auto-refresh
-    await geoCachePromise;
-
-    // Setup auto-refresh AFTER initial load is complete
+    // Setup auto-refresh immediately after messages are displayed
+    // Don't wait for geo cache - it's not needed for auto-refresh
     setupAutoRefresh();
 
-    console.log(`[init] Full initialization complete in ${(performance.now() - initStart).toFixed(0)}ms`);
+    console.log(`[init] UI ready in ${(performance.now() - initStart).toFixed(0)}ms`);
+
+    // DEFERRED: Check for updates AFTER messages are displayed
+    // This updates the unread badges without blocking initial load
+    checkForUpdates();  // No await - runs in background
+
+    // Geo cache loads in background - Map buttons will work once it completes
+    // No need to await - just let it finish whenever
+    geoCachePromise.then(() => {
+        console.log(`[init] Geo cache loaded in ${(performance.now() - initStart).toFixed(0)}ms`);
+    });
 });
 
 // Handle page restoration from cache (PWA back/forward navigation)
