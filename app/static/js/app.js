@@ -425,9 +425,9 @@ function setupEventListeners() {
         isUserScrolling = !isAtBottom;
     });
 
-    // Load device info when settings modal opens
-    const settingsModal = document.getElementById('settingsModal');
-    settingsModal.addEventListener('show.bs.modal', function() {
+    // Load device info when modal opens
+    const deviceInfoModal = document.getElementById('deviceInfoModal');
+    deviceInfoModal.addEventListener('show.bs.modal', function() {
         loadDeviceInfo();
     });
 
@@ -768,23 +768,109 @@ async function loadStatus() {
 }
 
 /**
+ * Copy text to clipboard with visual feedback
+ */
+async function copyToClipboard(text, btnElement) {
+    try {
+        await navigator.clipboard.writeText(text);
+        const icon = btnElement.querySelector('i');
+        const originalClass = icon.className;
+        icon.className = 'bi bi-check';
+        setTimeout(() => { icon.className = originalClass; }, 1500);
+    } catch (err) {
+        console.error('Failed to copy:', err);
+    }
+}
+
+/**
  * Load device information
  */
 async function loadDeviceInfo() {
-    const infoEl = document.getElementById('deviceInfo');
-    infoEl.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Loading...';
+    const container = document.getElementById('deviceInfoContent');
+    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
 
     try {
         const response = await fetch('/api/device/info');
         const data = await response.json();
 
-        if (data.success) {
-            infoEl.innerHTML = `<pre class="mb-0">${escapeHtml(data.info)}</pre>`;
-        } else {
-            infoEl.innerHTML = `<span class="text-danger">Error: ${escapeHtml(data.error)}</span>`;
+        if (!data.success) {
+            container.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(data.error)}</div>`;
+            return;
         }
+
+        // Parse JSON from the info string
+        let info;
+        try {
+            // Extract JSON part (skip the header lines like "MarWoj|*...")
+            const jsonMatch = data.info.match(/\{[\s\S]*\}/);
+            info = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+        } catch (e) {
+            container.innerHTML = `<pre class="mb-0 small">${escapeHtml(data.info)}</pre>`;
+            return;
+        }
+
+        if (!info) {
+            container.innerHTML = `<pre class="mb-0 small">${escapeHtml(data.info)}</pre>`;
+            return;
+        }
+
+        // Type mapping
+        const typeNames = { 1: 'Companion', 2: 'Repeater', 3: 'Room Server', 4: 'Sensor' };
+        const typeName = typeNames[info.adv_type] || `Unknown (${info.adv_type})`;
+
+        // Shorten public key for display
+        const pubKey = info.public_key || '';
+        const shortKey = pubKey.length > 12 ? `${pubKey.slice(0, 6)}...${pubKey.slice(-6)}` : pubKey;
+
+        // Location
+        const hasLocation = info.adv_lat && info.adv_lon && (info.adv_lat !== 0 || info.adv_lon !== 0);
+        const coords = hasLocation ? `${info.adv_lat.toFixed(6)}, ${info.adv_lon.toFixed(6)}` : 'Not available';
+
+        // Build table rows
+        const rows = [
+            { label: 'Name', value: escapeHtml(info.name || 'Unknown'), copyValue: info.name },
+            { label: 'Type', value: typeName },
+            { label: 'Public Key', value: `<code class="small">${escapeHtml(shortKey)}</code>`, copyValue: pubKey },
+            { label: 'Location', value: coords, showMap: hasLocation, lat: info.adv_lat, lon: info.adv_lon, name: info.name },
+            { label: 'TX Power', value: `${info.tx_power || 0} / ${info.max_tx_power || 0} dBm` },
+            { label: 'Frequency', value: `${info.radio_freq || 0} MHz` },
+            { label: 'Bandwidth', value: `${info.radio_bw || 0} kHz` },
+            { label: 'Spreading Factor', value: info.radio_sf || 0 },
+            { label: 'Coding Rate', value: `4/${info.radio_cr || 0}` },
+            { label: 'Multi Acks', value: info.multi_acks ? 'Enabled' : 'Disabled' },
+            { label: 'Location Sharing', value: info.adv_loc_policy ? 'Enabled' : 'Disabled' },
+            { label: 'Manual Add Contacts', value: info.manual_add_contacts ? 'Yes' : 'No' }
+        ];
+
+        let html = '<table class="table table-sm mb-0">';
+        html += '<tbody>';
+
+        for (const row of rows) {
+            html += '<tr>';
+            html += `<td class="text-muted" style="width: 40%">${row.label}</td>`;
+            html += '<td>';
+            html += row.value;
+
+            // Copy button
+            if (row.copyValue) {
+                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="copyToClipboard('${escapeHtml(row.copyValue)}', this)" title="Copy to clipboard"><i class="bi bi-clipboard"></i></button>`;
+            }
+
+            // Map button
+            if (row.showMap) {
+                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="showContactOnMap('${escapeHtml(row.name)}', ${row.lat}, ${row.lon})" title="Show on map"><i class="bi bi-geo-alt"></i></button>`;
+            }
+
+            html += '</td>';
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
     } catch (error) {
-        infoEl.innerHTML = '<span class="text-danger">Failed to load device info</span>';
+        console.error('Error loading device info:', error);
+        container.innerHTML = '<div class="alert alert-danger mb-0">Failed to load device info</div>';
     }
 }
 

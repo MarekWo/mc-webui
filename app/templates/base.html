@@ -132,9 +132,9 @@
                         <small class="d-block text-muted">All contacts with GPS</small>
                     </div>
                 </button>
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#settingsModal" data-bs-dismiss="offcanvas">
-                    <i class="bi bi-gear" style="font-size: 1.5rem;"></i>
-                    <span>Settings</span>
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#deviceInfoModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-cpu" style="font-size: 1.5rem;"></i>
+                    <span>Device Info</span>
                 </button>
             </div>
         </div>
@@ -260,18 +260,19 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div class="modal fade" id="settingsModal" tabindex="-1">
+    <!-- Device Info Modal -->
+    <div class="modal fade" id="deviceInfoModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-gear"></i> Settings</h5>
+                    <h5 class="modal-title"><i class="bi bi-cpu"></i> Device Info</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <h6>Device Information</h6>
-                    <div id="deviceInfo" class="small text-muted">
-                        Loading...
+                    <div id="deviceInfoContent">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm"></div> Loading...
+                        </div>
                     </div>
                 </div>
             </div>
