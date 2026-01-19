@@ -683,6 +683,9 @@ function createMessageElement(msg) {
                 <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="Reply">
                     <i class="bi bi-reply"></i>
                 </button>
+                <button class="btn btn-outline-secondary btn-msg-action" onclick='quoteTo(${JSON.stringify(msg.sender)}, ${JSON.stringify(msg.content)})' title="Quote">
+                    <i class="bi bi-quote"></i>
+                </button>
                 ${contactsGeoCache[msg.sender] ? `
                     <button class="btn btn-outline-primary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="Show on map">
                         <i class="bi bi-geo-alt"></i>
@@ -746,6 +749,40 @@ async function sendMessage() {
 function replyTo(username) {
     const input = document.getElementById('messageInput');
     input.value = `@[${username}] `;
+    updateCharCounter();
+    input.focus();
+}
+
+/**
+ * Quote a user's message
+ * @param {string} username - Username to mention
+ * @param {string} content - Original message content to quote
+ */
+function quoteTo(username, content) {
+    const input = document.getElementById('messageInput');
+    const maxQuoteBytes = 20;
+
+    // Calculate UTF-8 byte length
+    const encoder = new TextEncoder();
+    const contentBytes = encoder.encode(content);
+
+    let quotedText;
+    if (contentBytes.length <= maxQuoteBytes) {
+        quotedText = content;
+    } else {
+        // Truncate to ~maxQuoteBytes, being careful with multi-byte characters
+        let truncated = '';
+        let byteCount = 0;
+        for (const char of content) {
+            const charBytes = encoder.encode(char).length;
+            if (byteCount + charBytes > maxQuoteBytes) break;
+            truncated += char;
+            byteCount += charBytes;
+        }
+        quotedText = truncated + '...';
+    }
+
+    input.value = `@[${username}] "${quotedText}" `;
     updateCharCounter();
     input.focus();
 }
