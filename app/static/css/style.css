@@ -511,6 +511,22 @@ main {
     background-color: #084298;
 }
 
+/* Quoted Text (»text«) */
+.quote-text {
+    font-style: italic;
+    color: #6c757d;
+    background-color: rgba(108, 117, 125, 0.1);
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.25rem;
+    border-left: 2px solid #6c757d;
+}
+
+.message.own .quote-text {
+    color: #495057;
+    background-color: rgba(8, 66, 152, 0.1);
+    border-left-color: #084298;
+}
+
 /* Clickable Links in Messages */
 .message-link {
     color: #0d6efd;

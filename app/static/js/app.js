@@ -782,7 +782,7 @@ function quoteTo(username, content) {
         quotedText = truncated + '...';
     }
 
-    input.value = `@[${username}] "${quotedText}" `;
+    input.value = `@[${username}]: »${quotedText}« `;
     updateCharCounter();
     input.focus();
 }

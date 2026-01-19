@@ -18,7 +18,10 @@ function processMessageContent(content) {
     // 1. Convert @[Username] mentions to badges
     processed = processMentions(processed);
 
-    // 2. Convert URLs to links (and images to thumbnails)
+    // 2. Convert »quoted text« to styled quotes
+    processed = processQuotes(processed);
+
+    // 3. Convert URLs to links (and images to thumbnails)
     processed = processUrls(processed);
 
     return processed;
@@ -37,6 +40,20 @@ function processMentions(text) {
     return text.replace(mentionPattern, (_match, username) => {
         // Create badge similar to Android Meshcore app
         return `<span class="mention-badge">@${username}</span>`;
+    });
+}
+
+/**
+ * Convert »quoted text« to styled quote blocks
+ * @param {string} text - HTML-escaped text
+ * @returns {string} - Text with styled quotes
+ */
+function processQuotes(text) {
+    // Match »...« pattern (guillemets)
+    const quotePattern = /»([^«]+)«/g;
+
+    return text.replace(quotePattern, (_match, quoted) => {
+        return `<span class="quote-text">»${quoted}«</span>`;
     });
 }
 
