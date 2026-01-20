@@ -1989,20 +1989,21 @@ def get_version():
         {
             "success": true,
             "version": "2025.01.18+576c8ca9",
-            "docker_tag": "2025.01.18-576c8ca9"
+            "docker_tag": "2025.01.18-576c8ca9",
+            "branch": "dev"
         }
     """
-    from app.version import VERSION_STRING, DOCKER_TAG
+    from app.version import VERSION_STRING, DOCKER_TAG, GIT_BRANCH
     return jsonify({
         'success': True,
         'version': VERSION_STRING,
-        'docker_tag': DOCKER_TAG
+        'docker_tag': DOCKER_TAG,
+        'branch': GIT_BRANCH
     }), 200
 
 
 # GitHub repository for update checks
 GITHUB_REPO = "MarekWo/mc-webui"
-GITHUB_BRANCH = "dev"  # Check updates against dev branch
 
 
 @api_bp.route('/check-update', methods=['GET'])
@@ -2011,9 +2012,10 @@ def check_update():
     Check if a newer version is available on GitHub.
 
     Compares current commit hash with latest commit on GitHub.
+    Uses the branch from frozen version (dev/main) automatically.
 
     Query parameters:
-        branch (str): Branch to check (default: dev)
+        branch (str): Branch to check (default: from frozen version)
 
     Returns:
         JSON with update status:
@@ -2022,16 +2024,18 @@ def check_update():
             "update_available": true,
             "current_version": "2026.01.18+abc1234",
             "current_commit": "abc1234",
+            "current_branch": "dev",
             "latest_commit": "def5678",
             "latest_date": "2026.01.20",
             "latest_message": "feat: New feature",
             "github_url": "https://github.com/MarekWo/mc-webui/commits/dev"
         }
     """
-    from app.version import VERSION_STRING
+    from app.version import VERSION_STRING, GIT_BRANCH
 
     try:
-        branch = request.args.get('branch', GITHUB_BRANCH)
+        # Use branch from frozen version, or allow override via query param
+        branch = request.args.get('branch', GIT_BRANCH)
 
         # Extract current commit hash from VERSION_STRING (format: YYYY.MM.DD+hash or YYYY.MM.DD+hash+dirty)
         current_commit = None
@@ -2093,6 +2097,7 @@ def check_update():
             'update_available': update_available,
             'current_version': VERSION_STRING,
             'current_commit': current_commit[:7],
+            'current_branch': branch,
             'latest_commit': latest_commit,
             'latest_date': latest_date,
             'latest_message': latest_message,
