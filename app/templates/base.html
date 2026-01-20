@@ -58,8 +58,13 @@
             <h5 class="offcanvas-title"><i class="bi bi-menu-button-wide"></i> Menu</h5>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
-        <div class="px-3 pb-2 text-muted small border-bottom">
-            <i class="bi bi-tag"></i> {{ version }}
+        <div class="px-3 pb-2 text-muted small border-bottom d-flex align-items-center justify-content-between">
+            <span id="versionDisplay">
+                <i class="bi bi-tag"></i> <span id="versionText">{{ version }}</span>
+            </span>
+            <button id="checkUpdateBtn" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Check for updates">
+                <i class="bi bi-arrow-repeat" id="checkUpdateIcon"></i>
+            </button>
         </div>
         <div class="offcanvas-body">
             <div class="list-group list-group-flush">

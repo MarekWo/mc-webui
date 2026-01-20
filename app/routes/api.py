@@ -7,6 +7,7 @@ import json
 import re
 import base64
 import time
+import requests
 from datetime import datetime
 from io import BytesIO
 from flask import Blueprint, jsonify, request, send_file
@@ -1997,6 +1998,126 @@ def get_version():
         'version': VERSION_STRING,
         'docker_tag': DOCKER_TAG
     }), 200
+
+
+# GitHub repository for update checks
+GITHUB_REPO = "MarekWo/mc-webui"
+GITHUB_BRANCH = "dev"  # Check updates against dev branch
+
+
+@api_bp.route('/check-update', methods=['GET'])
+def check_update():
+    """
+    Check if a newer version is available on GitHub.
+
+    Compares current commit hash with latest commit on GitHub.
+
+    Query parameters:
+        branch (str): Branch to check (default: dev)
+
+    Returns:
+        JSON with update status:
+        {
+            "success": true,
+            "update_available": true,
+            "current_version": "2026.01.18+abc1234",
+            "current_commit": "abc1234",
+            "latest_commit": "def5678",
+            "latest_date": "2026.01.20",
+            "latest_message": "feat: New feature",
+            "github_url": "https://github.com/MarekWo/mc-webui/commits/dev"
+        }
+    """
+    from app.version import VERSION_STRING
+
+    try:
+        branch = request.args.get('branch', GITHUB_BRANCH)
+
+        # Extract current commit hash from VERSION_STRING (format: YYYY.MM.DD+hash or YYYY.MM.DD+hash+dirty)
+        current_commit = None
+        if '+' in VERSION_STRING:
+            parts = VERSION_STRING.split('+')
+            if len(parts) >= 2:
+                current_commit = parts[1]  # Get hash part (skip date, ignore +dirty)
+
+        if not current_commit or current_commit == 'unknown':
+            return jsonify({
+                'success': False,
+                'error': 'Cannot determine current version. Run version freeze first.'
+            }), 400
+
+        # Fetch latest commit from GitHub API
+        github_api_url = f"https://api.github.com/repos/{GITHUB_REPO}/commits/{branch}"
+        headers = {
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'mc-webui-update-checker'
+        }
+
+        response = requests.get(github_api_url, headers=headers, timeout=10)
+
+        if response.status_code == 403:
+            return jsonify({
+                'success': False,
+                'error': 'GitHub API rate limit exceeded. Try again later.'
+            }), 429
+
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'error': f'GitHub API error: {response.status_code}'
+            }), 502
+
+        data = response.json()
+        latest_full_sha = data.get('sha', '')
+        latest_commit = latest_full_sha[:7]  # Short hash (7 chars like git default)
+
+        # Get commit details
+        commit_info = data.get('commit', {})
+        latest_message = commit_info.get('message', '').split('\n')[0]  # First line only
+        commit_date = commit_info.get('committer', {}).get('date', '')
+
+        # Parse date to YYYY.MM.DD format
+        latest_date = ''
+        if commit_date:
+            try:
+                dt = datetime.fromisoformat(commit_date.replace('Z', '+00:00'))
+                latest_date = dt.strftime('%Y.%m.%d')
+            except ValueError:
+                latest_date = commit_date[:10]
+
+        # Compare commits (case-insensitive, compare first 7 chars)
+        update_available = current_commit.lower()[:7] != latest_commit.lower()[:7]
+
+        return jsonify({
+            'success': True,
+            'update_available': update_available,
+            'current_version': VERSION_STRING,
+            'current_commit': current_commit[:7],
+            'latest_commit': latest_commit,
+            'latest_date': latest_date,
+            'latest_message': latest_message,
+            'github_url': f"https://github.com/{GITHUB_REPO}/commits/{branch}"
+        }), 200
+
+    except requests.Timeout:
+        return jsonify({
+            'success': False,
+            'error': 'GitHub API request timed out'
+        }), 504
+
+    except requests.RequestException as e:
+        logger.error(f"Error checking for updates: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Network error: {str(e)}'
+        }), 502
+
+    except Exception as e:
+        logger.error(f"Error checking for updates: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @api_bp.route('/read_status/mark_read', methods=['POST'])

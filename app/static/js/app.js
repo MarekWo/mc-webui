@@ -398,6 +398,14 @@ function setupEventListeners() {
         }
     });
 
+    // Check for app updates button
+    const checkUpdateBtn = document.getElementById('checkUpdateBtn');
+    if (checkUpdateBtn) {
+        checkUpdateBtn.addEventListener('click', async function() {
+            await checkForAppUpdates();
+        });
+    }
+
     // Date selector (archive selection)
     document.getElementById('dateSelector').addEventListener('change', function(e) {
         currentArchiveDate = e.target.value || null;
@@ -1319,6 +1327,59 @@ function showNotification(message, type = 'info') {
         delay: 1500
     });
     toast.show();
+}
+
+/**
+ * Check for app updates from GitHub
+ */
+async function checkForAppUpdates() {
+    const btn = document.getElementById('checkUpdateBtn');
+    const icon = document.getElementById('checkUpdateIcon');
+    const versionText = document.getElementById('versionText');
+
+    if (!btn || !icon) return;
+
+    // Show loading state
+    btn.disabled = true;
+    icon.className = 'bi bi-arrow-repeat spin';
+
+    try {
+        const response = await fetch('/api/check-update');
+        const data = await response.json();
+
+        if (data.success) {
+            if (data.update_available) {
+                // Update available - show green with link
+                versionText.innerHTML = `${data.current_version} <a href="${data.github_url}" target="_blank" class="text-success" title="Update available: ${data.latest_date}+${data.latest_commit}"><i class="bi bi-arrow-up-circle-fill"></i> Update available</a>`;
+                icon.className = 'bi bi-check-circle-fill text-success';
+                showNotification(`Update available: ${data.latest_date}+${data.latest_commit}`, 'success');
+            } else {
+                // Up to date
+                icon.className = 'bi bi-check-circle text-success';
+                showNotification('You are running the latest version', 'success');
+                // Reset icon after 3 seconds
+                setTimeout(() => {
+                    icon.className = 'bi bi-arrow-repeat';
+                }, 3000);
+            }
+        } else {
+            // Error
+            icon.className = 'bi bi-exclamation-triangle text-warning';
+            showNotification(data.error || 'Failed to check for updates', 'warning');
+            setTimeout(() => {
+                icon.className = 'bi bi-arrow-repeat';
+            }, 3000);
+        }
+    } catch (error) {
+        console.error('Error checking for updates:', error);
+        icon.className = 'bi bi-exclamation-triangle text-danger';
+        showNotification('Network error checking for updates', 'danger');
+        setTimeout(() => {
+            icon.className = 'bi bi-arrow-repeat';
+        }, 3000);
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 /**
