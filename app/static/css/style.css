@@ -30,6 +30,8 @@ main {
 /* Messages Container */
 .messages-container {
     background-color: #ffffff;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
 }
 
 #messagesList {
@@ -45,6 +47,7 @@ main {
 /* Message wrapper - contains avatar + message container */
 .message-wrapper {
     display: flex;
+    align-items: flex-start;
     gap: 0.5rem;
     max-width: 85%;
     animation: fadeIn 0.3s ease-in;
@@ -72,11 +75,11 @@ main {
     font-weight: 600;
     color: white;
     text-transform: uppercase;
+    margin-top: 0.1rem;
 }
 
 .message-avatar.emoji {
     font-size: 1.25rem;
-    background-color: transparent !important;
 }
 
 /* Message container - holds sender row + bubble + actions */
