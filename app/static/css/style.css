@@ -38,14 +38,103 @@ main {
     gap: 0.75rem;
 }
 
+/* =============================================================================
+   Message Wrapper - New Layout with Avatar
+   ============================================================================= */
+
+/* Message wrapper - contains avatar + message container */
+.message-wrapper {
+    display: flex;
+    gap: 0.5rem;
+    max-width: 85%;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.message-wrapper.own {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.message-wrapper.other {
+    align-self: flex-start;
+}
+
+/* Avatar circle */
+.message-avatar {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: white;
+    text-transform: uppercase;
+}
+
+.message-avatar.emoji {
+    font-size: 1.25rem;
+    background-color: transparent !important;
+}
+
+/* Message container - holds sender row + bubble + actions */
+.message-container {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;  /* Allow text truncation */
+}
+
+/* Sender row - name and time above bubble */
+.message-sender-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    padding-left: 0.25rem;
+}
+
+.message-sender {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #0d6efd;
+}
+
+.message-sender-row .message-time {
+    font-size: 0.7rem;
+    color: #6c757d;
+}
+
+/* Message footer for own messages (time below bubble) */
+.message-footer {
+    display: flex;
+    padding-right: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.message-footer.own {
+    justify-content: flex-end;
+}
+
+.message-footer .message-time {
+    font-size: 0.7rem;
+    color: #6c757d;
+}
+
+/* Message action buttons container */
+.message-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+
 /* Message Bubbles */
 .message {
-    max-width: 70%;
     padding: 0.75rem 1rem;
     border-radius: 1rem;
     border: 1px solid var(--msg-border);
     word-wrap: break-word;
-    animation: fadeIn 0.3s ease-in;
 }
 
 @keyframes fadeIn {
@@ -55,33 +144,13 @@ main {
 
 /* Own Messages (right-aligned) */
 .message.own {
-    align-self: flex-end;
     background-color: var(--msg-own-bg);
     border-color: #b8daff;
 }
 
 /* Other Messages (left-aligned) */
 .message.other {
-    align-self: flex-start;
     background-color: var(--msg-other-bg);
-}
-
-/* Message Header */
-.message-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.25rem;
-    font-size: 0.875rem;
-}
-
-.message-sender {
-    font-weight: 600;
-    color: #0d6efd;
-}
-
-.message.own .message-sender {
-    color: #084298;
 }
 
 .message-time {
@@ -190,13 +259,26 @@ main {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .message,
-    .dm-message {
-        max-width: 85%;
+    .message-wrapper {
+        max-width: 90%;
     }
 
-    .message-header {
+    .message-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 0.75rem;
+    }
+
+    .message-avatar.emoji {
+        font-size: 1.1rem;
+    }
+
+    .message-sender {
         font-size: 0.8rem;
+    }
+
+    .dm-message {
+        max-width: 85%;
     }
 
     #messageInput,

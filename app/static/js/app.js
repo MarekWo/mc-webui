@@ -658,8 +658,8 @@ function displayMessages(messages) {
  * Create message DOM element
  */
 function createMessageElement(msg) {
-    const div = document.createElement('div');
-    div.className = `message ${msg.is_own ? 'own' : 'other'}`;
+    const wrapper = document.createElement('div');
+    wrapper.className = `message-wrapper ${msg.is_own ? 'own' : 'other'}`;
 
     const time = formatTime(msg.timestamp);
 
@@ -671,31 +671,53 @@ function createMessageElement(msg) {
         metaInfo += ` | Hops: ${msg.path_len}`;
     }
 
-    div.innerHTML = `
-        <div class="message-header">
-            <span class="message-sender">${escapeHtml(msg.sender)}</span>
-            <span class="message-time">${time}</span>
-        </div>
-        <div class="message-content">${processMessageContent(msg.content)}</div>
-        ${metaInfo ? `<div class="message-meta">${metaInfo}</div>` : ''}
-        ${!msg.is_own ? `
-            <div class="mt-1 d-flex gap-1">
-                <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="Reply">
-                    <i class="bi bi-reply"></i>
-                </button>
-                <button class="btn btn-outline-secondary btn-msg-action" onclick='quoteTo(${JSON.stringify(msg.sender)}, ${JSON.stringify(msg.content)})' title="Quote">
-                    <i class="bi bi-quote"></i>
-                </button>
-                ${contactsGeoCache[msg.sender] ? `
-                    <button class="btn btn-outline-primary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="Show on map">
-                        <i class="bi bi-geo-alt"></i>
-                    </button>
-                ` : ''}
+    if (msg.is_own) {
+        // Own messages: right-aligned, no avatar
+        wrapper.innerHTML = `
+            <div class="message-container">
+                <div class="message own">
+                    <div class="message-content">${processMessageContent(msg.content)}</div>
+                </div>
+                <div class="message-footer own">
+                    <span class="message-time">${time}</span>
+                </div>
             </div>
-        ` : ''}
-    `;
+        `;
+    } else {
+        // Other messages: left-aligned with avatar
+        const avatar = generateAvatar(msg.sender);
 
-    return div;
+        wrapper.innerHTML = `
+            <div class="message-avatar${avatar.isEmoji ? ' emoji' : ''}" style="background-color: ${avatar.color};">
+                ${avatar.content}
+            </div>
+            <div class="message-container">
+                <div class="message-sender-row">
+                    <span class="message-sender">${escapeHtml(msg.sender)}</span>
+                    <span class="message-time">${time}</span>
+                </div>
+                <div class="message other">
+                    <div class="message-content">${processMessageContent(msg.content)}</div>
+                    ${metaInfo ? `<div class="message-meta">${metaInfo}</div>` : ''}
+                </div>
+                <div class="message-actions">
+                    <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="Reply">
+                        <i class="bi bi-reply"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-msg-action" onclick='quoteTo(${JSON.stringify(msg.sender)}, ${JSON.stringify(msg.content)})' title="Quote">
+                        <i class="bi bi-quote"></i>
+                    </button>
+                    ${contactsGeoCache[msg.sender] ? `
+                        <button class="btn btn-outline-primary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="Show on map">
+                            <i class="bi bi-geo-alt"></i>
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    return wrapper;
 }
 
 /**
@@ -1405,6 +1427,78 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// =============================================================================
+// Avatar Generation Functions
+// =============================================================================
+
+/**
+ * Generate a consistent color based on string hash
+ * @param {string} str - Input string (username)
+ * @returns {string} HSL color string
+ */
+function getAvatarColor(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    // Generate hue from hash (0-360), keep saturation and lightness fixed for readability
+    const hue = Math.abs(hash) % 360;
+    return `hsl(${hue}, 65%, 45%)`;
+}
+
+/**
+ * Extract first emoji from a string
+ * @param {string} str - Input string
+ * @returns {string|null} First emoji found or null
+ */
+function extractFirstEmoji(str) {
+    // Regex to match emojis (including compound emojis with ZWJ sequences)
+    const emojiRegex = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/u;
+    const match = str.match(emojiRegex);
+    return match ? match[0] : null;
+}
+
+/**
+ * Get initials from a username
+ * @param {string} name - Username
+ * @returns {string} 1-2 character initials
+ */
+function getInitials(name) {
+    // Remove emojis first
+    const cleanName = name.replace(/(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu, '').trim();
+
+    if (!cleanName) return '?';
+
+    // Split by common separators (space, underscore, dash)
+    const parts = cleanName.split(/[\s_\-]+/).filter(p => p.length > 0);
+
+    if (parts.length >= 2) {
+        // Two or more words: use first letter of first two words
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    } else if (parts.length === 1) {
+        // Single word: use first letter only
+        return parts[0][0].toUpperCase();
+    }
+
+    return '?';
+}
+
+/**
+ * Generate avatar HTML for a username
+ * @param {string} name - Username
+ * @returns {object} { content: string, color: string }
+ */
+function generateAvatar(name) {
+    const emoji = extractFirstEmoji(name);
+    const color = getAvatarColor(name);
+
+    if (emoji) {
+        return { content: emoji, color: color, isEmoji: true };
+    } else {
+        return { content: getInitials(name), color: color, isEmoji: false };
+    }
 }
 
 /**
