@@ -195,11 +195,6 @@ git checkout main
 
 ---
 
-## Gallery
-
-<img src="images/main_window.png" alt="Main Chat Window" width="200px"> <img src="images/unread_msgs.png" alt="Unread messages" width="200px"> <img src="images/menu.png" alt="Menu" width="200px"> <img src="images/dm.png" alt="Direct Messages" width="200px"> <img src="images/channel_management.png" alt="Channel management" width="200px"> <img src="images/msg_archive.png" alt="Message history" width="200px"> <img src="images/contact_management.png" alt="Contact management" width="200px"> <img src="images/approve_contact.png" alt="Pending contacts" width="200px"> <img src="images/existing_contacts.png" alt="Existing contacts" width="200px">
-
----
 
 ## Documentation
 
