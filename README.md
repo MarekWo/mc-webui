@@ -137,7 +137,34 @@ For complete usage instructions, see the [User Guide](docs/user-guide.md).
 
 ## Updating
 
-To update mc-webui to the latest version:
+### Using the update script (recommended)
+
+The easiest way to update mc-webui:
+
+```bash
+cd ~/mc-webui
+./scripts/update.sh
+```
+
+The script automatically pulls changes, freezes the version, and rebuilds containers.
+
+**Optional: Create a global alias for quick updates**
+
+Add to your `~/.bashrc` or `~/.zshrc`:
+
+```bash
+alias mcupdate='~/mc-webui/scripts/update.sh'
+```
+
+Then reload your shell (`source ~/.bashrc`) and update anytime with:
+
+```bash
+mcupdate
+```
+
+### Manual update
+
+If you prefer to run commands manually:
 
 ```bash
 cd ~/mc-webui
@@ -148,24 +175,22 @@ docker compose up -d --build
 
 The `python3 -m app.version freeze` command captures the current Git version (date + commit hash) for display in the app menu.
 
-**Testing experimental features:**
+### Testing experimental features
 
 The `dev` branch contains new features that are still being tested:
 
 ```bash
+cd ~/mc-webui
 git checkout dev
-git pull
-python3 -m app.version freeze
-docker compose up -d --build
+./scripts/update.sh
 ```
 
 To return to the stable version:
 
 ```bash
+cd ~/mc-webui
 git checkout main
-git pull
-python3 -m app.version freeze
-docker compose up -d --build
+./scripts/update.sh
 ```
 
 ---
