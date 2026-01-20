@@ -82,6 +82,8 @@ main {
     font-size: 1.25rem;
     background-color: transparent !important;
     border: 2.5px solid;
+    line-height: 1;
+    padding-bottom: 1px;
 }
 
 /* Message container - holds sender row + bubble + actions */
