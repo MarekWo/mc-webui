@@ -2,10 +2,11 @@
 # mc-webui
 
 A lightweight web interface for meshcore-cli, providing browser-based access to MeshCore mesh network.
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MarekWo/mc-webui)
 
 ## Overview
 
-**mc-webui** is a Flask-based web application that wraps `meshcore-cli`, eliminating the need for SSH/terminal access when using MeshCore chat on a LoRa device connected to a Debian VM via BLE or USB. Tested on Heltec V4.
+**mc-webui** is a Flask-based web application that wraps `meshcore-cli`, eliminating the need for SSH/terminal access when using MeshCore chat on a LoRa device connected to a Debian VM via BLE or USB. Tested on Heltec V3 and Heltec V4.
 
 ![Diagram](images/diagram.jpeg)
 
