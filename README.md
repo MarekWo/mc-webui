@@ -195,6 +195,42 @@ git checkout main
 
 ---
 
+## Gallery
+
+<table>
+  <tr>
+    <td align="center"><a href="gallery/main_window.png"><img src="gallery/main_window.png" width="150"><br>Main Window</a></td>
+    <td align="center"><a href="gallery/dm.png"><img src="gallery/dm.png" width="150"><br>Direct Messages</a></td>
+    <td align="center"><a href="gallery/unread_msgs.png"><img src="gallery/unread_msgs.png" width="150"><br>Unread Messages</a></td>
+    <td align="center"><a href="gallery/msg_archive.png"><img src="gallery/msg_archive.png" width="150"><br>Message Archive</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="gallery/menu_1.png"><img src="gallery/menu_1.png" width="150"><br>Menu (1)</a></td>
+    <td align="center"><a href="gallery/menu_2.png"><img src="gallery/menu_2.png" width="150"><br>Menu (2)</a></td>
+    <td align="center"><a href="gallery/device_info.png"><img src="gallery/device_info.png" width="150"><br>Device Info</a></td>
+    <td align="center"><a href="gallery/update_check.png"><img src="gallery/update_check.png" width="150"><br>Update Check</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="gallery/contact_management.png"><img src="gallery/contact_management.png" width="150"><br>Contact Management</a></td>
+    <td align="center"><a href="gallery/existing_contacts.png"><img src="gallery/existing_contacts.png" width="150"><br>Existing Contacts</a></td>
+    <td align="center"><a href="gallery/approve_contact.png"><img src="gallery/approve_contact.png" width="150"><br>Approve Contact</a></td>
+    <td align="center"><a href="gallery/channel_management.png"><img src="gallery/channel_management.png" width="150"><br>Channel Management</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="gallery/map.png"><img src="gallery/map.png" width="150"><br>Map</a></td>
+    <td align="center"><a href="gallery/map_individual.png"><img src="gallery/map_individual.png" width="150"><br>Map (Individual)</a></td>
+    <td align="center"><a href="gallery/image_preview_1.png"><img src="gallery/image_preview_1.png" width="150"><br>Image Preview (1)</a></td>
+    <td align="center"><a href="gallery/image_preview_2.png"><img src="gallery/image_preview_2.png" width="150"><br>Image Preview (2)</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="gallery/meshcli_console.png"><img src="gallery/meshcli_console.png" width="150"><br>Meshcli Console</a></td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+
+---
 
 ## Documentation
 
