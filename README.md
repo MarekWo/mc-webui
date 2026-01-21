@@ -194,6 +194,43 @@ git checkout main
 ./scripts/update.sh
 ```
 
+### Remote updates from web GUI (optional)
+
+You can enable one-click updates directly from the mc-webui menu. This requires installing a small webhook service on the host machine.
+
+**Install the updater service:**
+
+```bash
+cd ~/mc-webui
+sudo ./scripts/updater/install.sh
+```
+
+The installer will:
+- Create a systemd service `mc-webui-updater`
+- Start a webhook server on port 5050 (localhost only)
+- Enable automatic startup on boot
+
+**Usage:**
+1. Click the refresh button (↻) next to the version in the menu
+2. If an update is available, an "Update" button appears
+3. Click "Update" to trigger the update remotely
+4. The app will automatically reload when the update completes
+
+**Useful commands:**
+
+```bash
+# Check service status
+systemctl status mc-webui-updater
+
+# View logs
+journalctl -u mc-webui-updater -f
+
+# Uninstall
+sudo ~/mc-webui/scripts/updater/install.sh --uninstall
+```
+
+**Security note:** The webhook listens only on localhost. The Docker container connects to it via the Docker bridge network.
+
 ---
 
 ## Gallery

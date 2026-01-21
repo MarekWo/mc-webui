@@ -1349,8 +1349,16 @@ async function checkForAppUpdates() {
 
         if (data.success) {
             if (data.update_available) {
-                // Update available - show green with link
-                versionText.innerHTML = `${data.current_version} <a href="${data.github_url}" target="_blank" class="text-success" title="Update available: ${data.latest_date}+${data.latest_commit}"><i class="bi bi-arrow-up-circle-fill"></i> Update available</a>`;
+                // Check if remote update is available
+                const updaterStatus = await fetch('/api/updater/status').then(r => r.json()).catch(() => ({ available: false }));
+
+                if (updaterStatus.available) {
+                    // Show "Update Now" link that opens modal
+                    versionText.innerHTML = `${data.current_version} <a href="#" onclick="openUpdateModal('${data.latest_date}+${data.latest_commit}'); return false;" class="text-success" title="Click to update"><i class="bi bi-arrow-up-circle-fill"></i> Update now</a>`;
+                } else {
+                    // Show link to GitHub (no remote update available)
+                    versionText.innerHTML = `${data.current_version} <a href="${data.github_url}" target="_blank" class="text-success" title="Update available: ${data.latest_date}+${data.latest_commit}"><i class="bi bi-arrow-up-circle-fill"></i> Update available</a>`;
+                }
                 icon.className = 'bi bi-check-circle-fill text-success';
                 showNotification(`Update available: ${data.latest_date}+${data.latest_commit}`, 'success');
             } else {
@@ -1381,6 +1389,137 @@ async function checkForAppUpdates() {
         btn.disabled = false;
     }
 }
+
+// Store update info for modal
+let pendingUpdateVersion = null;
+
+/**
+ * Open update modal and prepare for remote update
+ */
+function openUpdateModal(newVersion) {
+    pendingUpdateVersion = newVersion;
+
+    // Close offcanvas menu
+    const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('mainMenu'));
+    if (offcanvas) offcanvas.hide();
+
+    // Reset modal state
+    document.getElementById('updateStatus').classList.remove('d-none');
+    document.getElementById('updateProgress').classList.add('d-none');
+    document.getElementById('updateResult').classList.add('d-none');
+    document.getElementById('updateCancelBtn').classList.remove('d-none');
+    document.getElementById('updateConfirmBtn').classList.remove('d-none');
+    document.getElementById('updateReloadBtn').classList.add('d-none');
+    document.getElementById('updateMessage').textContent = `New version available: ${newVersion}`;
+
+    // Hide spinner, show message
+    document.querySelector('#updateStatus .spinner-border').classList.add('d-none');
+
+    // Setup confirm button
+    document.getElementById('updateConfirmBtn').onclick = performRemoteUpdate;
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('updateModal'));
+    modal.show();
+}
+
+/**
+ * Perform remote update via webhook
+ */
+async function performRemoteUpdate() {
+    const currentVersion = document.getElementById('versionText')?.textContent?.split(' ')[0] || '';
+
+    // Show progress state
+    document.getElementById('updateStatus').classList.add('d-none');
+    document.getElementById('updateProgress').classList.remove('d-none');
+    document.getElementById('updateCancelBtn').classList.add('d-none');
+    document.getElementById('updateConfirmBtn').classList.add('d-none');
+    document.getElementById('updateProgressMessage').textContent = 'Starting update...';
+
+    try {
+        // Trigger update
+        const response = await fetch('/api/updater/trigger', { method: 'POST' });
+        const data = await response.json();
+
+        if (!data.success) {
+            showUpdateResult(false, data.error || 'Failed to start update');
+            return;
+        }
+
+        document.getElementById('updateProgressMessage').textContent = 'Update started. Waiting for server to restart...';
+
+        // Poll for server to come back up with new version
+        let attempts = 0;
+        const maxAttempts = 60; // 2 minutes max
+        const pollInterval = 2000; // 2 seconds
+
+        const pollForCompletion = async () => {
+            attempts++;
+
+            try {
+                const versionResponse = await fetch('/api/version', {
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
+
+                if (versionResponse.ok) {
+                    const versionData = await versionResponse.json();
+                    const newVersion = versionData.version;
+
+                    // Check if version changed
+                    if (newVersion !== currentVersion) {
+                        showUpdateResult(true, `Updated to ${newVersion}`);
+                        return;
+                    }
+                }
+            } catch (e) {
+                // Server not responding yet - this is expected during restart
+                document.getElementById('updateProgressMessage').textContent =
+                    `Rebuilding containers... (${attempts}/${maxAttempts})`;
+            }
+
+            if (attempts < maxAttempts) {
+                setTimeout(pollForCompletion, pollInterval);
+            } else {
+                showUpdateResult(false, 'Update timed out. Please check server manually.');
+            }
+        };
+
+        // Start polling after a short delay
+        setTimeout(pollForCompletion, 3000);
+
+    } catch (error) {
+        console.error('Update error:', error);
+        showUpdateResult(false, 'Network error during update');
+    }
+}
+
+/**
+ * Show update result in modal
+ */
+function showUpdateResult(success, message) {
+    document.getElementById('updateProgress').classList.add('d-none');
+    document.getElementById('updateResult').classList.remove('d-none');
+
+    const icon = document.getElementById('updateResultIcon');
+    const msg = document.getElementById('updateResultMessage');
+
+    if (success) {
+        icon.className = 'bi bi-check-circle-fill text-success fs-1 mb-3 d-block';
+        msg.className = 'mb-0 text-success';
+        document.getElementById('updateReloadBtn').classList.remove('d-none');
+    } else {
+        icon.className = 'bi bi-x-circle-fill text-danger fs-1 mb-3 d-block';
+        msg.className = 'mb-0 text-danger';
+        document.getElementById('updateCancelBtn').classList.remove('d-none');
+        document.getElementById('updateCancelBtn').textContent = 'Close';
+    }
+
+    msg.textContent = message;
+}
+
+// Make openUpdateModal globally accessible
+window.openUpdateModal = openUpdateModal;
 
 /**
  * Scroll to bottom of messages

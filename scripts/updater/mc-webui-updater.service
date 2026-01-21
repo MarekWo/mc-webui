@@ -1,0 +1,21 @@
+[Unit]
+Description=mc-webui Update Webhook Server
+Documentation=https://github.com/MarekWo/mc-webui
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=root
+Environment=MCWEBUI_DIR=/home/marek/mc-webui
+Environment=UPDATER_TOKEN=
+ExecStart=/usr/bin/python3 /home/marek/mc-webui/scripts/updater/updater.py
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=false
+ProtectSystem=false
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

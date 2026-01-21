@@ -2125,6 +2125,131 @@ def check_update():
         }), 500
 
 
+# =============================================================================
+# Remote Update (via host webhook)
+# =============================================================================
+
+# Updater webhook URL - tries multiple addresses for Docker compatibility
+UPDATER_URLS = [
+    'http://host.docker.internal:5050',  # Docker Desktop (Mac/Windows)
+    'http://172.17.0.1:5050',             # Docker default bridge gateway (Linux)
+    'http://127.0.0.1:5050',              # Localhost fallback
+]
+
+
+def get_updater_url():
+    """Find working updater webhook URL."""
+    for url in UPDATER_URLS:
+        try:
+            response = requests.get(f"{url}/health", timeout=2)
+            if response.status_code == 200:
+                return url
+        except requests.RequestException:
+            continue
+    return None
+
+
+@api_bp.route('/updater/status', methods=['GET'])
+def updater_status():
+    """
+    Check if the update webhook is available on the host.
+
+    Returns:
+        JSON with updater status:
+        {
+            "success": true,
+            "available": true,
+            "url": "http://172.17.0.1:5050",
+            "update_in_progress": false
+        }
+    """
+    try:
+        url = get_updater_url()
+
+        if not url:
+            return jsonify({
+                'success': True,
+                'available': False,
+                'message': 'Update webhook not installed or not running'
+            }), 200
+
+        # Get detailed status from webhook
+        response = requests.get(f"{url}/health", timeout=5)
+        data = response.json()
+
+        return jsonify({
+            'success': True,
+            'available': True,
+            'url': url,
+            'update_in_progress': data.get('update_in_progress', False),
+            'mcwebui_dir': data.get('mcwebui_dir', '')
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error checking updater status: {e}")
+        return jsonify({
+            'success': False,
+            'available': False,
+            'error': str(e)
+        }), 200
+
+
+@api_bp.route('/updater/trigger', methods=['POST'])
+def updater_trigger():
+    """
+    Trigger remote update via host webhook.
+
+    This will:
+    1. Call the webhook to start update.sh
+    2. The server will restart (containers rebuilt)
+    3. Frontend should poll /api/version to detect completion
+
+    Returns:
+        JSON with result:
+        {
+            "success": true,
+            "message": "Update started"
+        }
+    """
+    try:
+        url = get_updater_url()
+
+        if not url:
+            return jsonify({
+                'success': False,
+                'error': 'Update webhook not available. Install it first.'
+            }), 503
+
+        # Trigger update
+        response = requests.post(f"{url}/update", timeout=10)
+        data = response.json()
+
+        if response.status_code == 200 and data.get('success'):
+            return jsonify({
+                'success': True,
+                'message': 'Update started. Server will restart shortly.'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': data.get('error', 'Unknown error')
+            }), response.status_code
+
+    except requests.Timeout:
+        # Timeout might mean the update started and server is restarting
+        return jsonify({
+            'success': True,
+            'message': 'Update may have started (request timed out)'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error triggering update: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @api_bp.route('/read_status/mark_read', methods=['POST'])
 def mark_read_api():
     """
