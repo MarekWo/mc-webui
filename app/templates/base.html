@@ -58,14 +58,17 @@
             <h5 class="offcanvas-title"><i class="bi bi-menu-button-wide"></i> Menu</h5>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
-        <div class="px-3 pb-2 text-muted small border-bottom d-flex align-items-center justify-content-between">
-            <span id="versionDisplay">
-                <i class="bi bi-tag"></i> <span id="versionText">{{ version }}</span>
-                <span class="badge bg-secondary ms-1" id="branchBadge">{{ git_branch }}</span>
-            </span>
-            <button id="checkUpdateBtn" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Check for updates">
-                <i class="bi bi-arrow-repeat" id="checkUpdateIcon"></i>
-            </button>
+        <div class="px-3 pb-2 text-muted small border-bottom">
+            <div class="d-flex align-items-center justify-content-between">
+                <span id="versionDisplay">
+                    <i class="bi bi-tag"></i> <span id="versionText">{{ version }}</span>
+                    <span class="badge bg-secondary ms-1" id="branchBadge">{{ git_branch }}</span>
+                </span>
+                <button id="checkUpdateBtn" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Check for updates">
+                    <i class="bi bi-arrow-repeat" id="checkUpdateIcon"></i>
+                </button>
+            </div>
+            <div id="updateLinkContainer" class="d-none mt-1"></div>
         </div>
         <div class="offcanvas-body">
             <div class="list-group list-group-flush">
@@ -343,6 +346,7 @@
                             <span class="visually-hidden">Loading...</span>
                         </div>
                         <p id="updateMessage" class="mb-0">Checking for updates...</p>
+                        <p id="updateWhatsNew" class="d-none mt-2 mb-0"><a href="#" target="_blank" class="text-muted small"><i class="bi bi-github"></i> What's new?</a></p>
                     </div>
                     <div id="updateProgress" class="d-none">
                         <div class="progress mb-3" style="height: 8px;">

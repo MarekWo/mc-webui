@@ -1352,12 +1352,21 @@ async function checkForAppUpdates() {
                 // Check if remote update is available
                 const updaterStatus = await fetch('/api/updater/status').then(r => r.json()).catch(() => ({ available: false }));
 
+                const updateLinkContainer = document.getElementById('updateLinkContainer');
+                const newVersion = `${data.latest_date}+${data.latest_commit}`;
+                const githubUrl = data.github_url;
                 if (updaterStatus.available) {
-                    // Show "Update Now" link that opens modal
-                    versionText.innerHTML = `${data.current_version} <a href="#" onclick="openUpdateModal('${data.latest_date}+${data.latest_commit}'); return false;" class="text-success" title="Click to update"><i class="bi bi-arrow-up-circle-fill"></i> Update now</a>`;
+                    // Show "Update Now" link below version
+                    if (updateLinkContainer) {
+                        updateLinkContainer.innerHTML = `<a href="#" onclick="openUpdateModal('${newVersion}', '${githubUrl}'); return false;" class="text-success" title="Click to update"><i class="bi bi-arrow-up-circle-fill"></i> Update now</a>`;
+                        updateLinkContainer.classList.remove('d-none');
+                    }
                 } else {
                     // Show link to GitHub (no remote update available)
-                    versionText.innerHTML = `${data.current_version} <a href="${data.github_url}" target="_blank" class="text-success" title="Update available: ${data.latest_date}+${data.latest_commit}"><i class="bi bi-arrow-up-circle-fill"></i> Update available</a>`;
+                    if (updateLinkContainer) {
+                        updateLinkContainer.innerHTML = `<a href="${githubUrl}" target="_blank" class="text-success" title="Update available: ${newVersion}"><i class="bi bi-arrow-up-circle-fill"></i> Update available</a>`;
+                        updateLinkContainer.classList.remove('d-none');
+                    }
                 }
                 icon.className = 'bi bi-check-circle-fill text-success';
                 showNotification(`Update available: ${data.latest_date}+${data.latest_commit}`, 'success');
@@ -1396,7 +1405,7 @@ let pendingUpdateVersion = null;
 /**
  * Open update modal and prepare for remote update
  */
-function openUpdateModal(newVersion) {
+function openUpdateModal(newVersion, githubUrl) {
     pendingUpdateVersion = newVersion;
 
     // Close offcanvas menu
@@ -1411,6 +1420,14 @@ function openUpdateModal(newVersion) {
     document.getElementById('updateConfirmBtn').classList.remove('d-none');
     document.getElementById('updateReloadBtn').classList.add('d-none');
     document.getElementById('updateMessage').textContent = `New version available: ${newVersion}`;
+
+    // Set up "What's new" link
+    const whatsNewEl = document.getElementById('updateWhatsNew');
+    if (whatsNewEl && githubUrl) {
+        const link = whatsNewEl.querySelector('a');
+        if (link) link.href = githubUrl;
+        whatsNewEl.classList.remove('d-none');
+    }
 
     // Hide spinner, show message
     document.querySelector('#updateStatus .spinner-border').classList.add('d-none');
