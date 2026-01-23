@@ -120,14 +120,14 @@ function showContactOnMap(name, lat, lon) {
 window.showContactOnMap = showContactOnMap;
 
 /**
- * Get selected contact types from map filter checkboxes
+ * Get selected contact types from map filter badges
  */
 function getSelectedMapTypes() {
     const types = [];
-    if (document.getElementById('mapFilterCLI')?.checked) types.push(1);
-    if (document.getElementById('mapFilterREP')?.checked) types.push(2);
-    if (document.getElementById('mapFilterROOM')?.checked) types.push(3);
-    if (document.getElementById('mapFilterSENS')?.checked) types.push(4);
+    if (document.getElementById('mapFilterCLI')?.classList.contains('active')) types.push(1);
+    if (document.getElementById('mapFilterREP')?.classList.contains('active')) types.push(2);
+    if (document.getElementById('mapFilterROOM')?.classList.contains('active')) types.push(3);
+    if (document.getElementById('mapFilterSENS')?.classList.contains('active')) types.push(4);
     return types;
 }
 
@@ -208,11 +208,14 @@ async function showAllContactsOnMap() {
         modalEl.removeEventListener('shown.bs.modal', onShown);
     };
 
-    // Setup filter checkbox listeners
+    // Setup filter badge listeners
     ['mapFilterCLI', 'mapFilterREP', 'mapFilterROOM', 'mapFilterSENS'].forEach(id => {
-        const checkbox = document.getElementById(id);
-        if (checkbox) {
-            checkbox.onchange = updateMapMarkers;
+        const badge = document.getElementById(id);
+        if (badge) {
+            badge.onclick = () => {
+                badge.classList.toggle('active');
+                updateMapMarkers();
+            };
         }
     });
 

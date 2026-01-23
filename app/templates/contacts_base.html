@@ -466,32 +466,12 @@
                 <div class="modal-body p-0">
                     <!-- Type filter (hidden for single contact view) -->
                     <div id="mapTypeFilter" class="d-none px-3 py-2 border-bottom bg-light">
-                        <div class="d-flex flex-wrap gap-3 align-items-center">
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
                             <span class="small text-muted me-1">Show:</span>
-                            <div class="form-check form-check-inline mb-0">
-                                <input class="form-check-input" type="checkbox" id="mapFilterCLI" value="1" checked>
-                                <label class="form-check-label small" for="mapFilterCLI">
-                                    <span class="badge" style="background-color: #2196F3;">CLI</span>
-                                </label>
-                            </div>
-                            <div class="form-check form-check-inline mb-0">
-                                <input class="form-check-input" type="checkbox" id="mapFilterREP" value="2" checked>
-                                <label class="form-check-label small" for="mapFilterREP">
-                                    <span class="badge" style="background-color: #4CAF50;">REP</span>
-                                </label>
-                            </div>
-                            <div class="form-check form-check-inline mb-0">
-                                <input class="form-check-input" type="checkbox" id="mapFilterROOM" value="3" checked>
-                                <label class="form-check-label small" for="mapFilterROOM">
-                                    <span class="badge" style="background-color: #9C27B0;">ROOM</span>
-                                </label>
-                            </div>
-                            <div class="form-check form-check-inline mb-0">
-                                <input class="form-check-input" type="checkbox" id="mapFilterSENS" value="4" checked>
-                                <label class="form-check-label small" for="mapFilterSENS">
-                                    <span class="badge" style="background-color: #FF9800;">SENS</span>
-                                </label>
-                            </div>
+                            <span class="map-filter-badge active" data-type="1" id="mapFilterCLI">CLI</span>
+                            <span class="map-filter-badge active" data-type="2" id="mapFilterREP">REP</span>
+                            <span class="map-filter-badge active" data-type="3" id="mapFilterROOM">ROOM</span>
+                            <span class="map-filter-badge active" data-type="4" id="mapFilterSENS">SENS</span>
                         </div>
                     </div>
                     <div id="leafletMap" style="height: 400px; width: 100%;"></div>
