@@ -45,6 +45,7 @@ let filteredPendingContacts = []; // Filtered pending contacts (for pending page
 let existingContacts = [];
 let filteredContacts = [];
 let contactToDelete = null;
+let protectedContacts = []; // List of protected public_keys
 
 // Sort state (for existing page)
 let sortBy = 'last_advert'; // 'name' or 'last_advert'
@@ -515,8 +516,10 @@ function initExistingPage() {
     // Parse sort parameters from URL
     parseSortParamsFromURL();
 
-    // Load existing contacts
-    loadExistingContacts();
+    // Load protected contacts first, then load existing contacts
+    loadProtectedContacts().then(() => {
+        loadExistingContacts();
+    });
 
     // Attach event listeners for existing page
     attachExistingEventListeners();
@@ -645,6 +648,132 @@ function updateApprovalUI(enabled) {
             ? 'Manual approval enabled'
             : 'Automatic approval (default)';
     }
+}
+
+// =============================================================================
+// Protected Contacts Management
+// =============================================================================
+
+/**
+ * Load protected contacts list from server.
+ * Called on page load to populate local state.
+ */
+async function loadProtectedContacts() {
+    try {
+        const response = await fetch('/api/contacts/protected');
+        const data = await response.json();
+
+        if (data.success) {
+            protectedContacts = data.protected_contacts || [];
+            console.log('Loaded protected contacts:', protectedContacts.length);
+        } else {
+            console.error('Failed to load protected contacts:', data.error);
+        }
+    } catch (error) {
+        console.error('Error loading protected contacts:', error);
+    }
+}
+
+/**
+ * Toggle protection status for a contact.
+ * @param {string} publicKey - Full public key of contact
+ * @param {HTMLElement} buttonEl - Button element for visual feedback
+ */
+async function toggleContactProtection(publicKey, buttonEl) {
+    const originalHTML = buttonEl.innerHTML;
+    buttonEl.disabled = true;
+    buttonEl.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+    try {
+        const response = await fetch(`/api/contacts/${encodeURIComponent(publicKey)}/protect`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Update local state
+            const pkLower = publicKey.toLowerCase();
+            if (data.protected) {
+                if (!protectedContacts.includes(pkLower)) {
+                    protectedContacts.push(pkLower);
+                }
+            } else {
+                protectedContacts = protectedContacts.filter(pk => pk !== pkLower);
+            }
+
+            // Update UI
+            updateProtectionUI(publicKey, data.protected, buttonEl);
+
+            showToast(data.message, 'success');
+        } else {
+            showToast('Failed to update protection: ' + data.error, 'danger');
+            buttonEl.innerHTML = originalHTML;
+            buttonEl.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error toggling protection:', error);
+        showToast('Network error', 'danger');
+        buttonEl.innerHTML = originalHTML;
+        buttonEl.disabled = false;
+    }
+}
+
+/**
+ * Update UI elements based on protection status.
+ * @param {string} publicKey - Public key of contact
+ * @param {boolean} isProtected - New protection status
+ * @param {HTMLElement} buttonEl - Protect button element
+ */
+function updateProtectionUI(publicKey, isProtected, buttonEl) {
+    const cardEl = buttonEl.closest('.existing-contact-card');
+
+    // Update button appearance
+    buttonEl.disabled = false;
+    if (isProtected) {
+        buttonEl.innerHTML = '<i class="bi bi-lock-fill"></i> Protected';
+        buttonEl.classList.remove('btn-outline-warning');
+        buttonEl.classList.add('btn-warning');
+    } else {
+        buttonEl.innerHTML = '<i class="bi bi-shield"></i> Protect';
+        buttonEl.classList.remove('btn-warning');
+        buttonEl.classList.add('btn-outline-warning');
+    }
+
+    // Update card lock indicator
+    const nameDiv = cardEl.querySelector('.contact-name');
+    let lockIcon = cardEl.querySelector('.protection-indicator');
+
+    if (isProtected) {
+        if (!lockIcon && nameDiv) {
+            const indicator = document.createElement('span');
+            indicator.className = 'protection-indicator ms-2';
+            indicator.innerHTML = '<i class="bi bi-lock-fill text-warning" title="Protected contact"></i>';
+            nameDiv.appendChild(indicator);
+        }
+    } else {
+        if (lockIcon) lockIcon.remove();
+    }
+
+    // Enable/disable delete button
+    const deleteBtn = cardEl.querySelector('.btn-outline-danger');
+    if (deleteBtn) {
+        deleteBtn.disabled = isProtected;
+        deleteBtn.title = isProtected ? 'Cannot delete protected contact' : '';
+    }
+}
+
+/**
+ * Check if a contact is protected.
+ * @param {string} publicKey - Public key to check
+ * @returns {boolean} True if protected
+ */
+function isContactProtected(publicKey) {
+    return protectedContacts.includes(publicKey.toLowerCase());
 }
 
 // =============================================================================
@@ -1477,6 +1606,9 @@ function createExistingContactCard(contact, index) {
     card.className = 'existing-contact-card';
     card.id = `existing-contact-${index}`;
 
+    // Check if contact is protected
+    const isProtected = contact.is_protected || isContactProtected(contact.public_key);
+
     // Contact info row (name + type badge)
     const infoRow = document.createElement('div');
     infoRow.className = 'contact-info-row';
@@ -1484,6 +1616,14 @@ function createExistingContactCard(contact, index) {
     const nameDiv = document.createElement('div');
     nameDiv.className = 'contact-name flex-grow-1';
     nameDiv.textContent = contact.name;
+
+    // Add protection indicator if protected
+    if (isProtected) {
+        const lockIndicator = document.createElement('span');
+        lockIndicator.className = 'protection-indicator ms-2';
+        lockIndicator.innerHTML = '<i class="bi bi-lock-fill text-warning" title="Protected contact"></i>';
+        nameDiv.appendChild(lockIndicator);
+    }
 
     const typeBadge = document.createElement('span');
     typeBadge.className = 'badge type-badge';
@@ -1577,11 +1717,24 @@ function createExistingContactCard(contact, index) {
         actionsDiv.appendChild(mapBtn);
     }
 
-    // Delete button
+    // Protect button
+    const protectBtn = document.createElement('button');
+    protectBtn.className = isProtected ? 'btn btn-sm btn-warning' : 'btn btn-sm btn-outline-warning';
+    protectBtn.innerHTML = isProtected
+        ? '<i class="bi bi-lock-fill"></i> Protected'
+        : '<i class="bi bi-shield"></i> Protect';
+    protectBtn.onclick = () => toggleContactProtection(contact.public_key, protectBtn);
+    actionsDiv.appendChild(protectBtn);
+
+    // Delete button (disabled if protected)
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn btn-sm btn-outline-danger';
     deleteBtn.innerHTML = '<i class="bi bi-trash"></i> Delete';
     deleteBtn.onclick = () => showDeleteModal(contact);
+    deleteBtn.disabled = isProtected;
+    if (isProtected) {
+        deleteBtn.title = 'Cannot delete protected contact';
+    }
 
     actionsDiv.appendChild(deleteBtn);
 

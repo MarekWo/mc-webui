@@ -115,6 +115,68 @@ def invalidate_contacts_cache():
     logger.debug("Contacts cache invalidated")
 
 
+# =============================================================================
+# Protected Contacts Management
+# =============================================================================
+
+def get_protected_contacts() -> list:
+    """
+    Get list of protected contact public keys from settings.
+
+    Returns:
+        List of public_key strings (64 hex chars, lowercase)
+    """
+    from pathlib import Path
+    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
+
+    try:
+        if not settings_path.exists():
+            return []
+
+        with open(settings_path, 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+            # Return lowercase keys for consistent comparison
+            return [pk.lower() for pk in settings.get('protected_contacts', [])]
+    except Exception as e:
+        logger.error(f"Failed to read protected contacts: {e}")
+        return []
+
+
+def save_protected_contacts(protected_list: list) -> bool:
+    """
+    Save protected contacts list to settings file (atomic write).
+
+    Args:
+        protected_list: List of public_key strings
+
+    Returns:
+        True if successful, False otherwise
+    """
+    from pathlib import Path
+    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
+
+    try:
+        # Read existing settings
+        settings = {}
+        if settings_path.exists():
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+
+        # Update protected contacts (store lowercase)
+        settings['protected_contacts'] = [pk.lower() for pk in protected_list]
+
+        # Write back atomically
+        temp_file = settings_path.with_suffix('.tmp')
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+        temp_file.replace(settings_path)
+
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save protected contacts: {e}")
+        return False
+
+
 @api_bp.route('/messages', methods=['GET'])
 def get_messages():
     """
@@ -319,7 +381,7 @@ def _filter_contacts_by_criteria(contacts: list, criteria: dict) -> list:
             - days (int): Days of inactivity (0 = ignore)
 
     Returns:
-        List of contacts matching criteria
+        List of contacts matching criteria (excludes protected contacts)
     """
     name_filter = criteria.get('name_filter', '').strip().lower()
     selected_types = criteria.get('types', [1, 2, 3, 4])
@@ -330,8 +392,15 @@ def _filter_contacts_by_criteria(contacts: list, criteria: dict) -> list:
     current_time = int(time.time())
     days_threshold = days * 86400  # Convert days to seconds
 
+    # Get protected contacts list (exclude from cleanup)
+    protected_contacts = get_protected_contacts()
+
     filtered = []
     for contact in contacts:
+        # Skip protected contacts
+        if contact.get('public_key', '').lower() in protected_contacts:
+            continue
+
         # Filter by type
         if contact.get('type') not in selected_types:
             continue
@@ -1586,6 +1655,9 @@ def get_contacts_detailed_api():
         type_labels = {1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
         contacts = []
 
+        # Get protected contacts for is_protected field
+        protected_contacts = get_protected_contacts()
+
         for public_key, details in contacts_detailed.items():
             # Compute path display string
             out_path_len = details.get('out_path_len', -1)
@@ -1614,6 +1686,7 @@ def get_contacts_detailed_api():
                 'type_label': type_labels.get(details.get('type'), 'UNKNOWN'),
                 'path_or_mode': path_or_mode,  # For UI display
                 'last_seen': details.get('last_advert'),  # Alias for compatibility
+                'is_protected': public_key.lower() in protected_contacts,  # Protection status
             }
             contacts.append(contact)
 
@@ -1688,6 +1761,134 @@ def delete_contact_api():
 
     except Exception as e:
         logger.error(f"Error deleting contact: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/contacts/protected', methods=['GET'])
+def get_protected_contacts_api():
+    """
+    Get list of all protected contact public keys.
+
+    Returns:
+        JSON with protected contacts:
+        {
+            "success": true,
+            "protected_contacts": ["public_key1", "public_key2", ...],
+            "count": 2
+        }
+    """
+    try:
+        protected = get_protected_contacts()
+        return jsonify({
+            'success': True,
+            'protected_contacts': protected,
+            'count': len(protected)
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting protected contacts: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'protected_contacts': [],
+            'count': 0
+        }), 500
+
+
+@api_bp.route('/contacts/<public_key>/protect', methods=['POST'])
+def toggle_contact_protection(public_key):
+    """
+    Toggle protection status for a contact.
+
+    Args:
+        public_key: Full public key (64 hex chars) or prefix (12+ chars)
+
+    JSON body (optional):
+        {
+            "protected": true/false  # If not provided, toggles current state
+        }
+
+    Returns:
+        JSON with result:
+        {
+            "success": true,
+            "public_key": "full_public_key",
+            "protected": true,
+            "message": "Contact protected"
+        }
+    """
+    try:
+        # Validate public_key format (at least 12 hex chars)
+        if not public_key or not re.match(r'^[a-fA-F0-9]{12,64}$', public_key):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid public_key format (must be 12-64 hex characters)'
+            }), 400
+
+        public_key = public_key.lower()
+
+        # Get current protected list
+        protected_contacts = get_protected_contacts()
+
+        # Find matching full public_key if prefix provided
+        if len(public_key) < 64:
+            # Fetch contacts to resolve prefix to full key
+            success, contacts_dict, error = cli.get_contacts_with_last_seen()
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'error': error or 'Failed to get contacts'
+                }), 500
+
+            # Find matching contact
+            full_key = None
+            for pk in contacts_dict.keys():
+                if pk.lower().startswith(public_key):
+                    full_key = pk.lower()
+                    break
+
+            if not full_key:
+                return jsonify({
+                    'success': False,
+                    'error': f'Contact not found with public_key prefix: {public_key}'
+                }), 404
+
+            public_key = full_key
+
+        # Check if explicit protected value provided
+        data = request.get_json() or {}
+        if 'protected' in data:
+            should_protect = data['protected']
+        else:
+            # Toggle current state
+            should_protect = public_key not in protected_contacts
+
+        # Update protected list
+        if should_protect:
+            if public_key not in protected_contacts:
+                protected_contacts.append(public_key)
+        else:
+            if public_key in protected_contacts:
+                protected_contacts.remove(public_key)
+
+        # Save updated list
+        if not save_protected_contacts(protected_contacts):
+            return jsonify({
+                'success': False,
+                'error': 'Failed to save protected contacts'
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'public_key': public_key,
+            'protected': should_protect,
+            'message': 'Contact protected' if should_protect else 'Contact unprotected'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error toggling contact protection: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
