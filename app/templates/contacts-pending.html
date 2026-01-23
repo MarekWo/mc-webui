@@ -34,34 +34,14 @@
                            placeholder="Search by name or public key...">
                 </div>
 
-                <!-- Type Filter Checkboxes -->
+                <!-- Type Filter Badges -->
                 <div class="mb-3">
                     <label class="form-label small text-muted">Contact Types:</label>
-                    <div class="d-flex flex-wrap gap-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="typeFilterCLI" value="CLI" checked>
-                            <label class="form-check-label" for="typeFilterCLI">
-                                <span class="badge bg-primary">CLI</span>
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="typeFilterREP" value="REP">
-                            <label class="form-check-label" for="typeFilterREP">
-                                <span class="badge bg-success">REP</span>
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="typeFilterROOM" value="ROOM">
-                            <label class="form-check-label" for="typeFilterROOM">
-                                <span class="badge bg-info">ROOM</span>
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="typeFilterSENS" value="SENS">
-                            <label class="form-check-label" for="typeFilterSENS">
-                                <span class="badge bg-warning text-dark">SENS</span>
-                            </label>
-                        </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="type-filter-badge active" data-type="CLI" id="typeFilterCLI">CLI</span>
+                        <span class="type-filter-badge" data-type="REP" id="typeFilterREP">REP</span>
+                        <span class="type-filter-badge" data-type="ROOM" id="typeFilterROOM">ROOM</span>
+                        <span class="type-filter-badge" data-type="SENS" id="typeFilterSENS">SENS</span>
                     </div>
                 </div>
 

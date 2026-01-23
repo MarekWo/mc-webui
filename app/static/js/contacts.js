@@ -442,11 +442,11 @@ async function handleCleanupConfirm() {
 function initPendingPage() {
     console.log('Initializing Pending page...');
 
-    // Load saved type filter and set checkboxes
+    // Load saved type filter and set badges
     const savedTypes = loadPendingTypeFilter();
-    setTypeFilterCheckboxes(savedTypes);
+    setTypeFilterBadges(savedTypes);
 
-    // Load pending contacts (will use filter from checkboxes)
+    // Load pending contacts (will use filter from badges)
     loadPendingContacts();
 
     // Attach event listeners for pending page
@@ -470,11 +470,14 @@ function attachPendingEventListeners() {
         });
     }
 
-    // Type filter checkboxes - save to localStorage and reload on change
+    // Type filter badges - toggle on click, save to localStorage and reload
     ['typeFilterCLI', 'typeFilterREP', 'typeFilterROOM', 'typeFilterSENS'].forEach(id => {
-        const checkbox = document.getElementById(id);
-        if (checkbox) {
-            checkbox.addEventListener('change', () => {
+        const badge = document.getElementById(id);
+        if (badge) {
+            badge.addEventListener('click', () => {
+                // Toggle active state
+                badge.classList.toggle('active');
+
                 // Save selected types to localStorage
                 const selectedTypes = getSelectedTypes();
                 savePendingTypeFilter(selectedTypes);
@@ -688,35 +691,39 @@ function loadPendingTypeFilter() {
 }
 
 /**
- * Set type filter checkboxes based on types array.
+ * Set type filter badges based on types array.
  * @param {Array<number>} types - Array of contact types (1=CLI, 2=REP, 3=ROOM, 4=SENS)
  */
-function setTypeFilterCheckboxes(types) {
-    const checkboxes = {
+function setTypeFilterBadges(types) {
+    const badges = {
         1: document.getElementById('typeFilterCLI'),
         2: document.getElementById('typeFilterREP'),
         3: document.getElementById('typeFilterROOM'),
         4: document.getElementById('typeFilterSENS')
     };
 
-    // Set checkboxes based on types array
-    for (const [type, checkbox] of Object.entries(checkboxes)) {
-        if (checkbox) {
-            checkbox.checked = types.includes(parseInt(type));
+    // Set badges based on types array
+    for (const [type, badge] of Object.entries(badges)) {
+        if (badge) {
+            if (types.includes(parseInt(type))) {
+                badge.classList.add('active');
+            } else {
+                badge.classList.remove('active');
+            }
         }
     }
 }
 
 /**
- * Get currently selected contact types from checkboxes.
+ * Get currently selected contact types from badges.
  * @returns {Array<number>} Array of selected types
  */
 function getSelectedTypes() {
     const types = [];
-    if (document.getElementById('typeFilterCLI')?.checked) types.push(1);
-    if (document.getElementById('typeFilterREP')?.checked) types.push(2);
-    if (document.getElementById('typeFilterROOM')?.checked) types.push(3);
-    if (document.getElementById('typeFilterSENS')?.checked) types.push(4);
+    if (document.getElementById('typeFilterCLI')?.classList.contains('active')) types.push(1);
+    if (document.getElementById('typeFilterREP')?.classList.contains('active')) types.push(2);
+    if (document.getElementById('typeFilterROOM')?.classList.contains('active')) types.push(3);
+    if (document.getElementById('typeFilterSENS')?.classList.contains('active')) types.push(4);
     return types;
 }
 
@@ -873,11 +880,11 @@ function createContactCard(contact, index) {
 
     // Action buttons
     const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'd-flex gap-2 flex-wrap mt-2';
+    actionsDiv.className = 'd-flex gap-2 mt-2';
 
     // Approve button
     const approveBtn = document.createElement('button');
-    approveBtn.className = 'btn btn-success btn-action flex-grow-1';
+    approveBtn.className = 'btn btn-sm btn-success';
     approveBtn.innerHTML = '<i class="bi bi-check-circle"></i> Approve';
     approveBtn.onclick = () => approveContact(contact, index);
 
@@ -886,7 +893,7 @@ function createContactCard(contact, index) {
     // Map button (only if GPS coordinates available)
     if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
         const mapBtn = document.createElement('button');
-        mapBtn.className = 'btn btn-outline-primary btn-action';
+        mapBtn.className = 'btn btn-sm btn-outline-primary';
         mapBtn.innerHTML = '<i class="bi bi-geo-alt"></i> Map';
         mapBtn.onclick = () => window.showContactOnMap(contact.name, contact.adv_lat, contact.adv_lon);
         actionsDiv.appendChild(mapBtn);
@@ -894,7 +901,7 @@ function createContactCard(contact, index) {
 
     // Copy key button
     const copyBtn = document.createElement('button');
-    copyBtn.className = 'btn btn-outline-secondary btn-action';
+    copyBtn.className = 'btn btn-sm btn-outline-secondary';
     copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy Key';
     copyBtn.onclick = () => copyPublicKey(contact.public_key, copyBtn);
 
