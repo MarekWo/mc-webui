@@ -1650,11 +1650,12 @@ function createExistingContactCard(contact, index) {
     infoRow.appendChild(nameDiv);
     infoRow.appendChild(typeBadge);
 
-    // Public key row
+    // Public key row (clickable to copy)
     const keyDiv = document.createElement('div');
-    keyDiv.className = 'contact-key';
+    keyDiv.className = 'contact-key clickable-key';
     keyDiv.textContent = contact.public_key_prefix;
-    keyDiv.title = 'Public Key Prefix';
+    keyDiv.title = 'Click to copy';
+    keyDiv.onclick = () => copyToClipboard(contact.public_key_prefix, keyDiv);
 
     // Last advert row (with activity status indicator)
     const lastAdvertDiv = document.createElement('div');
@@ -1700,14 +1701,6 @@ function createExistingContactCard(contact, index) {
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'd-flex gap-2 mt-2';
 
-    // Copy key button
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'btn btn-sm btn-outline-secondary';
-    copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy Key';
-    copyBtn.onclick = () => copyContactKey(contact.public_key_prefix, copyBtn);
-
-    actionsDiv.appendChild(copyBtn);
-
     // Map button (only if GPS coordinates available)
     if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
         const mapBtn = document.createElement('button');
@@ -1748,25 +1741,63 @@ function createExistingContactCard(contact, index) {
     return card;
 }
 
-function copyContactKey(publicKeyPrefix, buttonEl) {
-    navigator.clipboard.writeText(publicKeyPrefix).then(() => {
-        // Visual feedback
-        const originalHTML = buttonEl.innerHTML;
-        buttonEl.innerHTML = '<i class="bi bi-check"></i> Copied!';
-        buttonEl.classList.remove('btn-outline-secondary');
-        buttonEl.classList.add('btn-success');
+/**
+ * Copy text to clipboard with fallback for HTTP contexts.
+ * @param {string} text - Text to copy
+ * @param {HTMLElement} element - Element for visual feedback
+ */
+function copyToClipboard(text, element) {
+    const originalText = element.textContent;
 
-        setTimeout(() => {
-            buttonEl.innerHTML = originalHTML;
-            buttonEl.classList.remove('btn-success');
-            buttonEl.classList.add('btn-outline-secondary');
-        }, 2000);
+    // Try modern clipboard API first (requires HTTPS)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            showCopyFeedback(element, originalText);
+        }).catch(() => {
+            // Fallback to legacy method
+            legacyCopy(text, element, originalText);
+        });
+    } else {
+        // Fallback for HTTP contexts
+        legacyCopy(text, element, originalText);
+    }
+}
 
-        showToast('Key copied to clipboard', 'info');
-    }).catch(err => {
+/**
+ * Legacy copy method using execCommand (works on HTTP).
+ */
+function legacyCopy(text, element, originalText) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+
+    try {
+        document.execCommand('copy');
+        showCopyFeedback(element, originalText);
+    } catch (err) {
         console.error('Failed to copy:', err);
-        showToast('Failed to copy to clipboard', 'danger');
-    });
+        showToast('Failed to copy', 'danger');
+    }
+
+    document.body.removeChild(textArea);
+}
+
+/**
+ * Show visual feedback after successful copy.
+ */
+function showCopyFeedback(element, originalText) {
+    element.textContent = 'Copied!';
+    element.classList.add('copied');
+
+    setTimeout(() => {
+        element.textContent = originalText;
+        element.classList.remove('copied');
+    }, 1500);
+
+    showToast('Key copied to clipboard', 'info');
 }
 
 function showDeleteModal(contact) {
