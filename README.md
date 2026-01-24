@@ -341,6 +341,13 @@ This is an open-source project. Contributions are welcome!
 
 ---
 
+## Buy me a coffee
+
+If you appreciate what I am doing you can [buy me a coffee](https://buycoffee.to/marwoj) :)
+<img src="images/QR_buycoffee.png" alt="Buy me a coffee" width="200px">
+
+Thanks!
+
 ## Contact
 
 <img src="images/MarWoj_card_QR.png" alt="meshcore://..." width="200px">
