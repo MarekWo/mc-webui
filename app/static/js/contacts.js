@@ -54,6 +54,7 @@ let sortOrder = 'desc'; // 'asc' or 'desc'
 // Auto-cleanup state
 let autoCleanupSettings = null;
 let cleanupSaveDebounceTimer = null;
+let cleanupTimezone = 'local'; // Timezone from server (e.g., 'Europe/Warsaw')
 
 // Map state (Leaflet)
 let leafletMap = null;
@@ -300,8 +301,9 @@ async function loadCleanupSettings() {
 
         if (data.success) {
             autoCleanupSettings = data.settings;
+            cleanupTimezone = data.timezone || 'local';
             applyCleanupSettingsToUI(autoCleanupSettings);
-            console.log('Loaded cleanup settings:', autoCleanupSettings);
+            console.log('Loaded cleanup settings:', autoCleanupSettings, 'timezone:', cleanupTimezone);
         } else {
             console.error('Failed to load cleanup settings:', data.error);
             if (statusText) statusText.textContent = 'Error loading settings';
@@ -346,6 +348,7 @@ function applyCleanupSettingsToUI(settings) {
     const autoCleanupSwitch = document.getElementById('autoCleanupSwitch');
     const statusText = document.getElementById('autoCleanupStatusText');
     const hourSelect = document.getElementById('cleanupHour');
+    const timezoneLabel = document.getElementById('cleanupTimezoneLabel');
 
     if (autoCleanupSwitch) {
         autoCleanupSwitch.checked = settings.enabled || false;
@@ -358,10 +361,15 @@ function applyCleanupSettingsToUI(settings) {
         hourSelect.disabled = !settings.enabled;
     }
 
+    // Display timezone next to hour selector
+    if (timezoneLabel) {
+        timezoneLabel.textContent = `(${cleanupTimezone})`;
+    }
+
     if (statusText) {
         if (settings.enabled) {
             const hourStr = hour.toString().padStart(2, '0');
-            statusText.textContent = `Enabled (runs daily at ${hourStr}:00 UTC)`;
+            statusText.textContent = `Enabled (runs daily at ${hourStr}:00 ${cleanupTimezone})`;
             statusText.classList.remove('text-muted');
             statusText.classList.add('text-success');
         } else {
@@ -476,13 +484,17 @@ async function saveCleanupSettings(enabled) {
 
         if (data.success) {
             autoCleanupSettings = data.settings;
+            // Update timezone if provided in response
+            if (data.timezone) {
+                cleanupTimezone = data.timezone;
+            }
 
             // Update status text
             if (statusText) {
                 if (data.settings.enabled) {
                     const savedHour = data.settings.hour !== undefined ? data.settings.hour : 1;
                     const hourStr = savedHour.toString().padStart(2, '0');
-                    statusText.textContent = `Enabled (runs daily at ${hourStr}:00 UTC)`;
+                    statusText.textContent = `Enabled (runs daily at ${hourStr}:00 ${cleanupTimezone})`;
                     statusText.classList.remove('text-muted');
                     statusText.classList.add('text-success');
                 } else {
@@ -503,7 +515,7 @@ async function saveCleanupSettings(enabled) {
                 if (autoCleanupSettings.enabled) {
                     const prevHour = autoCleanupSettings.hour !== undefined ? autoCleanupSettings.hour : 1;
                     const hourStr = prevHour.toString().padStart(2, '0');
-                    statusText.textContent = `Enabled (runs daily at ${hourStr}:00 UTC)`;
+                    statusText.textContent = `Enabled (runs daily at ${hourStr}:00 ${cleanupTimezone})`;
                 } else {
                     statusText.textContent = 'Disabled';
                 }

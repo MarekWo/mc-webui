@@ -284,13 +284,13 @@ The advanced cleanup tool allows you to filter and remove contacts based on mult
 
 ### Automatic Contact Cleanup
 
-You can schedule automatic cleanup to run daily at a specified hour (UTC):
+You can schedule automatic cleanup to run daily at a specified hour:
 
 1. Navigate to **Contact Management** page
 2. Expand **Advanced Filters** section
 3. Configure your filter criteria (types, date field, days of inactivity)
 4. Toggle **Enable Auto-Cleanup** switch
-5. Select the hour (UTC) when cleanup should run
+5. Select the hour when cleanup should run
 
 **Requirements for enabling auto-cleanup:**
 - "Days of Inactivity" must be set to a value greater than 0
@@ -299,7 +299,7 @@ You can schedule automatic cleanup to run daily at a specified hour (UTC):
 **Notes:**
 - Protected contacts are never deleted by auto-cleanup
 - Filter criteria changes are auto-saved when auto-cleanup is enabled
-- The scheduler runs in UTC timezone
+- The scheduler uses the timezone configured in `.env` file (`TZ` variable, e.g., `TZ=Europe/Warsaw`)
 
 ---
 

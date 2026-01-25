@@ -135,7 +135,7 @@
                     <i class="bi bi-info-circle info-icon"
                        data-bs-toggle="tooltip"
                        data-bs-placement="top"
-                       title="When enabled, contacts matching the above criteria will be automatically deleted daily at the specified hour (UTC)"></i>
+                       title="When enabled, contacts matching the above criteria will be automatically deleted daily at the specified hour"></i>
                 </div>
                 <small class="text-muted">Status: <span id="autoCleanupStatusText">Loading...</span></small>
 
@@ -143,31 +143,32 @@
                 <div class="mt-2 d-flex align-items-center gap-2">
                     <label for="cleanupHour" class="form-label mb-0 small">Run at:</label>
                     <select class="form-select form-select-sm" id="cleanupHour" style="width: auto;" disabled>
-                        <option value="0">00:00 UTC</option>
-                        <option value="1" selected>01:00 UTC</option>
-                        <option value="2">02:00 UTC</option>
-                        <option value="3">03:00 UTC</option>
-                        <option value="4">04:00 UTC</option>
-                        <option value="5">05:00 UTC</option>
-                        <option value="6">06:00 UTC</option>
-                        <option value="7">07:00 UTC</option>
-                        <option value="8">08:00 UTC</option>
-                        <option value="9">09:00 UTC</option>
-                        <option value="10">10:00 UTC</option>
-                        <option value="11">11:00 UTC</option>
-                        <option value="12">12:00 UTC</option>
-                        <option value="13">13:00 UTC</option>
-                        <option value="14">14:00 UTC</option>
-                        <option value="15">15:00 UTC</option>
-                        <option value="16">16:00 UTC</option>
-                        <option value="17">17:00 UTC</option>
-                        <option value="18">18:00 UTC</option>
-                        <option value="19">19:00 UTC</option>
-                        <option value="20">20:00 UTC</option>
-                        <option value="21">21:00 UTC</option>
-                        <option value="22">22:00 UTC</option>
-                        <option value="23">23:00 UTC</option>
+                        <option value="0">00:00</option>
+                        <option value="1" selected>01:00</option>
+                        <option value="2">02:00</option>
+                        <option value="3">03:00</option>
+                        <option value="4">04:00</option>
+                        <option value="5">05:00</option>
+                        <option value="6">06:00</option>
+                        <option value="7">07:00</option>
+                        <option value="8">08:00</option>
+                        <option value="9">09:00</option>
+                        <option value="10">10:00</option>
+                        <option value="11">11:00</option>
+                        <option value="12">12:00</option>
+                        <option value="13">13:00</option>
+                        <option value="14">14:00</option>
+                        <option value="15">15:00</option>
+                        <option value="16">16:00</option>
+                        <option value="17">17:00</option>
+                        <option value="18">18:00</option>
+                        <option value="19">19:00</option>
+                        <option value="20">20:00</option>
+                        <option value="21">21:00</option>
+                        <option value="22">22:00</option>
+                        <option value="23">23:00</option>
                     </select>
+                    <span class="small text-muted" id="cleanupTimezoneLabel"></span>
                 </div>
             </div>
         </div>

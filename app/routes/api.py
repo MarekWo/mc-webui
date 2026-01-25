@@ -1989,15 +1989,22 @@ def get_cleanup_settings_api():
                 "types": [1, 2, 3, 4],
                 "date_field": "last_advert",
                 "days": 30,
-                "name_filter": ""
-            }
+                "name_filter": "",
+                "hour": 1
+            },
+            "timezone": "Europe/Warsaw"
         }
     """
     try:
+        from app.archiver.manager import get_local_timezone_name
+
         settings = get_cleanup_settings()
+        timezone = get_local_timezone_name()
+
         return jsonify({
             'success': True,
-            'settings': settings
+            'settings': settings,
+            'timezone': timezone
         }), 200
     except Exception as e:
         logger.error(f"Error getting cleanup settings: {e}")
@@ -2009,8 +2016,10 @@ def get_cleanup_settings_api():
                 'types': [1, 2, 3, 4],
                 'date_field': 'last_advert',
                 'days': 30,
-                'name_filter': ''
-            }
+                'name_filter': '',
+                'hour': 1
+            },
+            'timezone': 'local'
         }), 500
 
 
@@ -2088,13 +2097,14 @@ def update_cleanup_settings_api():
             }), 500
 
         # Update scheduler based on enabled state and hour
-        from app.archiver.manager import schedule_cleanup
+        from app.archiver.manager import schedule_cleanup, get_local_timezone_name
         schedule_cleanup(enabled=updated.get('enabled', False), hour=updated.get('hour', 1))
 
         return jsonify({
             'success': True,
             'message': 'Cleanup settings updated',
-            'settings': updated
+            'settings': updated,
+            'timezone': get_local_timezone_name()
         }), 200
 
     except Exception as e:

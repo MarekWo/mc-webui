@@ -22,6 +22,37 @@ _scheduler: Optional[BackgroundScheduler] = None
 CLEANUP_JOB_ID = 'daily_cleanup'
 
 
+def get_local_timezone_name() -> str:
+    """
+    Get the local timezone name for display purposes.
+    Uses TZ environment variable if set, otherwise detects from system.
+
+    Returns:
+        Timezone name (e.g., 'Europe/Warsaw', 'UTC', 'CET')
+    """
+    import os
+    from datetime import datetime
+
+    # First check TZ environment variable
+    tz_env = os.environ.get('TZ')
+    if tz_env:
+        return tz_env
+
+    # Fall back to system timezone detection
+    try:
+        # Try to get timezone name from datetime
+        local_tz = datetime.now().astimezone().tzinfo
+        if local_tz:
+            tz_name = str(local_tz)
+            # Clean up timezone name if needed
+            if tz_name and tz_name != 'None':
+                return tz_name
+    except Exception:
+        pass
+
+    return 'local'
+
+
 def get_archive_path(archive_date: str) -> Path:
     """
     Get the path to an archive file for a specific date.
@@ -341,7 +372,7 @@ def schedule_cleanup(enabled: bool, hour: int = 1) -> bool:
 
     Args:
         enabled: True to enable cleanup job, False to disable
-        hour: Hour (0-23 UTC) at which to run cleanup job
+        hour: Hour (0-23, local time) at which to run cleanup job
 
     Returns:
         True if successful, False otherwise
@@ -358,7 +389,7 @@ def schedule_cleanup(enabled: bool, hour: int = 1) -> bool:
             if not isinstance(hour, int) or hour < 0 or hour > 23:
                 hour = 1
 
-            # Add cleanup job at specified hour UTC
+            # Add cleanup job at specified hour (local time)
             trigger = CronTrigger(hour=hour, minute=0)
 
             _scheduler.add_job(
@@ -369,7 +400,8 @@ def schedule_cleanup(enabled: bool, hour: int = 1) -> bool:
                 replace_existing=True
             )
 
-            logger.info(f"Cleanup job scheduled - will run daily at {hour:02d}:00 UTC")
+            tz_name = get_local_timezone_name()
+            logger.info(f"Cleanup job scheduled - will run daily at {hour:02d}:00 ({tz_name})")
         else:
             # Remove cleanup job if it exists
             try:
@@ -400,7 +432,8 @@ def init_cleanup_schedule():
         if settings.get('enabled'):
             hour = settings.get('hour', 1)
             schedule_cleanup(enabled=True, hour=hour)
-            logger.info(f"Auto-cleanup enabled from saved settings (hour={hour:02d}:00 UTC)")
+            tz_name = get_local_timezone_name()
+            logger.info(f"Auto-cleanup enabled from saved settings (hour={hour:02d}:00 {tz_name})")
         else:
             logger.info("Auto-cleanup is disabled in saved settings")
 
@@ -424,12 +457,15 @@ def schedule_daily_archiving():
         return
 
     try:
+        # Use local timezone (from TZ env variable or system default)
+        tz_name = get_local_timezone_name()
+
         _scheduler = BackgroundScheduler(
-            daemon=True,
-            timezone='UTC'  # Use UTC for consistency
+            daemon=True
+            # No timezone specified = uses system local timezone
         )
 
-        # Schedule job for midnight every day
+        # Schedule job for midnight every day (local time)
         trigger = CronTrigger(hour=0, minute=0)
 
         _scheduler.add_job(
@@ -442,7 +478,7 @@ def schedule_daily_archiving():
 
         _scheduler.start()
 
-        logger.info("Archive scheduler started - will run daily at 00:00 UTC")
+        logger.info(f"Archive scheduler started - will run daily at 00:00 ({tz_name})")
 
         # Initialize cleanup schedule from saved settings
         init_cleanup_schedule()
