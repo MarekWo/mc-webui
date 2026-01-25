@@ -270,7 +270,6 @@ def _cleanup_job():
         # Import here to avoid circular imports
         from app.routes.api import (
             get_cleanup_settings,
-            get_protected_contacts,
             _filter_contacts_by_criteria
         )
         from app.meshcore import cli
@@ -323,12 +322,8 @@ def _cleanup_job():
         }
         logger.info(f"Filter criteria: types={criteria['types']}, date_field={criteria['date_field']}, days={criteria['days']}, name_filter='{criteria['name_filter']}'")
 
-        # Get protected contacts
-        protected = get_protected_contacts()
-        logger.info(f"Protected contacts count: {len(protected)}")
-
-        # Filter contacts (this function excludes protected contacts)
-        matching_contacts = _filter_contacts_by_criteria(contacts, criteria, protected)
+        # Filter contacts (this function internally excludes protected contacts)
+        matching_contacts = _filter_contacts_by_criteria(contacts, criteria)
 
         if not matching_contacts:
             logger.info("No contacts match cleanup criteria")
