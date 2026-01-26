@@ -119,6 +119,25 @@ function setupEventListeners() {
             }
         });
     }
+
+    // Scroll-to-bottom button
+    const messagesContainer = document.getElementById('dmMessagesContainer');
+    const scrollToBottomBtn = document.getElementById('dmScrollToBottomBtn');
+    if (messagesContainer && scrollToBottomBtn) {
+        messagesContainer.addEventListener('scroll', function() {
+            const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 100;
+            if (isAtBottom) {
+                scrollToBottomBtn.classList.remove('visible');
+            } else {
+                scrollToBottomBtn.classList.add('visible');
+            }
+        });
+
+        scrollToBottomBtn.addEventListener('click', function() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            scrollToBottomBtn.classList.remove('visible');
+        });
+    }
 }
 
 /**

@@ -74,7 +74,7 @@
             </div>
             <!-- Messages Container -->
             <div class="row flex-grow-1 overflow-hidden" style="min-height: 0;">
-                <div class="col-12" style="height: 100%;">
+                <div class="col-12 position-relative" style="height: 100%;">
                     <div id="dmMessagesContainer" class="messages-container h-100 overflow-auto p-3">
                         <div id="dmMessagesList">
                             <!-- Placeholder shown when no conversation selected -->
@@ -85,6 +85,10 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Scroll to bottom button -->
+                    <button id="dmScrollToBottomBtn" class="scroll-to-bottom-btn" title="Scroll to bottom">
+                        <i class="bi bi-chevron-double-down"></i>
+                    </button>
                 </div>
             </div>
 
