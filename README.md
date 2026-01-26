@@ -21,6 +21,7 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - **Contact map** - View contacts with GPS coordinates on OpenStreetMap (Leaflet)
 - **Message archives** - Automatic daily archiving with browse-by-date selector
 - **Interactive Console** - Direct meshcli command execution via WebSocket
+- **@Mentions autocomplete** - Type @ to see contact suggestions with fuzzy search
 - **PWA support** - Browser notifications and installable app (experimental)
 - **Full offline support** - Works without internet (local Bootstrap, icons, emoji picker)
 
@@ -299,6 +300,7 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 - [x] Direct Messages (DM) - Private messaging with delivery status tracking
 - [x] Advanced Contact Management - Multi-page interface with sorting, filtering
 - [x] Message Content Enhancements - Mention badges, clickable URLs, image previews
+- [x] @Mentions Autocomplete - Type @ to get contact suggestions with fuzzy search
 - [x] PWA Notifications (Experimental) - Browser notifications and app badge counters
 - [x] Full Offline Support - Local Bootstrap libraries and Service Worker caching
 - [x] Interactive Console - Direct meshcli access via WebSocket with command history
