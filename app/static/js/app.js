@@ -696,11 +696,11 @@ function createMessageElement(msg) {
         // Own messages: right-aligned, no avatar
         wrapper.innerHTML = `
             <div class="message-container">
-                <div class="message own">
-                    <div class="message-content">${processMessageContent(msg.content)}</div>
-                </div>
                 <div class="message-footer own">
                     <span class="message-time">${time}</span>
+                </div>
+                <div class="message own">
+                    <div class="message-content">${processMessageContent(msg.content)}</div>
                 </div>
                 <div class="message-actions justify-content-end">
                     <button class="btn btn-outline-secondary btn-msg-action" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Resend">
