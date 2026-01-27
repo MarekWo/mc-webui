@@ -32,6 +32,25 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
+# Filter to suppress known werkzeug WebSocket errors (cosmetic issue with dev server)
+class WerkzeugWebSocketFilter(logging.Filter):
+    def filter(self, record):
+        # Suppress "write() before start_response" errors during WebSocket upgrade
+        if record.levelno == logging.ERROR:
+            # Check message
+            if 'write() before start_response' in str(record.msg):
+                return False
+            # Check exception info (traceback)
+            if record.exc_info and record.exc_info[1]:
+                if 'write() before start_response' in str(record.exc_info[1]):
+                    return False
+        return True
+
+
+# Apply filter to werkzeug logger
+logging.getLogger('werkzeug').addFilter(WerkzeugWebSocketFilter())
+
 # Initialize SocketIO globally
 socketio = SocketIO()
 
