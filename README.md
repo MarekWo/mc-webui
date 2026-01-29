@@ -22,6 +22,7 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - **Message archives** - Automatic daily archiving with browse-by-date selector
 - **Interactive Console** - Direct meshcli command execution via WebSocket
 - **@Mentions autocomplete** - Type @ to see contact suggestions with fuzzy search
+- **Echo tracking** - "Heard X repeats" badge shows how many repeaters forwarded your message
 - **PWA support** - Browser notifications and installable app (experimental)
 - **Full offline support** - Works without internet (local Bootstrap, icons, emoji picker)
 
@@ -305,6 +306,7 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 - [x] Full Offline Support - Local Bootstrap libraries and Service Worker caching
 - [x] Interactive Console - Direct meshcli access via WebSocket with command history
 - [x] Contact Map - View contacts with GPS coordinates on OpenStreetMap (Leaflet)
+- [x] Echo Tracking - "Heard X repeats" badge for sent channel messages
 
 ### Next Steps
 
