@@ -1041,3 +1041,29 @@ main {
 .scroll-to-bottom-btn:active {
     transform: scale(0.95);
 }
+
+/* =============================================================================
+   Echo Badge - "Heard X repeats" indicator for sent messages
+   ============================================================================= */
+
+.echo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    color: #198754;
+    padding: 0.2rem 0.4rem;
+    margin-right: 0.25rem;
+    border-radius: 0.25rem;
+    background-color: rgba(25, 135, 84, 0.1);
+}
+
+.echo-badge i {
+    font-size: 0.65rem;
+}
+
+/* Dark mode support */
+[data-bs-theme="dark"] .echo-badge {
+    color: #75b798;
+    background-color: rgba(117, 183, 152, 0.15);
+}

@@ -712,6 +712,13 @@ function createMessageElement(msg) {
 
     if (msg.is_own) {
         // Own messages: right-aligned, no avatar
+        // Echo badge shows how many repeaters heard the message
+        const echoDisplay = msg.echo_count > 0
+            ? `<span class="echo-badge" title="Heard by ${msg.echo_count} repeater(s)">
+                 <i class="bi bi-broadcast"></i> ${msg.echo_count}
+               </span>`
+            : '';
+
         wrapper.innerHTML = `
             <div class="message-container">
                 <div class="message-footer own">
@@ -720,6 +727,7 @@ function createMessageElement(msg) {
                 <div class="message own">
                     <div class="message-content">${processMessageContent(msg.content)}</div>
                     <div class="message-actions justify-content-end">
+                        ${echoDisplay}
                         <button class="btn btn-outline-secondary btn-msg-action" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Resend">
                             <i class="bi bi-arrow-repeat"></i>
                         </button>

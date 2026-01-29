@@ -146,6 +146,11 @@ class MeshCLISession:
         # Shutdown flag
         self.shutdown_flag = threading.Event()
 
+        # Echo tracking for "Heard X repeats" feature
+        self.pending_echo = None  # {timestamp, channel_idx, pkt_payload}
+        self.echo_counts = {}     # pkt_payload -> {paths: set(), timestamp: float, channel_idx: int}
+        self.echo_lock = threading.Lock()
+
         # Start session
         self._start_session()
 
@@ -306,6 +311,12 @@ class MeshCLISession:
                 # Try to parse as JSON advert
                 if self._is_advert_json(line):
                     self._log_advert(line)
+                    continue
+
+                # Try to parse as GRP_TXT echo (for "Heard X repeats" feature)
+                echo_data = self._parse_grp_txt_echo(line)
+                if echo_data:
+                    self._process_echo(echo_data[0], echo_data[1])
                     continue
 
                 # Otherwise, append to current CLI response
@@ -470,6 +481,67 @@ class MeshCLISession:
             return isinstance(data, dict) and data.get("payload_typename") == "ADVERT"
         except (json.JSONDecodeError, ValueError):
             return False
+
+    def _parse_grp_txt_echo(self, line):
+        """Parse GRP_TXT JSON echo, return (pkt_payload, path) or None."""
+        try:
+            data = json.loads(line)
+            if isinstance(data, dict) and data.get("payload_typename") == "GRP_TXT":
+                return (data.get('pkt_payload'), data.get('path', ''))
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return None
+
+    def _process_echo(self, pkt_payload, path):
+        """Process a GRP_TXT echo and track unique paths."""
+        if not pkt_payload:
+            return
+
+        with self.echo_lock:
+            current_time = time.time()
+
+            # If this pkt_payload is already tracked, add path
+            if pkt_payload in self.echo_counts:
+                self.echo_counts[pkt_payload]['paths'].add(path)
+                logger.debug(f"Echo: added path {path} to existing payload, total: {len(self.echo_counts[pkt_payload]['paths'])}")
+                return
+
+            # If we have a pending message waiting for correlation
+            if self.pending_echo and self.pending_echo.get('pkt_payload') is None:
+                # Check time window (60 seconds)
+                if current_time - self.pending_echo['timestamp'] < 60:
+                    # Associate this pkt_payload with the pending message
+                    self.pending_echo['pkt_payload'] = pkt_payload
+                    self.echo_counts[pkt_payload] = {
+                        'paths': {path},
+                        'timestamp': self.pending_echo['timestamp'],
+                        'channel_idx': self.pending_echo['channel_idx']
+                    }
+                    logger.info(f"Echo: correlated pkt_payload with sent message, first path: {path}")
+
+    def register_pending_echo(self, channel_idx, timestamp):
+        """Register a sent message for echo tracking."""
+        with self.echo_lock:
+            self.pending_echo = {
+                'timestamp': timestamp,
+                'channel_idx': channel_idx,
+                'pkt_payload': None
+            }
+            # Cleanup old echo counts (> 1 hour)
+            cutoff = time.time() - 3600
+            self.echo_counts = {k: v for k, v in self.echo_counts.items()
+                               if v['timestamp'] > cutoff}
+            logger.debug(f"Registered pending echo for channel {channel_idx}")
+
+    def get_echo_count(self, timestamp, channel_idx):
+        """Get echo count for a message by timestamp and channel."""
+        with self.echo_lock:
+            for pkt_payload, data in self.echo_counts.items():
+                # Match within 5 second window
+                if (abs(data['timestamp'] - timestamp) < 5 and
+                    data['channel_idx'] == channel_idx):
+                    return len(data['paths'])
+        return 0
 
     def _log_advert(self, json_line):
         """Log advert JSON to .jsonl file with timestamp"""
@@ -1021,6 +1093,67 @@ def set_manual_add_contacts():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# =============================================================================
+# Echo tracking endpoints for "Heard X repeats" feature
+# =============================================================================
+
+@app.route('/register_echo', methods=['POST'])
+def register_echo():
+    """
+    Register a sent message for echo tracking.
+
+    Called after successfully sending a channel message to start
+    tracking repeater echoes for that message.
+
+    Request JSON:
+        {
+            "channel_idx": 0,
+            "timestamp": 1706500000.123
+        }
+    """
+    if not meshcli_session:
+        return jsonify({'success': False, 'error': 'Not initialized'}), 503
+
+    data = request.get_json()
+    channel_idx = data.get('channel_idx', 0)
+    timestamp = data.get('timestamp', time.time())
+
+    meshcli_session.register_pending_echo(channel_idx, timestamp)
+    return jsonify({'success': True}), 200
+
+
+@app.route('/echo_counts', methods=['GET'])
+def get_echo_counts():
+    """
+    Get all echo counts for recent messages.
+
+    Returns echo counts grouped by timestamp and channel, allowing
+    the caller to match with their sent messages.
+
+    Response JSON:
+        {
+            "success": true,
+            "echo_counts": [
+                {"timestamp": 1706500000.123, "channel_idx": 0, "count": 3},
+                ...
+            ]
+        }
+    """
+    if not meshcli_session:
+        return jsonify({'success': False, 'error': 'Not initialized'}), 503
+
+    with meshcli_session.echo_lock:
+        result = []
+        for pkt_payload, data in meshcli_session.echo_counts.items():
+            result.append({
+                'timestamp': data['timestamp'],
+                'channel_idx': data['channel_idx'],
+                'count': len(data['paths'])
+            })
+
+    return jsonify({'success': True, 'echo_counts': result}), 200
 
 
 # =============================================================================

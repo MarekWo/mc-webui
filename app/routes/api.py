@@ -299,6 +299,30 @@ def get_messages():
             channel_idx=channel_idx
         )
 
+        # Fetch echo counts from bridge (for "Heard X repeats" feature)
+        if not archive_date:  # Only for live messages, not archives
+            try:
+                bridge_url = config.MC_BRIDGE_URL.replace('/cli', '/echo_counts')
+                response = requests.get(bridge_url, timeout=2)
+                if response.ok:
+                    echo_counts = response.json().get('echo_counts', [])
+
+                    # Create lookup by timestamp + channel
+                    echo_lookup = {(ec['timestamp'], ec['channel_idx']): ec['count']
+                                   for ec in echo_counts}
+
+                    # Merge into messages
+                    for msg in messages:
+                        if msg.get('is_own'):
+                            # Find matching echo count (within 5 second window)
+                            msg['echo_count'] = 0
+                            for (ts, ch), count in echo_lookup.items():
+                                if msg.get('channel_idx') == ch and abs(msg['timestamp'] - ts) < 5:
+                                    msg['echo_count'] = count
+                                    break
+            except Exception as e:
+                logger.debug(f"Echo counts fetch failed (non-critical): {e}")
+
         return jsonify({
             'success': True,
             'count': len(messages),
@@ -360,6 +384,17 @@ def send_message():
         success, message = cli.send_message(text, reply_to=reply_to, channel_index=channel_idx)
 
         if success:
+            # Register for echo tracking ("Heard X repeats" feature)
+            try:
+                bridge_url = config.MC_BRIDGE_URL.replace('/cli', '/register_echo')
+                requests.post(
+                    bridge_url,
+                    json={'channel_idx': channel_idx, 'timestamp': time.time()},
+                    timeout=2
+                )
+            except Exception as e:
+                logger.debug(f"Echo registration failed (non-critical): {e}")
+
             return jsonify({
                 'success': True,
                 'message': 'Message sent successfully',
