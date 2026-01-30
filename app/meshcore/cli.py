@@ -43,6 +43,7 @@ def _run_command(args: list, timeout: int = DEFAULT_TIMEOUT) -> Tuple[bool, str,
                 'args': args,
                 'timeout': timeout
             },
+            headers={'Connection': 'close'},  # Prevent connection reuse issues in background threads
             timeout=timeout + 5  # Add 5s buffer for HTTP timeout
         )
 
