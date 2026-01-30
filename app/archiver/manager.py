@@ -332,24 +332,54 @@ def _cleanup_job():
         logger.info(f"Found {len(matching_contacts)} contacts to clean up")
 
         # Delete matching contacts using cli.delete_contact()
+        # Add delay between deletions to avoid overwhelming the bridge on slower hardware
+        import time
+        DELETE_DELAY = 0.5  # seconds between deletions
+        MAX_RETRIES = 2     # retry failed deletions
+
         deleted_count = 0
-        for contact in matching_contacts:
+        failed_contacts = []
+
+        for i, contact in enumerate(matching_contacts):
             # Prefer public_key for deletion (more reliable than name)
             selector = contact.get('public_key') or contact.get('name', '')
             if not selector:
                 continue
 
-            try:
-                success, message = cli.delete_contact(selector)
-                if success:
-                    deleted_count += 1
-                    logger.debug(f"Deleted contact: {contact.get('name', selector)}")
-                else:
-                    logger.warning(f"Failed to delete contact {contact.get('name', selector)}: {message}")
-            except Exception as e:
-                logger.warning(f"Error deleting contact {contact.get('name', selector)}: {e}")
+            contact_name = contact.get('name', selector)
 
-        logger.info(f"Cleanup job completed: deleted {deleted_count}/{len(matching_contacts)} contacts")
+            # Try deletion with retries
+            for attempt in range(MAX_RETRIES + 1):
+                try:
+                    success, message = cli.delete_contact(selector)
+                    if success:
+                        deleted_count += 1
+                        logger.debug(f"Deleted contact: {contact_name}")
+                        break
+                    else:
+                        if attempt < MAX_RETRIES:
+                            logger.debug(f"Retry {attempt + 1} for {contact_name}: {message}")
+                            time.sleep(DELETE_DELAY * 2)  # longer delay before retry
+                        else:
+                            logger.warning(f"Failed to delete contact {contact_name}: {message}")
+                            failed_contacts.append(contact_name)
+                except Exception as e:
+                    if attempt < MAX_RETRIES and "Broken pipe" in str(e):
+                        logger.debug(f"Retry {attempt + 1} for {contact_name} after Broken pipe")
+                        time.sleep(DELETE_DELAY * 2)  # longer delay before retry
+                    else:
+                        logger.warning(f"Error deleting contact {contact_name}: {e}")
+                        failed_contacts.append(contact_name)
+                        break
+
+            # Delay between deletions (skip after last one)
+            if i < len(matching_contacts) - 1:
+                time.sleep(DELETE_DELAY)
+
+        if failed_contacts:
+            logger.info(f"Cleanup job completed: deleted {deleted_count}/{len(matching_contacts)} contacts, {len(failed_contacts)} failed")
+        else:
+            logger.info(f"Cleanup job completed: deleted {deleted_count}/{len(matching_contacts)} contacts")
 
     except Exception as e:
         logger.error(f"Cleanup job failed: {e}", exc_info=True)
