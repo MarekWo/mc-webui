@@ -1,0 +1,19 @@
+[Unit]
+Description=mc-webui Container Watchdog
+Documentation=https://github.com/MarekWo/mc-webui
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+Environment=MCWEBUI_DIR=/home/marek/mc-webui
+Environment=CHECK_INTERVAL=30
+Environment=LOG_FILE=/var/log/mc-webui-watchdog.log
+Environment=HTTP_PORT=5051
+ExecStart=/usr/bin/python3 -u /home/marek/mc-webui/scripts/watchdog/watchdog.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
