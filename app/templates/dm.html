@@ -75,6 +75,19 @@
             <!-- Messages Container -->
             <div class="row flex-grow-1 overflow-hidden" style="min-height: 0;">
                 <div class="col-12 position-relative" style="height: 100%;">
+                    <!-- Filter bar overlay -->
+                    <div id="dmFilterBar" class="filter-bar">
+                        <div class="filter-bar-inner">
+                            <input type="text" id="dmFilterInput" class="filter-bar-input" placeholder="Filter messages..." autocomplete="off">
+                            <span id="dmFilterMatchCount" class="filter-match-count"></span>
+                            <button type="button" id="dmFilterClearBtn" class="filter-bar-btn filter-bar-btn-clear" title="Clear">
+                                <i class="bi bi-x"></i>
+                            </button>
+                            <button type="button" id="dmFilterCloseBtn" class="filter-bar-btn filter-bar-btn-close" title="Close">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    </div>
                     <div id="dmMessagesContainer" class="messages-container h-100 overflow-auto p-3">
                         <div id="dmMessagesList">
                             <!-- Placeholder shown when no conversation selected -->
@@ -135,6 +148,13 @@
                 </div>
             </div>
         </div>
+
+        <!-- Floating Action Button for Filter -->
+        <div class="fab-container">
+            <button class="fab fab-filter" id="dmFilterFab" title="Filter Messages">
+                <i class="bi bi-funnel-fill"></i>
+            </button>
+        </div>
     </main>
 
     <!-- Toast container for notifications -->
@@ -153,6 +173,9 @@
 
     <!-- Message Content Processing Utilities (must load before dm.js) -->
     <script src="{{ url_for('static', filename='js/message-utils.js') }}"></script>
+
+    <!-- Filter Utilities (must load before dm.js) -->
+    <script src="{{ url_for('static', filename='js/filter-utils.js') }}"></script>
 
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/dm.js') }}"></script>

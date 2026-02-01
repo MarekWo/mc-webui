@@ -321,6 +321,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Update notification toggle UI
     updateNotificationToggleUI();
 
+    // Initialize filter functionality
+    initializeFilter();
+
     // Setup auto-refresh immediately after messages are displayed
     // Don't wait for geo cache - it's not needed for auto-refresh
     setupAutoRefresh();
@@ -691,6 +694,9 @@ function displayMessages(messages) {
         const latestTimestamp = Math.max(...messages.map(m => m.timestamp));
         markChannelAsRead(currentChannelIdx, latestTimestamp);
     }
+
+    // Re-apply filter if active
+    clearFilterState();
 }
 
 /**
@@ -2737,6 +2743,239 @@ async function loadContactsForMentions() {
         }
     } catch (error) {
         console.error('[mentions] Error loading contacts:', error);
+    }
+}
+
+// =============================================================================
+// Chat Filter Functionality
+// =============================================================================
+
+// Filter state
+let filterActive = false;
+let currentFilterQuery = '';
+let originalMessageContents = new Map();
+
+/**
+ * Initialize filter functionality
+ */
+function initializeFilter() {
+    const filterFab = document.getElementById('filterFab');
+    const filterBar = document.getElementById('filterBar');
+    const filterInput = document.getElementById('filterInput');
+    const filterClearBtn = document.getElementById('filterClearBtn');
+    const filterCloseBtn = document.getElementById('filterCloseBtn');
+
+    if (!filterFab || !filterBar) return;
+
+    // Open filter bar when FAB clicked
+    filterFab.addEventListener('click', () => {
+        openFilterBar();
+    });
+
+    // Filter as user types (debounced)
+    let filterTimeout = null;
+    filterInput.addEventListener('input', () => {
+        clearTimeout(filterTimeout);
+        filterTimeout = setTimeout(() => {
+            applyFilter(filterInput.value);
+        }, 150);
+    });
+
+    // Clear filter
+    filterClearBtn.addEventListener('click', () => {
+        filterInput.value = '';
+        applyFilter('');
+        filterInput.focus();
+    });
+
+    // Close filter bar
+    filterCloseBtn.addEventListener('click', () => {
+        closeFilterBar();
+    });
+
+    // Keyboard shortcuts
+    filterInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeFilterBar();
+        }
+    });
+
+    // Global keyboard shortcut: Ctrl+F to open filter
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            openFilterBar();
+        }
+    });
+}
+
+/**
+ * Open the filter bar
+ */
+function openFilterBar() {
+    const filterBar = document.getElementById('filterBar');
+    const filterInput = document.getElementById('filterInput');
+
+    filterBar.classList.add('visible');
+    filterActive = true;
+
+    // Focus input after animation
+    setTimeout(() => {
+        filterInput.focus();
+    }, 100);
+}
+
+/**
+ * Close the filter bar and reset filter
+ */
+function closeFilterBar() {
+    const filterBar = document.getElementById('filterBar');
+    const filterInput = document.getElementById('filterInput');
+
+    filterBar.classList.remove('visible');
+    filterActive = false;
+
+    // Reset filter
+    filterInput.value = '';
+    applyFilter('');
+}
+
+/**
+ * Apply filter to messages
+ * @param {string} query - Search query
+ */
+function applyFilter(query) {
+    currentFilterQuery = query.trim();
+    const container = document.getElementById('messagesList');
+    const messages = container.querySelectorAll('.message-wrapper');
+    const matchCountEl = document.getElementById('filterMatchCount');
+
+    // Remove any existing no-matches message
+    const existingNoMatches = container.querySelector('.filter-no-matches');
+    if (existingNoMatches) {
+        existingNoMatches.remove();
+    }
+
+    if (!currentFilterQuery) {
+        // No filter - show all messages, restore original content
+        messages.forEach(msg => {
+            msg.classList.remove('filter-hidden');
+            restoreOriginalContent(msg);
+        });
+        matchCountEl.textContent = '';
+        return;
+    }
+
+    let matchCount = 0;
+
+    messages.forEach(msg => {
+        // Get text content from message
+        const text = FilterUtils.getMessageText(msg, '.message-content');
+        const senderEl = msg.querySelector('.message-sender');
+        const senderText = senderEl ? senderEl.textContent : '';
+
+        // Check if message matches (content or sender)
+        const matches = FilterUtils.textMatches(text, currentFilterQuery) ||
+                       FilterUtils.textMatches(senderText, currentFilterQuery);
+
+        if (matches) {
+            msg.classList.remove('filter-hidden');
+            matchCount++;
+
+            // Highlight matches in content
+            highlightMessageContent(msg);
+        } else {
+            msg.classList.add('filter-hidden');
+            restoreOriginalContent(msg);
+        }
+    });
+
+    // Update match count
+    matchCountEl.textContent = `${matchCount} / ${messages.length}`;
+
+    // Show no matches message if needed
+    if (matchCount === 0 && messages.length > 0) {
+        const noMatchesDiv = document.createElement('div');
+        noMatchesDiv.className = 'filter-no-matches';
+        noMatchesDiv.innerHTML = `
+            <i class="bi bi-search"></i>
+            <p>No messages match "${escapeHtml(currentFilterQuery)}"</p>
+        `;
+        container.appendChild(noMatchesDiv);
+    }
+}
+
+/**
+ * Highlight matching text in a message element
+ * @param {HTMLElement} messageEl - Message wrapper element
+ */
+function highlightMessageContent(messageEl) {
+    const contentEl = messageEl.querySelector('.message-content');
+    if (!contentEl) return;
+
+    // Store original content if not already stored
+    const msgId = getMessageId(messageEl);
+    if (!originalMessageContents.has(msgId)) {
+        originalMessageContents.set(msgId, contentEl.innerHTML);
+    }
+
+    // Get original content and apply highlighting
+    const originalHtml = originalMessageContents.get(msgId);
+    contentEl.innerHTML = FilterUtils.highlightMatches(originalHtml, currentFilterQuery);
+
+    // Also highlight sender name if present
+    const senderEl = messageEl.querySelector('.message-sender');
+    if (senderEl) {
+        const senderMsgId = msgId + '_sender';
+        if (!originalMessageContents.has(senderMsgId)) {
+            originalMessageContents.set(senderMsgId, senderEl.innerHTML);
+        }
+        const originalSenderHtml = originalMessageContents.get(senderMsgId);
+        senderEl.innerHTML = FilterUtils.highlightMatches(originalSenderHtml, currentFilterQuery);
+    }
+}
+
+/**
+ * Restore original content of a message element
+ * @param {HTMLElement} messageEl - Message wrapper element
+ */
+function restoreOriginalContent(messageEl) {
+    const contentEl = messageEl.querySelector('.message-content');
+    const senderEl = messageEl.querySelector('.message-sender');
+    const msgId = getMessageId(messageEl);
+
+    if (contentEl && originalMessageContents.has(msgId)) {
+        contentEl.innerHTML = originalMessageContents.get(msgId);
+    }
+
+    if (senderEl && originalMessageContents.has(msgId + '_sender')) {
+        senderEl.innerHTML = originalMessageContents.get(msgId + '_sender');
+    }
+}
+
+/**
+ * Generate a unique ID for a message element
+ * @param {HTMLElement} messageEl - Message element
+ * @returns {string} - Unique identifier
+ */
+function getMessageId(messageEl) {
+    const parent = messageEl.parentNode;
+    const children = Array.from(parent.children).filter(el => el.classList.contains('message-wrapper'));
+    return 'msg_' + children.indexOf(messageEl);
+}
+
+/**
+ * Clear filter state when messages are reloaded
+ * Called from displayMessages()
+ */
+function clearFilterState() {
+    originalMessageContents.clear();
+
+    // Re-apply filter if active
+    if (filterActive && currentFilterQuery) {
+        setTimeout(() => {
+            applyFilter(currentFilterQuery);
+        }, 50);
     }
 }
 

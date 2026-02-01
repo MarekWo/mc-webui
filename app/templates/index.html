@@ -73,6 +73,19 @@
     <!-- Messages Container -->
     <div class="row flex-grow-1 overflow-hidden" style="min-height: 0;">
         <div class="col-12 position-relative" style="height: 100%;">
+            <!-- Filter bar overlay -->
+            <div id="filterBar" class="filter-bar">
+                <div class="filter-bar-inner">
+                    <input type="text" id="filterInput" class="filter-bar-input" placeholder="Filter messages..." autocomplete="off">
+                    <span id="filterMatchCount" class="filter-match-count"></span>
+                    <button type="button" id="filterClearBtn" class="filter-bar-btn filter-bar-btn-clear" title="Clear">
+                        <i class="bi bi-x"></i>
+                    </button>
+                    <button type="button" id="filterCloseBtn" class="filter-bar-btn filter-bar-btn-close" title="Close">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
             <div id="messagesContainer" class="messages-container h-100 overflow-auto p-3">
                 <div id="messagesList">
                     <!-- Messages will be loaded here via JavaScript -->
@@ -141,6 +154,9 @@
 
 <!-- Floating Action Buttons -->
 <div class="fab-container">
+    <button class="fab fab-filter" id="filterFab" title="Filter Messages">
+        <i class="bi bi-funnel-fill"></i>
+    </button>
     <button class="fab fab-dm" data-bs-toggle="modal" data-bs-target="#dmModal" title="Direct Messages">
         <i class="bi bi-envelope-fill"></i>
     </button>

@@ -52,6 +52,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }
 
+    // Initialize filter functionality
+    initializeDmFilter();
+
     // Setup auto-refresh
     setupAutoRefresh();
 });
@@ -469,6 +472,9 @@ function displayMessages(messages) {
     if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
     }
+
+    // Re-apply filter if active
+    clearDmFilterState();
 }
 
 /**
@@ -871,4 +877,233 @@ function checkDmNotifications(conversations) {
     }
 
     previousDmTotalUnread = currentDmTotalUnread;
+}
+
+// =============================================================================
+// DM Chat Filter Functionality
+// =============================================================================
+
+// Filter state
+let dmFilterActive = false;
+let currentDmFilterQuery = '';
+let originalDmMessageContents = new Map();
+
+/**
+ * Initialize DM filter functionality
+ */
+function initializeDmFilter() {
+    const filterFab = document.getElementById('dmFilterFab');
+    const filterBar = document.getElementById('dmFilterBar');
+    const filterInput = document.getElementById('dmFilterInput');
+    const filterClearBtn = document.getElementById('dmFilterClearBtn');
+    const filterCloseBtn = document.getElementById('dmFilterCloseBtn');
+
+    if (!filterFab || !filterBar) return;
+
+    // Open filter bar when FAB clicked
+    filterFab.addEventListener('click', () => {
+        openDmFilterBar();
+    });
+
+    // Filter as user types (debounced)
+    let filterTimeout = null;
+    filterInput.addEventListener('input', () => {
+        clearTimeout(filterTimeout);
+        filterTimeout = setTimeout(() => {
+            applyDmFilter(filterInput.value);
+        }, 150);
+    });
+
+    // Clear filter
+    filterClearBtn.addEventListener('click', () => {
+        filterInput.value = '';
+        applyDmFilter('');
+        filterInput.focus();
+    });
+
+    // Close filter bar
+    filterCloseBtn.addEventListener('click', () => {
+        closeDmFilterBar();
+    });
+
+    // Keyboard shortcuts
+    filterInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeDmFilterBar();
+        }
+    });
+
+    // Global keyboard shortcut: Ctrl+F to open filter
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            openDmFilterBar();
+        }
+    });
+}
+
+/**
+ * Open the DM filter bar
+ */
+function openDmFilterBar() {
+    const filterBar = document.getElementById('dmFilterBar');
+    const filterInput = document.getElementById('dmFilterInput');
+
+    filterBar.classList.add('visible');
+    dmFilterActive = true;
+
+    setTimeout(() => {
+        filterInput.focus();
+    }, 100);
+}
+
+/**
+ * Close the DM filter bar and reset filter
+ */
+function closeDmFilterBar() {
+    const filterBar = document.getElementById('dmFilterBar');
+    const filterInput = document.getElementById('dmFilterInput');
+
+    filterBar.classList.remove('visible');
+    dmFilterActive = false;
+
+    filterInput.value = '';
+    applyDmFilter('');
+}
+
+/**
+ * Apply filter to DM messages
+ * @param {string} query - Search query
+ */
+function applyDmFilter(query) {
+    currentDmFilterQuery = query.trim();
+    const container = document.getElementById('dmMessagesList');
+    const messages = container.querySelectorAll('.dm-message');
+    const matchCountEl = document.getElementById('dmFilterMatchCount');
+
+    // Remove any existing no-matches message
+    const existingNoMatches = container.querySelector('.filter-no-matches');
+    if (existingNoMatches) {
+        existingNoMatches.remove();
+    }
+
+    if (!currentDmFilterQuery) {
+        messages.forEach(msg => {
+            msg.classList.remove('filter-hidden');
+            restoreDmOriginalContent(msg);
+        });
+        matchCountEl.textContent = '';
+        return;
+    }
+
+    let matchCount = 0;
+
+    messages.forEach((msg, index) => {
+        // Get text content from DM message
+        const text = getDmMessageText(msg);
+
+        if (FilterUtils.textMatches(text, currentDmFilterQuery)) {
+            msg.classList.remove('filter-hidden');
+            matchCount++;
+            highlightDmMessageContent(msg, index);
+        } else {
+            msg.classList.add('filter-hidden');
+            restoreDmOriginalContent(msg);
+        }
+    });
+
+    matchCountEl.textContent = `${matchCount} / ${messages.length}`;
+
+    if (matchCount === 0 && messages.length > 0) {
+        const noMatchesDiv = document.createElement('div');
+        noMatchesDiv.className = 'filter-no-matches';
+        noMatchesDiv.innerHTML = `
+            <i class="bi bi-search"></i>
+            <p>No messages match "${escapeHtml(currentDmFilterQuery)}"</p>
+        `;
+        container.appendChild(noMatchesDiv);
+    }
+}
+
+/**
+ * Get text content from a DM message
+ * DM structure: timestamp div, then content div, then meta/actions
+ * @param {HTMLElement} msgEl - DM message element
+ * @returns {string} - Text content
+ */
+function getDmMessageText(msgEl) {
+    // The message content is in a div that is not the timestamp row, meta, or actions
+    const children = msgEl.children;
+    for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        // Skip timestamp row (has d-flex class), meta, and actions
+        if (!child.classList.contains('d-flex') &&
+            !child.classList.contains('dm-meta') &&
+            !child.classList.contains('dm-actions')) {
+            return child.textContent || '';
+        }
+    }
+    return '';
+}
+
+/**
+ * Highlight matching text in a DM message
+ * @param {HTMLElement} msgEl - DM message element
+ * @param {number} index - Message index for tracking
+ */
+function highlightDmMessageContent(msgEl, index) {
+    const msgId = 'dm_msg_' + index;
+
+    // Find content div (not timestamp, not meta, not actions)
+    const children = Array.from(msgEl.children);
+    for (const child of children) {
+        if (!child.classList.contains('d-flex') &&
+            !child.classList.contains('dm-meta') &&
+            !child.classList.contains('dm-actions')) {
+
+            if (!originalDmMessageContents.has(msgId)) {
+                originalDmMessageContents.set(msgId, child.innerHTML);
+            }
+
+            const originalHtml = originalDmMessageContents.get(msgId);
+            child.innerHTML = FilterUtils.highlightMatches(originalHtml, currentDmFilterQuery);
+            break;
+        }
+    }
+}
+
+/**
+ * Restore original DM message content
+ * @param {HTMLElement} msgEl - DM message element
+ */
+function restoreDmOriginalContent(msgEl) {
+    const container = document.getElementById('dmMessagesList');
+    const messages = Array.from(container.querySelectorAll('.dm-message'));
+    const index = messages.indexOf(msgEl);
+    const msgId = 'dm_msg_' + index;
+
+    if (!originalDmMessageContents.has(msgId)) return;
+
+    const children = Array.from(msgEl.children);
+    for (const child of children) {
+        if (!child.classList.contains('d-flex') &&
+            !child.classList.contains('dm-meta') &&
+            !child.classList.contains('dm-actions')) {
+            child.innerHTML = originalDmMessageContents.get(msgId);
+            break;
+        }
+    }
+}
+
+/**
+ * Clear DM filter state when messages are reloaded
+ */
+function clearDmFilterState() {
+    originalDmMessageContents.clear();
+
+    if (dmFilterActive && currentDmFilterQuery) {
+        setTimeout(() => {
+            applyDmFilter(currentDmFilterQuery);
+        }, 50);
+    }
 }
