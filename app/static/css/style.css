@@ -625,6 +625,45 @@ main {
     background-color: #084298;
 }
 
+/* Channel Links (#channelname) */
+.channel-link {
+    display: inline-block;
+    background-color: #198754;
+    color: white;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.75rem;
+    font-size: 0.85em;
+    font-weight: 500;
+    margin: 0 0.1rem;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.channel-link:hover {
+    background-color: #157347;
+    color: white;
+    text-decoration: none;
+}
+
+.message.own .channel-link {
+    background-color: #0f5132;
+}
+
+.message.own .channel-link:hover {
+    background-color: #0d4429;
+}
+
+.channel-link.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.channel-link.loading::after {
+    content: '...';
+}
+
 /* Quoted Text (»text«) */
 .quote-text {
     font-style: italic;

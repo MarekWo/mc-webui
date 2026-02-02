@@ -18,10 +18,13 @@ function processMessageContent(content) {
     // 1. Convert @[Username] mentions to badges
     processed = processMentions(processed);
 
-    // 2. Convert »quoted text« to styled quotes
+    // 2. Convert #channel to clickable links (only in channel context)
+    processed = processChannelLinks(processed);
+
+    // 3. Convert »quoted text« to styled quotes
     processed = processQuotes(processed);
 
-    // 3. Convert URLs to links (and images to thumbnails)
+    // 4. Convert URLs to links (and images to thumbnails)
     processed = processUrls(processed);
 
     return processed;
@@ -40,6 +43,31 @@ function processMentions(text) {
     return text.replace(mentionPattern, (_match, username) => {
         // Create badge similar to Android Meshcore app
         return `<span class="mention-badge">@${username}</span>`;
+    });
+}
+
+/**
+ * Convert #channelname to clickable channel links
+ * Only active in channel context (when availableChannels exists)
+ * @param {string} text - HTML-escaped text
+ * @returns {string} - Text with channel links
+ */
+function processChannelLinks(text) {
+    // Only process in channel context (app.js provides availableChannels)
+    // In DM context (dm.js), availableChannels is undefined
+    if (typeof availableChannels === 'undefined') {
+        return text;
+    }
+
+    // Match #channelname pattern
+    // Valid: alphanumeric, underscore, hyphen
+    // Must be at least 2 characters after #
+    // Must be preceded by whitespace, start of string, or punctuation
+    const channelPattern = /(^|[\s.,!?:;()\[\]])#([a-zA-Z0-9_-]{2,})/g;
+
+    return text.replace(channelPattern, (_match, prefix, channelName) => {
+        const escapedName = escapeHtmlAttribute(channelName);
+        return `${prefix}<a href="#" class="channel-link" data-channel-name="${escapedName}">#${channelName}</a>`;
     });
 }
 
@@ -205,10 +233,107 @@ function initializeImageHandlers() {
     });
 }
 
+/**
+ * Handle channel link click - switch to or join channel
+ * @param {string} channelName - Channel name without # prefix
+ */
+async function handleChannelLinkClick(channelName) {
+    // Normalize name (add # if not present for comparison)
+    const normalizedName = channelName.startsWith('#') ? channelName : '#' + channelName;
+
+    // Check if channel exists in availableChannels
+    const existingChannel = availableChannels.find(
+        ch => ch.name.toLowerCase() === normalizedName.toLowerCase()
+    );
+
+    if (existingChannel) {
+        switchToChannel(existingChannel.index, existingChannel.name);
+    } else {
+        await joinAndSwitchToChannel(normalizedName);
+    }
+}
+
+/**
+ * Switch to an existing channel via the channel selector
+ * @param {number} channelIdx - Channel index
+ * @param {string} channelName - Channel name for notification
+ */
+function switchToChannel(channelIdx, channelName) {
+    const selector = document.getElementById('channelSelector');
+    if (selector) {
+        selector.value = channelIdx;
+        // Trigger change event to update state and load messages
+        selector.dispatchEvent(new Event('change'));
+    }
+}
+
+/**
+ * Join a channel via API when clicking channel link, then switch to it
+ * @param {string} channelName - Channel name (with #)
+ */
+async function joinAndSwitchToChannel(channelName) {
+    try {
+        const response = await fetch('/api/channels/join', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: channelName })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showNotification(`Joined channel "${channelName}"!`, 'success');
+
+            // Show warning if applicable (e.g., exceeding channel limit)
+            if (data.warning) {
+                setTimeout(() => {
+                    showNotification(data.warning, 'warning');
+                }, 2000);
+            }
+
+            // Reload channels and switch to new channel
+            await loadChannels();
+            switchToChannel(data.channel.index, channelName);
+        } else {
+            showNotification('Failed to join channel: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error joining channel via link:', error);
+        showNotification('Failed to join channel', 'danger');
+    }
+}
+
+/**
+ * Initialize channel link click handlers using event delegation
+ */
+function initializeChannelLinkHandlers() {
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('channel-link')) {
+            e.preventDefault();
+
+            const channelName = e.target.getAttribute('data-channel-name');
+            if (channelName) {
+                // Add loading state
+                e.target.classList.add('loading');
+
+                handleChannelLinkClick(channelName).finally(() => {
+                    e.target.classList.remove('loading');
+                });
+            }
+        }
+    });
+}
+
 // Auto-initialize when DOM is ready
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeImageHandlers);
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeImageHandlers();
+        initializeChannelLinkHandlers();
+    });
 } else {
     // DOM already loaded
     initializeImageHandlers();
+    initializeChannelLinkHandlers();
 }
