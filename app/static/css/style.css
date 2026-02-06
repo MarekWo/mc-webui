@@ -113,11 +113,12 @@ main {
     color: #6c757d;
 }
 
-/* Message footer for own messages (time below bubble) */
+/* Message footer for own messages (name + time above bubble) */
 .message-footer {
     display: flex;
+    align-items: baseline;
     padding-right: 0.5rem;
-    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
 }
 
 .message-footer.own {
