@@ -726,12 +726,13 @@ function createMessageElement(msg) {
 
     if (msg.is_own) {
         // Own messages: right-aligned, no avatar
-        // Echo badge shows how many repeaters heard the message + their path codes
-        const echoPaths = (msg.echo_paths || []).map(p => p.substring(0, 2));
+        // Echo badge shows unique repeaters that heard the message + their path codes
+        const echoPaths = [...new Set((msg.echo_paths || []).map(p => p.substring(0, 2)))];
+        const echoCount = echoPaths.length;
         const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
-        const echoDisplay = msg.echo_count > 0
-            ? `<span class="echo-badge" title="Heard by ${msg.echo_count} repeater(s): ${echoPaths.join(', ')}">
-                 <i class="bi bi-broadcast"></i> ${msg.echo_count}${pathDisplay}
+        const echoDisplay = echoCount > 0
+            ? `<span class="echo-badge" title="Heard by ${echoCount} repeater(s): ${echoPaths.join(', ')}">
+                 <i class="bi bi-broadcast"></i> ${echoCount}${pathDisplay}
                </span>`
             : '';
 

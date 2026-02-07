@@ -308,6 +308,8 @@ def get_messages():
                     resp_data = response.json()
                     echo_counts = resp_data.get('echo_counts', [])
                     incoming_paths = resp_data.get('incoming_paths', [])
+                    if incoming_paths:
+                        logger.debug(f"Echo data: {len(echo_counts)} sent, {len(incoming_paths)} incoming paths from bridge")
 
                     # Merge sent echo counts + paths into own messages
                     for msg in messages:
@@ -322,13 +324,24 @@ def get_messages():
                                     break
 
                     # Merge incoming paths into received messages
+                    # Match by timestamp proximity + path_len confirmation
                     for msg in messages:
                         if not msg.get('is_own'):
+                            best_match = None
+                            best_delta = 10  # max 10 second window
                             for ip in incoming_paths:
-                                if (abs(msg['timestamp'] - ip['timestamp']) < 5 and
-                                        msg.get('path_len') == ip.get('path_len')):
-                                    msg['path'] = ip['path']
-                                    break
+                                delta = abs(msg['timestamp'] - ip['timestamp'])
+                                if delta < best_delta:
+                                    # Prefer matches where path_len also matches
+                                    if msg.get('path_len') == ip.get('path_len'):
+                                        best_match = ip
+                                        best_delta = delta
+                                    elif best_match is None:
+                                        # Fallback: timestamp-only match
+                                        best_match = ip
+                                        best_delta = delta
+                            if best_match:
+                                msg['path'] = best_match['path']
             except Exception as e:
                 logger.debug(f"Echo data fetch failed (non-critical): {e}")
 
