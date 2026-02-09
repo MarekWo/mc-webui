@@ -6,6 +6,7 @@ import logging
 import re
 import shlex
 import threading
+import time
 import requests
 from flask import Flask, request as flask_request
 from flask_socketio import SocketIO, emit
@@ -88,10 +89,22 @@ def create_app():
     else:
         logger.info("Archive scheduler disabled")
 
-    # Fetch device name from bridge in background thread
+    # Fetch device name from bridge in background thread (with retry)
     def init_device_name():
         device_name, source = fetch_device_name_from_bridge()
         runtime_config.set_device_name(device_name, source)
+
+        # If we got a fallback name, keep retrying in background
+        retry_delay = 5
+        max_delay = 60
+        while source == "fallback":
+            time.sleep(retry_delay)
+            device_name, source = fetch_device_name_from_bridge()
+            if source != "fallback":
+                runtime_config.set_device_name(device_name, source)
+                logger.info(f"Device name resolved after retry: {device_name}")
+                break
+            retry_delay = min(retry_delay * 2, max_delay)
 
     threading.Thread(target=init_device_name, daemon=True).start()
 

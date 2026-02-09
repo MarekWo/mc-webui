@@ -996,7 +996,7 @@ def fetch_device_name_from_bridge(max_retries: int = 3, retry_delay: float = 2.0
             response = requests.get(bridge_health_url, timeout=5)
             if response.status_code == 200:
                 data = response.json()
-                if data.get('status') == 'healthy':
+                if data.get('status') == 'healthy' or data.get('device_name_source') == 'detected':
                     device_name = data.get('device_name')
                     source = data.get('device_name_source', 'unknown')
                     if device_name:
