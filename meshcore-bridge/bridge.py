@@ -159,6 +159,24 @@ class MeshCLISession:
         # Start session
         self._start_session()
 
+    def _update_log_paths(self, new_name):
+        """Update advert/echo log paths after device name detection, renaming existing files."""
+        new_advert = self.config_dir / f"{new_name}.adverts.jsonl"
+        new_echo = self.config_dir / f"{new_name}.echoes.jsonl"
+
+        # Rename existing files if they use the old (configured) name
+        for old_path, new_path in [(self.advert_log_path, new_advert), (self.echo_log_path, new_echo)]:
+            if old_path != new_path and old_path.exists() and not new_path.exists():
+                try:
+                    old_path.rename(new_path)
+                    logger.info(f"Renamed {old_path.name} -> {new_path.name}")
+                except OSError as e:
+                    logger.warning(f"Failed to rename {old_path.name}: {e}")
+
+        self.advert_log_path = new_advert
+        self.echo_log_path = new_echo
+        logger.info(f"Log paths updated for device: {new_name}")
+
     def _start_session(self):
         """Start meshcli process and worker threads"""
         logger.info(f"Starting meshcli session on {self.serial_port}")
@@ -276,6 +294,7 @@ class MeshCLISession:
                             if 'name' in data:
                                 self.detected_name = data['name']
                                 logger.info(f"Detected device name from .infos: {self.detected_name}")
+                                self._update_log_paths(self.detected_name)
                                 self.name_detection_done.set()
                                 return
                         except json.JSONDecodeError:
@@ -311,6 +330,7 @@ class MeshCLISession:
                     if name_part:
                         self.detected_name = name_part
                         logger.info(f"Detected device name from prompt: {self.detected_name}")
+                        self._update_log_paths(self.detected_name)
                         self.name_detection_done.set()
 
                 # Try to parse as JSON advert
@@ -878,6 +898,7 @@ def health():
         'serial_port': MC_SERIAL_PORT,
         'serial_port_source': SERIAL_PORT_SOURCE,
         'advert_log': str(meshcli_session.advert_log_path) if meshcli_session else None,
+        'echoes_log': str(meshcli_session.echo_log_path) if meshcli_session else None,
         'device_name': device_name,
         'device_name_source': name_source
     }), 200
