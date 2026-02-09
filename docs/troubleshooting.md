@@ -5,6 +5,7 @@ Common issues and solutions for mc-webui.
 ## Table of Contents
 
 - [Common Issues](#common-issues)
+- [Device Not Responding](#device-not-responding-bridge-crash-loop)
 - [Docker Commands](#docker-commands)
 - [Testing Bridge API](#testing-bridge-api)
 - [Backup and Restore](#backup-and-restore)
@@ -111,6 +112,39 @@ The 2-container architecture resolves common USB timeout/deadlock problems:
   ```bash
   docker compose restart meshcore-bridge
   ```
+
+---
+
+### Device not responding (bridge crash-loop)
+
+**Symptoms:**
+- `meshcore-bridge` container shows `unhealthy` status
+- Bridge logs show repeated `no_event_received` errors and restarts:
+  ```
+  ERROR:meshcore:Error while querying device: Event(type=<EventType.ERROR: 'command_error'>, payload={'reason': 'no_event_received'})
+  meshcli process died (exit code: 0)
+  Attempting to restart meshcli session...
+  ```
+- Device name not detected, falls back to `auto.msgs` (file not found)
+- All commands (`infos`, `contacts`, etc.) time out
+
+**What this means:**
+
+The serial connection to the USB adapter (e.g. CP2102) is working, but the MeshCore device firmware is not responding to protocol commands. The device boots (serial port connects), but the application code is not running properly.
+
+**What does NOT help:**
+- Restarting Docker containers
+- Restarting the host machine
+- USB reset or USB power cycle (only resets the USB-to-UART adapter, not the MeshCore radio module)
+
+**Fix: Re-flash the firmware**
+
+The MeshCore device firmware is likely corrupted. Re-flash the latest firmware using the MeshCore Flasher:
+1. Download the latest firmware from [MeshCore releases](https://github.com/ripplebiz/MeshCore/releases)
+2. Flash using [MeshCore Flasher](https://flasher.meshcore.co) or esptool
+3. Restart mc-webui: `docker compose up -d`
+
+This can happen after a power failure during OTA update, flash memory corruption, or other hardware anomalies.
 
 ---
 
