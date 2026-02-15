@@ -177,7 +177,7 @@ class CompatChecker:
             types_str = ", ".join(f"{k}={v}" for k, v in type_counts.items() if v > 0)
             detail = f"{parsed} contacts parsed, types: {types_str}"
             if unparsed_lines:
-                self.add(self.WARN, cat, f"{detail} ({len(unparsed_lines)} unparsed lines)")
+                self.add(self.WARN, cat, f"{detail} ({len(unparsed_lines)} unparsed lines: {unparsed_lines[:3]})")
             else:
                 self.add(self.PASS, cat, detail)
 
@@ -312,7 +312,7 @@ class CompatChecker:
             names = ", ".join(f"{c['name']}(#{c['index']})" for c in channels)
             detail = f"{len(channels)} channels: {names}"
             if unparsed:
-                self.add(self.WARN, cat, f"{detail} ({len(unparsed)} unparsed lines)")
+                self.add(self.WARN, cat, f"{detail} ({len(unparsed)} unparsed lines: {unparsed[:3]})")
             else:
                 self.add(self.PASS, cat, detail)
 
