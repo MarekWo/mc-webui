@@ -746,6 +746,11 @@ function createMessageElement(msg) {
                     <div class="message-content">${processMessageContent(msg.content)}</div>
                     <div class="message-actions justify-content-end">
                         ${echoDisplay}
+                        ${msg.analyzer_url ? `
+                            <button class="btn btn-outline-secondary btn-msg-action" onclick="window.open('${msg.analyzer_url}', 'meshcore-analyzer')" title="View in Analyzer">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        ` : ''}
                         <button class="btn btn-outline-secondary btn-msg-action" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Resend">
                             <i class="bi bi-arrow-repeat"></i>
                         </button>
@@ -783,6 +788,11 @@ function createMessageElement(msg) {
                         ${contactsGeoCache[msg.sender] ? `
                             <button class="btn btn-outline-secondary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="Show on map">
                                 <i class="bi bi-geo-alt"></i>
+                            </button>
+                        ` : ''}
+                        ${msg.analyzer_url ? `
+                            <button class="btn btn-outline-secondary btn-msg-action" onclick="window.open('${msg.analyzer_url}', 'meshcore-analyzer')" title="View in Analyzer">
+                                <i class="bi bi-search"></i>
                             </button>
                         ` : ''}
                     </div>

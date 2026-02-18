@@ -1274,11 +1274,11 @@ def get_echo_counts():
         {
             "success": true,
             "echo_counts": [
-                {"timestamp": 1706500000.123, "channel_idx": 0, "count": 3, "paths": ["5e", "d1", "a3"]},
+                {"timestamp": 1706500000.123, "channel_idx": 0, "count": 3, "paths": ["5e", "d1", "a3"], "pkt_payload": "abcd..."},
                 ...
             ],
             "incoming_paths": [
-                {"timestamp": 1706500000.456, "path": "8a40a605", "path_len": 4, "snr": 11.0},
+                {"timestamp": 1706500000.456, "path": "8a40a605", "path_len": 4, "snr": 11.0, "pkt_payload": "efgh..."},
                 ...
             ]
         }
@@ -1293,7 +1293,8 @@ def get_echo_counts():
                 'timestamp': data['timestamp'],
                 'channel_idx': data['channel_idx'],
                 'count': len(data['paths']),
-                'paths': list(data['paths'])
+                'paths': list(data['paths']),
+                'pkt_payload': pkt_payload,
             })
 
         incoming = []
@@ -1303,6 +1304,7 @@ def get_echo_counts():
                 'path': data['path'],
                 'path_len': data.get('path_len'),
                 'snr': data.get('snr'),
+                'pkt_payload': pkt_payload,
             })
 
     return jsonify({

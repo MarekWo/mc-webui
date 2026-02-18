@@ -2,6 +2,7 @@
 REST API endpoints for mc-webui
 """
 
+import hashlib
 import logging
 import json
 import re
@@ -31,6 +32,20 @@ CHANNELS_CACHE_TTL = 30  # seconds
 _contacts_detailed_cache = None
 _contacts_detailed_cache_timestamp = 0
 CONTACTS_DETAILED_CACHE_TTL = 60  # seconds
+
+
+ANALYZER_BASE_URL = 'https://analyzer.letsmesh.net/packets?packet_hash='
+GRP_TXT_TYPE_BYTE = 0x05
+
+
+def compute_analyzer_url(pkt_payload):
+    """Compute MeshCore Analyzer URL from a hex-encoded pkt_payload."""
+    try:
+        raw = bytes([GRP_TXT_TYPE_BYTE]) + bytes.fromhex(pkt_payload)
+        packet_hash = hashlib.sha256(raw).hexdigest()[:16].upper()
+        return f"{ANALYZER_BASE_URL}{packet_hash}"
+    except (ValueError, TypeError):
+        return None
 
 
 def get_channels_cached(force_refresh=False):
@@ -321,6 +336,9 @@ def get_messages():
                                         abs(msg['timestamp'] - ec['timestamp']) < 5):
                                     msg['echo_count'] = ec['count']
                                     msg['echo_paths'] = ec.get('paths', [])
+                                    pkt = ec.get('pkt_payload')
+                                    if pkt:
+                                        msg['analyzer_url'] = compute_analyzer_url(pkt)
                                     break
 
                     # Merge incoming paths into received messages
@@ -342,6 +360,9 @@ def get_messages():
                                         best_delta = delta
                             if best_match:
                                 msg['path'] = best_match['path']
+                                pkt = best_match.get('pkt_payload')
+                                if pkt:
+                                    msg['analyzer_url'] = compute_analyzer_url(pkt)
             except Exception as e:
                 logger.debug(f"Echo data fetch failed (non-critical): {e}")
 
