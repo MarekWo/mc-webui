@@ -425,12 +425,20 @@ function displayMessages(messages) {
         // Status icon for own messages
         let statusIcon = '';
         if (msg.is_own && msg.status) {
-            const icons = {
-                'pending': '<i class="bi bi-clock dm-status pending" title="Sending..."></i>',
-                'delivered': '<i class="bi bi-check2 dm-status delivered" title="Delivered"></i>',
-                'timeout': '<i class="bi bi-x-circle dm-status timeout" title="Not delivered"></i>'
-            };
-            statusIcon = icons[msg.status] || '';
+            if (msg.status === 'delivered') {
+                let title = 'Delivered';
+                if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
+                    title += `, SNR: ${msg.delivery_snr.toFixed(1)} dB`;
+                }
+                if (msg.delivery_route) title += ` (${msg.delivery_route})`;
+                statusIcon = `<i class="bi bi-check2 dm-status delivered" title="${title}"></i>`;
+            } else {
+                const icons = {
+                    'pending': '<i class="bi bi-clock dm-status pending" title="Sending..."></i>',
+                    'timeout': '<i class="bi bi-x-circle dm-status timeout" title="Not delivered"></i>'
+                };
+                statusIcon = icons[msg.status] || '';
+            }
         }
 
         // Metadata for incoming messages

@@ -440,7 +440,8 @@ def _parse_sent_msg(line: Dict) -> Optional[Dict]:
         'is_own': True,
         'txt_type': txt_type,
         'conversation_id': conversation_id,
-        'dedup_key': dedup_key
+        'dedup_key': dedup_key,
+        'expected_ack': line.get('expected_ack'),
     }
 
 

@@ -397,6 +397,36 @@ def send_dm(recipient: str, text: str) -> Tuple[bool, str]:
     return success, stdout or stderr
 
 
+def check_dm_delivery(ack_codes: list) -> Tuple[bool, Dict, str]:
+    """
+    Check delivery status for sent DMs by their expected_ack codes.
+
+    Args:
+        ack_codes: List of expected_ack hex strings from SENT_MSG log entries
+
+    Returns:
+        Tuple of (success, ack_status_dict, error_message)
+        ack_status_dict maps ack_code -> ack_info dict or None
+    """
+    try:
+        response = requests.get(
+            f"{config.MC_BRIDGE_URL.replace('/cli', '/ack_status')}",
+            params={'ack_codes': ','.join(ack_codes)},
+            timeout=DEFAULT_TIMEOUT
+        )
+
+        if response.status_code != 200:
+            return False, {}, f"Bridge error: {response.status_code}"
+
+        data = response.json()
+        return data.get('success', False), data.get('acks', {}), ''
+
+    except requests.exceptions.ConnectionError:
+        return False, {}, 'Cannot connect to bridge'
+    except Exception as e:
+        return False, {}, str(e)
+
+
 # =============================================================================
 # Contact Management (Existing & Pending Contacts)
 # =============================================================================
