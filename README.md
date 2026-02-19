@@ -23,6 +23,8 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - **Interactive Console** - Direct meshcli command execution via WebSocket
 - **@Mentions autocomplete** - Type @ to see contact suggestions with fuzzy search
 - **Echo tracking** - "Heard X repeats" with repeater IDs for sent messages, route path for incoming messages (persisted across restarts)
+- **MeshCore Analyzer** - View packet details on analyzer.letsmesh.net directly from channel messages
+- **DM delivery tracking** - ACK-based delivery confirmation with SNR and route info
 - **PWA support** - Browser notifications and installable app (experimental)
 - **Full offline support** - Works without internet (local Bootstrap, icons, emoji picker)
 
@@ -308,6 +310,8 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 - [x] Interactive Console - Direct meshcli access via WebSocket with command history
 - [x] Contact Map - View contacts with GPS coordinates on OpenStreetMap (Leaflet)
 - [x] Echo Tracking - "Heard X repeats" badge for sent channel messages
+- [x] MeshCore Analyzer - Packet analysis links on channel messages (analyzer.letsmesh.net)
+- [x] DM Delivery Tracking - ACK-based delivery checkmarks with SNR/route details
 
 ### Next Steps
 

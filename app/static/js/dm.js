@@ -424,7 +424,7 @@ function displayMessages(messages) {
 
         // Status icon for own messages
         let statusIcon = '';
-        if (msg.is_own && msg.status) {
+        if (msg.is_own) {
             if (msg.status === 'delivered') {
                 let title = 'Delivered';
                 if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
@@ -432,12 +432,11 @@ function displayMessages(messages) {
                 }
                 if (msg.delivery_route) title += ` (${msg.delivery_route})`;
                 statusIcon = `<i class="bi bi-check2 dm-status delivered" title="${title}"></i>`;
+            } else if (msg.status === 'pending') {
+                statusIcon = '<i class="bi bi-clock dm-status pending" title="Sending..."></i>';
             } else {
-                const icons = {
-                    'pending': '<i class="bi bi-clock dm-status pending" title="Sending..."></i>',
-                    'timeout': '<i class="bi bi-x-circle dm-status timeout" title="Not delivered"></i>'
-                };
-                statusIcon = icons[msg.status] || '';
+                // No ACK received — show clickable "?" with explanation
+                statusIcon = `<span class="dm-status-unknown" onclick="showDeliveryInfo(this)"><i class="bi bi-question-circle dm-status unknown"></i></span>`;
             }
         }
 
@@ -628,6 +627,29 @@ function resendMessage(content) {
     input.value = content;
     updateCharCounter();
     input.focus();
+}
+
+/**
+ * Show delivery info popup (mobile-friendly, same pattern as showPathPopup)
+ */
+function showDeliveryInfo(element) {
+    const existing = document.querySelector('.dm-delivery-popup');
+    if (existing) existing.remove();
+
+    const popup = document.createElement('div');
+    popup.className = 'dm-delivery-popup';
+    popup.textContent = 'Delivery unknown \u2014 no ACK received. Message may still have been delivered.';
+    element.style.position = 'relative';
+    element.appendChild(popup);
+
+    const dismiss = () => popup.remove();
+    setTimeout(dismiss, 5000);
+    document.addEventListener('click', function handler(e) {
+        if (!element.contains(e.target)) {
+            dismiss();
+            document.removeEventListener('click', handler);
+        }
+    });
 }
 
 /**

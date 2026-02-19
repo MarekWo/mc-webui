@@ -536,6 +536,30 @@ main {
     color: #dc3545;
 }
 
+.dm-status.unknown {
+    color: #adb5bd;
+}
+
+.dm-status-unknown {
+    cursor: pointer;
+    position: relative;
+}
+
+.dm-delivery-popup {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    background-color: #333;
+    color: #fff;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.375rem;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+    margin-bottom: 0.25rem;
+}
+
 /* DM Action Buttons */
 .dm-actions {
     display: flex;

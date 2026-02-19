@@ -166,8 +166,9 @@ Access the Direct Messages feature:
 
 ### Message Status Indicators
 
+- ✓ **Delivered** (green checkmark) - Recipient confirmed receipt (ACK). Tap/hover for SNR and route details
+- ? **Unknown** (gray question mark) - No ACK received. Message may still have been delivered — ACK packets are often lost over multi-hop routes. Tap the icon for details
 - ⏳ **Pending** (clock icon, yellow) - Message sent, awaiting delivery confirmation
-- Note: Due to meshcore-cli limitations, we cannot track actual delivery status
 
 ### DM Notifications
 
