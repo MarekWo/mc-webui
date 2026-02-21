@@ -751,7 +751,7 @@ function createMessageElement(msg) {
                         ${echoDisplay}
                         ${msg.analyzer_url ? `
                             <button class="btn btn-outline-secondary btn-msg-action" onclick="window.open('${msg.analyzer_url}', 'meshcore-analyzer')" title="View in Analyzer">
-                                <i class="bi bi-flask"></i>
+                                <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
                         <button class="btn btn-outline-secondary btn-msg-action" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Resend">
@@ -795,7 +795,7 @@ function createMessageElement(msg) {
                         ` : ''}
                         ${msg.analyzer_url ? `
                             <button class="btn btn-outline-secondary btn-msg-action" onclick="window.open('${msg.analyzer_url}', 'meshcore-analyzer')" title="View in Analyzer">
-                                <i class="bi bi-flask"></i>
+                                <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
                     </div>
