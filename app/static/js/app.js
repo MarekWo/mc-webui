@@ -2795,13 +2795,13 @@ async function loadContactsForMentions() {
     }
 
     try {
-        const response = await fetch('/api/contacts');
+        const response = await fetch('/api/contacts/cached');
         const data = await response.json();
 
         if (data.success && data.contacts) {
             mentionsCache = data.contacts;
             mentionsCacheTimestamp = now;
-            console.log(`[mentions] Cached ${mentionsCache.length} contacts`);
+            console.log(`[mentions] Cached ${mentionsCache.length} contacts from cache`);
         }
     } catch (error) {
         console.error('[mentions] Error loading contacts:', error);

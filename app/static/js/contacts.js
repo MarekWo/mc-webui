@@ -839,6 +839,14 @@ function attachExistingEventListeners() {
         });
     }
 
+    // Source filter (device / cache only)
+    const sourceFilter = document.getElementById('sourceFilter');
+    if (sourceFilter) {
+        sourceFilter.addEventListener('change', () => {
+            applySortAndFilters();
+        });
+    }
+
     // Type filter
     const typeFilter = document.getElementById('typeFilter');
     if (typeFilter) {
@@ -1613,7 +1621,6 @@ async function loadExistingContacts() {
     const emptyEl = document.getElementById('existingEmpty');
     const listEl = document.getElementById('existingList');
     const errorEl = document.getElementById('existingError');
-    const counterEl = document.getElementById('contactsCounter');
 
     // Show loading state
     if (loadingEl) loadingEl.style.display = 'block';
@@ -1622,30 +1629,53 @@ async function loadExistingContacts() {
     if (errorEl) errorEl.style.display = 'none';
 
     try {
-        const response = await fetch('/api/contacts/detailed');
-        const data = await response.json();
+        // Fetch device contacts and cached contacts in parallel
+        const [deviceResponse, cacheResponse] = await Promise.all([
+            fetch('/api/contacts/detailed'),
+            fetch('/api/contacts/cached?format=full')
+        ]);
+        const deviceData = await deviceResponse.json();
+        const cacheData = await cacheResponse.json();
 
         if (loadingEl) loadingEl.style.display = 'none';
 
-        if (data.success) {
-            existingContacts = data.contacts || [];
+        if (deviceData.success) {
+            const deviceContacts = deviceData.contacts || [];
+            const cachedContacts = (cacheData.success && cacheData.contacts) ? cacheData.contacts : [];
+
+            // Mark device contacts
+            const deviceKeySet = new Set(deviceContacts.map(c => c.public_key));
+            deviceContacts.forEach(c => { c.on_device = true; });
+
+            // Add cache-only contacts (not on device)
+            const cacheOnlyContacts = cachedContacts
+                .filter(c => !deviceKeySet.has(c.public_key))
+                .map(c => ({
+                    name: c.name || 'Unknown',
+                    public_key: c.public_key,
+                    public_key_prefix: c.public_key_prefix || c.public_key.substring(0, 12),
+                    type_label: '',
+                    last_seen: c.last_seen || 0,
+                    on_device: false,
+                    source: c.source || 'cache'
+                }));
+
+            existingContacts = [...deviceContacts, ...cacheOnlyContacts];
             filteredContacts = [...existingContacts];
 
-            // Update counter badge (in navbar)
-            updateCounter(data.count, data.limit);
+            // Update counter badge
+            updateCounter(deviceData.count, deviceData.limit, cachedContacts.length);
 
             if (existingContacts.length === 0) {
-                // Show empty state
                 if (emptyEl) emptyEl.style.display = 'block';
             } else {
-                // Apply filters and sort
                 applySortAndFilters();
             }
         } else {
-            console.error('Failed to load existing contacts:', data.error);
+            console.error('Failed to load existing contacts:', deviceData.error);
             if (errorEl) {
                 const errorMsg = document.getElementById('existingErrorMessage');
-                if (errorMsg) errorMsg.textContent = data.error || 'Failed to load contacts';
+                if (errorMsg) errorMsg.textContent = deviceData.error || 'Failed to load contacts';
                 errorEl.style.display = 'block';
             }
         }
@@ -1660,11 +1690,15 @@ async function loadExistingContacts() {
     }
 }
 
-function updateCounter(count, limit) {
+function updateCounter(count, limit, totalKnown) {
     const counterEl = document.getElementById('contactsCounter');
     if (!counterEl) return;
 
-    counterEl.textContent = `${count} / ${limit}`;
+    let text = `${count} / ${limit}`;
+    if (totalKnown && totalKnown > count) {
+        text += ` (${totalKnown} known)`;
+    }
+    counterEl.textContent = text;
     counterEl.style.display = 'inline-block';
 
     // Remove all counter classes
@@ -1752,21 +1786,29 @@ function updateSortUI() {
 function applySortAndFilters() {
     const searchInput = document.getElementById('searchInput');
     const typeFilter = document.getElementById('typeFilter');
+    const sourceFilter = document.getElementById('sourceFilter');
 
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
     const selectedType = typeFilter ? typeFilter.value : 'ALL';
+    const selectedSource = sourceFilter ? sourceFilter.value : 'ALL';
 
     // First, filter contacts
     filteredContacts = existingContacts.filter(contact => {
-        // Type filter
-        if (selectedType !== 'ALL' && contact.type_label !== selectedType) {
-            return false;
+        // Source filter
+        if (selectedSource === 'DEVICE' && !contact.on_device) return false;
+        if (selectedSource === 'CACHE' && contact.on_device) return false;
+
+        // Type filter (cache-only contacts have no type_label)
+        if (selectedType !== 'ALL') {
+            if (!contact.type_label || contact.type_label !== selectedType) {
+                return false;
+            }
         }
 
         // Search filter (name or public_key_prefix)
         if (searchTerm) {
             const nameMatch = contact.name.toLowerCase().includes(searchTerm);
-            const keyMatch = contact.public_key_prefix.toLowerCase().includes(searchTerm);
+            const keyMatch = (contact.public_key_prefix || '').toLowerCase().includes(searchTerm);
             return nameMatch || keyMatch;
         }
 
@@ -1922,30 +1964,40 @@ function createExistingContactCard(contact, index) {
         nameDiv.appendChild(lockIndicator);
     }
 
-    const typeBadge = document.createElement('span');
-    typeBadge.className = 'badge type-badge';
-    typeBadge.textContent = contact.type_label;
+    // Type badge (or "Cache only" badge for non-device contacts)
+    if (contact.on_device === false) {
+        const cacheBadge = document.createElement('span');
+        cacheBadge.className = 'badge type-badge bg-secondary';
+        cacheBadge.textContent = 'Cache';
+        cacheBadge.title = 'Not on device - known from adverts';
+        infoRow.appendChild(nameDiv);
+        infoRow.appendChild(cacheBadge);
+    } else {
+        const typeBadge = document.createElement('span');
+        typeBadge.className = 'badge type-badge';
+        typeBadge.textContent = contact.type_label;
 
-    // Color-code by type
-    switch (contact.type_label) {
-        case 'CLI':
-            typeBadge.classList.add('bg-primary');
-            break;
-        case 'REP':
-            typeBadge.classList.add('bg-success');
-            break;
-        case 'ROOM':
-            typeBadge.classList.add('bg-info');
-            break;
-        case 'SENS':
-            typeBadge.classList.add('bg-warning');
-            break;
-        default:
-            typeBadge.classList.add('bg-secondary');
+        // Color-code by type
+        switch (contact.type_label) {
+            case 'CLI':
+                typeBadge.classList.add('bg-primary');
+                break;
+            case 'REP':
+                typeBadge.classList.add('bg-success');
+                break;
+            case 'ROOM':
+                typeBadge.classList.add('bg-info');
+                break;
+            case 'SENS':
+                typeBadge.classList.add('bg-warning');
+                break;
+            default:
+                typeBadge.classList.add('bg-secondary');
+        }
+
+        infoRow.appendChild(nameDiv);
+        infoRow.appendChild(typeBadge);
     }
-
-    infoRow.appendChild(nameDiv);
-    infoRow.appendChild(typeBadge);
 
     // Public key row (clickable to copy)
     const keyDiv = document.createElement('div');
@@ -1994,39 +2046,41 @@ function createExistingContactCard(contact, index) {
         pathDiv.textContent = `Path: ${contact.path_or_mode}`;
     }
 
-    // Action buttons
+    // Action buttons (only for device contacts)
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'd-flex gap-2 mt-2';
 
-    // Map button (only if GPS coordinates available)
-    if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
-        const mapBtn = document.createElement('button');
-        mapBtn.className = 'btn btn-sm btn-outline-primary';
-        mapBtn.innerHTML = '<i class="bi bi-geo-alt"></i> Map';
-        mapBtn.onclick = () => window.showContactOnMap(contact.name, contact.adv_lat, contact.adv_lon);
-        actionsDiv.appendChild(mapBtn);
+    if (contact.on_device !== false) {
+        // Map button (only if GPS coordinates available)
+        if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
+            const mapBtn = document.createElement('button');
+            mapBtn.className = 'btn btn-sm btn-outline-primary';
+            mapBtn.innerHTML = '<i class="bi bi-geo-alt"></i> Map';
+            mapBtn.onclick = () => window.showContactOnMap(contact.name, contact.adv_lat, contact.adv_lon);
+            actionsDiv.appendChild(mapBtn);
+        }
+
+        // Protect button
+        const protectBtn = document.createElement('button');
+        protectBtn.className = isProtected ? 'btn btn-sm btn-warning' : 'btn btn-sm btn-outline-warning';
+        protectBtn.innerHTML = isProtected
+            ? '<i class="bi bi-lock-fill"></i> Protected'
+            : '<i class="bi bi-shield"></i> Protect';
+        protectBtn.onclick = () => toggleContactProtection(contact.public_key, protectBtn);
+        actionsDiv.appendChild(protectBtn);
+
+        // Delete button (disabled if protected)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-sm btn-outline-danger';
+        deleteBtn.innerHTML = '<i class="bi bi-trash"></i> Delete';
+        deleteBtn.onclick = () => showDeleteModal(contact);
+        deleteBtn.disabled = isProtected;
+        if (isProtected) {
+            deleteBtn.title = 'Cannot delete protected contact';
+        }
+
+        actionsDiv.appendChild(deleteBtn);
     }
-
-    // Protect button
-    const protectBtn = document.createElement('button');
-    protectBtn.className = isProtected ? 'btn btn-sm btn-warning' : 'btn btn-sm btn-outline-warning';
-    protectBtn.innerHTML = isProtected
-        ? '<i class="bi bi-lock-fill"></i> Protected'
-        : '<i class="bi bi-shield"></i> Protect';
-    protectBtn.onclick = () => toggleContactProtection(contact.public_key, protectBtn);
-    actionsDiv.appendChild(protectBtn);
-
-    // Delete button (disabled if protected)
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn btn-sm btn-outline-danger';
-    deleteBtn.innerHTML = '<i class="bi bi-trash"></i> Delete';
-    deleteBtn.onclick = () => showDeleteModal(contact);
-    deleteBtn.disabled = isProtected;
-    if (isProtected) {
-        deleteBtn.title = 'Cannot delete protected contact';
-    }
-
-    actionsDiv.appendChild(deleteBtn);
 
     // Assemble card
     card.appendChild(infoRow);

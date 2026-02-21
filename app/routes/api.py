@@ -19,6 +19,7 @@ from flask import Blueprint, jsonify, request, send_file
 from app.meshcore import cli, parser
 from app.config import config, runtime_config
 from app.archiver import manager as archive_manager
+from app.contacts_cache import get_all_names, get_all_contacts
 
 logger = logging.getLogger(__name__)
 
@@ -562,6 +563,46 @@ def get_contacts():
 
     except Exception as e:
         logger.error(f"Error getting contacts: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'contacts': []
+        }), 500
+
+
+@api_bp.route('/contacts/cached', methods=['GET'])
+def get_cached_contacts():
+    """
+    Get all known contacts from persistent cache (superset of device contacts).
+    Includes contacts seen via adverts even after removal from device.
+
+    Query params:
+        ?format=names  - Return just name strings for @mentions (default)
+        ?format=full   - Return full cache entries with public_key, timestamps, etc.
+    """
+    try:
+        fmt = request.args.get('format', 'names')
+
+        if fmt == 'full':
+            contacts = get_all_contacts()
+            # Add public_key_prefix for display
+            for c in contacts:
+                c['public_key_prefix'] = c.get('public_key', '')[:12]
+            return jsonify({
+                'success': True,
+                'contacts': contacts,
+                'count': len(contacts)
+            }), 200
+        else:
+            names = get_all_names()
+            return jsonify({
+                'success': True,
+                'contacts': names,
+                'count': len(names)
+            }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting cached contacts: {e}")
         return jsonify({
             'success': False,
             'error': str(e),

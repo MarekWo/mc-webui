@@ -16,6 +16,7 @@ from app.routes.api import api_bp
 from app.version import VERSION_STRING, GIT_BRANCH
 from app.archiver.manager import schedule_daily_archiving
 from app.meshcore.cli import fetch_device_name_from_bridge
+from app.contacts_cache import load_cache, scan_new_adverts, initialize_from_device
 
 # Commands that require longer timeout (in seconds)
 SLOW_COMMANDS = {
@@ -107,6 +108,34 @@ def create_app():
             retry_delay = min(retry_delay * 2, max_delay)
 
     threading.Thread(target=init_device_name, daemon=True).start()
+
+    # Background thread: contacts cache initialization and periodic advert scanning
+    def init_contacts_cache():
+        # Wait for device name to resolve
+        time.sleep(10)
+
+        cache = load_cache()
+
+        # Seed from device contacts if cache is empty
+        if not cache:
+            try:
+                from app.routes.api import get_contacts_detailed_cached
+                success, contacts, error = get_contacts_detailed_cached()
+                if success and contacts:
+                    initialize_from_device(contacts)
+                    logger.info("Contacts cache seeded from device")
+            except Exception as e:
+                logger.error(f"Failed to seed contacts cache: {e}")
+
+        # Periodic advert scan loop
+        while True:
+            time.sleep(45)
+            try:
+                scan_new_adverts()
+            except Exception as e:
+                logger.error(f"Contacts cache scan error: {e}")
+
+    threading.Thread(target=init_contacts_cache, daemon=True).start()
 
     logger.info(f"mc-webui started - device: {config.MC_DEVICE_NAME}")
     logger.info(f"Messages file: {config.msgs_file_path}")
