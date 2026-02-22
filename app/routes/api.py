@@ -379,8 +379,14 @@ def get_messages():
                     for msg in messages:
                         if not msg.get('is_own') and msg.get('sender_timestamp') and msg.get('channel_idx') in channel_secrets:
                             secret = channel_secrets[msg['channel_idx']]
+                            # Always compute attempt=0 payload for analyzer URL
+                            base_payload = compute_pkt_payload(
+                                secret, msg['sender_timestamp'],
+                                msg.get('txt_type', 0), msg.get('raw_text', ''), attempt=0
+                            )
+                            msg['analyzer_url'] = compute_analyzer_url(base_payload)
+                            # Try all 4 attempt values for path matching
                             matched = False
-                            computed_payload = None
                             for attempt in range(4):
                                 try:
                                     computed_payload = compute_pkt_payload(
@@ -394,16 +400,13 @@ def get_messages():
                                     msg['paths'] = entry.get('paths', [])
                                     matched = True
                                     break
-                            # Always set analyzer_url from computed payload (attempt 0)
-                            if computed_payload:
-                                msg['analyzer_url'] = compute_analyzer_url(computed_payload)
                             if not matched and incoming_by_payload:
                                 raw = msg.get('raw_text', '')
                                 logger.debug(
                                     f"Echo mismatch: ts={msg.get('sender_timestamp')} "
                                     f"ch={msg.get('channel_idx')} "
                                     f"text_bytes={len(raw.encode('utf-8'))} "
-                                    f"computed_payload={computed_payload[:16] if computed_payload else 'None'}... "
+                                    f"base_payload={base_payload[:16]}... "
                                     f"text_preview={raw[:40]!r}"
                                 )
             except Exception as e:

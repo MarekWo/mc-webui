@@ -599,8 +599,8 @@ class MeshCLISession:
             })
             logger.debug(f"Echo: stored incoming path {path} (path_len={echo_data.get('path_len')}, total paths: {len(self.incoming_paths[pkt_payload]['paths'])})")
 
-            # Cleanup old incoming paths (> 1 hour)
-            cutoff = current_time - 3600
+            # Cleanup old incoming paths (> 7 days, matching .echoes.jsonl retention)
+            cutoff = current_time - (7 * 24 * 3600)
             self.incoming_paths = {k: v for k, v in self.incoming_paths.items()
                                    if v['first_ts'] > cutoff}
 
