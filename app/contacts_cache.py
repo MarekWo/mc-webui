@@ -11,6 +11,7 @@ Each line: {"public_key": "...", "name": "...", "first_seen": ts, "last_seen": t
 
 import json
 import logging
+import math
 import struct
 import time
 from pathlib import Path
@@ -184,6 +185,11 @@ def parse_advert_payload(pkt_payload_hex: str):
         if has_location:
             if len(raw) >= 109:
                 lat, lon = struct.unpack('<ff', raw[101:109])
+                # Validate: discard NaN, Infinity, and out-of-range values
+                if (math.isnan(lat) or math.isnan(lon) or
+                        math.isinf(lat) or math.isinf(lon) or
+                        not (-90 <= lat <= 90) or not (-180 <= lon <= 180)):
+                    lat, lon = 0.0, 0.0
             name_offset += 8
 
         if not has_name:
