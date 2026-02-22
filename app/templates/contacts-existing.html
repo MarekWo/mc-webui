@@ -45,17 +45,13 @@
             <option value="SENS">SENS</option>
         </select>
 
-        <!-- Sort Buttons -->
-        <div class="sort-buttons">
-            <button class="sort-btn" data-sort="name" id="sortByName" title="Sort by contact name">
-                <span>Name</span>
-                <i class="bi bi-sort-down"></i>
-            </button>
-            <button class="sort-btn active" data-sort="last_advert" id="sortByLastAdvert" title="Sort by last advertisement time">
-                <span>Last advert</span>
-                <i class="bi bi-sort-down"></i>
-            </button>
-        </div>
+        <!-- Sort Dropdown -->
+        <select class="form-select" id="sortSelect">
+            <option value="last_advert_desc">Last advert ↓</option>
+            <option value="last_advert_asc">Last advert ↑</option>
+            <option value="name_asc">Name A→Z</option>
+            <option value="name_desc">Name Z→A</option>
+        </select>
     </div>
 
     <!-- Loading State -->

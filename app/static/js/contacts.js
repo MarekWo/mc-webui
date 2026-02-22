@@ -855,18 +855,15 @@ function attachExistingEventListeners() {
         });
     }
 
-    // Sort buttons
-    const sortByName = document.getElementById('sortByName');
-    if (sortByName) {
-        sortByName.addEventListener('click', () => {
-            handleSortChange('name');
-        });
-    }
-
-    const sortByLastAdvert = document.getElementById('sortByLastAdvert');
-    if (sortByLastAdvert) {
-        sortByLastAdvert.addEventListener('click', () => {
-            handleSortChange('last_advert');
+    // Sort dropdown
+    const sortSelect = document.getElementById('sortSelect');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            const lastUnderscore = sortSelect.value.lastIndexOf('_');
+            sortBy = sortSelect.value.substring(0, lastUnderscore);
+            sortOrder = sortSelect.value.substring(lastUnderscore + 1);
+            updateURLWithSortParams();
+            applySortAndFilters();
         });
     }
 
@@ -1725,31 +1722,11 @@ function parseSortParamsFromURL() {
 
     console.log('Parsed sort params:', { sortBy, sortOrder });
 
-    // Update UI to reflect current sort
-    updateSortUI();
-}
-
-function handleSortChange(newSortBy) {
-    if (sortBy === newSortBy) {
-        // Toggle order
-        sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
-    } else {
-        // Change sort field
-        sortBy = newSortBy;
-        // Set default order for new field
-        sortOrder = newSortBy === 'name' ? 'asc' : 'desc';
+    // Update sort dropdown to reflect current sort
+    const sortSelect = document.getElementById('sortSelect');
+    if (sortSelect) {
+        sortSelect.value = `${sortBy}_${sortOrder}`;
     }
-
-    console.log('Sort changed to:', { sortBy, sortOrder });
-
-    // Update URL parameters
-    updateURLWithSortParams();
-
-    // Update UI
-    updateSortUI();
-
-    // Re-apply filters and sort
-    applySortAndFilters();
 }
 
 function updateURLWithSortParams() {
@@ -1757,30 +1734,6 @@ function updateURLWithSortParams() {
     url.searchParams.set('sort', sortBy);
     url.searchParams.set('order', sortOrder);
     window.history.replaceState({}, '', url);
-}
-
-function updateSortUI() {
-    // Update sort button active states and icons
-    const sortButtons = document.querySelectorAll('.sort-btn');
-
-    sortButtons.forEach(btn => {
-        const btnSort = btn.dataset.sort;
-        const icon = btn.querySelector('i');
-
-        if (btnSort === sortBy) {
-            // Active button
-            btn.classList.add('active');
-            if (icon) {
-                icon.className = sortOrder === 'asc' ? 'bi bi-sort-up' : 'bi bi-sort-down';
-            }
-        } else {
-            // Inactive button
-            btn.classList.remove('active');
-            if (icon) {
-                icon.className = 'bi bi-sort-down'; // Default icon
-            }
-        }
-    });
 }
 
 function applySortAndFilters() {
