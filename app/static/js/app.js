@@ -2853,6 +2853,19 @@ function initializeFilter() {
         openFilterBar();
     });
 
+    // "Filter my messages" button - inserts current device name
+    const filterMeBtn = document.getElementById('filterMeBtn');
+    if (filterMeBtn) {
+        filterMeBtn.addEventListener('click', () => {
+            const deviceName = window.MC_CONFIG?.deviceName || '';
+            if (deviceName) {
+                filterInput.value = deviceName;
+                applyFilter(deviceName);
+                filterInput.focus();
+            }
+        });
+    }
+
     // Filter as user types (debounced) - also check for @mentions
     let filterTimeout = null;
     filterInput.addEventListener('input', () => {

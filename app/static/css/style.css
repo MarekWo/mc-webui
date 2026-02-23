@@ -1311,6 +1311,15 @@ main {
     transition: background-color 0.15s ease;
 }
 
+.filter-bar-btn-me {
+    background-color: #e7f1ff;
+    color: #0d6efd;
+}
+
+.filter-bar-btn-me:hover {
+    background-color: #cfe2ff;
+}
+
 .filter-bar-btn-clear {
     background-color: #f8f9fa;
     color: #6c757d;

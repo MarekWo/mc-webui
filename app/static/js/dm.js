@@ -55,6 +55,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize filter functionality
     initializeDmFilter();
 
+    // Initialize FAB toggle
+    initializeDmFabToggle();
+
     // Setup auto-refresh
     setupAutoRefresh();
 });
@@ -931,6 +934,21 @@ function checkDmNotifications(conversations) {
 let dmFilterActive = false;
 let currentDmFilterQuery = '';
 let originalDmMessageContents = new Map();
+
+/**
+ * Initialize DM FAB toggle (collapse/expand)
+ */
+function initializeDmFabToggle() {
+    const toggle = document.getElementById('dmFabToggle');
+    const container = document.getElementById('dmFabContainer');
+    if (!toggle || !container) return;
+
+    toggle.addEventListener('click', () => {
+        container.classList.toggle('collapsed');
+        const isCollapsed = container.classList.contains('collapsed');
+        toggle.title = isCollapsed ? 'Show buttons' : 'Hide buttons';
+    });
+}
 
 /**
  * Initialize DM filter functionality
