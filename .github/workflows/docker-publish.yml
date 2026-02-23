@@ -1,0 +1,65 @@
+name: Build and Push mc-webui Images
+
+on:
+  workflow_dispatch: # Manual trigger
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Freeze App Version
+        run: python3 -m app.version freeze
+
+      - name: Extract DOCKER_TAG from version_frozen.py
+        id: get_tag
+        run: |
+          # Finds the line starting with DOCKER_TAG and extracts the text between quotes
+          TAG_VALUE=$(grep "DOCKER_TAG =" app/version_frozen.py | cut -d'"' -f2)
+          echo "Extracted Tag: $TAG_VALUE"
+          echo "tag=$TAG_VALUE" >> $GITHUB_OUTPUT
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Build and Push Web UI ---
+      - name: Build and push Web UI
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/mc-webui:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/mc-webui:${{ steps.get_tag.outputs.tag }}
+
+      # --- Build and Push Bridge ---
+      - name: Build and push Bridge
+        uses: docker/build-push-action@v5
+        with:
+          context: ./meshcore-bridge
+          file: ./meshcore-bridge/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/mc-bridge:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/mc-bridge:${{ steps.get_tag.outputs.tag }}

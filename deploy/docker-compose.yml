@@ -1,0 +1,65 @@
+services:
+  # MeshCore Bridge - Handles USB communication with meshcli
+  meshcore-bridge:
+    image: ghcr.io/MarekWo/mc-bridge:${VERSION:-latest}
+    container_name: meshcore-bridge
+    restart: unless-stopped
+    # Grant access to serial devices for auto-detection
+    # This allows MC_SERIAL_PORT=auto to work without specifying device upfront
+    # Major 188 = ttyUSB (CP2102, CH340, etc.), Major 166 = ttyACM (ESP32-S3, etc.)
+    device_cgroup_rules:
+      - 'c 188:* rmw'
+      - 'c 166:* rmw'
+    volumes:
+      - "${MC_CONFIG_DIR}:/root/.config/meshcore:rw"
+      - "/dev:/dev"
+    environment:
+      - MC_SERIAL_PORT=${MC_SERIAL_PORT:-auto}
+      - MC_CONFIG_DIR=/root/.config/meshcore
+      - MC_DEVICE_NAME=${MC_DEVICE_NAME:-auto}
+      - TZ=${TZ:-UTC}
+    networks:
+      - meshcore-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Main Web UI - Communicates with bridge via HTTP
+  mc-webui:
+    image: ghcr.io/MarekWo/mc-webui:${VERSION:-latest}
+    container_name: mc-webui
+    restart: unless-stopped
+    ports:
+      - "${FLASK_PORT:-5000}:5000"
+    volumes:
+      - "${MC_CONFIG_DIR}:/root/.config/meshcore:rw"
+      - "${MC_ARCHIVE_DIR:-./archive}:/root/.archive/meshcore:rw"
+    environment:
+      - MC_BRIDGE_URL=http://meshcore-bridge:5001/cli
+      - MC_DEVICE_NAME=${MC_DEVICE_NAME}
+      - MC_CONFIG_DIR=/root/.config/meshcore
+      - MC_ARCHIVE_DIR=/root/.archive/meshcore
+      - MC_ARCHIVE_ENABLED=${MC_ARCHIVE_ENABLED:-true}
+      - MC_ARCHIVE_RETENTION_DAYS=${MC_ARCHIVE_RETENTION_DAYS:-7}
+      - FLASK_HOST=${FLASK_HOST:-0.0.0.0}
+      - FLASK_PORT=${FLASK_PORT:-5000}
+      - FLASK_DEBUG=${FLASK_DEBUG:-false}
+      - TZ=${TZ:-UTC}
+    depends_on:
+      meshcore-bridge:
+        condition: service_healthy
+    networks:
+      - meshcore-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, os; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"FLASK_PORT\", \"5000\")}/api/status')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  meshcore-net:
+    driver: bridge
