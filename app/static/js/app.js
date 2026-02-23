@@ -324,6 +324,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize filter functionality
     initializeFilter();
 
+    // Initialize FAB toggle
+    initializeFabToggle();
+
     // Setup auto-refresh immediately after messages are displayed
     // Don't wait for geo cache - it's not needed for auto-refresh
     setupAutoRefresh();
@@ -2809,6 +2812,22 @@ async function loadContactsForMentions() {
 }
 
 // =============================================================================
+// FAB Toggle (Collapse/Expand)
+// =============================================================================
+
+function initializeFabToggle() {
+    const toggle = document.getElementById('fabToggle');
+    const container = document.getElementById('fabContainer');
+    if (!toggle || !container) return;
+
+    toggle.addEventListener('click', () => {
+        container.classList.toggle('collapsed');
+        const isCollapsed = container.classList.contains('collapsed');
+        toggle.title = isCollapsed ? 'Show buttons' : 'Hide buttons';
+    });
+}
+
+// =============================================================================
 // Chat Filter Functionality
 // =============================================================================
 
@@ -2834,9 +2853,14 @@ function initializeFilter() {
         openFilterBar();
     });
 
-    // Filter as user types (debounced)
+    // Filter as user types (debounced) - also check for @mentions
     let filterTimeout = null;
     filterInput.addEventListener('input', () => {
+        // Check for @mention trigger
+        if (handleFilterMentionInput(filterInput)) {
+            return; // Don't apply filter while picking a mention
+        }
+
         clearTimeout(filterTimeout);
         filterTimeout = setTimeout(() => {
             applyFilter(filterInput.value);
@@ -2847,6 +2871,7 @@ function initializeFilter() {
     filterClearBtn.addEventListener('click', () => {
         filterInput.value = '';
         applyFilter('');
+        hideFilterMentionsPopup();
         filterInput.focus();
     });
 
@@ -2855,11 +2880,30 @@ function initializeFilter() {
         closeFilterBar();
     });
 
-    // Keyboard shortcuts
+    // Keyboard shortcuts (with mentions navigation support)
     filterInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeFilterBar();
+        // If filter mentions popup is active, handle navigation
+        if (filterMentionActive) {
+            if (handleFilterMentionKeydown(e)) return;
         }
+        if (e.key === 'Escape') {
+            if (filterMentionActive) {
+                hideFilterMentionsPopup();
+                e.preventDefault();
+            } else {
+                closeFilterBar();
+            }
+        }
+    });
+
+    // Close filter mentions on blur
+    filterInput.addEventListener('blur', () => {
+        setTimeout(hideFilterMentionsPopup, 200);
+    });
+
+    // Preload contacts when filter bar is focused
+    filterInput.addEventListener('focus', () => {
+        loadContactsForMentions();
     });
 
     // Global keyboard shortcut: Ctrl+F to open filter
@@ -2896,6 +2940,7 @@ function closeFilterBar() {
 
     filterBar.classList.remove('visible');
     filterActive = false;
+    hideFilterMentionsPopup();
 
     // Reset filter
     filterInput.value = '';
@@ -3024,6 +3069,164 @@ function getMessageId(messageEl) {
     const parent = messageEl.parentNode;
     const children = Array.from(parent.children).filter(el => el.classList.contains('message-wrapper'));
     return 'msg_' + children.indexOf(messageEl);
+}
+
+// =============================================================================
+// Filter Mentions Autocomplete
+// =============================================================================
+
+let filterMentionActive = false;
+let filterMentionStartPos = -1;
+let filterMentionSelectedIndex = 0;
+
+/**
+ * Handle input in filter bar to detect @mention trigger
+ * @returns {boolean} true if in mention mode (caller should skip filter apply)
+ */
+function handleFilterMentionInput(input) {
+    const cursorPos = input.selectionStart;
+    const text = input.value;
+    const textBeforeCursor = text.substring(0, cursorPos);
+    const lastAtPos = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtPos >= 0) {
+        const textAfterAt = textBeforeCursor.substring(lastAtPos + 1);
+        // No whitespace after @ means we're typing a mention
+        if (!/[\s\n]/.test(textAfterAt)) {
+            filterMentionStartPos = lastAtPos;
+            filterMentionActive = true;
+            showFilterMentionsPopup(textAfterAt);
+            return true;
+        }
+    }
+
+    if (filterMentionActive) {
+        hideFilterMentionsPopup();
+    }
+    return false;
+}
+
+/**
+ * Handle keyboard navigation in filter mentions popup
+ * @returns {boolean} true if the key was handled
+ */
+function handleFilterMentionKeydown(e) {
+    const popup = document.getElementById('filterMentionsPopup');
+    const items = popup.querySelectorAll('.mention-item');
+    if (items.length === 0) return false;
+
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            filterMentionSelectedIndex = Math.min(filterMentionSelectedIndex + 1, items.length - 1);
+            updateFilterMentionHighlight(items);
+            return true;
+        case 'ArrowUp':
+            e.preventDefault();
+            filterMentionSelectedIndex = Math.max(filterMentionSelectedIndex - 1, 0);
+            updateFilterMentionHighlight(items);
+            return true;
+        case 'Enter':
+        case 'Tab':
+            if (items.length > 0 && filterMentionSelectedIndex < items.length) {
+                e.preventDefault();
+                const selected = items[filterMentionSelectedIndex];
+                if (selected && selected.dataset.contact) {
+                    selectFilterMentionContact(selected.dataset.contact);
+                }
+                return true;
+            }
+            break;
+    }
+    return false;
+}
+
+/**
+ * Show filter mentions popup with filtered contacts
+ */
+function showFilterMentionsPopup(query) {
+    const popup = document.getElementById('filterMentionsPopup');
+    const list = document.getElementById('filterMentionsList');
+
+    // Ensure contacts are loaded
+    loadContactsForMentions();
+
+    const filtered = filterContacts(query);
+
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="mentions-empty">No contacts found</div>';
+        popup.classList.remove('hidden');
+        return;
+    }
+
+    if (filterMentionSelectedIndex >= filtered.length) {
+        filterMentionSelectedIndex = 0;
+    }
+
+    list.innerHTML = filtered.map((contact, index) => {
+        const highlighted = index === filterMentionSelectedIndex ? 'highlighted' : '';
+        const escapedName = escapeHtml(contact);
+        return `<div class="mention-item ${highlighted}" data-contact="${escapedName}" data-index="${index}">
+            <span class="mention-item-name">${escapedName}</span>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.mention-item').forEach(item => {
+        item.addEventListener('click', function() {
+            selectFilterMentionContact(this.dataset.contact);
+        });
+    });
+
+    popup.classList.remove('hidden');
+}
+
+/**
+ * Hide filter mentions popup
+ */
+function hideFilterMentionsPopup() {
+    const popup = document.getElementById('filterMentionsPopup');
+    if (popup) popup.classList.add('hidden');
+    filterMentionActive = false;
+    filterMentionStartPos = -1;
+    filterMentionSelectedIndex = 0;
+}
+
+/**
+ * Update highlight in filter mentions popup
+ */
+function updateFilterMentionHighlight(items) {
+    items.forEach((item, index) => {
+        if (index === filterMentionSelectedIndex) {
+            item.classList.add('highlighted');
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.classList.remove('highlighted');
+        }
+    });
+}
+
+/**
+ * Select a contact from filter mentions and insert plain name
+ */
+function selectFilterMentionContact(contactName) {
+    const input = document.getElementById('filterInput');
+    const text = input.value;
+
+    // Replace from @ position to cursor with plain contact name
+    const beforeMention = text.substring(0, filterMentionStartPos);
+    const afterCursor = text.substring(input.selectionStart);
+
+    input.value = beforeMention + contactName + afterCursor;
+
+    // Set cursor position after the name
+    const newCursorPos = filterMentionStartPos + contactName.length;
+    input.setSelectionRange(newCursorPos, newCursorPos);
+
+    hideFilterMentionsPopup();
+    input.focus();
+
+    // Trigger filter with the new value
+    applyFilter(input.value);
 }
 
 /**

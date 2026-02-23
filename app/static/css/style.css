@@ -870,6 +870,48 @@ main {
     transition: transform 0.2s ease;
 }
 
+/* FAB toggle button (smaller, semi-transparent) */
+.fab-toggle {
+    width: 32px;
+    height: 32px;
+    background: rgba(108, 117, 125, 0.6);
+    color: white;
+    font-size: 0.85rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.fab-toggle:hover {
+    background: rgba(108, 117, 125, 0.9);
+}
+
+/* Collapsed state - hide all FABs except toggle */
+.fab-container.collapsed .fab:not(.fab-toggle) {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0);
+    height: 0;
+    width: 0;
+    margin: 0;
+    overflow: hidden;
+}
+
+.fab-container.collapsed {
+    gap: 0;
+}
+
+/* Smooth transitions for collapse */
+.fab-container .fab:not(.fab-toggle) {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, height 0.2s ease, width 0.2s ease;
+}
+
+.fab-toggle i {
+    transition: transform 0.2s ease;
+}
+
+.fab-container.collapsed .fab-toggle i {
+    transform: rotate(180deg);
+}
+
 /* Mobile optimization */
 @media (max-width: 768px) {
     .fab-container {
@@ -882,6 +924,12 @@ main {
         width: 48px;
         height: 48px;
         font-size: 1.25rem;
+    }
+
+    .fab-toggle {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
     }
 }
 
@@ -1220,6 +1268,15 @@ main {
     visibility: visible;
 }
 
+/* Push messages container down when filter bar is visible */
+.messages-container {
+    transition: padding-top 0.3s ease;
+}
+
+.filter-bar.visible ~ .messages-container {
+    padding-top: calc(1rem + 52px) !important; /* 52px ≈ filter bar height (0.75rem*2 padding + 36px input + border) */
+}
+
 /* Filter bar inner layout */
 .filter-bar-inner {
     display: flex;
@@ -1228,7 +1285,6 @@ main {
 }
 
 .filter-bar-input {
-    flex: 1;
     border-radius: 0.375rem;
     border: 1px solid #ced4da;
     padding: 0.5rem 0.75rem;
@@ -1305,6 +1361,24 @@ main {
     font-size: 2rem;
     margin-bottom: 0.5rem;
     display: block;
+}
+
+/* Filter input wrapper for mentions popup positioning */
+.filter-input-wrapper {
+    flex: 1;
+    position: relative;
+}
+
+.filter-input-wrapper .filter-bar-input {
+    width: 100%;
+}
+
+/* Filter mentions popup - appears below input (not above like message input) */
+.filter-mentions-popup {
+    bottom: auto !important;
+    top: 100% !important;
+    margin-top: 0.25rem;
+    margin-bottom: 0;
 }
 
 /* Mobile responsive filter bar */

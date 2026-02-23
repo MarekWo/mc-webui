@@ -76,7 +76,13 @@
             <!-- Filter bar overlay -->
             <div id="filterBar" class="filter-bar">
                 <div class="filter-bar-inner">
-                    <input type="text" id="filterInput" class="filter-bar-input" placeholder="Filter messages..." autocomplete="off">
+                    <div class="filter-input-wrapper">
+                        <input type="text" id="filterInput" class="filter-bar-input" placeholder="Filter messages..." autocomplete="off">
+                        <!-- Filter mentions autocomplete popup -->
+                        <div id="filterMentionsPopup" class="mentions-popup filter-mentions-popup hidden">
+                            <div class="mentions-list" id="filterMentionsList"></div>
+                        </div>
+                    </div>
                     <span id="filterMatchCount" class="filter-match-count"></span>
                     <button type="button" id="filterClearBtn" class="filter-bar-btn filter-bar-btn-clear" title="Clear">
                         <i class="bi bi-x"></i>
@@ -153,7 +159,10 @@
 </div>
 
 <!-- Floating Action Buttons -->
-<div class="fab-container">
+<div class="fab-container" id="fabContainer">
+    <button class="fab fab-toggle" id="fabToggle" title="Hide buttons">
+        <i class="bi bi-chevron-right"></i>
+    </button>
     <button class="fab fab-filter" id="filterFab" title="Filter Messages">
         <i class="bi bi-funnel-fill"></i>
     </button>
