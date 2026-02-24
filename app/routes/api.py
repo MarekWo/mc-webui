@@ -1826,7 +1826,7 @@ def set_auto_retry_config():
         success, result = cli.set_auto_retry_config(
             enabled=data.get('enabled'),
             max_attempts=data.get('max_attempts'),
-            flood_after=data.get('flood_after')
+            max_flood=data.get('max_flood')
         )
         if success:
             return jsonify(result), 200

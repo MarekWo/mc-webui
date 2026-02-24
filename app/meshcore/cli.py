@@ -461,15 +461,15 @@ def get_auto_retry_config() -> Tuple[bool, Dict]:
     return False, {}
 
 
-def set_auto_retry_config(enabled=None, max_attempts=None, flood_after=None) -> Tuple[bool, Dict]:
+def set_auto_retry_config(enabled=None, max_attempts=None, max_flood=None) -> Tuple[bool, Dict]:
     """Update auto-retry configuration on bridge."""
     payload = {}
     if enabled is not None:
         payload['enabled'] = enabled
     if max_attempts is not None:
         payload['max_attempts'] = max_attempts
-    if flood_after is not None:
-        payload['flood_after'] = flood_after
+    if max_flood is not None:
+        payload['max_flood'] = max_flood
 
     try:
         response = requests.post(
