@@ -428,6 +428,64 @@ def check_dm_delivery(ack_codes: list) -> Tuple[bool, Dict, str]:
 
 
 # =============================================================================
+# Auto-retry helpers
+# =============================================================================
+
+def get_retry_ack_codes() -> set:
+    """Get set of expected_ack codes belonging to retry attempts (not first send)."""
+    try:
+        response = requests.get(
+            f"{config.MC_BRIDGE_URL.replace('/cli', '/retry_ack_codes')}",
+            timeout=DEFAULT_TIMEOUT
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return set(data.get('retry_ack_codes', []))
+    except Exception as e:
+        logger.debug(f"Failed to fetch retry_ack_codes: {e}")
+    return set()
+
+
+def get_auto_retry_config() -> Tuple[bool, Dict]:
+    """Get current auto-retry configuration from bridge."""
+    try:
+        response = requests.get(
+            f"{config.MC_BRIDGE_URL.replace('/cli', '/auto_retry/config')}",
+            timeout=DEFAULT_TIMEOUT
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return True, data
+    except Exception as e:
+        logger.debug(f"Failed to fetch auto_retry config: {e}")
+    return False, {}
+
+
+def set_auto_retry_config(enabled=None, max_attempts=None, flood_after=None) -> Tuple[bool, Dict]:
+    """Update auto-retry configuration on bridge."""
+    payload = {}
+    if enabled is not None:
+        payload['enabled'] = enabled
+    if max_attempts is not None:
+        payload['max_attempts'] = max_attempts
+    if flood_after is not None:
+        payload['flood_after'] = flood_after
+
+    try:
+        response = requests.post(
+            f"{config.MC_BRIDGE_URL.replace('/cli', '/auto_retry/config')}",
+            json=payload,
+            timeout=DEFAULT_TIMEOUT
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return True, data
+    except Exception as e:
+        logger.debug(f"Failed to set auto_retry config: {e}")
+    return False, {}
+
+
+# =============================================================================
 # Contact Management (Existing & Pending Contacts)
 # =============================================================================
 

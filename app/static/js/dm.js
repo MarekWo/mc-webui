@@ -58,6 +58,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize FAB toggle
     initializeDmFabToggle();
 
+    // Load auto-retry config
+    loadAutoRetryConfig();
+
     // Setup auto-refresh
     setupAutoRefresh();
 });
@@ -518,8 +521,8 @@ async function sendMessage() {
             showNotification('Message sent', 'success');
 
             // Reload messages to show sent message + ACK delivery status
-            // Stop early once the last own message gets a delivery checkmark
-            const ackRefreshDelays = [1000, 6000, 15000];
+            // Extended delays to cover auto-retry window (retries happen in background)
+            const ackRefreshDelays = [2000, 8000, 20000, 40000, 60000];
             let ackRefreshIdx = 0;
             const scheduleAckRefresh = () => {
                 if (ackRefreshIdx >= ackRefreshDelays.length) return;
@@ -1168,4 +1171,48 @@ function clearDmFilterState() {
             applyDmFilter(currentDmFilterQuery);
         }, 50);
     }
+}
+
+// =============================================================================
+// Auto-retry configuration
+// =============================================================================
+
+/**
+ * Load auto-retry config from bridge and sync toggle state
+ */
+async function loadAutoRetryConfig() {
+    const toggle = document.getElementById('dmAutoRetryToggle');
+    if (!toggle) return;
+
+    try {
+        const response = await fetch('/api/dm/auto_retry');
+        const data = await response.json();
+        if (data.success) {
+            toggle.checked = data.enabled;
+        }
+    } catch (e) {
+        console.debug('Failed to load auto-retry config:', e);
+    }
+
+    // Setup change handler
+    toggle.addEventListener('change', async function() {
+        try {
+            const response = await fetch('/api/dm/auto_retry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: this.checked })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showNotification(
+                    data.enabled ? 'Auto Retry enabled' : 'Auto Retry disabled',
+                    'info'
+                );
+            }
+        } catch (e) {
+            console.error('Failed to update auto-retry config:', e);
+            // Revert toggle on error
+            this.checked = !this.checked;
+        }
+    });
 }

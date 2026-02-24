@@ -1670,6 +1670,16 @@ def get_dm_messages():
             days=days
         )
 
+        # Filter out retry duplicate messages (keep only the first send)
+        try:
+            retry_codes = cli.get_retry_ack_codes()
+            if retry_codes:
+                messages = [msg for msg in messages
+                            if not (msg.get('direction') == 'outgoing'
+                                    and msg.get('expected_ack') in retry_codes)]
+        except Exception as e:
+            logger.debug(f"Retry dedup failed (non-critical): {e}")
+
         # Determine display name from conversation_id or messages
         display_name = 'Unknown'
         if conversation_id.startswith('pk_'):
@@ -1791,6 +1801,38 @@ def send_dm_message():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@api_bp.route('/dm/auto_retry', methods=['GET'])
+def get_auto_retry_config():
+    """Get auto-retry configuration."""
+    try:
+        success, data = cli.get_auto_retry_config()
+        if success:
+            return jsonify(data), 200
+        return jsonify({'success': False, 'error': 'Failed to get config'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/dm/auto_retry', methods=['POST'])
+def set_auto_retry_config():
+    """Update auto-retry configuration."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Missing JSON body'}), 400
+
+        success, result = cli.set_auto_retry_config(
+            enabled=data.get('enabled'),
+            max_attempts=data.get('max_attempts'),
+            flood_after=data.get('flood_after')
+        )
+        if success:
+            return jsonify(result), 200
+        return jsonify({'success': False, 'error': 'Failed to update config'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @api_bp.route('/dm/updates', methods=['GET'])
