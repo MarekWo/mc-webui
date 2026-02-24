@@ -1932,19 +1932,31 @@ async function markChannelAsRead(channelIdx, timestamp) {
  * Mark all channels as read (bell icon click)
  */
 async function markAllChannelsRead() {
-    // Collect latest timestamps - use current time for channels with unread
-    const now = Math.floor(Date.now() / 1000);
-    const timestamps = {};
-
+    // Build list of channels with unread messages
+    const unreadChannels = [];
     for (const [idx, count] of Object.entries(unreadCounts)) {
         if (count > 0) {
-            timestamps[idx] = now;
-            lastSeenTimestamps[parseInt(idx)] = now;
-            unreadCounts[idx] = 0;
+            const channel = availableChannels.find(ch => ch.index === parseInt(idx));
+            const name = channel ? channel.name : `Channel ${idx}`;
+            unreadChannels.push({ idx, count, name });
         }
     }
 
-    if (Object.keys(timestamps).length === 0) return;
+    if (unreadChannels.length === 0) return;
+
+    // Show confirmation dialog with list of unread channels
+    const channelList = unreadChannels.map(ch => `  - ${ch.name} (${ch.count})`).join('\n');
+    if (!confirm(`Mark all messages as read?\n\nUnread channels:\n${channelList}`)) return;
+
+    // Collect latest timestamps
+    const now = Math.floor(Date.now() / 1000);
+    const timestamps = {};
+
+    for (const { idx } of unreadChannels) {
+        timestamps[idx] = now;
+        lastSeenTimestamps[parseInt(idx)] = now;
+        unreadCounts[idx] = 0;
+    }
 
     // Update UI immediately
     updateUnreadBadges();
@@ -2327,8 +2339,6 @@ function displayChannelsList(channels) {
         item.innerHTML = `
             <div>
                 <strong>${escapeHtml(channel.name)}</strong>
-                <br>
-                <small class="text-muted font-monospace">${channel.key}</small>
             </div>
             <div class="btn-group btn-group-sm">
                 <button class="btn ${isMuted ? 'btn-secondary' : 'btn-outline-secondary'}"
