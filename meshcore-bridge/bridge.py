@@ -99,7 +99,7 @@ def detect_serial_port() -> str:
 
 
 # Detect serial port at startup
-MC_SERIAL_PORT = detect_serial_port()
+#MC_SERIAL_PORT = detect_serial_port()
 
 class MeshCLISession:
     """
@@ -112,8 +112,7 @@ class MeshCLISession:
     - Auto-restart watchdog for crashed meshcli processes
     """
 
-    def __init__(self, serial_port, config_dir, device_name):
-        self.serial_port = serial_port
+    def __init__(self, config_dir, device_name):
         self.config_dir = Path(config_dir)
         self.device_name = device_name
 
@@ -195,7 +194,6 @@ class MeshCLISession:
 
     def _start_session(self):
         """Start meshcli process and worker threads"""
-        logger.info(f"Starting meshcli session on {self.serial_port}")
 
         try:
             # Set terminal size env vars for meshcli (fallback for os.get_terminal_size())
@@ -204,7 +202,7 @@ class MeshCLISession:
             env['LINES'] = '40'
 
             self.process = subprocess.Popen(
-                ['meshcli', '-s', self.serial_port],
+                ['meshcli', '-t', "192.168.0.101"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -1020,7 +1018,6 @@ def health():
 
     return jsonify({
         'status': session_status,
-        'serial_port': MC_SERIAL_PORT,
         'serial_port_source': SERIAL_PORT_SOURCE,
         'advert_log': str(meshcli_session.advert_log_path) if meshcli_session else None,
         'echoes_log': str(meshcli_session.echo_log_path) if meshcli_session else None,
@@ -1512,14 +1509,12 @@ def handle_console_command(data):
 
 if __name__ == '__main__':
     logger.info(f"Starting MeshCore Bridge on port 5001")
-    logger.info(f"Serial port: {MC_SERIAL_PORT}")
     logger.info(f"Config dir: {MC_CONFIG_DIR}")
     logger.info(f"Device name: {MC_DEVICE_NAME}")
 
     # Initialize persistent meshcli session
     try:
         meshcli_session = MeshCLISession(
-            serial_port=MC_SERIAL_PORT,
             config_dir=MC_CONFIG_DIR,
             device_name=MC_DEVICE_NAME
         )
