@@ -582,6 +582,20 @@ def get_dm_conversations(days: Optional[int] = 7) -> List[Dict]:
     """
     messages, pubkey_to_name = read_dm_messages(days=days)
 
+    # Deduplicate outgoing retry messages: collapse same text+recipient within 120s
+    deduped = []
+    seen_outgoing = {}  # (recipient, text) -> earliest timestamp
+    for msg in messages:
+        if msg.get('direction') == 'outgoing':
+            key = (msg.get('recipient', ''), msg.get('content', ''))
+            ts = msg.get('timestamp', 0)
+            prev_ts = seen_outgoing.get(key)
+            if prev_ts is not None and abs(ts - prev_ts) < 120:
+                continue
+            seen_outgoing[key] = ts
+        deduped.append(msg)
+    messages = deduped
+
     # Build reverse mapping: name -> pubkey_prefix
     name_to_pubkey = {name: pk for pk, name in pubkey_to_name.items()}
 

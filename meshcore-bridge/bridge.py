@@ -457,17 +457,16 @@ class MeshCLISession:
             # because meshcli may echo prompt immediately but real results come later
             is_slow_command = cmd_timeout >= 15
             # For .msg/.m commands, JSON response (with expected_ack) may arrive after prompt echo
-            # with a gap > 300ms, so enforce a minimum wait to capture it
+            # with a gap > 300ms, so keep waiting until JSON arrives or timeout
             cmd_str = response_dict.get("command", "")
             is_msg_command = cmd_str.lstrip('.').split()[0] in ('msg', 'm') if cmd_str.strip() else False
             if is_slow_command:
                 min_elapsed = cmd_timeout * 0.7
-            elif is_msg_command:
-                min_elapsed = 1.5  # Wait at least 1.5s for JSON response
             else:
                 min_elapsed = 0
 
-            logger.info(f"Monitor [{cmd_id}] started, cmd_timeout={cmd_timeout}s, min_elapsed={min_elapsed:.1f}s")
+            logger.info(f"Monitor [{cmd_id}] started, cmd_timeout={cmd_timeout}s, "
+                        f"min_elapsed={min_elapsed:.1f}s, is_msg={is_msg_command}")
 
             while not self.shutdown_flag.is_set():
                 time.sleep(timeout_ms / 1000.0)
@@ -481,6 +480,15 @@ class MeshCLISession:
                     time_since_last_line = time.time() - response_dict.get("last_line_time", 0)
                     total_elapsed = time.time() - start_time
                     has_output = len(response_dict.get("response", [])) > 0
+                    response_lines = response_dict.get("response", [])
+
+                    # For .msg commands: don't complete until we see expected_ack in response
+                    # or we've waited long enough (half of cmd_timeout)
+                    if is_msg_command and has_output:
+                        response_text = '\n'.join(response_lines)
+                        has_json = 'expected_ack' in response_text
+                        if not has_json and total_elapsed < cmd_timeout * 0.5:
+                            continue  # Keep waiting for JSON response
 
                     # Can only complete if:
                     # 1. Minimum elapsed time has passed (for slow commands), AND
