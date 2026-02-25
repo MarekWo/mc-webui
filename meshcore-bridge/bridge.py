@@ -854,12 +854,45 @@ class MeshCLISession:
                      f"flood={self.auto_retry_max_flood}, "
                      f"timeout={suggested_timeout}ms")
 
+    def _get_contact_path_len(self, recipient):
+        """Check contact's out_path_len via .ci command. Returns -1 if no path/unknown."""
+        try:
+            result = self.execute_command(['.ci', recipient], timeout=5)
+            if result.get('success'):
+                stdout = result.get('stdout', '').strip()
+                if stdout:
+                    # .ci returns full contact JSON, may have prompt echo before it
+                    # Try to find JSON object in output
+                    for start_idx in range(len(stdout)):
+                        if stdout[start_idx] == '{':
+                            try:
+                                parsed = json.loads(stdout[start_idx:])
+                                if isinstance(parsed, dict):
+                                    return parsed.get('out_path_len', -1)
+                            except json.JSONDecodeError:
+                                continue
+        except Exception as e:
+            logger.warning(f"Retry: could not check path for {recipient}: {e}")
+        return -1
+
     def _retry_send(self, recipient, text, original_ack, suggested_timeout, cancel_event):
         """Background retry loop for a DM message.
 
         Phase 1: Direct attempts (up to auto_retry_max_attempts)
         Phase 2: Flood attempts (up to auto_retry_max_flood) after reset_path
+
+        If the contact has no path (out_path_len == -1), the initial send was
+        already a flood. Skip retry to avoid spamming the network.
         """
+        # Check if contact has a path - if not, skip retry (initial send was flood)
+        path_len = self._get_contact_path_len(recipient)
+        if path_len == -1:
+            logger.info(f"Retry: skipping for '{recipient}' - no path set "
+                        f"(initial send was flood), ack={original_ack}")
+            with self.retry_lock:
+                self.active_retries.pop(original_ack, None)
+            return
+
         # Wait timeout in seconds (use suggested_timeout from device, with 1.2x margin)
         wait_timeout = max(suggested_timeout / 1000 * 1.2, 5.0)
 
