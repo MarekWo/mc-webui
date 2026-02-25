@@ -456,7 +456,16 @@ class MeshCLISession:
             # For slow commands (timeout >= 15s like node_discover), wait minimum time before allowing completion
             # because meshcli may echo prompt immediately but real results come later
             is_slow_command = cmd_timeout >= 15
-            min_elapsed = (cmd_timeout * 0.7) if is_slow_command else 0
+            # For .msg/.m commands, JSON response (with expected_ack) may arrive after prompt echo
+            # with a gap > 300ms, so enforce a minimum wait to capture it
+            cmd_str = response_dict.get("command", "")
+            is_msg_command = cmd_str.lstrip('.').split()[0] in ('msg', 'm') if cmd_str.strip() else False
+            if is_slow_command:
+                min_elapsed = cmd_timeout * 0.7
+            elif is_msg_command:
+                min_elapsed = 1.5  # Wait at least 1.5s for JSON response
+            else:
+                min_elapsed = 0
 
             logger.info(f"Monitor [{cmd_id}] started, cmd_timeout={cmd_timeout}s, min_elapsed={min_elapsed:.1f}s")
 
@@ -909,7 +918,8 @@ class MeshCLISession:
                     else:
                         logger.warning(f"Retry: could not parse expected_ack from response: "
                                         f"{result.get('stdout', '')[:200]}")
-                        break
+                        # Don't break - continue retrying (message was likely sent,
+                        # just couldn't parse ack due to timing)
                 else:
                     logger.error(f"Retry: msg command failed: {result.get('stderr', '')}")
                     break
@@ -1054,7 +1064,8 @@ class MeshCLISession:
             "done": False,
             "error": None,
             "last_line_time": time.time(),
-            "timeout": timeout  # Pass timeout to monitor thread
+            "timeout": timeout,  # Pass timeout to monitor thread
+            "command": command,  # Pass command to monitor thread
         }
 
         # Queue command
