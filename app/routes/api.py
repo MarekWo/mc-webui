@@ -1680,20 +1680,8 @@ def get_dm_messages():
         except Exception as e:
             logger.debug(f"Retry dedup failed (non-critical): {e}")
 
-        # Secondary dedup: collapse outgoing messages with same text+recipient
-        # within 120s window (catches retries whose ack wasn't tracked, e.g. timeouts)
-        deduped = []
-        seen_outgoing = {}  # (recipient, text) -> earliest timestamp
-        for msg in messages:
-            if msg.get('direction') == 'outgoing':
-                key = (msg.get('recipient', ''), msg.get('content', ''))
-                ts = msg.get('timestamp', 0)
-                prev_ts = seen_outgoing.get(key)
-                if prev_ts is not None and abs(ts - prev_ts) < 120:
-                    continue  # Skip duplicate within time window
-                seen_outgoing[key] = ts
-            deduped.append(msg)
-        messages = deduped
+        # Secondary dedup: collapse retries with same text+recipient within 5min window
+        messages = parser.dedup_retry_messages(messages)
 
         # Determine display name from conversation_id or messages
         display_name = 'Unknown'
@@ -1895,11 +1883,12 @@ def get_dm_updates():
 
             # Count unread
             if conv['last_message_timestamp'] > last_seen_ts:
-                # Need to count actual unread messages
+                # Need to count actual unread messages (dedup retries)
                 messages, _ = parser.read_dm_messages(
                     conversation_id=conv_id,
                     days=7
                 )
+                messages = parser.dedup_retry_messages(messages)
                 unread_count = sum(1 for m in messages if m['timestamp'] > last_seen_ts)
             else:
                 unread_count = 0
