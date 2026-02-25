@@ -895,7 +895,7 @@ class MeshCLISession:
                          f"for '{text[:30]}' → {recipient}")
 
             try:
-                result = self.execute_command(['msg', recipient, text], timeout=DEFAULT_TIMEOUT)
+                result = self.execute_command(['.msg', recipient, text], timeout=DEFAULT_TIMEOUT)
                 if result.get('success'):
                     new_ack = self._extract_ack_from_response(result.get('stdout', ''))
                     new_timeout = self._extract_timeout_from_response(result.get('stdout', ''))
@@ -1253,6 +1253,11 @@ def execute_cli():
         if args and args[0] == 'recv':
             timeout = data.get('timeout', RECV_TIMEOUT)
 
+        # Force JSON output for msg/m commands (prefix with dot)
+        # so we get expected_ack and suggested_timeout for auto-retry
+        if args and args[0] in ('msg', 'm'):
+            args = ['.' + args[0]] + args[1:]
+
         if not isinstance(args, list):
             return jsonify({
                 'success': False,
@@ -1274,7 +1279,7 @@ def execute_cli():
         result = meshcli_session.execute_command(args, timeout)
 
         # Auto-retry: after successful msg command, start background retry
-        if (result.get('success') and args and args[0] in ('msg', 'm')
+        if (result.get('success') and args and args[0] in ('.msg', '.m')
                 and len(args) >= 3 and meshcli_session.auto_retry_enabled
                 and meshcli_session.auto_retry_max_attempts > 1):
             stdout = result.get('stdout', '')
@@ -1286,6 +1291,9 @@ def execute_cli():
                 meshcli_session._start_retry(
                     recipient, text, expected_ack, suggested_timeout
                 )
+            else:
+                logger.warning(f"Auto-retry: could not extract ack/timeout from msg response: "
+                               f"{stdout[:300]}")
 
         return jsonify(result), 200
 
