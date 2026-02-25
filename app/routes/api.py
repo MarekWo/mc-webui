@@ -1680,6 +1680,21 @@ def get_dm_messages():
         except Exception as e:
             logger.debug(f"Retry dedup failed (non-critical): {e}")
 
+        # Secondary dedup: collapse outgoing messages with same text+recipient
+        # within 120s window (catches retries whose ack wasn't tracked, e.g. timeouts)
+        deduped = []
+        seen_outgoing = {}  # (recipient, text) -> earliest timestamp
+        for msg in messages:
+            if msg.get('direction') == 'outgoing':
+                key = (msg.get('recipient', ''), msg.get('content', ''))
+                ts = msg.get('timestamp', 0)
+                prev_ts = seen_outgoing.get(key)
+                if prev_ts is not None and abs(ts - prev_ts) < 120:
+                    continue  # Skip duplicate within time window
+                seen_outgoing[key] = ts
+            deduped.append(msg)
+        messages = deduped
+
         # Determine display name from conversation_id or messages
         display_name = 'Unknown'
         if conversation_id.startswith('pk_'):

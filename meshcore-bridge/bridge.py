@@ -921,11 +921,11 @@ class MeshCLISession:
                         # Don't break - continue retrying (message was likely sent,
                         # just couldn't parse ack due to timing)
                 else:
-                    logger.error(f"Retry: msg command failed: {result.get('stderr', '')}")
-                    break
+                    logger.warning(f"Retry: msg command failed: {result.get('stderr', '')}")
+                    # Don't break - continue to next attempt (device may be temporarily busy)
             except Exception as e:
-                logger.error(f"Retry: send failed: {e}")
-                break
+                logger.warning(f"Retry: send exception: {e}")
+                # Don't break - continue to next attempt
 
             attempt += 1
             if flood_mode:
