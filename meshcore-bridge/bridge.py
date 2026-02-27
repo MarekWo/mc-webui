@@ -157,50 +157,61 @@ class MeshCLISession:
         self.acks = {}  # ack_code -> {snr, rssi, route, path, ts}
         self.acks_file = self.config_dir / f"{device_name}.acks.jsonl"
 
+        # PATH tracking for flood DM delivery and diagnostics
+        self.path_records = {}  # pkt_payload -> {path, path_len, snr, rssi, route, ts}
+        self.path_log_file = self.config_dir / f"{device_name}.path.jsonl"
+
         # Auto-retry for DM messages
         self.auto_retry_enabled = True
         self.auto_retry_max_attempts = 5      # max direct attempts (including first send)
         self.auto_retry_max_flood = 3         # max flood attempts (after reset_path)
+        self.auto_retry_flood_only = 3        # max flood attempts for no-path contacts
         self.retry_ack_codes = set()          # expected_ack codes of retry attempts (not first)
         self.retry_groups = {}                # original_ack -> [retry_ack_1, retry_ack_2, ...]
         self.retry_lock = threading.Lock()
         self.active_retries = {}              # original_ack -> threading.Event (cancel signal)
+        self.pending_flood_acks = {}          # public_key -> {original_ack, cancel_event, recipient, ts}
 
         # Load persisted data from disk
         self._load_echoes()
         self._load_acks()
+        self._load_path_records()
 
         # Start session
         self._start_session()
 
     def _update_log_paths(self, new_name):
-        """Update advert/echo/ack log paths after device name detection, renaming existing files."""
+        """Update advert/echo/ack/path log paths after device name detection, renaming existing files."""
         new_advert = self.config_dir / f"{new_name}.adverts.jsonl"
         new_echo = self.config_dir / f"{new_name}.echoes.jsonl"
         new_acks = self.config_dir / f"{new_name}.acks.jsonl"
+        new_path = self.config_dir / f"{new_name}.path.jsonl"
 
         # Rename existing files if they use the old (configured) name
-        for old_path, new_path in [
+        for old_path, new_path_target in [
             (self.advert_log_path, new_advert),
             (self.echo_log_path, new_echo),
             (self.acks_file, new_acks),
+            (self.path_log_file, new_path),
         ]:
-            if old_path != new_path and old_path.exists() and not new_path.exists():
+            if old_path != new_path_target and old_path.exists() and not new_path_target.exists():
                 try:
-                    old_path.rename(new_path)
-                    logger.info(f"Renamed {old_path.name} -> {new_path.name}")
+                    old_path.rename(new_path_target)
+                    logger.info(f"Renamed {old_path.name} -> {new_path_target.name}")
                 except OSError as e:
                     logger.warning(f"Failed to rename {old_path.name}: {e}")
 
         self.advert_log_path = new_advert
         self.echo_log_path = new_echo
         self.acks_file = new_acks
+        self.path_log_file = new_path
         logger.info(f"Log paths updated for device: {new_name}")
 
         # Reload echo and ACK data from the correct files
         # (initial _load_echoes/_load_acks may have failed with the "auto" name)
         self._load_echoes()
         self._load_acks()
+        self._load_path_records()
 
     def _start_session(self):
         """Start meshcli process and worker threads"""
@@ -279,6 +290,7 @@ class MeshCLISession:
                 # Core settings (always enabled)
                 self.process.stdin.write('set json_log_rx on\n')
                 self.process.stdin.write('set print_adverts on\n')
+                self.process.stdin.write('set print_path_updates on\n')
                 self.process.stdin.write('msgs_subscribe\n')
 
                 # User-configurable settings from .webui_settings.json
@@ -287,9 +299,9 @@ class MeshCLISession:
 
                 if manual_add_contacts:
                     self.process.stdin.write('set manual_add_contacts on\n')
-                    logger.info("Session settings applied: json_log_rx=on, print_adverts=on, manual_add_contacts=on, msgs_subscribe")
+                    logger.info("Session settings applied: json_log_rx=on, print_adverts=on, print_path_updates=on, manual_add_contacts=on, msgs_subscribe")
                 else:
-                    logger.info("Session settings applied: json_log_rx=on, print_adverts=on, manual_add_contacts=off (default), msgs_subscribe")
+                    logger.info("Session settings applied: json_log_rx=on, print_adverts=on, print_path_updates=on, manual_add_contacts=off (default), msgs_subscribe")
 
                 self.process.stdin.flush()
             except Exception as e:
@@ -373,6 +385,18 @@ class MeshCLISession:
                 ack_data = self._parse_ack_packet(line)
                 if ack_data:
                     self._process_ack(ack_data)
+                    continue
+
+                # Try to parse as PATH echo (for flood DM tracking and diagnostics)
+                path_echo = self._parse_path_echo(line)
+                if path_echo:
+                    self._process_path_echo(path_echo)
+                    continue
+
+                # Try to parse as PATH_UPDATE event (flood DM delivery confirmation)
+                path_update = self._parse_path_update(line)
+                if path_update:
+                    self._process_path_update(path_update)
                     continue
 
                 # Otherwise, append to current CLI response
@@ -832,6 +856,144 @@ class MeshCLISession:
             logger.error(f"Failed to load ACKs: {e}")
 
     # =========================================================================
+    # PATH tracking for flood DM delivery and diagnostics
+    # =========================================================================
+
+    def _parse_path_echo(self, line):
+        """Parse PATH JSON echo from json_log_rx, return data dict or None."""
+        try:
+            data = json.loads(line)
+            if isinstance(data, dict) and data.get("payload_typename") == "PATH":
+                return {
+                    'pkt_payload': data.get('pkt_payload'),
+                    'path': data.get('path', ''),
+                    'path_len': data.get('path_len', 0),
+                    'snr': data.get('snr'),
+                    'rssi': data.get('rssi'),
+                    'route': data.get('route_typename', ''),
+                }
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return None
+
+    def _process_path_echo(self, path_data):
+        """Process a PATH echo: store record and log to .path.jsonl."""
+        pkt_payload = path_data.get('pkt_payload')
+        if not pkt_payload:
+            return
+
+        record = {
+            'pkt_payload': pkt_payload,
+            'path': path_data.get('path', ''),
+            'path_len': path_data.get('path_len', 0),
+            'snr': path_data.get('snr'),
+            'rssi': path_data.get('rssi'),
+            'route': path_data.get('route', ''),
+            'ts': time.time(),
+        }
+
+        self.path_records[pkt_payload] = record
+        self._save_path_record(record)
+        logger.debug(f"PATH echo: route={path_data.get('route')}, "
+                     f"path_len={path_data.get('path_len')}, "
+                     f"snr={path_data.get('snr')}")
+
+    def _save_path_record(self, record):
+        """Append PATH record to .path.jsonl file."""
+        try:
+            with open(self.path_log_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(record, ensure_ascii=False) + '\n')
+        except Exception as e:
+            logger.error(f"Failed to save PATH record: {e}")
+
+    def _load_path_records(self):
+        """Load PATH data from .path.jsonl on startup with 7-day cleanup."""
+        if not self.path_log_file.exists():
+            return
+
+        cutoff = time.time() - (7 * 24 * 3600)  # 7 days
+        kept_lines = []
+        loaded = 0
+
+        try:
+            with open(self.path_log_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    ts = record.get('ts', 0)
+                    if ts < cutoff:
+                        continue
+
+                    kept_lines.append(line)
+                    pkt_payload = record.get('pkt_payload')
+                    if pkt_payload:
+                        self.path_records[pkt_payload] = record
+                        loaded += 1
+
+            # Rewrite file with only recent records (compact)
+            with open(self.path_log_file, 'w', encoding='utf-8') as f:
+                for line in kept_lines:
+                    f.write(line + '\n')
+
+            logger.info(f"Loaded PATH records from disk: {loaded} records (kept {len(kept_lines)})")
+
+        except Exception as e:
+            logger.error(f"Failed to load PATH records: {e}")
+
+    def _parse_path_update(self, line):
+        """Parse PATH_UPDATE event from meshcli stdout.
+
+        meshcli outputs: 'Got path update for <name> [<public_key_hex>]'
+        Returns dict with public_key or None.
+        """
+        match = re.search(r'Got path update for .+ \[([0-9a-fA-F]+)\]', line)
+        if match:
+            return {'public_key': match.group(1)}
+        return None
+
+    def _process_path_update(self, data):
+        """Process a PATH_UPDATE event: check if it confirms a pending flood DM delivery."""
+        public_key = data.get('public_key')
+        if not public_key:
+            return
+
+        logger.info(f"PATH_UPDATE received for contact {public_key[:16]}...")
+
+        # Check if we have a pending flood DM for this contact
+        pending = self.pending_flood_acks.get(public_key)
+        if not pending:
+            return
+
+        original_ack = pending['original_ack']
+        recipient = pending['recipient']
+
+        # Delivery confirmed via PATH — store synthetic ACK
+        record = {
+            'ack_code': original_ack,
+            'snr': None,
+            'rssi': None,
+            'route': 'PATH_FLOOD',
+            'path': '',
+            'ts': time.time(),
+        }
+
+        self.acks[original_ack] = record
+        self._save_ack(record)
+        logger.info(f"PATH delivery confirmed for '{recipient}', ack={original_ack}")
+
+        # Signal the retry thread to stop
+        pending['cancel_event'].set()
+
+        # Cleanup
+        self.pending_flood_acks.pop(public_key, None)
+
+    # =========================================================================
     # Auto-retry for DM messages
     # =========================================================================
 
@@ -852,10 +1014,15 @@ class MeshCLISession:
         logger.info(f"Auto-retry started for ack={original_ack}, "
                      f"direct={self.auto_retry_max_attempts}, "
                      f"flood={self.auto_retry_max_flood}, "
+                     f"flood_only={self.auto_retry_flood_only}, "
                      f"timeout={suggested_timeout}ms")
 
-    def _get_contact_path_len(self, recipient):
-        """Check contact's out_path_len via .ci command. Returns -1 if no path/unknown."""
+    def _get_contact_info(self, recipient):
+        """Get contact info via .ci command.
+
+        Returns:
+            tuple: (out_path_len, public_key) or (-1, None) on failure.
+        """
         try:
             result = self.execute_command(['.ci', recipient], timeout=5)
             if result.get('success'):
@@ -868,32 +1035,127 @@ class MeshCLISession:
                             try:
                                 parsed = json.loads(stdout[start_idx:])
                                 if isinstance(parsed, dict):
-                                    return parsed.get('out_path_len', -1)
+                                    return (
+                                        parsed.get('out_path_len', -1),
+                                        parsed.get('public_key'),
+                                    )
                             except json.JSONDecodeError:
                                 continue
         except Exception as e:
-            logger.warning(f"Retry: could not check path for {recipient}: {e}")
-        return -1
+            logger.warning(f"Retry: could not check contact info for {recipient}: {e}")
+        return (-1, None)
 
     def _retry_send(self, recipient, text, original_ack, suggested_timeout, cancel_event):
         """Background retry loop for a DM message.
 
-        Phase 1: Direct attempts (up to auto_retry_max_attempts)
-        Phase 2: Flood attempts (up to auto_retry_max_flood) after reset_path
+        For contacts WITH a path (out_path_len >= 0):
+            Phase 1: Direct attempts (up to auto_retry_max_attempts)
+            Phase 2: Flood attempts (up to auto_retry_max_flood) after reset_path
+            Delivery confirmed by ACK packet.
 
-        If the contact has no path (out_path_len == -1), the initial send was
-        already a flood. Skip retry to avoid spamming the network.
+        For contacts WITHOUT a path (out_path_len == -1):
+            Flood-only retry (up to auto_retry_flood_only attempts total).
+            Delivery confirmed by PATH_UPDATE event (PATH packet with piggybacked ACK).
         """
-        # Check if contact has a path - if not, skip retry (initial send was flood)
-        path_len = self._get_contact_path_len(recipient)
-        if path_len == -1:
-            logger.info(f"Retry: skipping for '{recipient}' - no path set "
-                        f"(initial send was flood), ack={original_ack}")
-            with self.retry_lock:
-                self.active_retries.pop(original_ack, None)
-            return
+        path_len, public_key = self._get_contact_info(recipient)
 
-        # Wait timeout in seconds (use suggested_timeout from device, with 1.2x margin)
+        if path_len == -1:
+            # No-path contact: flood retry with PATH_UPDATE confirmation
+            self._retry_send_flood(recipient, text, original_ack,
+                                   suggested_timeout, cancel_event, public_key)
+        else:
+            # Path-known contact: direct retry with ACK confirmation
+            self._retry_send_direct(recipient, text, original_ack,
+                                    suggested_timeout, cancel_event)
+
+    def _retry_send_flood(self, recipient, text, original_ack,
+                          suggested_timeout, cancel_event, public_key):
+        """Flood-only retry for contacts without a known path.
+
+        Max attempts: auto_retry_flood_only (default 3, including initial send).
+        Delivery confirmed via PATH_UPDATE event for the contact's public_key.
+        """
+        max_flood = self.auto_retry_flood_only  # total including initial send
+
+        # Register for PATH_UPDATE delivery confirmation
+        if public_key:
+            self.pending_flood_acks[public_key] = {
+                'original_ack': original_ack,
+                'cancel_event': cancel_event,
+                'recipient': recipient,
+                'timestamp': time.time(),
+            }
+            logger.info(f"Flood retry started for '{recipient}' (no path), "
+                        f"max={max_flood}, ack={original_ack}, "
+                        f"waiting for PATH_UPDATE [{public_key[:16]}...]")
+        else:
+            logger.warning(f"Flood retry: could not get public_key for '{recipient}', "
+                           f"PATH confirmation unavailable")
+
+        wait_timeout = max(suggested_timeout / 1000 * 1.2, 5.0)
+
+        # Attempt 0 was the initial send. Retry attempts 1..max_flood-1
+        for attempt in range(1, max_flood):
+            # Wait for PATH_UPDATE (cancel_event set by _process_path_update)
+            if cancel_event.wait(timeout=wait_timeout):
+                logger.info(f"Flood DM delivered via PATH for '{recipient}', "
+                            f"ack={original_ack}, after {attempt} retries")
+                break
+
+            if cancel_event.is_set():
+                break
+
+            # Send retry flood
+            logger.info(f"Flood retry {attempt + 1}/{max_flood} "
+                        f"for '{text[:30]}' -> {recipient}")
+            try:
+                result = self.execute_command(['.msg', recipient, text],
+                                             timeout=DEFAULT_TIMEOUT)
+                if result.get('success'):
+                    new_ack = self._extract_ack_from_response(
+                        result.get('stdout', ''))
+                    new_timeout = self._extract_timeout_from_response(
+                        result.get('stdout', ''))
+                    if new_ack:
+                        with self.retry_lock:
+                            self.retry_ack_codes.add(new_ack)
+                            self.retry_groups.setdefault(
+                                original_ack, []).append(new_ack)
+                        if new_timeout:
+                            wait_timeout = max(new_timeout / 1000 * 1.2, 5.0)
+                        logger.info(f"Flood retry sent, new ack={new_ack}")
+                    else:
+                        logger.warning(
+                            f"Flood retry: could not parse expected_ack from "
+                            f"response: {result.get('stdout', '')[:200]}")
+                else:
+                    logger.warning(
+                        f"Flood retry: msg command failed: "
+                        f"{result.get('stderr', '')}")
+            except Exception as e:
+                logger.warning(f"Flood retry: send exception: {e}")
+        else:
+            # Final wait after last attempt
+            if not cancel_event.is_set():
+                cancel_event.wait(timeout=wait_timeout)
+
+        # Cleanup
+        if not cancel_event.is_set():
+            logger.warning(f"Flood retry exhausted ({max_flood} attempts) "
+                           f"for '{text[:30]}' -> {recipient}")
+        if public_key:
+            self.pending_flood_acks.pop(public_key, None)
+        with self.retry_lock:
+            self.active_retries.pop(original_ack, None)
+
+    def _retry_send_direct(self, recipient, text, original_ack,
+                           suggested_timeout, cancel_event):
+        """Direct retry for contacts with a known path.
+
+        Phase 1: Direct attempts (up to auto_retry_max_attempts).
+        Phase 2: Flood attempts (up to auto_retry_max_flood) after reset_path.
+        Delivery confirmed by ACK packet.
+        """
         wait_timeout = max(suggested_timeout / 1000 * 1.2, 5.0)
 
         max_direct = self.auto_retry_max_attempts   # includes the first send
@@ -942,7 +1204,7 @@ class MeshCLISession:
             # Send retry
             mode_str = "flood" if flood_mode else "direct"
             logger.info(f"Retry {mode_str} attempt {attempt + 1}/{total_max} "
-                         f"for '{text[:30]}' → {recipient}")
+                         f"for '{text[:30]}' -> {recipient}")
 
             try:
                 result = self.execute_command(['.msg', recipient, text], timeout=DEFAULT_TIMEOUT)
@@ -978,7 +1240,7 @@ class MeshCLISession:
 
         if attempt >= total_max:
             logger.warning(f"Auto-retry exhausted ({max_direct} direct + {max_flood} flood) "
-                            f"for '{text[:30]}' → {recipient}")
+                            f"for '{text[:30]}' -> {recipient}")
 
     def _wait_for_any_ack(self, ack_codes, timeout_seconds, cancel_event):
         """Poll self.acks dict for any of the given ack_codes with timeout."""
@@ -1746,6 +2008,50 @@ def get_ack_status():
 # =============================================================================
 # Auto-retry endpoints
 # =============================================================================
+# PATH tracking endpoint for diagnostics
+# =============================================================================
+
+@app.route('/paths', methods=['GET'])
+def get_paths():
+    """
+    Get PATH records for diagnostics.
+
+    Response JSON:
+        {
+            "success": true,
+            "path_records": [
+                {"pkt_payload": "...", "path": "5e", "path_len": 1, "snr": 12.75,
+                 "rssi": -23, "route": "FLOOD", "ts": 1706500000.123},
+                ...
+            ],
+            "pending_flood_acks": {
+                "<public_key>": {"recipient": "...", "original_ack": "...", "timestamp": ...},
+                ...
+            }
+        }
+    """
+    if not meshcli_session:
+        return jsonify({'success': False, 'error': 'Not initialized'}), 503
+
+    records = list(meshcli_session.path_records.values())
+    records.sort(key=lambda r: r.get('ts', 0), reverse=True)
+
+    pending = {}
+    for pk, info in meshcli_session.pending_flood_acks.items():
+        pending[pk[:16]] = {
+            'recipient': info['recipient'],
+            'original_ack': info['original_ack'],
+            'timestamp': info['timestamp'],
+        }
+
+    return jsonify({
+        'success': True,
+        'path_records': records[:100],  # Last 100
+        'pending_flood_acks': pending,
+    }), 200
+
+
+# =============================================================================
 
 @app.route('/retry_ack_codes', methods=['GET'])
 def get_retry_ack_codes():
@@ -1770,7 +2076,9 @@ def get_auto_retry_config():
         'enabled': meshcli_session.auto_retry_enabled,
         'max_attempts': meshcli_session.auto_retry_max_attempts,
         'max_flood': meshcli_session.auto_retry_max_flood,
+        'flood_only': meshcli_session.auto_retry_flood_only,
         'active_retries': len(meshcli_session.active_retries),
+        'pending_flood_acks': len(meshcli_session.pending_flood_acks),
     }), 200
 
 
@@ -1792,16 +2100,21 @@ def set_auto_retry_config():
     if 'max_flood' in data:
         val = int(data['max_flood'])
         meshcli_session.auto_retry_max_flood = max(0, min(val, 10))
+    if 'flood_only' in data:
+        val = int(data['flood_only'])
+        meshcli_session.auto_retry_flood_only = max(1, min(val, 5))
 
     logger.info(f"Auto-retry config updated: enabled={meshcli_session.auto_retry_enabled}, "
                 f"max_attempts={meshcli_session.auto_retry_max_attempts}, "
-                f"max_flood={meshcli_session.auto_retry_max_flood}")
+                f"max_flood={meshcli_session.auto_retry_max_flood}, "
+                f"flood_only={meshcli_session.auto_retry_flood_only}")
 
     return jsonify({
         'success': True,
         'enabled': meshcli_session.auto_retry_enabled,
         'max_attempts': meshcli_session.auto_retry_max_attempts,
         'max_flood': meshcli_session.auto_retry_max_flood,
+        'flood_only': meshcli_session.auto_retry_flood_only,
     }), 200
 
 
