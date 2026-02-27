@@ -1,34 +1,67 @@
 #!/bin/bash
 set -euo pipefail
 
-# ============================================
-# mc-webui Unraid updater script
+# ============================================================
+# mc-webui Unraid updater
 #
-# - Pulls latest git changes
-# - If changes detected OR FORCE_REBUILD=1:
-#     docker compose down
-#     docker compose build --pull
-#     docker compose up -d
+# Purpose:
+#   Keep a local mc-webui checkout up-to-date and (re)deploy the
+#   Docker Compose stack in a predictable, automation-friendly way.
 #
-# - Logs to file and console (if run manually)
-# - Prints running version: YYYY.MM.DD+<shortsha> <branch>
+# High-level flow:
+#   1) Fetch updates from origin (all branches)
+#   2) Select target branch (sticky behavior)
+#   3) Pull latest changes (fast-forward only)
+#   4) Freeze version on the host BEFORE building images
+#   5) If needed (changes/force/branch switch): rebuild + restart
+#   6) Optionally wait for healthcheck
+#   7) Verify the *actual* running version from inside the container
+#
+# Key design points:
+#   - "Sticky branch": if you switch to dev once, it stays dev until you
+#     explicitly switch back to main (via TARGET_BRANCH=main).
+#   - "Cache safety": after switching branches, we force a clean rebuild of
+#     mc-webui to avoid stale build cache producing an image from the previous branch.
+#   - "Ground truth": we confirm the running VERSION_STRING from inside the container
+#     (UI/browser can mislead; git on host can mislead if build cache lies).
 #
 # Environment variables:
-#   FORCE_REBUILD=1   Force rebuild even if no git changes
-#   DOCKER_TIMEOUT=600  Timeout (seconds) for compose operations (0=disable)
-# ============================================
+#   TARGET_BRANCH=main|dev
+#       Optional. If set, repo is switched to that branch before update.
+#       If empty: keep current branch (sticky).
+#
+#   BRANCH_STRATEGY=reset|ff-only
+#       reset:   hard-reset local branch to origin/<branch> (discard local edits)
+#       ff-only: do not reset; only allow fast-forward pulls
+#
+#   CLEAN_UNTRACKED=0|1
+#       Only used with BRANCH_STRATEGY=reset.
+#       1 = git clean -fd (removes untracked files/dirs) -> destructive.
+#
+#   FORCE_REBUILD=0|1
+#       1 = redeploy even if no git changes
+#
+#   DOCKER_TIMEOUT=600
+#       Timeout (seconds) for compose commands. 0 disables timeout wrapper.
+#
+#   WAIT_HEALTH_SECONDS=60
+#       Wait up to N seconds for mc-webui health=healthy. 0 disables waiting.
+# ============================================================
 
 APPDIR="/mnt/user/appdata/mc-webui"
 LOG="$APPDIR/updater.log"
 LOCK="/tmp/mc-webui-updater.lock"
 
 FORCE_REBUILD="${FORCE_REBUILD:-0}"
-DOCKER_TIMEOUT="${DOCKER_TIMEOUT:-600}"   # set 0 to disable timeouts
+DOCKER_TIMEOUT="${DOCKER_TIMEOUT:-600}"
+WAIT_HEALTH_SECONDS="${WAIT_HEALTH_SECONDS:-60}"
 
-# Detect interactive terminal
-IS_TTY=0
-if [[ -t 1 ]]; then IS_TTY=1; fi
+TARGET_BRANCH="${TARGET_BRANCH:-}"
+BRANCH_STRATEGY="${BRANCH_STRATEGY:-reset}"
+CLEAN_UNTRACKED="${CLEAN_UNTRACKED:-0}"
 
+# If stdout is a TTY, also print logs to console.
+IS_TTY=0; [[ -t 1 ]] && IS_TTY=1
 timestamp() { date '+%F %T'; }
 
 log() {
@@ -40,7 +73,65 @@ log() {
   fi
 }
 
-# Run a command with optional timeout, capturing output line-by-line to log
+# ------------------------------------------------------------
+# Help / usage
+# ------------------------------------------------------------
+print_help() {
+  cat <<'EOF'
+mc-webui Unraid updater
+
+Usage:
+  unraid-updater.sh [--help|-h]
+
+This script is controlled primarily via environment variables.
+
+Examples:
+  # Update on current (sticky) branch
+  /mnt/user/appdata/mc-webui/scripts/unraid-updater.sh
+
+  # Switch to dev (sticky) and redeploy
+  TARGET_BRANCH=dev /mnt/user/appdata/mc-webui/scripts/unraid-updater.sh
+
+  # Switch back to main (sticky) and force redeploy
+  TARGET_BRANCH=main FORCE_REBUILD=1 /mnt/user/appdata/mc-webui/scripts/unraid-updater.sh
+
+Environment variables:
+  TARGET_BRANCH=main|dev
+      Optional. If set, repo is switched to that branch before update.
+      If empty: keep current branch (sticky behavior).
+
+  BRANCH_STRATEGY=reset|ff-only
+      reset:   hard-reset local branch to origin/<branch> (discard local edits)
+      ff-only: do not reset; only allow fast-forward pulls
+
+  CLEAN_UNTRACKED=0|1
+      Only used with BRANCH_STRATEGY=reset.
+      1 = git clean -fd (removes untracked files/dirs) -> destructive.
+
+  FORCE_REBUILD=0|1
+      1 = redeploy even if no git changes
+
+  DOCKER_TIMEOUT=600
+      Timeout (seconds) for compose commands. 0 disables timeout wrapper.
+
+  WAIT_HEALTH_SECONDS=60
+      Wait up to N seconds for mc-webui health=healthy. 0 disables waiting.
+
+Exit codes:
+  0  Success (or skipped because another run is in progress)
+  1  Hard failure (git/compose errors, invalid configuration, etc.)
+EOF
+}
+
+# Show help early (before lock/log noise)
+case "${1:-}" in
+  -h|--help|help)
+    print_help
+    exit 0
+    ;;
+esac
+
+# Run a command, optionally wrapped with timeout, and stream output into the log.
 run_cmd() {
   local prefix="$1"; shift
   if [[ "$DOCKER_TIMEOUT" != "0" ]] && command -v timeout >/dev/null 2>&1; then
@@ -55,8 +146,12 @@ log "[INFO] $(timestamp) mc-webui update start"
 log "[INFO] APPDIR=$APPDIR"
 log "[INFO] FORCE_REBUILD=$FORCE_REBUILD"
 log "[INFO] DOCKER_TIMEOUT=$DOCKER_TIMEOUT"
+log "[INFO] WAIT_HEALTH_SECONDS=$WAIT_HEALTH_SECONDS"
+log "[INFO] TARGET_BRANCH=${TARGET_BRANCH:-<keep-current>}"
+log "[INFO] BRANCH_STRATEGY=$BRANCH_STRATEGY"
+log "[INFO] CLEAN_UNTRACKED=$CLEAN_UNTRACKED"
 
-# Lock to prevent parallel runs
+# Prevent concurrent runs (cron/manual overlap). Lock is released on exit via trap.
 if ! ( set -o noclobber; echo "$$" > "$LOCK" ) 2>/dev/null; then
   log "[WARN] Lock exists ($LOCK). Another run in progress. Exiting."
   exit 0
@@ -65,58 +160,10 @@ trap 'rm -f "$LOCK"' EXIT
 
 cd "$APPDIR"
 
-# Mark repo as safe (helps on Unraid/root/appdata)
+# Running git as root on Unraid + appdata path may trigger "dubious ownership".
 git config --global --add safe.directory "$APPDIR" >/dev/null 2>&1 || true
 
-# Determine current commit (may be empty on first run / non-git dir)
-OLD="$(git rev-parse HEAD 2>/dev/null || true)"
-log "[INFO] Current commit: ${OLD:-<none>}"
-
-log "[INFO] git fetch..."
-git fetch --all --prune 2>&1 | while IFS= read -r line; do log "[GIT] $line"; done
-
-log "[INFO] git pull..."
-# Capture pull output for error detection and logging
-PULL_OUTPUT="$(git pull --ff-only 2>&1 || true)"
-while IFS= read -r line; do log "[GIT] $line"; done <<< "$PULL_OUTPUT"
-
-# Abort if git pull clearly failed
-if echo "$PULL_OUTPUT" | grep -qiE '^(fatal:|error:)' ; then
-  log "[ERROR] git pull failed. Aborting."
-  exit 1
-fi
-
-NEW="$(git rev-parse HEAD 2>/dev/null || true)"
-log "[INFO] New commit: ${NEW:-<none>}"
-
-# Change detection:
-# - If OLD is empty but NEW exists (first run), treat as changed
-# - If hashes differ, treat as changed
-CHANGED=0
-if [[ -n "${NEW:-}" && ( -z "${OLD:-}" || "${OLD:-}" != "${NEW:-}" ) ]]; then
-  CHANGED=1
-fi
-
-if [[ "$CHANGED" == "0" && "$FORCE_REBUILD" != "1" ]]; then
-  log "[INFO] No changes detected and FORCE_REBUILD!=1 → skipping rebuild."
-
-  # Still print current running version info (useful when run manually)
-  BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
-  SHORT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
-  COMMIT_DATE="$(git show -s --format=%cd --date=format:%Y.%m.%d HEAD 2>/dev/null || echo "unknown")"
-  log "[INFO] Repo version: ${COMMIT_DATE}+${SHORT_HASH} ${BRANCH}"
-
-  log "[INFO] $(timestamp) mc-webui update done"
-  exit 0
-fi
-
-if [[ "$CHANGED" == "1" ]]; then
-  log "[INFO] Repository changes detected → proceeding with rebuild."
-else
-  log "[INFO] FORCE_REBUILD=1 → forcing rebuild."
-fi
-
-# Compose command detection (use array to avoid quoting issues)
+# Detect Compose CLI (v2 preferred, legacy fallback).
 COMPOSE=()
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   COMPOSE=(docker compose)
@@ -128,60 +175,168 @@ else
 fi
 log "[INFO] Using compose command: ${COMPOSE[*]}"
 
-# Verify compose file exists
+# Basic sanity check: ensure there is a compose file.
 if [[ ! -f "$APPDIR/docker-compose.yml" && ! -f "$APPDIR/compose.yml" ]]; then
   log "[ERROR] No docker-compose.yml or compose.yml found in $APPDIR"
   exit 1
 fi
 
-log "[INFO] Running compose down..."
-run_cmd "DOWN" "${COMPOSE[@]}" down
+OLD="$(git rev-parse HEAD 2>/dev/null || true)"
+log "[INFO] Current commit: ${OLD:-<none>}"
 
-log "[INFO] Running compose build --pull..."
-run_cmd "BUILD" "${COMPOSE[@]}" build --pull
+# Ensure origin fetches all branches (important if the clone was created as single-branch).
+git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' >/dev/null 2>&1 || true
 
-log "[INFO] Running compose up -d..."
-run_cmd "UP" "${COMPOSE[@]}" up -d --remove-orphans
+log "[INFO] git fetch..."
+git fetch --all --prune 2>&1 | while IFS= read -r line; do log "[GIT] $line"; done
 
-log "[INFO] Container status after deployment:"
-docker ps --format '{{.Names}}\t{{.Status}}\t{{.Image}}' \
-  | grep -iE '^(mc-webui|meshcore-bridge)\b' \
-  | while IFS= read -r line; do log "[PS] $line"; done || true
+# ------------------------------------------------------------
+# Branch selection (sticky behavior)
+# ------------------------------------------------------------
+BRANCH_SWITCHED=0
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
+log "[INFO] Current branch: $CURRENT_BRANCH"
 
-# ============================================
-# Wait for mc-webui to become healthy (optional)
-# ============================================
-
-WAIT_HEALTH_SECONDS="${WAIT_HEALTH_SECONDS:-60}"   # set 0 to disable
-if [[ "$WAIT_HEALTH_SECONDS" != "0" ]]; then
-  log "[INFO] Waiting up to ${WAIT_HEALTH_SECONDS}s for mc-webui health=healthy..."
-
-  end=$((SECONDS + WAIT_HEALTH_SECONDS))
-  while (( SECONDS < end )); do
-    # health can be: healthy, starting, unhealthy, or empty (no healthcheck)
-    health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' mc-webui 2>/dev/null || echo "not-found")"
-    status="$(docker inspect -f '{{.State.Status}}' mc-webui 2>/dev/null || echo "not-found")"
-
-    log "[INFO] mc-webui status=$status health=$health"
-
-    if [[ "$health" == "healthy" || "$health" == "no-healthcheck" ]]; then
-      break
-    fi
-
-    if [[ "$status" != "running" ]]; then
-      log "[ERROR] mc-webui is not running (status=$status)."
-      break
-    fi
-
-    sleep 2
-  done
+# If TARGET_BRANCH is not provided:
+#   - keep current branch (sticky)
+#   - if in detached HEAD (rare), default to main
+if [[ -z "$TARGET_BRANCH" ]]; then
+  if [[ "$CURRENT_BRANCH" == "HEAD" || "$CURRENT_BRANCH" == "unknown" ]]; then
+    TARGET_BRANCH="main"
+    log "[INFO] No TARGET_BRANCH set and repo is detached → defaulting to main"
+  else
+    TARGET_BRANCH="$CURRENT_BRANCH"
+    log "[INFO] No TARGET_BRANCH set → keeping current branch: $TARGET_BRANCH"
+  fi
+else
+  log "[INFO] TARGET_BRANCH explicitly set by user: $TARGET_BRANCH"
 fi
 
-# Print repo version in requested format: YYYY.MM.DD+<shortsha> <branch>
-BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
-SHORT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
-COMMIT_DATE="$(git show -s --format=%cd --date=format:%Y.%m.%d HEAD 2>/dev/null || echo "unknown")"
-VERSION_STRING="${COMMIT_DATE}+${SHORT_HASH} ${BRANCH}"
+# Restrict to known branches (adjust if you add more later).
+if [[ "$TARGET_BRANCH" != "main" && "$TARGET_BRANCH" != "dev" ]]; then
+  log "[ERROR] TARGET_BRANCH must be 'main' or 'dev' (got: $TARGET_BRANCH)"
+  exit 1
+fi
 
-log "[INFO] Running version: $VERSION_STRING"
+# Switch if required.
+if [[ "$CURRENT_BRANCH" != "$TARGET_BRANCH" ]]; then
+  BRANCH_SWITCHED=1
+  log "[INFO] Switching branch → $TARGET_BRANCH"
+
+  # Ensure remote branch exists.
+  if ! git show-ref --verify --quiet "refs/remotes/origin/$TARGET_BRANCH"; then
+    log "[ERROR] Remote branch origin/$TARGET_BRANCH not found."
+    exit 1
+  fi
+
+  # Checkout existing local branch or create a tracking branch from origin.
+  if git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
+    git checkout "$TARGET_BRANCH" 2>&1 | while IFS= read -r line; do log "[GIT] $line"; done
+  else
+    git checkout -b "$TARGET_BRANCH" "origin/$TARGET_BRANCH" 2>&1 | while IFS= read -r line; do log "[GIT] $line"; done
+  fi
+
+  # Align local state with origin (optional but recommended for unattended servers).
+  if [[ "$BRANCH_STRATEGY" == "reset" ]]; then
+    log "[INFO] Resetting branch to origin/$TARGET_BRANCH"
+    git reset --hard "origin/$TARGET_BRANCH" 2>&1 | while IFS= read -r line; do log "[GIT] $line"; done
+
+    # Optional cleanup of untracked files. Destructive — enable only if you want a pristine tree.
+    if [[ "$CLEAN_UNTRACKED" == "1" ]]; then
+      log "[INFO] Cleaning untracked files (CLEAN_UNTRACKED=1)"
+      git clean -fd 2>&1 | while IFS= read -r line; do log "[GIT] $line"; done
+    else
+      log "[INFO] Skipping git clean (CLEAN_UNTRACKED=0) — local files preserved"
+    fi
+  elif [[ "$BRANCH_STRATEGY" == "ff-only" ]]; then
+    log "[INFO] Using ff-only strategy (no reset)"
+  else
+    log "[ERROR] BRANCH_STRATEGY must be 'reset' or 'ff-only' (got: $BRANCH_STRATEGY)"
+    exit 1
+  fi
+fi
+
+# Pull latest changes (no merges).
+log "[INFO] git pull..."
+PULL_OUTPUT="$(git pull --ff-only 2>&1 || true)"
+while IFS= read -r line; do log "[GIT] $line"; done <<< "$PULL_OUTPUT"
+if echo "$PULL_OUTPUT" | grep -qiE '^(fatal:|error:)' ; then
+  log "[ERROR] git pull failed. Aborting."
+  exit 1
+fi
+
+NEW="$(git rev-parse HEAD 2>/dev/null || true)"
+log "[INFO] New commit: ${NEW:-<none>}"
+
+# Detect whether the checked-out commit changed.
+CHANGED=0
+if [[ -n "${NEW:-}" && ( -z "${OLD:-}" || "${OLD:-}" != "${NEW:-}" ) ]]; then
+  CHANGED=1
+fi
+
+# Decide whether to redeploy.
+NEED_DEPLOY=0
+if [[ "$FORCE_REBUILD" == "1" || "$CHANGED" == "1" || "$BRANCH_SWITCHED" == "1" ]]; then
+  NEED_DEPLOY=1
+fi
+
+# Freeze version on host BEFORE building images.
+# This is informational and also writes RUNNING_VERSION.txt for quick lookup.
+log "[INFO] Version freeze (host, before build):"
+FREEZE_OUT="$(python3 -m app.version freeze 2>&1 || true)"
+while IFS= read -r line; do log "[FREEZE] $line"; done <<< "$FREEZE_OUT"
+echo "$FREEZE_OUT" > "$APPDIR/RUNNING_VERSION.txt" 2>/dev/null || true
+
+if [[ "$NEED_DEPLOY" == "0" ]]; then
+  log "[INFO] No changes, no branch switch, FORCE_REBUILD!=1 → skipping deploy."
+else
+  if [[ "$BRANCH_SWITCHED" == "1" ]]; then
+    log "[INFO] Branch switched → redeploying stack."
+  elif [[ "$CHANGED" == "1" ]]; then
+    log "[INFO] Repository changes detected → redeploying stack."
+  else
+    log "[INFO] FORCE_REBUILD=1 → forcing redeploy."
+  fi
+
+  # Critical cache-safety rule:
+  # Switching branches can leave Docker build cache in a state that produces an image
+  # inconsistent with the current working tree. To prevent this, force a clean rebuild
+  # of mc-webui when the branch changes.
+  if [[ "$BRANCH_SWITCHED" == "1" ]]; then
+    log "[INFO] Branch switched → docker compose build --no-cache mc-webui"
+    run_cmd "BUILD" "${COMPOSE[@]}" build --no-cache mc-webui
+  fi
+
+  # Bring the stack up, building images if needed.
+  log "[INFO] Running docker compose up -d --build..."
+  run_cmd "UP" "${COMPOSE[@]}" up -d --build --remove-orphans
+
+  # Optional health wait.
+  if [[ "$WAIT_HEALTH_SECONDS" != "0" ]]; then
+    log "[INFO] Waiting up to ${WAIT_HEALTH_SECONDS}s for mc-webui health=healthy..."
+    end=$((SECONDS + WAIT_HEALTH_SECONDS))
+    while (( SECONDS < end )); do
+      health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' mc-webui 2>/dev/null || echo "not-found")"
+      status="$(docker inspect -f '{{.State.Status}}' mc-webui 2>/dev/null || echo "not-found")"
+      log "[INFO] mc-webui status=$status health=$health"
+      [[ "$health" == "healthy" || "$health" == "no-healthcheck" ]] && break
+      [[ "$status" != "running" ]] && break
+      sleep 2
+    done
+  fi
+
+  log "[INFO] Container status:"
+  "${COMPOSE[@]}" ps 2>&1 | while IFS= read -r line; do log "[PS] $line"; done || true
+fi
+
+# Verify the actual running version from inside the container (ground truth).
+log "[INFO] Verifying version inside container:"
+CONTAINER_VER="$(docker compose exec -T mc-webui python3 -c 'from app import version; print(version.VERSION_STRING)' 2>/dev/null || true)"
+log "[INFO] mc-webui VERSION_STRING (container): ${CONTAINER_VER:-<failed>}"
+
 log "[INFO] $(timestamp) mc-webui update finished successfully"
+HOST_VER="$(python3 -c 'from app import version; print(version.VERSION_STRING)' 2>/dev/null || echo '<host-unknown>')"
+log "[INFO] Host VERSION_STRING: $HOST_VER"
+if [[ -n "${CONTAINER_VER:-}" && "$HOST_VER" != "<host-unknown>" && "$CONTAINER_VER" != "$HOST_VER" ]]; then
+  log "[WARN] Host version != container version. Consider forcing rebuild (FORCE_REBUILD=1) or switching branch explicitly."
+fi
