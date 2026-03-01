@@ -223,6 +223,36 @@ class Database:
             rows = conn.execute(query, params).fetchall()
             return [dict(r) for r in rows]
 
+    def get_message_dates(self) -> List[Dict]:
+        """Get distinct dates that have channel messages, with counts.
+        Returns list of {'date': 'YYYY-MM-DD', 'message_count': N}, newest first."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT date(timestamp, 'unixepoch', 'localtime') as date,
+                          COUNT(*) as message_count
+                   FROM channel_messages
+                   WHERE timestamp > 0
+                   GROUP BY date
+                   ORDER BY date DESC"""
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_channel_messages_by_date(self, date_str: str,
+                                      channel_idx: int = None) -> List[Dict]:
+        """Get channel messages for a specific date (YYYY-MM-DD)."""
+        with self._connect() as conn:
+            conditions = ["date(timestamp, 'unixepoch', 'localtime') = ?"]
+            params: list = [date_str]
+
+            if channel_idx is not None:
+                conditions.append("channel_idx = ?")
+                params.append(channel_idx)
+
+            where = " WHERE " + " AND ".join(conditions)
+            query = f"SELECT * FROM channel_messages{where} ORDER BY timestamp ASC"
+            rows = conn.execute(query, params).fetchall()
+            return [dict(r) for r in rows]
+
     def delete_channel_messages(self, channel_idx: int) -> int:
         with self._connect() as conn:
             cursor = conn.execute(

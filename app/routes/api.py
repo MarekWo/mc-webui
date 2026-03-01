@@ -344,14 +344,23 @@ def get_messages():
 
         # v2: Read messages from Database
         db = _get_db()
-        if db and not archive_date:
-            ch = channel_idx if channel_idx is not None else 0
-            db_messages = db.get_channel_messages(
-                channel_idx=ch,
-                limit=limit or 50,
-                offset=offset,
-                days=days,
-            )
+        if db:
+            if archive_date:
+                # Archive view: query by specific date
+                db_messages = db.get_channel_messages_by_date(
+                    date_str=archive_date,
+                    channel_idx=channel_idx,
+                )
+            else:
+                # Live view: query with limit/offset/days
+                ch = channel_idx if channel_idx is not None else 0
+                db_messages = db.get_channel_messages(
+                    channel_idx=ch,
+                    limit=limit or 50,
+                    offset=offset,
+                    days=days,
+                )
+
             # Convert DB rows to frontend-compatible format
             messages = []
             for row in db_messages:
@@ -378,7 +387,7 @@ def get_messages():
                         msg['echo_count'] = len(echoes)
                         msg['echo_paths'] = [e.get('path', '') for e in echoes]
         else:
-            # Fallback to parser for archive reads
+            # Fallback to parser for file-based reads
             messages = parser.read_messages(
                 limit=limit,
                 offset=offset,
@@ -1065,15 +1074,29 @@ def sync_messages():
 @api_bp.route('/archives', methods=['GET'])
 def get_archives():
     """
-    Get list of available message archives.
+    Get list of available message archives (dates with messages).
 
     Returns:
         JSON with list of archives, each with:
-        - date (str): Archive date in YYYY-MM-DD format
-        - message_count (int): Number of messages in archive
-        - file_size (int): Archive file size in bytes
+        - date (str): Date in YYYY-MM-DD format
+        - message_count (int): Number of messages on that date
     """
     try:
+        # v2: Query distinct dates from SQLite
+        db = _get_db()
+        if db:
+            dates = db.get_message_dates()
+            # Exclude today (that's "Live")
+            from datetime import date as date_cls
+            today = date_cls.today().isoformat()
+            archives = [d for d in dates if d['date'] != today]
+            return jsonify({
+                'success': True,
+                'archives': archives,
+                'count': len(archives)
+            }), 200
+
+        # Fallback to file-based archives
         archives = archive_manager.list_archives()
 
         return jsonify({
