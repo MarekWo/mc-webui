@@ -194,36 +194,31 @@ class Database:
             )
             return cursor.lastrowid
 
-    def get_channel_messages(self, channel_idx: int, limit: int = 50,
+    def get_channel_messages(self, channel_idx: int = None, limit: int = 50,
                               offset: int = 0, days: int = None) -> List[Dict]:
         with self._connect() as conn:
-            query = "SELECT * FROM channel_messages WHERE channel_idx = ?"
-            params: list = [channel_idx]
+            conditions = []
+            params: list = []
+
+            if channel_idx is not None:
+                conditions.append("channel_idx = ?")
+                params.append(channel_idx)
 
             if days is not None and days > 0:
                 cutoff = int((datetime.now() - timedelta(days=days)).timestamp())
-                query += " AND timestamp >= ?"
+                conditions.append("timestamp >= ?")
                 params.append(cutoff)
 
-            query += " ORDER BY timestamp ASC"
+            where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
 
-            if limit > 0:
-                # Get the last N messages (most recent) with offset
-                query = f"""SELECT * FROM ({query} LIMIT -1 OFFSET ?)
-                           ORDER BY timestamp ASC"""
-                # We need a subquery approach to get "last N"
-                # Simpler: reverse order, limit, then re-reverse
-                query = """SELECT * FROM (
-                    SELECT * FROM channel_messages
-                    WHERE channel_idx = ?"""
-                params = [channel_idx]
-                if days is not None and days > 0:
-                    cutoff = int((datetime.now() - timedelta(days=days)).timestamp())
-                    query += " AND timestamp >= ?"
-                    params.append(cutoff)
-                query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+            if limit and limit > 0:
+                query = f"""SELECT * FROM (
+                    SELECT * FROM channel_messages{where}
+                    ORDER BY timestamp DESC LIMIT ? OFFSET ?
+                ) ORDER BY timestamp ASC"""
                 params.extend([limit, offset])
-                query += ") ORDER BY timestamp ASC"
+            else:
+                query = f"SELECT * FROM channel_messages{where} ORDER BY timestamp ASC"
 
             rows = conn.execute(query, params).fetchall()
             return [dict(r) for r in rows]

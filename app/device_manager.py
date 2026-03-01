@@ -74,6 +74,33 @@ class DeviceManager:
         self._loop.run_until_complete(self._connect())
         self._loop.run_forever()
 
+    def _detect_serial_port(self) -> str:
+        """Auto-detect serial port when configured as 'auto'."""
+        port = self.config.MC_SERIAL_PORT
+        if port.lower() != 'auto':
+            return port
+
+        from pathlib import Path
+        by_id = Path('/dev/serial/by-id')
+        if by_id.exists():
+            devices = list(by_id.iterdir())
+            if len(devices) == 1:
+                resolved = str(devices[0].resolve())
+                logger.info(f"Auto-detected serial port: {resolved}")
+                return resolved
+            elif len(devices) > 1:
+                logger.warning(f"Multiple serial devices found: {[d.name for d in devices]}")
+            else:
+                logger.warning("No serial devices found in /dev/serial/by-id")
+
+        # Fallback: try common paths
+        for candidate in ['/dev/ttyUSB0', '/dev/ttyACM0', '/dev/ttyUSB1', '/dev/ttyACM1']:
+            if Path(candidate).exists():
+                logger.info(f"Auto-detected serial port (fallback): {candidate}")
+                return candidate
+
+        raise RuntimeError("No serial port detected. Set MC_SERIAL_PORT explicitly.")
+
     async def _connect(self):
         """Connect to device via serial or TCP and subscribe to events."""
         from meshcore import MeshCore
@@ -87,9 +114,10 @@ class DeviceManager:
                     auto_reconnect=self.config.MC_AUTO_RECONNECT,
                 )
             else:
-                logger.info(f"Connecting via serial: {self.config.MC_SERIAL_PORT}")
+                port = self._detect_serial_port()
+                logger.info(f"Connecting via serial: {port}")
                 self.mc = await MeshCore.create_serial(
-                    port=self.config.MC_SERIAL_PORT,
+                    port=port,
                     auto_reconnect=self.config.MC_AUTO_RECONNECT,
                 )
 
