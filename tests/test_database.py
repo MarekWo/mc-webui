@@ -250,6 +250,16 @@ class TestDirectMessages:
         assert ack is not None
         assert ack['snr'] == -3.0
 
+    def test_dm_with_pkt_payload(self, db):
+        db.upsert_contact('cc', name='Charlie')
+        ts = int(time.time())
+        dm_id = db.insert_direct_message(
+            'cc', 'in', 'Hello', ts, pkt_payload='deadbeef01020304'
+        )
+        messages = db.get_dm_messages('cc')
+        assert len(messages) == 1
+        assert messages[0]['pkt_payload'] == 'deadbeef01020304'
+
 
 # ================================================================
 # Echoes

@@ -38,8 +38,8 @@ LOG_FILE = os.environ.get('LOG_FILE', '/var/log/mc-webui-watchdog.log')
 HTTP_PORT = int(os.environ.get('HTTP_PORT', '5051'))
 AUTO_START = os.environ.get('AUTO_START', 'true').lower() != 'false'
 
-# Containers to monitor
-CONTAINERS = ['meshcore-bridge', 'mc-webui']
+# Containers to monitor (v2: single container, no meshcore-bridge)
+CONTAINERS = ['mc-webui']
 
 # Global state
 last_check_time = None
@@ -318,8 +318,8 @@ def handle_unhealthy_container(container_name: str, status: dict):
     except Exception as e:
         log(f"Failed to save diagnostic info: {e}", 'ERROR')
 
-    # Check if we should do a USB reset for meshcore-bridge
-    if container_name == 'meshcore-bridge':
+    # v2: mc-webui owns the device connection directly — USB reset if repeated failures
+    if container_name == 'mc-webui':
         recent_restarts = count_recent_restarts(container_name, minutes=8)
         if recent_restarts >= 3:
             log(f"{container_name} has been restarted {recent_restarts} times in the last 8 minutes. Attempting hardware USB reset.", "WARN")

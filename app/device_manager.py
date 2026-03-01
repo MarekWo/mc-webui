@@ -262,6 +262,7 @@ class DeviceManager:
                 sender_timestamp=data.get('sender_timestamp'),
                 snr=data.get('snr'),
                 path_len=data.get('path_len'),
+                pkt_payload=data.get('pkt_payload'),
                 raw_json=json.dumps(data, default=str),
             )
 
@@ -454,6 +455,7 @@ class DeviceManager:
                 content=text,
                 timestamp=ts,
                 expected_ack=event_data.get('expected_ack'),
+                pkt_payload=event_data.get('pkt_payload'),
             )
 
             return {

@@ -248,14 +248,15 @@ class Database:
             cursor = conn.execute(
                 """INSERT INTO direct_messages
                    (contact_pubkey, direction, content, timestamp, sender_timestamp,
-                    txt_type, snr, path_len, expected_ack, signature, raw_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    txt_type, snr, path_len, expected_ack, pkt_payload, signature, raw_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (contact_pubkey, direction, content, timestamp,
                  kwargs.get('sender_timestamp'),
                  kwargs.get('txt_type', 0),
                  kwargs.get('snr'),
                  kwargs.get('path_len'),
                  kwargs.get('expected_ack'),
+                 kwargs.get('pkt_payload'),
                  kwargs.get('signature'),
                  kwargs.get('raw_json'))
             )

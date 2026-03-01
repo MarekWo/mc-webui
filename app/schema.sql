@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS direct_messages (
     snr                 REAL,
     path_len            INTEGER,
     expected_ack        TEXT,                               -- ACK code for delivery tracking
+    pkt_payload         TEXT,                               -- raw packet payload for hash/analyzer
     signature           TEXT,                               -- dedup signature
     raw_json            TEXT,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
