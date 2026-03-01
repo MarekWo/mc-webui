@@ -253,7 +253,7 @@ class DeviceManager:
     async def _on_channel_message(self, event):
         """Handle incoming channel message."""
         try:
-            data = event.data if hasattr(event, 'data') else {}
+            data = getattr(event, 'payload', {})
             ts = data.get('timestamp', int(time.time()))
             sender = data.get('sender_name', data.get('name', 'Unknown'))
             content = data.get('text', '')
@@ -289,7 +289,7 @@ class DeviceManager:
     async def _on_dm_received(self, event):
         """Handle incoming direct message."""
         try:
-            data = event.data if hasattr(event, 'data') else {}
+            data = getattr(event, 'payload', {})
             ts = data.get('timestamp', int(time.time()))
             content = data.get('text', '')
             sender_key = data.get('public_key', data.get('pubkey_prefix', ''))
@@ -333,7 +333,7 @@ class DeviceManager:
     async def _on_msg_sent(self, event):
         """Handle confirmation that our message was sent."""
         try:
-            data = event.data if hasattr(event, 'data') else {}
+            data = getattr(event, 'payload', {})
             expected_ack = data.get('expected_ack', '')
             msg_type = data.get('txt_type', 0)
 
@@ -348,7 +348,7 @@ class DeviceManager:
     async def _on_ack(self, event):
         """Handle ACK (delivery confirmation for DM)."""
         try:
-            data = event.data if hasattr(event, 'data') else {}
+            data = getattr(event, 'payload', {})
             expected_ack = data.get('expected_ack', '')
 
             if expected_ack:
@@ -372,7 +372,7 @@ class DeviceManager:
     async def _on_advertisement(self, event):
         """Handle received advertisement from another node."""
         try:
-            data = event.data if hasattr(event, 'data') else {}
+            data = getattr(event, 'payload', {})
             pubkey = data.get('public_key', '')
             name = data.get('adv_name', data.get('name', ''))
 
@@ -406,7 +406,7 @@ class DeviceManager:
     async def _on_path_update(self, event):
         """Handle path update for a contact."""
         try:
-            data = event.data if hasattr(event, 'data') else {}
+            data = getattr(event, 'payload', {})
             pubkey = data.get('public_key', '')
 
             if pubkey:
@@ -424,7 +424,7 @@ class DeviceManager:
     async def _on_new_contact(self, event):
         """Handle new contact discovered."""
         try:
-            data = event.data if hasattr(event, 'data') else {}
+            data = getattr(event, 'payload', {})
             pubkey = data.get('public_key', '')
             name = data.get('adv_name', data.get('name', ''))
 
@@ -497,7 +497,7 @@ class DeviceManager:
 
             # Store sent DM in database
             ts = int(time.time())
-            event_data = event.data if hasattr(event, 'data') else {}
+            event_data = getattr(event, 'payload', {})
             dm_id = self.db.insert_direct_message(
                 contact_pubkey=recipient_pubkey.lower(),
                 direction='out',
@@ -567,7 +567,7 @@ class DeviceManager:
         try:
             event = self.execute(self.mc.commands.send_appstart())
             if event and hasattr(event, 'data'):
-                self._self_info = event.data
+                self._self_info = getattr(event, 'payload', {})
                 return dict(self._self_info)
         except Exception as e:
             logger.error(f"Failed to get device info: {e}")
@@ -580,8 +580,21 @@ class DeviceManager:
 
         try:
             event = self.execute(self.mc.commands.get_channel(idx))
-            if event and hasattr(event, 'data'):
-                return event.data
+            if event:
+                data = getattr(event, 'payload', None) or getattr(event, 'data', None)
+                if data and isinstance(data, dict):
+                    # Normalize keys: channel_name -> name, channel_secret -> secret
+                    secret = data.get('channel_secret', data.get('secret', ''))
+                    if isinstance(secret, bytes):
+                        secret = secret.hex()
+                    name = data.get('channel_name', data.get('name', ''))
+                    if isinstance(name, str):
+                        name = name.strip('\x00').strip()
+                    return {
+                        'name': name,
+                        'secret': secret,
+                        'channel_idx': data.get('channel_idx', idx),
+                    }
         except Exception as e:
             logger.error(f"Failed to get channel {idx}: {e}")
         return None
@@ -695,7 +708,7 @@ class DeviceManager:
         try:
             event = self.execute(self.mc.commands.get_bat(), timeout=5)
             if event and hasattr(event, 'data'):
-                return event.data
+                return getattr(event, 'payload', {})
         except Exception as e:
             logger.error(f"Failed to get battery: {e}")
         return None
