@@ -169,6 +169,9 @@ class DeviceManager:
             # Subscribe to events
             await self._subscribe_events()
 
+            # Enable auto-refresh of contacts on adverts/path updates
+            self.mc.auto_update_contacts = True
+
             # Fetch initial contacts from device
             await self.mc.ensure_contacts()
             self._sync_contacts_to_db()
@@ -404,36 +407,48 @@ class DeviceManager:
             logger.error(f"Error handling ACK: {e}")
 
     async def _on_advertisement(self, event):
-        """Handle received advertisement from another node."""
+        """Handle received advertisement from another node.
+
+        ADVERTISEMENT payload only contains {'public_key': '...'}.
+        Full contact details (name, type, lat/lon) must be looked up
+        from mc.contacts which meshcore auto-refreshes after adverts.
+        """
         try:
             data = getattr(event, 'payload', {})
-            logger.info(f"ADVERT payload: {data}")
             pubkey = data.get('public_key', '')
-            name = data.get('adv_name', data.get('name', ''))
 
-            if pubkey:
-                self.db.insert_advertisement(
-                    public_key=pubkey,
-                    name=name,
-                    type=data.get('adv_type', 0),
-                    lat=data.get('adv_lat'),
-                    lon=data.get('adv_lon'),
-                    timestamp=int(time.time()),
-                    snr=data.get('snr'),
-                )
+            if not pubkey:
+                return
 
-                # Also upsert to contacts
-                self.db.upsert_contact(
-                    public_key=pubkey,
-                    name=name,
-                    type=data.get('adv_type', 0),
-                    adv_lat=data.get('adv_lat'),
-                    adv_lon=data.get('adv_lon'),
-                    last_advert=str(int(time.time())),
-                    source='advert',
-                )
+            # Look up full contact details from meshcore's contact list
+            contact = (self.mc.contacts or {}).get(pubkey, {})
+            name = contact.get('adv_name', contact.get('name', ''))
+            adv_type = contact.get('type', data.get('adv_type', 0))
+            adv_lat = contact.get('adv_lat', data.get('adv_lat'))
+            adv_lon = contact.get('adv_lon', data.get('adv_lon'))
 
-                logger.info(f"Advert from '{name}' ({pubkey[:8]}...)")
+            self.db.insert_advertisement(
+                public_key=pubkey,
+                name=name,
+                type=adv_type,
+                lat=adv_lat,
+                lon=adv_lon,
+                timestamp=int(time.time()),
+                snr=data.get('snr'),
+            )
+
+            # Upsert to contacts with last_advert timestamp
+            self.db.upsert_contact(
+                public_key=pubkey,
+                name=name,
+                type=adv_type,
+                adv_lat=adv_lat,
+                adv_lon=adv_lon,
+                last_advert=str(int(time.time())),
+                source='advert',
+            )
+
+            logger.debug(f"Advert from '{name}' ({pubkey[:8]}...)")
 
         except Exception as e:
             logger.error(f"Error handling advertisement: {e}")
@@ -460,15 +475,23 @@ class DeviceManager:
         """Handle new contact discovered."""
         try:
             data = getattr(event, 'payload', {})
-            logger.info(f"NEW_CONTACT payload: {data}")
             pubkey = data.get('public_key', '')
             name = data.get('adv_name', data.get('name', ''))
 
             if pubkey:
+                last_adv = data.get('last_advert')
+                last_advert_val = (
+                    str(int(last_adv))
+                    if last_adv and isinstance(last_adv, (int, float)) and last_adv > 0
+                    else str(int(time.time()))
+                )
                 self.db.upsert_contact(
                     public_key=pubkey,
                     name=name,
-                    type=data.get('adv_type', 0),
+                    type=data.get('type', data.get('adv_type', 0)),
+                    adv_lat=data.get('adv_lat'),
+                    adv_lon=data.get('adv_lon'),
+                    last_advert=last_advert_val,
                     source='device',
                 )
                 logger.info(f"New contact: {name} ({pubkey[:8]}...)")
@@ -693,6 +716,10 @@ class DeviceManager:
         try:
             self.execute(self.mc.commands.set_manual_add_contacts(enabled))
             return {'success': True, 'message': f'Manual add contacts: {enabled}'}
+        except KeyError as e:
+            # Firmware may not support all fields needed by meshcore lib
+            logger.warning(f"set_manual_add_contacts unsupported by firmware: {e}")
+            return {'success': False, 'error': f'Firmware does not support this setting: {e}'}
         except Exception as e:
             logger.error(f"Failed to set manual_add_contacts: {e}")
             return {'success': False, 'error': str(e)}
