@@ -311,12 +311,16 @@ class DeviceManager:
             content = data.get('text', '')
             sender_key = data.get('public_key', data.get('pubkey_prefix', ''))
 
-            # Look up sender name from contacts (event doesn't include it)
+            # Look up sender from contacts — resolve prefix to full public key
             sender_name = 'Unknown'
             if sender_key and self.mc:
                 contact = self.mc.get_contact_by_key_prefix(sender_key)
                 if contact:
                     sender_name = contact.get('name', sender_key[:8])
+                    # Use the full public key from contacts (not the short prefix)
+                    full_key = contact.get('public_key', '')
+                    if full_key:
+                        sender_key = full_key
             if sender_key:
                 self.db.upsert_contact(
                     public_key=sender_key,
