@@ -169,11 +169,8 @@ class DeviceManager:
             # Subscribe to events
             await self._subscribe_events()
 
-            # NOTE: Do NOT enable mc.auto_update_contacts — it triggers
-            # full contact list refresh (270+ records over serial) on every
-            # ADVERTISEMENT event, blocking message reception for seconds.
-            # Contact names for adverts are looked up from mc.contacts dict
-            # which was populated during ensure_contacts() below.
+            # Enable auto-refresh of contacts on adverts/path updates
+            self.mc.auto_update_contacts = True
 
             # Fetch initial contacts from device
             await self.mc.ensure_contacts()
@@ -475,47 +472,29 @@ class DeviceManager:
             logger.error(f"Error handling path update: {e}")
 
     async def _on_new_contact(self, event):
-        """Handle new contact discovered.
-
-        When manual_add_contacts is enabled on the device, new contacts
-        stay in mc.pending_contacts for manual approval. We should NOT
-        auto-add them to our DB contacts table — only log them.
-        When manual mode is off, the device auto-adds and we upsert to DB.
-        """
+        """Handle new contact discovered."""
         try:
             data = getattr(event, 'payload', {})
             pubkey = data.get('public_key', '')
             name = data.get('adv_name', data.get('name', ''))
 
-            if not pubkey:
-                return
-
-            # Check if manual approval mode is active
-            manual_mode = False
-            if self._self_info:
-                manual_mode = self._self_info.get('manual_add_contacts', False)
-
-            if manual_mode:
-                # Don't add to DB — let user approve via pending contacts UI
-                logger.info(f"New contact (pending): {name} ({pubkey[:8]}...)")
-                return
-
-            last_adv = data.get('last_advert')
-            last_advert_val = (
-                str(int(last_adv))
-                if last_adv and isinstance(last_adv, (int, float)) and last_adv > 0
-                else str(int(time.time()))
-            )
-            self.db.upsert_contact(
-                public_key=pubkey,
-                name=name,
-                type=data.get('type', data.get('adv_type', 0)),
-                adv_lat=data.get('adv_lat'),
-                adv_lon=data.get('adv_lon'),
-                last_advert=last_advert_val,
-                source='device',
-            )
-            logger.info(f"New contact: {name} ({pubkey[:8]}...)")
+            if pubkey:
+                last_adv = data.get('last_advert')
+                last_advert_val = (
+                    str(int(last_adv))
+                    if last_adv and isinstance(last_adv, (int, float)) and last_adv > 0
+                    else str(int(time.time()))
+                )
+                self.db.upsert_contact(
+                    public_key=pubkey,
+                    name=name,
+                    type=data.get('type', data.get('adv_type', 0)),
+                    adv_lat=data.get('adv_lat'),
+                    adv_lon=data.get('adv_lon'),
+                    last_advert=last_advert_val,
+                    source='device',
+                )
+                logger.info(f"New contact: {name} ({pubkey[:8]}...)")
 
         except Exception as e:
             logger.error(f"Error handling new contact: {e}")
