@@ -1,71 +1,40 @@
+# mc-webui v2 — single container with direct device access
 services:
-  # MeshCore Bridge - Handles USB communication with meshcli
-  meshcore-bridge:
-    build:
-      context: ./meshcore-bridge
-      dockerfile: Dockerfile
-    container_name: meshcore-bridge
-    restart: unless-stopped
-    # Grant access to serial devices for auto-detection
-    # This allows MC_SERIAL_PORT=auto to work without specifying device upfront
-    # Major 188 = ttyUSB (CP2102, CH340, etc.), Major 166 = ttyACM (ESP32-S3, etc.)
-    device_cgroup_rules:
-      - 'c 188:* rmw'
-      - 'c 166:* rmw'
-    volumes:
-      - "${MC_CONFIG_DIR}:/root/.config/meshcore:rw"
-      - "/dev:/dev"
-    environment:
-      - MC_SERIAL_PORT=${MC_SERIAL_PORT:-auto}
-      - MC_CONFIG_DIR=/root/.config/meshcore
-      - MC_DEVICE_NAME=${MC_DEVICE_NAME:-auto}
-      - TZ=${TZ:-UTC}
-    networks:
-      - meshcore-net
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  # Main Web UI - Communicates with bridge via HTTP
   mc-webui:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: mc-webui
     restart: unless-stopped
     ports:
       - "${FLASK_PORT:-5000}:${FLASK_PORT:-5000}"
+    # Grant access to serial devices for auto-detection
+    # Major 188 = ttyUSB (CP2102, CH340), Major 166 = ttyACM (ESP32-S3)
+    device_cgroup_rules:
+      - 'c 188:* rmw'
+      - 'c 166:* rmw'
     volumes:
-      - "${MC_CONFIG_DIR}:/root/.config/meshcore:rw"
-      - "${MC_ARCHIVE_DIR:-./archive}:/root/.archive/meshcore:rw"
+      - "${MC_CONFIG_DIR:-./data}:/data:rw"
+      - "/dev:/dev"
     environment:
-      - MC_BRIDGE_URL=http://meshcore-bridge:5001/cli
-      - MC_DEVICE_NAME=${MC_DEVICE_NAME}
-      - MC_CONFIG_DIR=/root/.config/meshcore
-      - MC_ARCHIVE_DIR=/root/.archive/meshcore
-      - MC_ARCHIVE_ENABLED=${MC_ARCHIVE_ENABLED:-true}
-      - MC_ARCHIVE_RETENTION_DAYS=${MC_ARCHIVE_RETENTION_DAYS:-7}
+      - MC_SERIAL_PORT=${MC_SERIAL_PORT:-auto}
+      - MC_DEVICE_NAME=${MC_DEVICE_NAME:-MeshCore}
+      - MC_CONFIG_DIR=/data
+      - MC_DB_PATH=/data/mc-webui.db
+      # TCP mode (uncomment to use meshcore-proxy instead of serial):
+      # - MC_TCP_HOST=192.168.1.100
+      # - MC_TCP_PORT=5000
+      - MC_BACKUP_ENABLED=${MC_BACKUP_ENABLED:-true}
+      - MC_BACKUP_HOUR=${MC_BACKUP_HOUR:-2}
+      - MC_BACKUP_RETENTION_DAYS=${MC_BACKUP_RETENTION_DAYS:-7}
       - FLASK_HOST=${FLASK_HOST:-0.0.0.0}
       - FLASK_PORT=${FLASK_PORT:-5000}
       - FLASK_DEBUG=${FLASK_DEBUG:-false}
       - TZ=${TZ:-UTC}
     env_file:
-      - .env
-    depends_on:
-      meshcore-bridge:
-        condition: service_healthy
-    networks:
-      - meshcore-net
+      - path: .env
+        required: false
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request, os; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"FLASK_PORT\", \"5000\")}/api/status')"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
-
-networks:
-  meshcore-net:
-    driver: bridge
+      start_period: 15s

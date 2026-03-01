@@ -1,10 +1,13 @@
-# mc-webui Dockerfile
-# Python 3.11+ with Flask (meshcore-cli runs in separate bridge container)
+# mc-webui v2 Dockerfile
+# Single container with direct MeshCore device access (serial/TCP)
 
 FROM python:3.11-slim
 
-# Install curl for testing
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Install system deps: curl (healthcheck), udev (serial device support)
+RUN apt-get update && apt-get install -y \
+    curl \
+    udev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
@@ -17,7 +20,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 # Note: Run 'python -m app.version freeze' before build to include version info
-# The version_frozen.py file will be copied automatically if it exists
 COPY app/ ./app/
 
 # Expose Flask port
