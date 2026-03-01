@@ -71,8 +71,25 @@ class DeviceManager:
     def _run_loop(self):
         """Run the async event loop in the background thread."""
         asyncio.set_event_loop(self._loop)
-        self._loop.run_until_complete(self._connect())
+        self._loop.run_until_complete(self._connect_with_retry())
         self._loop.run_forever()
+
+    async def _connect_with_retry(self, max_retries: int = 10, base_delay: float = 5.0):
+        """Try to connect to device, retrying on failure."""
+        for attempt in range(1, max_retries + 1):
+            try:
+                await self._connect()
+                if self._connected:
+                    return  # success
+            except Exception as e:
+                logger.error(f"Connection attempt {attempt}/{max_retries} failed: {e}")
+
+            if attempt < max_retries:
+                delay = min(base_delay * attempt, 30.0)
+                logger.info(f"Retrying in {delay:.0f}s...")
+                await asyncio.sleep(delay)
+
+        logger.error(f"Failed to connect after {max_retries} attempts")
 
     def _detect_serial_port(self) -> str:
         """Auto-detect serial port when configured as 'auto'."""
@@ -122,7 +139,11 @@ class DeviceManager:
                 )
 
             # Read device info
-            self._self_info = self.mc.self_info
+            self._self_info = getattr(self.mc, 'self_info', None)
+            if not self._self_info:
+                logger.error("Device connected but self_info is empty — device may not be responding")
+                self.mc = None
+                return
             self._device_name = self._self_info.get('name', self.config.MC_DEVICE_NAME)
             self._connected = True
 
