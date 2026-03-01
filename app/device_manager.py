@@ -312,19 +312,20 @@ class DeviceManager:
             sender_key = data.get('public_key', data.get('pubkey_prefix', ''))
 
             # Look up sender from contacts — resolve prefix to full public key
-            sender_name = 'Unknown'
+            sender_name = ''
             if sender_key and self.mc:
                 contact = self.mc.get_contact_by_key_prefix(sender_key)
                 if contact:
-                    sender_name = contact.get('name', sender_key[:8])
+                    sender_name = contact.get('name', '')
                     # Use the full public key from contacts (not the short prefix)
                     full_key = contact.get('public_key', '')
                     if full_key:
                         sender_key = full_key
             if sender_key:
+                # Only upsert with name if we have a real name (not just a prefix)
                 self.db.upsert_contact(
                     public_key=sender_key,
-                    name=sender_name,
+                    name=sender_name,  # empty string won't overwrite existing name
                     source='message',
                 )
 
@@ -340,13 +341,13 @@ class DeviceManager:
                 raw_json=json.dumps(data, default=str),
             )
 
-            logger.info(f"DM #{dm_id} from {sender_name}")
+            logger.info(f"DM #{dm_id} from {sender_name or sender_key[:12]}")
 
             if self.socketio:
                 self.socketio.emit('new_message', {
                     'type': 'dm',
                     'contact_pubkey': sender_key,
-                    'sender': sender_name,
+                    'sender': sender_name or sender_key[:12],
                     'content': content,
                     'timestamp': ts,
                     'id': dm_id,

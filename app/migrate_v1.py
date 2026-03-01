@@ -254,11 +254,20 @@ def _migrate_dm_incoming(db, entry: dict):
         return
 
     pubkey_prefix = entry.get('pubkey_prefix', '')
+    sender_name = entry.get('name', '')
 
-    # Use None if pubkey not in contacts table (FK constraint)
+    # Resolve prefix to full key if contact exists
     contact_key = pubkey_prefix if pubkey_prefix else None
     if contact_key:
         contact_key = _resolve_pubkey(db, contact_key)
+
+    # Create/update contact with sender name from v1 data
+    if contact_key and sender_name:
+        db.upsert_contact(
+            public_key=contact_key,
+            name=sender_name,
+            source='message',
+        )
 
     db.insert_direct_message(
         contact_pubkey=contact_key,
