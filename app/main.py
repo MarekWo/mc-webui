@@ -236,8 +236,48 @@ def _execute_console_command(args: list) -> str:
         result = device_manager.send_dm(pubkey, text)
         return result.get('message', result.get('error', 'Unknown'))
 
+    elif cmd == 'status':
+        connected = device_manager.is_connected
+        info = device_manager.get_device_info()
+        name = info.get('name', info.get('adv_name', 'Unknown')) if info else 'Unknown'
+        bat = device_manager.get_battery()
+        bat_str = f"{bat.get('voltage', '?')}V" if bat and isinstance(bat, dict) else str(bat) if bat else 'N/A'
+        contacts_count = len(device_manager.db.get_contacts()) if device_manager.db else 0
+        return (
+            f"Device Status:\n"
+            f"  Connected: {connected}\n"
+            f"  Name: {name}\n"
+            f"  Battery: {bat_str}\n"
+            f"  Contacts: {contacts_count}"
+        )
+
+    elif cmd == 'channels':
+        lines = []
+        for i in range(8):
+            ch = device_manager.get_channel_info(i)
+            if ch and ch.get('name'):
+                lines.append(f"  [{i}] {ch['name']}")
+        if not lines:
+            return "No channels configured"
+        return f"Channels ({len(lines)}):\n" + "\n".join(lines)
+
+    elif cmd == 'help':
+        return (
+            "Available commands:\n"
+            "  infos      — Device info (firmware, freq, etc.)\n"
+            "  status     — Connection status, battery, contacts count\n"
+            "  bat        — Battery voltage\n"
+            "  contacts   — List all contacts\n"
+            "  channels   — List configured channels\n"
+            "  chan <idx> <msg> — Send channel message\n"
+            "  msg <name> <msg> — Send direct message\n"
+            "  advert     — Send advertisement\n"
+            "  floodadv   — Send flood advertisement\n"
+            "  help       — Show this help"
+        )
+
     else:
-        return f"Unknown command: {cmd}\nAvailable: infos, contacts, bat, advert, floodadv, chan, msg"
+        return f"Unknown command: {cmd}\nType 'help' for available commands."
 
 
 if __name__ == '__main__':
