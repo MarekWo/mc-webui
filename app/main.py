@@ -81,7 +81,7 @@ def create_app():
     # Start device connection in background (non-blocking)
     device_manager.start()
 
-    # Update runtime config when device connects
+    # Update runtime config when device connects, then run v1 migration if needed
     def _wait_for_device_name():
         """Wait for device manager to connect and update runtime config."""
         for _ in range(60):  # wait up to 60 seconds
@@ -91,6 +91,20 @@ def create_app():
                     device_manager.device_name, "device"
                 )
                 logger.info(f"Device name resolved: {device_manager.device_name}")
+
+                # Auto-migrate v1 data if .msgs file exists and DB is empty
+                try:
+                    from app.migrate_v1 import should_migrate, migrate_v1_data
+                    from pathlib import Path
+                    data_dir = Path(config.MC_CONFIG_DIR)
+                    dev_name = device_manager.device_name
+                    if should_migrate(db, data_dir, dev_name):
+                        logger.info("v1 .msgs file detected with empty DB — starting migration")
+                        result = migrate_v1_data(db, data_dir, dev_name)
+                        logger.info(f"v1 migration result: {result}")
+                except Exception as e:
+                    logger.error(f"v1 migration failed: {e}")
+
                 return
         logger.warning("Timeout waiting for device connection")
 

@@ -413,3 +413,83 @@ class TestPaths:
         db.insert_path('aa', pkt_payload='PKT', path='A>B>C', snr=-5.0, path_len=3)
         stats = db.get_stats()
         assert stats['paths'] == 1
+
+
+# ================================================================
+# v1 Migration
+# ================================================================
+
+class TestV1Migration:
+    def _write_msgs(self, path, lines):
+        """Write JSONL lines to a .msgs file."""
+        import json
+        with open(path, 'w') as f:
+            for line in lines:
+                f.write(json.dumps(line) + '\n')
+
+    def test_migrate_channel_messages(self, db):
+        import tempfile, json
+        from app.migrate_v1 import migrate_v1_data, should_migrate
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            self._write_msgs(data_dir / 'TestDevice.msgs', [
+                {'type': 'CHAN', 'channel_idx': 0, 'text': 'Alice: Hello world', 'timestamp': 1000, 'SNR': -5.0, 'path_len': 2},
+                {'type': 'SENT_CHAN', 'channel_idx': 0, 'text': 'My message', 'timestamp': 1001, 'sender': 'TestDevice'},
+                {'type': 'CHAN', 'channel_idx': 1, 'text': 'Bob: On channel 1', 'timestamp': 1002},
+            ])
+
+            assert should_migrate(db, data_dir, 'TestDevice')
+
+            result = migrate_v1_data(db, data_dir, 'TestDevice')
+            assert result['status'] == 'completed'
+            assert result['channel_messages'] == 3
+
+            msgs = db.get_channel_messages()
+            assert len(msgs) == 3
+            assert msgs[0]['sender'] == 'Alice'
+            assert msgs[0]['content'] == 'Hello world'
+            assert msgs[1]['sender'] == 'TestDevice'
+            assert msgs[1]['content'] == 'My message'
+            assert msgs[1]['is_own'] == 1
+            assert msgs[2]['sender'] == 'Bob'
+            assert msgs[2]['channel_idx'] == 1
+
+    def test_migrate_dm_messages(self, db):
+        import tempfile, json
+        from app.migrate_v1 import migrate_v1_data
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            self._write_msgs(data_dir / 'TestDevice.msgs', [
+                {'type': 'PRIV', 'text': 'Hello from Alice', 'timestamp': 2000, 'pubkey_prefix': 'aabb', 'name': 'Alice'},
+                {'type': 'SENT_MSG', 'text': 'Reply to Alice', 'timestamp': 2001, 'recipient': 'Alice', 'txt_type': 0},
+                {'type': 'SENT_MSG', 'text': 'Channel sent', 'timestamp': 2002, 'txt_type': 1},  # should be skipped
+            ])
+
+            result = migrate_v1_data(db, data_dir, 'TestDevice')
+            assert result['status'] == 'completed'
+            assert result['direct_messages'] == 2
+            assert result['skipped'] == 1
+
+    def test_should_migrate_false_when_db_has_data(self, db):
+        import tempfile
+        from app.migrate_v1 import should_migrate
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            self._write_msgs(data_dir / 'Dev.msgs', [
+                {'type': 'CHAN', 'text': 'Test: msg', 'timestamp': 1000},
+            ])
+
+            # Add a message to DB first
+            db.insert_channel_message(0, 'X', 'Existing', int(time.time()))
+
+            assert not should_migrate(db, data_dir, 'Dev')
+
+    def test_should_migrate_false_when_no_msgs_file(self, db):
+        import tempfile
+        from app.migrate_v1 import should_migrate
+
+        with tempfile.TemporaryDirectory() as tmp:
+            assert not should_migrate(db, Path(tmp), 'NoDevice')
