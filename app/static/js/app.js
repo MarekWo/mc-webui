@@ -23,6 +23,9 @@ let markersGroup = null;
 let contactsGeoCache = {};  // { 'contactName': { lat, lon }, ... }
 let allContactsWithGps = [];  // Cached contacts for map filtering
 
+// SocketIO state
+let chatSocket = null;  // SocketIO connection to /chat namespace
+
 // Mentions autocomplete state
 let mentionsCache = [];              // Cached contact list
 let mentionsCacheTimestamp = 0;      // Cache timestamp
@@ -254,6 +257,55 @@ async function loadContactsGeoCache() {
 }
 
 // Initialize on page load
+/**
+ * Connect to SocketIO /chat namespace for real-time message updates
+ */
+function connectChatSocket() {
+    if (typeof io === 'undefined') {
+        console.warn('SocketIO not available, falling back to polling only');
+        return;
+    }
+
+    const wsUrl = window.location.origin;
+    chatSocket = io(wsUrl + '/chat', {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 10000,
+    });
+
+    chatSocket.on('connect', () => {
+        console.log('SocketIO connected to /chat');
+    });
+
+    // Real-time new channel message
+    chatSocket.on('new_message', (data) => {
+        if (data.type === 'channel') {
+            // Update unread count for this channel
+            if (data.channel_idx !== currentChannelIdx) {
+                unreadCounts[data.channel_idx] = (unreadCounts[data.channel_idx] || 0) + 1;
+                updateUnreadBadges();
+                checkAndNotify();
+            } else if (!currentArchiveDate) {
+                // Current channel and live view — refresh messages
+                loadMessages();
+            }
+        } else if (data.type === 'dm') {
+            // Update DM badge on main page
+            checkDmUpdates();
+        }
+    });
+
+    // Real-time device status
+    chatSocket.on('device_status', (data) => {
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) {
+            statusEl.className = data.connected ? 'connection-status connected' : 'connection-status disconnected';
+            statusEl.textContent = data.connected ? 'Connected' : 'Disconnected';
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('mc-webui initialized');
     const initStart = performance.now();
@@ -328,8 +380,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize FAB toggle
     initializeFabToggle();
 
-    // Setup auto-refresh immediately after messages are displayed
-    // Don't wait for geo cache - it's not needed for auto-refresh
+    // Connect SocketIO for real-time updates
+    connectChatSocket();
+
+    // Setup auto-refresh as fallback (SocketIO handles primary updates)
     setupAutoRefresh();
 
     console.log(`[init] UI ready in ${(performance.now() - initStart).toFixed(0)}ms`);
@@ -1162,8 +1216,8 @@ async function executeSpecialCommand(command) {
  * Checks for updates regularly but only refreshes UI when new messages arrive
  */
 function setupAutoRefresh() {
-    // Check every 10 seconds for new messages (lightweight check)
-    const checkInterval = 10000;
+    // Fallback polling interval (SocketIO handles real-time updates)
+    const checkInterval = 60000;
 
     autoRefreshInterval = setInterval(async () => {
         // Don't check for updates when viewing archives
