@@ -19,7 +19,15 @@ class MeshCLIError(Exception):
 
 
 def _get_dm():
-    """Get the DeviceManager instance (deferred import to avoid circular refs)."""
+    """Get the DeviceManager instance — try Flask app context first, then module global."""
+    try:
+        from flask import current_app
+        dm = getattr(current_app, 'device_manager', None)
+        if dm is not None:
+            return dm
+    except RuntimeError:
+        pass  # Outside of Flask request context
+
     from app.main import device_manager
     if device_manager is None:
         raise MeshCLIError("DeviceManager not initialized")
