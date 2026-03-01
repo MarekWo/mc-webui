@@ -1,68 +1,57 @@
 """
-mc-webui - Flask application entry point
+mc-webui v2 — Flask application entry point
+
+Direct device communication via meshcore library (no bridge).
 """
 
 import logging
-import re
 import shlex
 import threading
 import time
-import requests
 from flask import Flask, request as flask_request
 from flask_socketio import SocketIO, emit
 from app.config import config, runtime_config
+from app.database import Database
+from app.device_manager import DeviceManager
 from app.routes.views import views_bp
 from app.routes.api import api_bp
 from app.version import VERSION_STRING, GIT_BRANCH
-from app.archiver.manager import schedule_daily_archiving
-from app.meshcore.cli import fetch_device_name_from_bridge
-from app.contacts_cache import load_cache, scan_new_adverts, initialize_from_device
-
-# Commands that require longer timeout (in seconds)
-SLOW_COMMANDS = {
-    'node_discover': 15,
-    'recv': 60,
-    'send': 15,
-    'send_msg': 15,
-    # Repeater commands
-    'req_status': 15,
-    'req_neighbours': 15,
-    'trace': 15,
-}
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG if config.FLASK_DEBUG else logging.INFO,
+    level=getattr(logging, config.MC_LOG_LEVEL, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
 logger = logging.getLogger(__name__)
 
 
-# Filter to suppress known werkzeug WebSocket errors (cosmetic issue with dev server)
+# Filter to suppress known werkzeug WebSocket errors
 class WerkzeugWebSocketFilter(logging.Filter):
     def filter(self, record):
-        # Suppress "write() before start_response" errors during WebSocket upgrade
         if record.levelno == logging.ERROR:
-            # Check message
             if 'write() before start_response' in str(record.msg):
                 return False
-            # Check exception info (traceback)
             if record.exc_info and record.exc_info[1]:
                 if 'write() before start_response' in str(record.exc_info[1]):
                     return False
         return True
 
 
-# Apply filter to werkzeug logger
 logging.getLogger('werkzeug').addFilter(WerkzeugWebSocketFilter())
 
 # Initialize SocketIO globally
 socketio = SocketIO()
 
+# Global references (set in create_app)
+db = None
+device_manager = None
+
 
 def create_app():
     """Create and configure Flask application"""
+    global db, device_manager
+
     app = Flask(__name__)
 
     # Load configuration
@@ -78,126 +67,39 @@ def create_app():
     app.register_blueprint(views_bp)
     app.register_blueprint(api_bp)
 
-    # Initialize SocketIO with the app
-    # Using 'threading' mode for better compatibility with regular HTTP requests
-    # (gevent mode requires monkey-patching and slows down non-WebSocket requests)
+    # Initialize SocketIO
     socketio.init_app(app, cors_allowed_origins="*", async_mode='threading')
 
-    # Initialize archive scheduler if enabled
-    if config.MC_ARCHIVE_ENABLED:
-        schedule_daily_archiving()
-        logger.info(f"Archive scheduler enabled - directory: {config.MC_ARCHIVE_DIR}")
-    else:
-        logger.info("Archive scheduler disabled")
+    # v2: Initialize database
+    db = Database(config.db_path)
+    app.db = db
 
-    # Fetch device name from bridge in background thread (with retry)
-    def init_device_name():
-        device_name, source = fetch_device_name_from_bridge()
-        runtime_config.set_device_name(device_name, source)
+    # v2: Initialize and start device manager
+    device_manager = DeviceManager(config, db, socketio)
+    app.device_manager = device_manager
 
-        # If we got a fallback name, keep retrying in background
-        retry_delay = 5
-        max_delay = 60
-        while source == "fallback":
-            time.sleep(retry_delay)
-            device_name, source = fetch_device_name_from_bridge()
-            if source != "fallback":
-                runtime_config.set_device_name(device_name, source)
-                logger.info(f"Device name resolved after retry: {device_name}")
-                break
-            retry_delay = min(retry_delay * 2, max_delay)
+    # Start device connection in background (non-blocking)
+    device_manager.start()
 
-    threading.Thread(target=init_device_name, daemon=True).start()
+    # Update runtime config when device connects
+    def _wait_for_device_name():
+        """Wait for device manager to connect and update runtime config."""
+        for _ in range(60):  # wait up to 60 seconds
+            time.sleep(1)
+            if device_manager.is_connected:
+                runtime_config.set_device_name(
+                    device_manager.device_name, "device"
+                )
+                logger.info(f"Device name resolved: {device_manager.device_name}")
+                return
+        logger.warning("Timeout waiting for device connection")
 
-    # Background thread: contacts cache initialization and periodic advert scanning
-    def init_contacts_cache():
-        # Wait for device name to resolve
-        time.sleep(10)
+    threading.Thread(target=_wait_for_device_name, daemon=True).start()
 
-        cache = load_cache()
-
-        # Seed from device contacts if cache is empty
-        if not cache:
-            try:
-                from app.routes.api import get_contacts_detailed_cached
-                success, contacts, error = get_contacts_detailed_cached()
-                if success and contacts:
-                    initialize_from_device(contacts)
-                    logger.info("Contacts cache seeded from device")
-            except Exception as e:
-                logger.error(f"Failed to seed contacts cache: {e}")
-
-        # Periodic advert scan loop
-        while True:
-            time.sleep(45)
-            try:
-                scan_new_adverts()
-            except Exception as e:
-                logger.error(f"Contacts cache scan error: {e}")
-
-    threading.Thread(target=init_contacts_cache, daemon=True).start()
-
-    logger.info(f"mc-webui started - device: {config.MC_DEVICE_NAME}")
-    logger.info(f"Messages file: {config.msgs_file_path}")
-    logger.info(f"Serial port: {config.MC_SERIAL_PORT}")
+    logger.info(f"mc-webui v2 started — transport: {'TCP' if config.use_tcp else 'serial'}")
+    logger.info(f"Database: {config.db_path}")
 
     return app
-
-
-# ============================================================
-# Console output helpers
-# ============================================================
-
-def clean_console_output(output: str, command: str) -> str:
-    """
-    Clean meshcli console output by removing:
-    - Prompt lines (e.g., "MarWoj|*" or "DeviceName|*[E]")
-    - JSON packet lines (internal mesh protocol data)
-    - Echoed command line
-    - Leading/trailing whitespace
-    """
-    if not output:
-        return output
-
-    lines = output.split('\n')
-    cleaned_lines = []
-
-    # Pattern to match any line containing the meshcli prompt "|*"
-    # Examples: "MarWoj|*", "MarWoj|*[E]", "MarWoj|*[E] infos"
-    # The prompt is: <name>|*<optional_status><optional_space><optional_command>
-    prompt_pattern = re.compile(r'^[^|]+\|\*')
-
-    for line in lines:
-        stripped = line.rstrip()
-
-        # Skip empty lines at start
-        if not cleaned_lines and not stripped:
-            continue
-
-        # Skip any line that starts with the meshcli prompt pattern
-        if prompt_pattern.match(stripped):
-            continue
-
-        # Skip JSON packet lines (internal mesh protocol data)
-        stripped_full = stripped.lstrip()
-        if stripped_full.startswith('{') and '"payload_typename"' in stripped_full:
-            continue
-
-        cleaned_lines.append(line)
-
-    # Remove leading empty lines
-    while cleaned_lines and not cleaned_lines[0].strip():
-        cleaned_lines.pop(0)
-
-    # Remove trailing empty lines
-    while cleaned_lines and not cleaned_lines[-1].strip():
-        cleaned_lines.pop()
-
-    # Strip leading whitespace from first line (leftover from prompt removal)
-    if cleaned_lines:
-        cleaned_lines[0] = cleaned_lines[0].lstrip()
-
-    return '\n'.join(cleaned_lines)
 
 
 # ============================================================
@@ -208,7 +110,7 @@ def clean_console_output(output: str, command: str) -> str:
 def handle_console_connect():
     """Handle console WebSocket connection"""
     logger.info("Console WebSocket client connected")
-    emit('console_status', {'message': 'Connected to mc-webui console proxy'})
+    emit('console_status', {'message': 'Connected to mc-webui console'})
 
 
 @socketio.on('disconnect', namespace='/console')
@@ -219,78 +121,37 @@ def handle_console_disconnect():
 
 @socketio.on('send_command', namespace='/console')
 def handle_send_command(data):
-    """Handle command from console client - proxy to bridge via HTTP"""
+    """Handle command from console client — route through DeviceManager."""
     command = data.get('command', '').strip()
-    # Capture socket ID for use in background task
     sid = flask_request.sid
 
     if not command:
-        emit('command_response', {
-            'success': False,
-            'error': 'Empty command'
-        })
+        emit('command_response', {'success': False, 'error': 'Empty command'})
         return
 
     logger.info(f"Console command received: {command}")
 
-    # Execute command via bridge HTTP API
-    # Parse command into args list (split by spaces, respecting quotes)
-    try:
-        args = shlex.split(command)
-    except ValueError:
-        args = command.split()
-
-    # Determine timeout based on command
-    base_command = args[0] if args else ''
-    cmd_timeout = SLOW_COMMANDS.get(base_command, 10)
-
     def execute_and_respond():
         try:
-            response = requests.post(
-                config.MC_BRIDGE_URL,
-                json={'args': args, 'timeout': cmd_timeout},
-                timeout=cmd_timeout + 5  # HTTP timeout slightly longer
-            )
+            try:
+                args = shlex.split(command)
+            except ValueError:
+                args = command.split()
 
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('success'):
-                    raw_output = result.get('stdout', '')
-                    # Clean output: remove prompts and echoed commands
-                    output = clean_console_output(raw_output, command)
-                    if not output:
-                        output = '(no output)'
-                    socketio.emit('command_response', {
-                        'success': True,
-                        'command': command,
-                        'output': output
-                    }, room=sid, namespace='/console')
-                else:
-                    error = result.get('stderr', 'Unknown error')
-                    socketio.emit('command_response', {
-                        'success': False,
-                        'command': command,
-                        'error': error
-                    }, room=sid, namespace='/console')
-            else:
+            if not args:
                 socketio.emit('command_response', {
-                    'success': False,
-                    'command': command,
-                    'error': f'Bridge returned status {response.status_code}'
+                    'success': False, 'command': command, 'error': 'Empty command'
                 }, room=sid, namespace='/console')
+                return
 
-        except requests.exceptions.Timeout:
+            output = _execute_console_command(args)
+
             socketio.emit('command_response', {
-                'success': False,
+                'success': True,
                 'command': command,
-                'error': 'Command timed out'
+                'output': output or '(no output)'
             }, room=sid, namespace='/console')
-        except requests.exceptions.ConnectionError:
-            socketio.emit('command_response', {
-                'success': False,
-                'command': command,
-                'error': 'Cannot connect to meshcore-bridge'
-            }, room=sid, namespace='/console')
+
         except Exception as e:
             logger.error(f"Console command error: {e}")
             socketio.emit('command_response', {
@@ -299,8 +160,70 @@ def handle_send_command(data):
                 'error': str(e)
             }, room=sid, namespace='/console')
 
-    # Run in background to not block
     socketio.start_background_task(execute_and_respond)
+
+
+def _execute_console_command(args: list) -> str:
+    """
+    Execute a console command via DeviceManager.
+    Maps meshcli-style text commands to DeviceManager methods.
+    Simplified router — full ConsoleRouter planned for Phase 2.
+    """
+    cmd = args[0].lower()
+
+    if not device_manager or not device_manager.is_connected:
+        return "Error: Device not connected"
+
+    if cmd == 'infos':
+        info = device_manager.get_device_info()
+        if info:
+            lines = [f"  {k}: {v}" for k, v in info.items()]
+            return "Device Info:\n" + "\n".join(lines)
+        return "No device info available"
+
+    elif cmd == 'contacts':
+        contacts = device_manager.get_contacts_from_device()
+        if not contacts:
+            return "No contacts"
+        lines = []
+        for c in contacts:
+            name = c.get('name', '?')
+            pk = c.get('public_key', '')[:8]
+            lines.append(f"  {name} ({pk}...)")
+        return f"Contacts ({len(contacts)}):\n" + "\n".join(lines)
+
+    elif cmd == 'bat':
+        bat = device_manager.get_battery()
+        if bat:
+            return f"Battery: {bat}"
+        return "Battery info unavailable"
+
+    elif cmd in ('advert', 'floodadv'):
+        result = device_manager.send_advert(flood=(cmd == 'floodadv'))
+        return result.get('message', result.get('error', 'Unknown'))
+
+    elif cmd == 'chan' and len(args) >= 3:
+        try:
+            ch_idx = int(args[1])
+            text = ' '.join(args[2:])
+            result = device_manager.send_channel_message(ch_idx, text)
+            return result.get('message', result.get('error', 'Unknown'))
+        except (ValueError, IndexError):
+            return "Usage: chan <channel_idx> <message>"
+
+    elif cmd == 'msg' and len(args) >= 3:
+        recipient = args[1]
+        text = ' '.join(args[2:])
+        contact = device_manager.mc.get_contact_by_name(recipient)
+        if contact:
+            pubkey = contact.get('public_key', recipient)
+        else:
+            pubkey = recipient
+        result = device_manager.send_dm(pubkey, text)
+        return result.get('message', result.get('error', 'Unknown'))
+
+    else:
+        return f"Unknown command: {cmd}\nAvailable: infos, contacts, bat, advert, floodadv, chan, msg"
 
 
 if __name__ == '__main__':
@@ -310,5 +233,5 @@ if __name__ == '__main__':
         host=config.FLASK_HOST,
         port=config.FLASK_PORT,
         debug=config.FLASK_DEBUG,
-        allow_unsafe_werkzeug=True  # Required for threading mode
+        allow_unsafe_werkzeug=True
     )
