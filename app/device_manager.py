@@ -207,13 +207,18 @@ class DeviceManager:
 
         count = 0
         for pubkey, contact in self.mc.contacts.items():
+            # last_advert from meshcore is Unix timestamp (int) or None
+            last_adv = contact.get('last_advert')
+            last_advert_val = str(int(last_adv)) if last_adv and isinstance(last_adv, (int, float)) and last_adv > 0 else None
+
             self.db.upsert_contact(
                 public_key=pubkey,
                 name=contact.get('adv_name', ''),
-                type=contact.get('adv_type', 0),
+                type=contact.get('type', 0),
                 flags=contact.get('flags', 0),
                 out_path=contact.get('out_path', ''),
                 out_path_len=contact.get('out_path_len', 0),
+                last_advert=last_advert_val,
                 adv_lat=contact.get('adv_lat'),
                 adv_lon=contact.get('adv_lon'),
                 source='device',
@@ -420,7 +425,7 @@ class DeviceManager:
                     type=data.get('adv_type', 0),
                     adv_lat=data.get('adv_lat'),
                     adv_lon=data.get('adv_lon'),
-                    last_advert=time.strftime('%Y-%m-%dT%H:%M:%S'),
+                    last_advert=str(int(time.time())),
                     source='advert',
                 )
 

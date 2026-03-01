@@ -125,6 +125,27 @@ def get_all_contacts_detailed() -> Tuple[bool, List[Dict], int, str]:
         return False, [], 0, str(e)
 
 
+def _parse_last_advert(value) -> int:
+    """Convert last_advert from DB (Unix timestamp string or ISO string) to Unix int."""
+    if not value:
+        return 0
+    # Try as Unix timestamp first
+    try:
+        ts = int(value)
+        if ts > 0:
+            return ts
+    except (ValueError, TypeError):
+        pass
+    # Try as ISO datetime string
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(str(value))
+        return int(dt.timestamp())
+    except (ValueError, TypeError):
+        pass
+    return 0
+
+
 def get_contacts_with_last_seen() -> Tuple[bool, Dict[str, Dict], str]:
     """Get contacts with last_advert timestamps from DB."""
     try:
@@ -140,7 +161,7 @@ def get_contacts_with_last_seen() -> Tuple[bool, Dict[str, Dict], str]:
                 'out_path_len': c.get('out_path_len', -1),
                 'out_path': c.get('out_path', ''),
                 'adv_name': c.get('name', ''),
-                'last_advert': c.get('last_advert', ''),
+                'last_advert': _parse_last_advert(c.get('last_advert')),
                 'adv_lat': c.get('adv_lat', 0.0),
                 'adv_lon': c.get('adv_lon', 0.0),
                 'lastmod': c.get('lastmod', ''),
@@ -165,7 +186,7 @@ def get_contacts_json() -> Tuple[bool, Dict[str, Dict], str]:
                 'flags': c.get('flags', 0),
                 'out_path_len': c.get('out_path_len', -1),
                 'out_path': c.get('out_path', ''),
-                'last_advert': c.get('last_advert', ''),
+                'last_advert': _parse_last_advert(c.get('last_advert')),
                 'adv_lat': c.get('adv_lat'),
                 'adv_lon': c.get('adv_lon'),
                 'lastmod': c.get('lastmod', ''),

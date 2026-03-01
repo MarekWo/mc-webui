@@ -223,7 +223,12 @@ function populateConversationSelector() {
             const lastSeen = dmLastSeenTimestamps[conv.conversation_id] || 0;
             const isUnread = conv.last_message_timestamp > lastSeen;
 
-            let label = conv.display_name;
+            // If display_name is a full pubkey, show short prefix
+            let displayName = conv.display_name;
+            if (/^[0-9a-f]{64}$/i.test(displayName)) {
+                displayName = displayName.substring(0, 8) + '...';
+            }
+            let label = displayName;
             if (isUnread) {
                 label = `* ${label}`;
             }
@@ -286,8 +291,13 @@ async function selectConversation(conversationId) {
 
     // Find the conversation to get recipient name
     const conv = dmConversations.find(c => c.conversation_id === conversationId);
-    if (conv) {
-        currentRecipient = conv.display_name;
+    if (conv && conv.display_name) {
+        // If display_name is a full pubkey (64 hex chars), show short prefix
+        if (/^[0-9a-f]{64}$/i.test(conv.display_name)) {
+            currentRecipient = conv.display_name.substring(0, 8) + '...';
+        } else {
+            currentRecipient = conv.display_name;
+        }
     } else {
         // Extract name from conversation_id
         if (conversationId.startsWith('name_')) {
