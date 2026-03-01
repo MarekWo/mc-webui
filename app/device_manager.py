@@ -460,7 +460,7 @@ class DeviceManager:
             return {'success': False, 'error': 'Device not connected'}
 
         try:
-            event = self.execute(self.mc.send_chan_msg(channel_idx, text))
+            event = self.execute(self.mc.commands.send_chan_msg(channel_idx, text))
 
             # Store the sent message in database
             ts = int(time.time())
@@ -493,7 +493,7 @@ class DeviceManager:
             if not contact:
                 return {'success': False, 'error': f'Contact not found: {recipient_pubkey}'}
 
-            event = self.execute(self.mc.send_msg(contact, text))
+            event = self.execute(self.mc.commands.send_msg(contact, text))
 
             # Store sent DM in database
             ts = int(time.time())
@@ -537,7 +537,7 @@ class DeviceManager:
             return {'success': False, 'error': 'Device not connected'}
 
         try:
-            self.execute(self.mc.remove_contact(pubkey))
+            self.execute(self.mc.commands.remove_contact(pubkey))
             self.db.delete_contact(pubkey)
             return {'success': True, 'message': 'Contact deleted'}
         except Exception as e:
@@ -550,7 +550,7 @@ class DeviceManager:
             return {'success': False, 'error': 'Device not connected'}
 
         try:
-            self.execute(self.mc.reset_path(pubkey))
+            self.execute(self.mc.commands.reset_path(pubkey))
             return {'success': True, 'message': 'Path reset'}
         except Exception as e:
             logger.error(f"Failed to reset path: {e}")
@@ -565,7 +565,7 @@ class DeviceManager:
             return {}
 
         try:
-            event = self.execute(self.mc.send_appstart())
+            event = self.execute(self.mc.commands.send_appstart())
             if event and hasattr(event, 'data'):
                 self._self_info = event.data
                 return dict(self._self_info)
@@ -579,7 +579,7 @@ class DeviceManager:
             return None
 
         try:
-            event = self.execute(self.mc.get_channel(idx))
+            event = self.execute(self.mc.commands.get_channel(idx))
             if event and hasattr(event, 'data'):
                 return event.data
         except Exception as e:
@@ -592,7 +592,7 @@ class DeviceManager:
             return {'success': False, 'error': 'Device not connected'}
 
         try:
-            self.execute(self.mc.set_channel(idx, name, secret))
+            self.execute(self.mc.commands.set_channel(idx, name, secret))
             self.db.upsert_channel(idx, name, secret.hex() if secret else None)
             return {'success': True, 'message': f'Channel {idx} set'}
         except Exception as e:
@@ -606,7 +606,7 @@ class DeviceManager:
 
         try:
             # Set channel with empty name removes it
-            self.execute(self.mc.set_channel(idx, '', None))
+            self.execute(self.mc.commands.set_channel(idx, '', None))
             self.db.delete_channel(idx)
             return {'success': True, 'message': f'Channel {idx} removed'}
         except Exception as e:
@@ -619,7 +619,7 @@ class DeviceManager:
             return {'success': False, 'error': 'Device not connected'}
 
         try:
-            self.execute(self.mc.send_advert(flood=flood))
+            self.execute(self.mc.commands.send_advert(flood=flood))
             return {'success': True, 'message': 'Advert sent'}
         except Exception as e:
             logger.error(f"Failed to send advert: {e}")
@@ -630,7 +630,7 @@ class DeviceManager:
         if not self.is_connected:
             return False
         try:
-            self.execute(self.mc.send_appstart(), timeout=5)
+            self.execute(self.mc.commands.send_appstart(), timeout=5)
             return True
         except Exception:
             return False
@@ -641,7 +641,7 @@ class DeviceManager:
             return {'success': False, 'error': 'Device not connected'}
 
         try:
-            self.execute(self.mc.set_manual_add_contacts(enabled))
+            self.execute(self.mc.commands.set_manual_add_contacts(enabled))
             return {'success': True, 'message': f'Manual add contacts: {enabled}'}
         except Exception as e:
             logger.error(f"Failed to set manual_add_contacts: {e}")
@@ -676,7 +676,7 @@ class DeviceManager:
             if not contact:
                 return {'success': False, 'error': 'Contact not in pending list'}
 
-            self.execute(self.mc.add_contact(contact))
+            self.execute(self.mc.commands.add_contact(contact))
             self.db.upsert_contact(
                 public_key=pubkey,
                 name=contact.get('adv_name', ''),
@@ -693,7 +693,7 @@ class DeviceManager:
             return None
 
         try:
-            event = self.execute(self.mc.get_bat(), timeout=5)
+            event = self.execute(self.mc.commands.get_bat(), timeout=5)
             if event and hasattr(event, 'data'):
                 return event.data
         except Exception as e:
