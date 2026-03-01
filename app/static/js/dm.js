@@ -11,6 +11,7 @@ let contactsList = [];  // List of all contacts from device
 let dmLastSeenTimestamps = {};
 let autoRefreshInterval = null;
 let lastMessageTimestamp = 0;  // Track latest message timestamp for smart refresh
+let chatSocket = null;  // SocketIO connection to /chat namespace
 
 /**
  * Get display-friendly name (truncate full pubkeys to short prefix)
@@ -19,6 +20,72 @@ function displayName(name) {
     if (!name) return 'Unknown';
     if (/^[0-9a-f]{64}$/i.test(name)) return name.substring(0, 8) + '...';
     return name;
+}
+
+/**
+ * Connect to SocketIO /chat namespace for real-time DM and ACK updates
+ */
+function connectChatSocket() {
+    if (typeof io === 'undefined') {
+        console.warn('SocketIO not available, falling back to polling only');
+        return;
+    }
+
+    const wsUrl = window.location.origin;
+    chatSocket = io(wsUrl + '/chat', {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 10000,
+    });
+
+    chatSocket.on('connect', () => {
+        console.log('DM: SocketIO connected to /chat');
+        updateStatus('connected');
+    });
+
+    chatSocket.on('disconnect', () => {
+        console.log('DM: SocketIO disconnected');
+    });
+
+    // Real-time new DM message
+    chatSocket.on('new_message', (data) => {
+        if (data.type !== 'dm') return;
+
+        const msgPubkey = data.contact_pubkey || '';
+        const currentPubkey = currentConversationId ? currentConversationId.replace('pk_', '') : '';
+
+        if (currentPubkey && msgPubkey.startsWith(currentPubkey)) {
+            // Message is for current conversation — reload messages
+            loadMessages();
+        } else {
+            // Message is for a different conversation — refresh conversation list
+            loadConversations();
+        }
+    });
+
+    // Real-time ACK delivery confirmation
+    chatSocket.on('ack', (data) => {
+        if (!data.expected_ack) return;
+
+        // Find message with matching expected_ack in DOM and update status
+        const msgElements = document.querySelectorAll('#dmMessagesList .dm-message.own');
+        msgElements.forEach(el => {
+            const statusEl = el.querySelector(`.dm-status[data-ack="${data.expected_ack}"]`);
+            if (statusEl) {
+                statusEl.className = 'bi bi-check2 dm-status delivered';
+                const tooltip = [];
+                if (data.snr != null) tooltip.push(`SNR: ${data.snr}`);
+                if (data.route_type) tooltip.push(`Route: ${data.route_type}`);
+                statusEl.title = tooltip.length > 0 ? tooltip.join(', ') : 'Delivered';
+            }
+        });
+    });
+
+    // Real-time device status
+    chatSocket.on('device_status', (data) => {
+        updateStatus(data.connected ? 'connected' : 'disconnected');
+    });
 }
 
 // Initialize on page load
@@ -70,7 +137,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Load auto-retry config
     loadAutoRetryConfig();
 
-    // Setup auto-refresh
+    // Connect SocketIO for real-time updates
+    connectChatSocket();
+
+    // Setup auto-refresh (fallback, 60s interval since SocketIO handles primary updates)
     setupAutoRefresh();
 });
 
@@ -440,18 +510,19 @@ function displayMessages(messages) {
         // Status icon for own messages
         let statusIcon = '';
         if (msg.is_own) {
+            const ackAttr = msg.expected_ack ? ` data-ack="${msg.expected_ack}"` : '';
             if (msg.status === 'delivered') {
                 let title = 'Delivered';
                 if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
                     title += `, SNR: ${msg.delivery_snr.toFixed(1)} dB`;
                 }
                 if (msg.delivery_route) title += ` (${msg.delivery_route})`;
-                statusIcon = `<i class="bi bi-check2 dm-status delivered" title="${title}"></i>`;
+                statusIcon = `<i class="bi bi-check2 dm-status delivered"${ackAttr} title="${title}"></i>`;
             } else if (msg.status === 'pending') {
-                statusIcon = '<i class="bi bi-clock dm-status pending" title="Sending..."></i>';
+                statusIcon = `<i class="bi bi-clock dm-status pending"${ackAttr} title="Sending..."></i>`;
             } else {
                 // No ACK received — show clickable "?" with explanation
-                statusIcon = `<span class="dm-status-unknown" onclick="showDeliveryInfo(this)"><i class="bi bi-question-circle dm-status unknown"></i></span>`;
+                statusIcon = `<span class="dm-status-unknown" onclick="showDeliveryInfo(this)"><i class="bi bi-question-circle dm-status unknown"${ackAttr}></i></span>`;
             }
         }
 
@@ -529,22 +600,9 @@ async function sendMessage() {
             updateCharCounter();
             showNotification('Message sent', 'success');
 
-            // Reload messages to show sent message + ACK delivery status
-            // Extended delays to cover auto-retry window (retries happen in background)
-            const ackRefreshDelays = [2000, 8000, 20000, 40000, 60000];
-            let ackRefreshIdx = 0;
-            const scheduleAckRefresh = () => {
-                if (ackRefreshIdx >= ackRefreshDelays.length) return;
-                const delay = ackRefreshDelays[ackRefreshIdx++];
-                setTimeout(async () => {
-                    await loadMessages();
-                    const ownMsgs = document.querySelectorAll('#dmMessagesList .dm-message.own');
-                    const lastOwn = ownMsgs.length > 0 ? ownMsgs[ownMsgs.length - 1] : null;
-                    const delivered = lastOwn && lastOwn.querySelector('.dm-status.delivered');
-                    if (!delivered) scheduleAckRefresh();
-                }, delay);
-            };
-            scheduleAckRefresh();
+            // Reload messages once to show sent message
+            // ACK delivery updates arrive via SocketIO in real-time
+            await loadMessages();
         } else {
             showNotification('Failed to send: ' + data.error, 'danger');
         }
@@ -562,7 +620,7 @@ async function sendMessage() {
  * Only refreshes UI when new messages arrive
  */
 function setupAutoRefresh() {
-    const checkInterval = 10000; // 10 seconds
+    const checkInterval = 60000; // 60 seconds (SocketIO handles real-time updates)
 
     autoRefreshInterval = setInterval(async () => {
         // Reload conversations to update unread indicators

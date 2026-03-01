@@ -395,6 +395,9 @@ class DeviceManager:
                 if self.socketio:
                     self.socketio.emit('ack', {
                         'expected_ack': expected_ack,
+                        'snr': data.get('snr'),
+                        'rssi': data.get('rssi'),
+                        'route_type': data.get('route_type', ''),
                     }, namespace='/chat')
 
         except Exception as e:
