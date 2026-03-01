@@ -110,6 +110,11 @@ def create_app():
 
     threading.Thread(target=_wait_for_device_name, daemon=True).start()
 
+    # Start background scheduler (archiving, contact cleanup, message retention)
+    from app.archiver.manager import schedule_daily_archiving, init_retention_schedule
+    schedule_daily_archiving()
+    init_retention_schedule(db=db)
+
     logger.info(f"mc-webui v2 started — transport: {'TCP' if config.use_tcp else 'serial'}")
     logger.info(f"Database: {config.db_path}")
 

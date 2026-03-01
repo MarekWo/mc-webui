@@ -515,14 +515,30 @@ class Database:
             stats['db_size_bytes'] = self.db_path.stat().st_size if self.db_path.exists() else 0
         return stats
 
-    def cleanup_old_messages(self, days: int) -> int:
-        """Delete channel messages older than N days. Returns count deleted."""
+    def cleanup_old_messages(self, days: int, include_dms: bool = False,
+                             include_adverts: bool = False) -> dict:
+        """Delete messages older than N days. Returns counts per table."""
         cutoff = int((datetime.now() - timedelta(days=days)).timestamp())
+        result = {}
         with self._connect() as conn:
             cursor = conn.execute(
                 "DELETE FROM channel_messages WHERE timestamp < ?", (cutoff,)
             )
-            return cursor.rowcount
+            result['channel_messages'] = cursor.rowcount
+
+            if include_dms:
+                cursor = conn.execute(
+                    "DELETE FROM direct_messages WHERE timestamp < ?", (cutoff,)
+                )
+                result['direct_messages'] = cursor.rowcount
+
+            if include_adverts:
+                cursor = conn.execute(
+                    "DELETE FROM advertisements WHERE timestamp < ?", (cutoff,)
+                )
+                result['advertisements'] = cursor.rowcount
+
+        return result
 
     # ================================================================
     # Backup

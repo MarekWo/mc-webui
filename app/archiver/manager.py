@@ -20,6 +20,10 @@ _scheduler: Optional[BackgroundScheduler] = None
 
 # Job IDs
 CLEANUP_JOB_ID = 'daily_cleanup'
+RETENTION_JOB_ID = 'daily_retention'
+
+# Module-level db reference (set by init_retention_schedule)
+_db = None
 
 
 def get_local_timezone_name() -> str:
@@ -458,6 +462,103 @@ def init_cleanup_schedule():
 
     except Exception as e:
         logger.error(f"Error initializing cleanup schedule: {e}", exc_info=True)
+
+
+def _retention_job():
+    """Background job that runs daily to delete old messages from DB."""
+    logger.info("Running daily retention job...")
+
+    try:
+        from app.routes.api import get_retention_settings
+
+        settings = get_retention_settings()
+
+        if not settings.get('enabled'):
+            logger.info("Message retention is disabled, skipping")
+            return
+
+        if _db is None:
+            logger.error("Database not available for retention job")
+            return
+
+        days = settings.get('days', 90)
+        include_dms = settings.get('include_dms', False)
+        include_adverts = settings.get('include_adverts', False)
+
+        result = _db.cleanup_old_messages(
+            days=days,
+            include_dms=include_dms,
+            include_adverts=include_adverts
+        )
+
+        total = sum(result.values())
+        logger.info(f"Retention job completed: {total} rows deleted ({result})")
+
+    except Exception as e:
+        logger.error(f"Retention job failed: {e}", exc_info=True)
+
+
+def schedule_retention(enabled: bool, hour: int = 2) -> bool:
+    """Add or remove the retention job from the scheduler."""
+    global _scheduler
+
+    if _scheduler is None:
+        logger.warning("Scheduler not initialized, cannot schedule retention")
+        return False
+
+    try:
+        if enabled:
+            if not isinstance(hour, int) or hour < 0 or hour > 23:
+                hour = 2
+
+            trigger = CronTrigger(hour=hour, minute=30)
+
+            _scheduler.add_job(
+                func=_retention_job,
+                trigger=trigger,
+                id=RETENTION_JOB_ID,
+                name='Daily Message Retention',
+                replace_existing=True
+            )
+
+            tz_name = get_local_timezone_name()
+            logger.info(f"Retention job scheduled - will run daily at {hour:02d}:30 ({tz_name})")
+        else:
+            try:
+                _scheduler.remove_job(RETENTION_JOB_ID)
+                logger.info("Retention job removed from scheduler")
+            except Exception:
+                pass
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error scheduling retention: {e}", exc_info=True)
+        return False
+
+
+def init_retention_schedule(db=None):
+    """Initialize retention schedule from saved settings. Call at startup."""
+    global _db
+
+    if db is not None:
+        _db = db
+
+    try:
+        from app.routes.api import get_retention_settings
+
+        settings = get_retention_settings()
+
+        if settings.get('enabled'):
+            hour = settings.get('hour', 2)
+            schedule_retention(enabled=True, hour=hour)
+            tz_name = get_local_timezone_name()
+            logger.info(f"Message retention enabled from saved settings (hour={hour:02d}:30 {tz_name})")
+        else:
+            logger.info("Message retention is disabled in saved settings")
+
+    except Exception as e:
+        logger.error(f"Error initializing retention schedule: {e}", exc_info=True)
 
 
 def schedule_daily_archiving():

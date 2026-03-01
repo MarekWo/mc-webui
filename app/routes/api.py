@@ -310,6 +310,56 @@ def save_cleanup_settings(cleanup_settings: dict) -> bool:
         return False
 
 
+def get_retention_settings() -> dict:
+    """Get message retention settings from .webui_settings.json."""
+    from pathlib import Path
+    defaults = {
+        'enabled': False,
+        'days': 90,
+        'include_dms': False,
+        'include_adverts': False,
+        'hour': 2
+    }
+
+    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
+
+    try:
+        if not settings_path.exists():
+            return defaults
+
+        with open(settings_path, 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+            retention = settings.get('retention_settings', {})
+            return {**defaults, **retention}
+    except Exception as e:
+        logger.error(f"Failed to read retention settings: {e}")
+        return defaults
+
+
+def save_retention_settings(retention_settings: dict) -> bool:
+    """Save message retention settings to .webui_settings.json (atomic write)."""
+    from pathlib import Path
+    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
+
+    try:
+        settings = {}
+        if settings_path.exists():
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+
+        settings['retention_settings'] = retention_settings
+
+        temp_file = settings_path.with_suffix('.tmp')
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+        temp_file.replace(settings_path)
+
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save retention settings: {e}")
+        return False
+
+
 @api_bp.route('/messages', methods=['GET'])
 def get_messages():
     """
@@ -2694,6 +2744,55 @@ def update_device_settings_api():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# =============================================================================
+# Message Retention Settings
+# =============================================================================
+
+@api_bp.route('/retention-settings', methods=['GET'])
+def get_retention_settings_api():
+    """Get current message retention settings."""
+    try:
+        from app.archiver.manager import get_local_timezone_name
+        settings = get_retention_settings()
+        settings['timezone'] = get_local_timezone_name()
+        return jsonify({'success': True, **settings})
+    except Exception as e:
+        logger.error(f"Error getting retention settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/retention-settings', methods=['POST'])
+def update_retention_settings_api():
+    """Update message retention settings and reschedule job."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+        current = get_retention_settings()
+
+        current['enabled'] = data.get('enabled', current['enabled'])
+        current['days'] = max(1, min(data.get('days', current['days']), 3650))
+        current['include_dms'] = data.get('include_dms', current['include_dms'])
+        current['include_adverts'] = data.get('include_adverts', current['include_adverts'])
+        current['hour'] = max(0, min(data.get('hour', current['hour']), 23))
+
+        if not save_retention_settings(current):
+            return jsonify({'success': False, 'error': 'Failed to save settings'}), 500
+
+        from app.archiver.manager import schedule_retention
+        schedule_retention(enabled=current['enabled'], hour=current['hour'])
+
+        return jsonify({
+            'success': True,
+            'message': f"Retention {'enabled' if current['enabled'] else 'disabled'}",
+            'settings': current
+        })
+    except Exception as e:
+        logger.error(f"Error updating retention settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # =============================================================================
