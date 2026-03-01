@@ -414,6 +414,23 @@ class Database:
                  kwargs.get('raw_payload'))
             )
 
+    def get_advertisements(self, limit: int = 100, public_key: str = None) -> list:
+        with self._connect() as conn:
+            if public_key:
+                rows = conn.execute(
+                    """SELECT * FROM advertisements
+                       WHERE public_key = ?
+                       ORDER BY timestamp DESC LIMIT ?""",
+                    (public_key.lower(), limit)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM advertisements
+                       ORDER BY timestamp DESC LIMIT ?""",
+                    (limit,)
+                ).fetchall()
+            return [dict(r) for r in rows]
+
     # ================================================================
     # Read Status
     # ================================================================

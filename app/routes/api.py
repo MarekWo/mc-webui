@@ -3275,6 +3275,37 @@ def add_console_history():
         }), 500
 
 
+@api_bp.route('/advertisements', methods=['GET'])
+def get_advertisements():
+    """Get advertisement history, optionally filtered by public key."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        public_key = request.args.get('pubkey', None)
+
+        limit = max(1, min(limit, 1000))
+
+        adverts = db.get_advertisements(limit=limit, public_key=public_key)
+
+        # Enrich with contact name lookup
+        names = get_all_names()
+        for adv in adverts:
+            pk = adv.get('public_key', '')
+            adv['contact_name'] = names.get(pk, adv.get('name', ''))
+
+        return jsonify({
+            'success': True,
+            'advertisements': adverts,
+            'count': len(adverts)
+        })
+    except Exception as e:
+        logger.error(f"Error fetching advertisements: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/console/history', methods=['DELETE'])
 def clear_console_history():
     """Clear console command history"""
