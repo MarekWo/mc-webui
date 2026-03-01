@@ -18,8 +18,7 @@ class Config:
     MC_DEVICE_NAME = os.getenv('MC_DEVICE_NAME', 'MeshCore')
     MC_CONFIG_DIR = os.getenv('MC_CONFIG_DIR', '/root/.config/meshcore')
 
-    # MeshCore Bridge configuration (v1 — will be removed in Phase 1)
-    MC_BRIDGE_URL = os.getenv('MC_BRIDGE_URL', 'http://meshcore-bridge:5001/cli')
+    # MC_BRIDGE_URL removed in v2 (direct device communication)
 
     # Archive configuration (v1 — archives move to SQLite in v2)
     MC_ARCHIVE_DIR = os.getenv('MC_ARCHIVE_DIR', '/root/.archive/meshcore')
