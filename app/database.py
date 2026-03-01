@@ -291,13 +291,20 @@ class Database:
                          offset: int = 0) -> List[Dict]:
         contact_pubkey = contact_pubkey.lower()
         with self._connect() as conn:
+            # Support both full key and prefix matching
+            if len(contact_pubkey) < 64:
+                condition = "contact_pubkey LIKE ?"
+                param = contact_pubkey + '%'
+            else:
+                condition = "contact_pubkey = ?"
+                param = contact_pubkey
             rows = conn.execute(
-                """SELECT * FROM (
+                f"""SELECT * FROM (
                     SELECT * FROM direct_messages
-                    WHERE contact_pubkey = ?
+                    WHERE {condition}
                     ORDER BY timestamp DESC LIMIT ? OFFSET ?
                 ) ORDER BY timestamp ASC""",
-                (contact_pubkey, limit, offset)
+                (param, limit, offset)
             ).fetchall()
             return [dict(r) for r in rows]
 

@@ -16,6 +16,15 @@ from typing import Optional, Any, Dict, List
 logger = logging.getLogger(__name__)
 
 
+def _to_str(val) -> str:
+    """Convert bytes or other types to string. Used for expected_ack, pkt_payload, etc."""
+    if val is None:
+        return ''
+    if isinstance(val, bytes):
+        return val.hex()
+    return str(val)
+
+
 class DeviceManager:
     """
     Manages MeshCore device connection.
@@ -346,7 +355,7 @@ class DeviceManager:
         """Handle confirmation that our message was sent."""
         try:
             data = getattr(event, 'payload', {})
-            expected_ack = data.get('expected_ack', '')
+            expected_ack = _to_str(data.get('expected_ack'))
             msg_type = data.get('txt_type', 0)
 
             # txt_type 0 = DM, 1 = channel
@@ -361,7 +370,7 @@ class DeviceManager:
         """Handle ACK (delivery confirmation for DM)."""
         try:
             data = getattr(event, 'payload', {})
-            expected_ack = data.get('expected_ack', '')
+            expected_ack = _to_str(data.get('expected_ack'))
 
             if expected_ack:
                 self.db.insert_ack(
@@ -510,20 +519,21 @@ class DeviceManager:
             # Store sent DM in database
             ts = int(time.time())
             event_data = getattr(event, 'payload', {})
+            ack = _to_str(event_data.get('expected_ack'))
             dm_id = self.db.insert_direct_message(
                 contact_pubkey=recipient_pubkey.lower(),
                 direction='out',
                 content=text,
                 timestamp=ts,
-                expected_ack=event_data.get('expected_ack'),
-                pkt_payload=event_data.get('pkt_payload'),
+                expected_ack=ack or None,
+                pkt_payload=_to_str(event_data.get('pkt_payload')) or None,
             )
 
             return {
                 'success': True,
                 'message': 'DM sent',
                 'id': dm_id,
-                'expected_ack': event_data.get('expected_ack', ''),
+                'expected_ack': ack,
             }
 
         except Exception as e:
