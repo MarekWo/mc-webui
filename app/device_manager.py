@@ -407,6 +407,7 @@ class DeviceManager:
         """Handle received advertisement from another node."""
         try:
             data = getattr(event, 'payload', {})
+            logger.info(f"ADVERT payload: {data}")
             pubkey = data.get('public_key', '')
             name = data.get('adv_name', data.get('name', ''))
 
@@ -432,7 +433,7 @@ class DeviceManager:
                     source='advert',
                 )
 
-                logger.debug(f"Advert from {name} ({pubkey[:8]}...)")
+                logger.info(f"Advert from '{name}' ({pubkey[:8]}...)")
 
         except Exception as e:
             logger.error(f"Error handling advertisement: {e}")
@@ -459,6 +460,7 @@ class DeviceManager:
         """Handle new contact discovered."""
         try:
             data = getattr(event, 'payload', {})
+            logger.info(f"NEW_CONTACT payload: {data}")
             pubkey = data.get('public_key', '')
             name = data.get('adv_name', data.get('name', ''))
 
