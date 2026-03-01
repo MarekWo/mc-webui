@@ -364,7 +364,8 @@ def get_messages():
             # Convert DB rows to frontend-compatible format
             messages = []
             for row in db_messages:
-                messages.append({
+                pkt_payload = row.get('pkt_payload')
+                msg = {
                     'sender': row.get('sender', ''),
                     'content': row.get('content', ''),
                     'timestamp': row.get('timestamp', 0),
@@ -376,16 +377,17 @@ def get_messages():
                     'sender_timestamp': row.get('sender_timestamp'),
                     'txt_type': row.get('txt_type', 0),
                     'raw_text': row.get('content', ''),
-                })
+                    'pkt_payload': pkt_payload,
+                }
 
-            # Enrich with echo data from DB (if available)
-            for msg in messages:
-                if msg.get('is_own'):
-                    pkt = row.get('pkt_payload') if row else None
-                    if pkt:
-                        echoes = db.get_echoes_for_message(pkt)
-                        msg['echo_count'] = len(echoes)
-                        msg['echo_paths'] = [e.get('path', '') for e in echoes]
+                # Enrich own messages with echo data and analyzer URL
+                if msg['is_own'] and pkt_payload:
+                    echoes = db.get_echoes_for_message(pkt_payload)
+                    msg['echo_count'] = len(echoes)
+                    msg['echo_paths'] = [e.get('path', '') for e in echoes]
+                    msg['analyzer_url'] = compute_analyzer_url(pkt_payload)
+
+                messages.append(msg)
         else:
             # Fallback to parser for file-based reads
             messages = parser.read_messages(
