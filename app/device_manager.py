@@ -255,9 +255,17 @@ class DeviceManager:
         try:
             data = getattr(event, 'payload', {})
             ts = data.get('timestamp', int(time.time()))
-            sender = data.get('sender_name', data.get('name', 'Unknown'))
-            content = data.get('text', '')
+            raw_text = data.get('text', '')
             channel_idx = data.get('channel_idx', 0)
+
+            # Parse sender from "SenderName: message" format
+            if ':' in raw_text:
+                sender, content = raw_text.split(':', 1)
+                sender = sender.strip()
+                content = content.strip()
+            else:
+                sender = 'Unknown'
+                content = raw_text
 
             msg_id = self.db.insert_channel_message(
                 channel_idx=channel_idx,
@@ -265,7 +273,7 @@ class DeviceManager:
                 content=content,
                 timestamp=ts,
                 sender_timestamp=data.get('sender_timestamp'),
-                snr=data.get('snr'),
+                snr=data.get('SNR', data.get('snr')),
                 path_len=data.get('path_len'),
                 pkt_payload=data.get('pkt_payload'),
                 raw_json=json.dumps(data, default=str),
@@ -294,8 +302,12 @@ class DeviceManager:
             content = data.get('text', '')
             sender_key = data.get('public_key', data.get('pubkey_prefix', ''))
 
-            # Ensure contact exists
-            sender_name = data.get('sender_name', data.get('name', 'Unknown'))
+            # Look up sender name from contacts (event doesn't include it)
+            sender_name = 'Unknown'
+            if sender_key and self.mc:
+                contact = self.mc.get_contact_by_key_prefix(sender_key)
+                if contact:
+                    sender_name = contact.get('name', sender_key[:8])
             if sender_key:
                 self.db.upsert_contact(
                     public_key=sender_key,
@@ -309,7 +321,7 @@ class DeviceManager:
                 content=content,
                 timestamp=ts,
                 sender_timestamp=data.get('sender_timestamp'),
-                snr=data.get('snr'),
+                snr=data.get('SNR', data.get('snr')),
                 path_len=data.get('path_len'),
                 pkt_payload=data.get('pkt_payload'),
                 raw_json=json.dumps(data, default=str),
