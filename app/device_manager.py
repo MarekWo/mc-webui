@@ -25,6 +25,7 @@ def _to_str(val) -> str:
     return str(val)
 
 
+
 class DeviceManager:
     """
     Manages MeshCore device connection.
@@ -47,6 +48,7 @@ class DeviceManager:
         self._device_name = None
         self._self_info = None
         self._subscriptions = []    # active event subscriptions
+        self._channel_secrets = {}  # {channel_idx: secret_hex} for pkt_payload
 
     @property
     def is_connected(self) -> bool:
@@ -176,12 +178,31 @@ class DeviceManager:
             await self.mc.ensure_contacts()
             self._sync_contacts_to_db()
 
+            # Cache channel secrets for pkt_payload computation
+            await self._load_channel_secrets()
+
             # Start auto message fetching (events fire on new messages)
             await self.mc.start_auto_message_fetching()
 
         except Exception as e:
             logger.error(f"Device connection failed: {e}")
             self._connected = False
+
+    async def _load_channel_secrets(self):
+        """Load channel secrets from device for pkt_payload computation."""
+        try:
+            for idx in range(8):  # MeshCore supports channels 0-7
+                event = await self.mc.commands.get_channel(idx)
+                if event:
+                    data = getattr(event, 'payload', None) or {}
+                    secret = data.get('channel_secret', data.get('secret', b''))
+                    if isinstance(secret, bytes):
+                        secret = secret.hex()
+                    if secret and len(secret) == 32:
+                        self._channel_secrets[idx] = secret
+            logger.info(f"Cached {len(self._channel_secrets)} channel secrets")
+        except Exception as e:
+            logger.error(f"Failed to load channel secrets: {e}")
 
     async def _subscribe_events(self):
         """Subscribe to all relevant device events."""

@@ -411,10 +411,39 @@ def get_messages():
                     days=days,
                 )
 
+            # Build channel secret lookup for pkt_payload computation
+            channel_secrets = {}
+            _, channels_list = get_channels_cached()
+            if channels_list:
+                for ch_info in channels_list:
+                    ch_key = ch_info.get('key', '')
+                    ch_idx = ch_info.get('index')
+                    if ch_key and ch_idx is not None:
+                        channel_secrets[ch_idx] = ch_key
+
             # Convert DB rows to frontend-compatible format
             messages = []
             for row in db_messages:
                 pkt_payload = row.get('pkt_payload')
+                ch_idx = row.get('channel_idx', 0)
+                sender_ts = row.get('sender_timestamp')
+                txt_type = row.get('txt_type', 0)
+
+                # Compute pkt_payload if not stored (v2: meshcore doesn't provide it)
+                if not pkt_payload and sender_ts and ch_idx in channel_secrets:
+                    # Reconstruct raw_text as firmware sends it: "SenderName: message"
+                    sender = row.get('sender', '')
+                    content = row.get('content', '')
+                    is_own = bool(row.get('is_own', 0))
+                    if is_own:
+                        device_name = runtime_config.get_device_name() or ''
+                        raw_text = f"{device_name}: {content}" if device_name else content
+                    else:
+                        raw_text = f"{sender}: {content}" if sender else content
+                    pkt_payload = compute_pkt_payload(
+                        channel_secrets[ch_idx], sender_ts, txt_type, raw_text
+                    )
+
                 msg = {
                     'sender': row.get('sender', ''),
                     'content': row.get('content', ''),
@@ -423,19 +452,20 @@ def get_messages():
                     'is_own': bool(row.get('is_own', 0)),
                     'snr': row.get('snr'),
                     'path_len': row.get('path_len'),
-                    'channel_idx': row.get('channel_idx', 0),
-                    'sender_timestamp': row.get('sender_timestamp'),
-                    'txt_type': row.get('txt_type', 0),
+                    'channel_idx': ch_idx,
+                    'sender_timestamp': sender_ts,
+                    'txt_type': txt_type,
                     'raw_text': row.get('content', ''),
                     'pkt_payload': pkt_payload,
                 }
 
-                # Enrich own messages with echo data and analyzer URL
-                if msg['is_own'] and pkt_payload:
-                    echoes = db.get_echoes_for_message(pkt_payload)
-                    msg['echo_count'] = len(echoes)
-                    msg['echo_paths'] = [e.get('path', '') for e in echoes]
+                # Enrich with echo data and analyzer URL
+                if pkt_payload:
                     msg['analyzer_url'] = compute_analyzer_url(pkt_payload)
+                    if msg['is_own']:
+                        echoes = db.get_echoes_for_message(pkt_payload)
+                        msg['echo_count'] = len(echoes)
+                        msg['echo_paths'] = [e.get('path', '') for e in echoes]
 
                 messages.append(msg)
         else:
