@@ -2678,6 +2678,42 @@ def approve_pending_contact_api():
         }), 500
 
 
+@api_bp.route('/contacts/pending/reject', methods=['POST'])
+def reject_pending_contact_api():
+    """Reject a pending contact (remove from pending list without adding)."""
+    try:
+        data = request.get_json()
+        if not data or 'public_key' not in data:
+            return jsonify({'success': False, 'error': 'Missing required field: public_key'}), 400
+
+        dm = _get_dm()
+        if not dm:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
+
+        result = dm.reject_contact(data['public_key'])
+        status = 200 if result['success'] else 500
+        return jsonify(result), status
+    except Exception as e:
+        logger.error(f"Error rejecting pending contact: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/pending/clear', methods=['POST'])
+def clear_pending_contacts_api():
+    """Clear all pending contacts."""
+    try:
+        dm = _get_dm()
+        if not dm:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
+
+        result = dm.clear_pending_contacts()
+        status = 200 if result['success'] else 500
+        return jsonify(result), status
+    except Exception as e:
+        logger.error(f"Error clearing pending contacts: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/device/settings', methods=['GET'])
 def get_device_settings_api():
     """

@@ -827,9 +827,36 @@ class DeviceManager:
                 last_advert=last_advert_val,
                 source='device',
             )
+            # Remove from pending list after successful approval
+            self.mc.pending_contacts.pop(pubkey, None)
             return {'success': True, 'message': 'Contact approved'}
         except Exception as e:
             logger.error(f"Failed to approve contact: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def reject_contact(self, pubkey: str) -> Dict:
+        """Reject a pending contact (remove from pending list without adding)."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+
+        try:
+            removed = self.mc.pending_contacts.pop(pubkey, None)
+            if removed:
+                return {'success': True, 'message': 'Contact rejected'}
+            return {'success': False, 'error': 'Contact not in pending list'}
+        except Exception as e:
+            logger.error(f"Failed to reject contact: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def clear_pending_contacts(self) -> Dict:
+        """Clear all pending contacts."""
+        try:
+            count = len(self.mc.pending_contacts) if self.mc and self.mc.pending_contacts else 0
+            if self.mc and self.mc.pending_contacts is not None:
+                self.mc.pending_contacts.clear()
+            return {'success': True, 'message': f'Cleared {count} pending contacts'}
+        except Exception as e:
+            logger.error(f"Failed to clear pending contacts: {e}")
             return {'success': False, 'error': str(e)}
 
     def get_battery(self) -> Optional[Dict]:
