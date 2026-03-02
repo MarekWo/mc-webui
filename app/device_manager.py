@@ -551,6 +551,14 @@ class DeviceManager:
         except Exception as e:
             logger.error(f"Error handling RX_LOG_DATA: {e}")
 
+    def _get_channel_hash(self, channel_idx: int) -> str:
+        """Get the expected channel hash byte (hex) for a channel index."""
+        import hashlib
+        secret_hex = self._channel_secrets.get(channel_idx)
+        if not secret_hex:
+            return None
+        return hashlib.sha256(bytes.fromhex(secret_hex)).digest()[0:1].hex()
+
     def _process_echo(self, pkt_payload: str, path: str, snr: float = None):
         """Classify and store an echo: sent echo or incoming echo.
 
@@ -570,12 +578,19 @@ class DeviceManager:
                 if age > 60:
                     self._pending_echo = None
                 elif pe['pkt_payload'] is None:
-                    # First echo after send — correlate pkt_payload with sent message
-                    pe['pkt_payload'] = pkt_payload
-                    direction = 'sent'
-                    # Update the sent message's pkt_payload in DB
-                    self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
-                    logger.info(f"Echo: correlated pkt_payload with sent msg #{pe['msg_id']}, path={path}")
+                    # Validate channel hash before correlating — the first byte
+                    # of pkt_payload is sha256(channel_secret)[0], must match
+                    # the channel we sent on to avoid cross-channel mismatches
+                    expected_hash = self._get_channel_hash(pe['channel_idx'])
+                    echo_hash = pkt_payload[:2] if pkt_payload else None
+                    if expected_hash and echo_hash and expected_hash == echo_hash:
+                        # First echo after send — correlate pkt_payload with sent message
+                        pe['pkt_payload'] = pkt_payload
+                        direction = 'sent'
+                        self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
+                        logger.info(f"Echo: correlated pkt_payload with sent msg #{pe['msg_id']}, path={path}")
+                    elif expected_hash and echo_hash and expected_hash != echo_hash:
+                        logger.debug(f"Echo: channel hash mismatch (expected {expected_hash}, got {echo_hash}) — not our sent msg")
                 elif pe['pkt_payload'] == pkt_payload:
                     # Additional echo for same sent message
                     direction = 'sent'
