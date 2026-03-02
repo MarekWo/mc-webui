@@ -775,8 +775,11 @@ function createMessageElement(msg) {
     }
 
     let metaParts = [];
-    if (msg.snr !== undefined && msg.snr !== null) {
-        metaParts.push(`SNR: ${msg.snr.toFixed(1)} dB`);
+    // Use message SNR, or fall back to first echo path SNR
+    const displaySnr = (msg.snr !== undefined && msg.snr !== null) ? msg.snr
+        : (msg.echo_snrs && msg.echo_snrs.length > 0) ? msg.echo_snrs[0] : null;
+    if (displaySnr !== null) {
+        metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
     }
     if (msg.path_len !== undefined && msg.path_len !== null) {
         metaParts.push(`Hops: ${msg.path_len}`);
