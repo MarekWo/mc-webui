@@ -67,14 +67,20 @@ def compute_pkt_payload(channel_secret_hex, sender_timestamp, txt_type, text, at
 
     Reconstructs the encrypted GRP_TXT payload:
       channel_hash(1) + HMAC-MAC(2) + AES-128-ECB(plaintext)
-    where plaintext = timestamp(4 LE) + flags(1) + text(UTF-8) + null + zero-pad.
+    where plaintext = timestamp(4 LE) + flags(1) + text(UTF-8) [+ null + zero-pad].
+    Firmware omits null+padding when header+text exactly fills an AES block boundary.
     """
     secret = bytes.fromhex(channel_secret_hex)
     flags = ((txt_type & 0x3F) << 2) | (attempt & 0x03)
-    plaintext = struct.pack('<I', sender_timestamp) + bytes([flags]) + text.encode('utf-8') + b'\x00'
-    # Pad to AES block boundary (16 bytes)
-    pad_len = (16 - len(plaintext) % 16) % 16
-    plaintext += b'\x00' * pad_len
+    core = struct.pack('<I', sender_timestamp) + bytes([flags]) + text.encode('utf-8')
+    if len(core) % 16 == 0:
+        # Text exactly fills block boundary — firmware sends as-is, no null/padding
+        plaintext = core
+    else:
+        plaintext = core + b'\x00'
+        # Pad to AES block boundary (16 bytes)
+        pad_len = (16 - len(plaintext) % 16) % 16
+        plaintext += b'\x00' * pad_len
     # AES-128-ECB encrypt
     cipher = AES.new(secret[:16], AES.MODE_ECB)
     ciphertext = cipher.encrypt(plaintext)
@@ -431,15 +437,23 @@ def get_messages():
 
                 # Compute pkt_payload if not stored (v2: meshcore doesn't provide it)
                 if not pkt_payload and sender_ts and ch_idx in channel_secrets:
-                    # Reconstruct raw_text as firmware sends it: "SenderName: message"
-                    sender = row.get('sender', '')
-                    content = row.get('content', '')
-                    is_own = bool(row.get('is_own', 0))
-                    if is_own:
-                        device_name = runtime_config.get_device_name() or ''
-                        raw_text = f"{device_name}: {content}" if device_name else content
-                    else:
-                        raw_text = f"{sender}: {content}" if sender else content
+                    # Use original text from raw_json (preserves trailing whitespace)
+                    raw_text = None
+                    raw_json_str = row.get('raw_json')
+                    if raw_json_str:
+                        try:
+                            raw_text = json.loads(raw_json_str).get('text')
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                    # Fallback: reconstruct from sender + content
+                    if not raw_text:
+                        is_own = bool(row.get('is_own', 0))
+                        if is_own:
+                            device_name = runtime_config.get_device_name() or ''
+                            raw_text = f"{device_name}: {row.get('content', '')}" if device_name else row.get('content', '')
+                        else:
+                            sender = row.get('sender', '')
+                            raw_text = f"{sender}: {row.get('content', '')}" if sender else row.get('content', '')
                     pkt_payload = compute_pkt_payload(
                         channel_secrets[ch_idx], sender_ts, txt_type, raw_text
                     )
