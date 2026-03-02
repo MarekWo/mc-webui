@@ -49,6 +49,7 @@ class DeviceManager:
         self._self_info = None
         self._subscriptions = []    # active event subscriptions
         self._channel_secrets = {}  # {channel_idx: secret_hex} for pkt_payload
+        self._max_channels = 8     # updated from device_info at connect
         self._pending_echo = None   # {'timestamp': float, 'channel_idx': int, 'msg_id': int, 'pkt_payload': str|None}
         self._echo_lock = threading.Lock()
 
@@ -167,6 +168,16 @@ class DeviceManager:
                 self_info=json.dumps(self._self_info, default=str)
             )
 
+            # Fetch device_info for max_channels
+            try:
+                dev_info_event = await self.mc.commands.send_device_query()
+                if dev_info_event and hasattr(dev_info_event, 'payload'):
+                    dev_info = dev_info_event.payload or {}
+                    self._max_channels = dev_info.get('max_channels', 8)
+                    logger.info(f"Device max_channels: {self._max_channels}")
+            except Exception as e:
+                logger.warning(f"Could not fetch device_info: {e}")
+
             logger.info(f"Connected to device: {self._device_name} "
                         f"(key: {self._self_info.get('public_key', '?')[:8]}...)")
 
@@ -196,7 +207,7 @@ class DeviceManager:
     async def _load_channel_secrets(self):
         """Load channel secrets from device for pkt_payload computation."""
         try:
-            for idx in range(8):  # MeshCore supports channels 0-7
+            for idx in range(self._max_channels):
                 event = await self.mc.commands.get_channel(idx)
                 if event:
                     data = getattr(event, 'payload', None) or {}

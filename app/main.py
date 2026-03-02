@@ -258,7 +258,7 @@ def _execute_console_command(args: list) -> str:
 
     elif cmd == 'channels':
         lines = []
-        for i in range(8):
+        for i in range(device_manager._max_channels):
             ch = device_manager.get_channel_info(i)
             if ch and ch.get('name'):
                 lines.append(f"  [{i}] {ch['name']}")

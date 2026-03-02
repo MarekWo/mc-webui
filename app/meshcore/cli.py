@@ -284,7 +284,7 @@ def get_channels() -> Tuple[bool, List[Dict]]:
     try:
         dm = _get_dm()
         channels = []
-        for idx in range(8):
+        for idx in range(dm._max_channels):
             info = dm.get_channel_info(idx)
             if info and info.get('name'):
                 channels.append({
@@ -302,8 +302,8 @@ def add_channel(name: str) -> Tuple[bool, str, Optional[str]]:
     """Add a new channel."""
     try:
         dm = _get_dm()
-        # Find first free slot (1-7, slot 0 is Public)
-        for idx in range(1, 8):
+        # Find first free slot (1+, slot 0 is Public)
+        for idx in range(1, dm._max_channels):
             info = dm.get_channel_info(idx)
             if not info or not info.get('name'):
                 result = dm.set_channel(idx, name)
