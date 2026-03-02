@@ -435,7 +435,8 @@ class DeviceManager:
 
         ADVERTISEMENT payload only contains {'public_key': '...'}.
         Full contact details (name, type, lat/lon) must be looked up
-        from mc.contacts which meshcore auto-refreshes after adverts.
+        from mc.contacts which is synced at startup.
+        If the contact is unknown (new auto-add by firmware), refresh contacts.
         """
         try:
             data = getattr(event, 'payload', {})
@@ -447,6 +448,15 @@ class DeviceManager:
             # Look up full contact details from meshcore's contact list
             contact = (self.mc.contacts or {}).get(pubkey, {})
             name = contact.get('adv_name', contact.get('name', ''))
+
+            # If contact is unknown or has no name, firmware may have just auto-added it.
+            # Refresh contacts from device to pick up the new entry.
+            if not name and pubkey not in (self.mc.contacts or {}):
+                logger.info(f"Unknown advert from {pubkey[:8]}..., refreshing contacts")
+                await self.mc.ensure_contacts(follow=True)
+                contact = (self.mc.contacts or {}).get(pubkey, {})
+                name = contact.get('adv_name', contact.get('name', ''))
+
             adv_type = contact.get('type', data.get('adv_type', 0))
             adv_lat = contact.get('adv_lat', data.get('adv_lat'))
             adv_lon = contact.get('adv_lon', data.get('adv_lon'))
@@ -472,7 +482,7 @@ class DeviceManager:
                 source='advert',
             )
 
-            logger.debug(f"Advert from '{name}' ({pubkey[:8]}...)")
+            logger.info(f"Advert from '{name}' ({pubkey[:8]}...) type={adv_type}")
 
         except Exception as e:
             logger.error(f"Error handling advertisement: {e}")
@@ -655,6 +665,9 @@ class DeviceManager:
         try:
             self.execute(self.mc.commands.remove_contact(pubkey))
             self.db.delete_contact(pubkey)
+            # Also remove from in-memory contacts cache
+            if self.mc.contacts and pubkey in self.mc.contacts:
+                del self.mc.contacts[pubkey]
             return {'success': True, 'message': 'Contact deleted'}
         except Exception as e:
             logger.error(f"Failed to delete contact: {e}")
