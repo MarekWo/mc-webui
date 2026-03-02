@@ -774,12 +774,12 @@ function createMessageElement(msg) {
         }));
     }
 
-    let metaInfo = '';
+    let metaParts = [];
     if (msg.snr !== undefined && msg.snr !== null) {
-        metaInfo += `SNR: ${msg.snr.toFixed(1)} dB`;
+        metaParts.push(`SNR: ${msg.snr.toFixed(1)} dB`);
     }
     if (msg.path_len !== undefined && msg.path_len !== null) {
-        metaInfo += ` | Hops: ${msg.path_len}`;
+        metaParts.push(`Hops: ${msg.path_len}`);
     }
     if (msg.paths && msg.paths.length > 0) {
         // Show first path inline (shortest/first arrival)
@@ -790,8 +790,9 @@ function createMessageElement(msg) {
             : segments.join('\u2192');
         const pathsData = encodeURIComponent(JSON.stringify(msg.paths));
         const routeLabel = msg.paths.length > 1 ? `Route (${msg.paths.length})` : 'Route';
-        metaInfo += ` | <span class="path-info" onclick="showPathsPopup(this, '${pathsData}')">${routeLabel}: ${shortPath}</span>`;
+        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}')">${routeLabel}: ${shortPath}</span>`);
     }
+    const metaInfo = metaParts.join(' | ');
 
     if (msg.is_own) {
         // Own messages: right-aligned, no avatar

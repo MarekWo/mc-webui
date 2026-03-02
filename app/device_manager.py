@@ -228,7 +228,7 @@ class DeviceManager:
         for event_type, handler in handlers:
             sub = self.mc.subscribe(event_type, handler)
             self._subscriptions.append(sub)
-            logger.info(f"Subscribed to {event_type.value}")
+            logger.debug(f"Subscribed to {event_type.value}")
 
     def _sync_contacts_to_db(self):
         """Sync device contacts to database."""
@@ -519,7 +519,7 @@ class DeviceManager:
             import io
             data = getattr(event, 'payload', {})
             payload_hex = data.get('payload', '')
-            logger.info(f"RX_LOG_DATA received: {len(payload_hex)//2} bytes, snr={data.get('snr')}")
+            logger.debug(f"RX_LOG_DATA received: {len(payload_hex)//2} bytes, snr={data.get('snr')}")
             if not payload_hex:
                 return
 
