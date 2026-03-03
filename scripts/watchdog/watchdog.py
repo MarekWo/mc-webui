@@ -343,6 +343,76 @@ def handle_unhealthy_container(container_name: str, status: dict):
         restart_history = restart_history[-50:]
 
 
+def check_device_unresponsive(container_name: str) -> bool:
+    """Check if the container logs indicate the USB device is unresponsive."""
+    success, stdout, stderr = run_compose_command([
+        'logs', '--since', '1m', container_name
+    ])
+    if not success:
+        return False
+        
+    error_patterns = [
+        "No response from meshcore node, disconnecting",
+        "Device connected but self_info is empty",
+        "Failed to connect after 10 attempts"
+    ]
+    
+    for pattern in error_patterns:
+        if pattern in stdout:
+            return True
+            
+    return False
+
+
+def handle_unresponsive_device(container_name: str, status: dict):
+    """Handle an unresponsive device - log details, possibly reset USB, and restart container."""
+    global restart_history
+
+    log(f"Container {container_name} device is unresponsive! Status: {status}", 'WARN')
+
+    # Capture logs before restart
+    log(f"Capturing logs from {container_name} before restart...")
+    logs = get_container_logs(container_name, lines=200)
+
+    # Save detailed diagnostic info
+    diag_file = f"/tmp/mc-webui-watchdog-{container_name}-unresponsive-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
+    try:
+        with open(diag_file, 'w') as f:
+            f.write(f"=== Container Diagnostic Report (Unresponsive Device) ===\n")
+            f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+            f.write(f"Container: {container_name}\n")
+            f.write(f"Status: {json.dumps(status, indent=2)}\n")
+            f.write(f"\n=== Recent Logs ===\n")
+            f.write(logs)
+        log(f"Diagnostic info saved to: {diag_file}")
+    except Exception as e:
+        log(f"Failed to save diagnostic info: {e}", 'ERROR')
+
+    # v2: mc-webui owns the device connection directly — USB reset if repeated failures
+    if container_name == 'mc-webui':
+        recent_restarts = count_recent_restarts(container_name, minutes=8)
+        if recent_restarts >= 3:
+            log(f"{container_name} has been restarted {recent_restarts} times in the last 8 minutes. Attempting hardware USB reset.", "WARN")
+            if reset_usb_device():
+                time.sleep(2)  # Give OS time to re-enumerate the device before Docker brings it back
+
+    # Restart the container
+    restart_success = restart_container(container_name)
+
+    # Record in history
+    restart_history.append({
+        'timestamp': datetime.now().isoformat(),
+        'container': container_name,
+        'reason': 'unresponsive_device',
+        'status_before': status,
+        'restart_success': restart_success,
+        'diagnostic_file': diag_file
+    })
+
+    # Keep only last 50 entries
+    if len(restart_history) > 50:
+        restart_history = restart_history[-50:]
+
 def check_containers():
     """Check all monitored containers."""
     global last_check_time, last_check_results
@@ -364,6 +434,8 @@ def check_containers():
                 log(f"Container {container_name} is not running (status: {status['status']}), AUTO_START disabled", 'WARN')
         elif status['health'] == 'unhealthy':
             handle_unhealthy_container(container_name, status)
+        elif container_name == 'mc-webui' and check_device_unresponsive(container_name):
+            handle_unresponsive_device(container_name, status)
 
     last_check_results = results
     return results
