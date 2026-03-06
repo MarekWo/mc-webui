@@ -206,9 +206,16 @@ class DeviceManager:
 
     async def _load_channel_secrets(self):
         """Load channel secrets from device for pkt_payload computation."""
+        consecutive_empty = 0
         try:
             for idx in range(self._max_channels):
-                event = await self.mc.commands.get_channel(idx)
+                try:
+                    event = await self.mc.commands.get_channel(idx)
+                except Exception:
+                    consecutive_empty += 1
+                    if consecutive_empty >= 3:
+                        break  # likely past last configured channel
+                    continue
                 if event:
                     data = getattr(event, 'payload', None) or {}
                     secret = data.get('channel_secret', data.get('secret', b''))
@@ -216,6 +223,13 @@ class DeviceManager:
                         secret = secret.hex()
                     if secret and len(secret) == 32:
                         self._channel_secrets[idx] = secret
+                        consecutive_empty = 0
+                    else:
+                        consecutive_empty += 1
+                else:
+                    consecutive_empty += 1
+                if consecutive_empty >= 3:
+                    break  # stop after 3 consecutive empty channels
             logger.info(f"Cached {len(self._channel_secrets)} channel secrets")
         except Exception as e:
             logger.error(f"Failed to load channel secrets: {e}")
