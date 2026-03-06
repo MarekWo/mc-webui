@@ -19,9 +19,8 @@ services:
       - MC_DEVICE_NAME=${MC_DEVICE_NAME:-MeshCore}
       - MC_CONFIG_DIR=/data
       - MC_DB_PATH=/data/mc-webui.db
-      # TCP mode (uncomment to use meshcore-proxy instead of serial):
-      # - MC_TCP_HOST=192.168.1.100
-      # - MC_TCP_PORT=5000
+      - MC_TCP_HOST=${MC_TCP_HOST:-}
+      - MC_TCP_PORT=${MC_TCP_PORT:-5555}
       - MC_BACKUP_ENABLED=${MC_BACKUP_ENABLED:-true}
       - MC_BACKUP_HOUR=${MC_BACKUP_HOUR:-2}
       - MC_BACKUP_RETENTION_DAYS=${MC_BACKUP_RETENTION_DAYS:-7}

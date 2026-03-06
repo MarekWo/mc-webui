@@ -30,7 +30,7 @@ class Config:
 
     # v2: TCP connection (alternative to serial, e.g. meshcore-proxy)
     MC_TCP_HOST = os.getenv('MC_TCP_HOST', '')  # empty = use serial
-    MC_TCP_PORT = int(os.getenv('MC_TCP_PORT', '5000'))
+    MC_TCP_PORT = int(os.getenv('MC_TCP_PORT', '5555'))
 
     # v2: Backup
     MC_BACKUP_ENABLED = os.getenv('MC_BACKUP_ENABLED', 'true').lower() == 'true'
