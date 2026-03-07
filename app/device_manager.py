@@ -1000,13 +1000,14 @@ class DeviceManager:
             return self.db.get_contacts()  # return cached
 
     def delete_contact(self, pubkey: str) -> Dict:
-        """Delete a contact from device and database."""
+        """Delete a contact from device. Keep DB record to preserve DM history."""
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
 
         try:
             self.execute(self.mc.commands.remove_contact(pubkey))
-            self.db.delete_contact(pubkey)
+            # Don't delete from DB — ON DELETE SET NULL would orphan all DMs.
+            # Contact stays in DB for historical reference; upsert updates on re-add.
             # Also remove from in-memory contacts cache
             if self.mc.contacts and pubkey in self.mc.contacts:
                 del self.mc.contacts[pubkey]
@@ -1187,7 +1188,8 @@ class DeviceManager:
                 source='device',
             )
             # Re-link orphaned DMs (from previous ON DELETE SET NULL)
-            self.db.relink_orphaned_dms(pubkey)
+            contact_name = contact.get('adv_name', contact.get('name', ''))
+            self.db.relink_orphaned_dms(pubkey, name=contact_name)
 
             # Remove from pending list after successful approval
             self.mc.pending_contacts.pop(pubkey, None)

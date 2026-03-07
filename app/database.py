@@ -344,6 +344,7 @@ class Database:
                      ORDER BY d3.timestamp DESC LIMIT 1) AS last_direction
                 FROM direct_messages dm
                 LEFT JOIN contacts c ON dm.contact_pubkey = c.public_key
+                WHERE dm.contact_pubkey IS NOT NULL
                 GROUP BY dm.contact_pubkey
                 ORDER BY last_message_timestamp DESC"""
             ).fetchall()
@@ -382,22 +383,31 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
 
-    def relink_orphaned_dms(self, public_key: str) -> int:
+    def relink_orphaned_dms(self, public_key: str, name: str = '') -> int:
         """Re-link DMs with NULL contact_pubkey back to this contact.
 
         When a contact is deleted, ON DELETE SET NULL nullifies contact_pubkey.
         When the contact is re-added, re-link those orphaned DMs.
-        Uses raw_json to match by pubkey_prefix.
+        Matches by pubkey prefix in raw_json (incoming) or contact name (outgoing).
         """
         public_key = public_key.lower()
-        prefix = public_key[:12]  # Short prefix used in pubkey_prefix field
+        prefix = public_key[:12]
         with self._connect() as conn:
-            cursor = conn.execute(
-                """UPDATE direct_messages SET contact_pubkey = ?
-                   WHERE contact_pubkey IS NULL
-                   AND (raw_json LIKE ? OR raw_json IS NULL)""",
-                (public_key, f'%{prefix}%')
-            )
+            if name:
+                cursor = conn.execute(
+                    """UPDATE direct_messages SET contact_pubkey = ?
+                       WHERE contact_pubkey IS NULL
+                       AND (raw_json LIKE ? OR raw_json LIKE ?
+                            OR raw_json IS NULL)""",
+                    (public_key, f'%{prefix}%', f'%"name": "{name}"%')
+                )
+            else:
+                cursor = conn.execute(
+                    """UPDATE direct_messages SET contact_pubkey = ?
+                       WHERE contact_pubkey IS NULL
+                       AND (raw_json LIKE ? OR raw_json IS NULL)""",
+                    (public_key, f'%{prefix}%')
+                )
             if cursor.rowcount > 0:
                 logger.info(f"Re-linked {cursor.rowcount} orphaned DMs to {public_key[:12]}...")
             return cursor.rowcount
