@@ -1000,14 +1000,13 @@ class DeviceManager:
             return self.db.get_contacts()  # return cached
 
     def delete_contact(self, pubkey: str) -> Dict:
-        """Delete a contact from device. Keep DB record to preserve DM history."""
+        """Delete a contact from device and soft-delete in database."""
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
 
         try:
             self.execute(self.mc.commands.remove_contact(pubkey))
-            # Don't delete from DB — ON DELETE SET NULL would orphan all DMs.
-            # Contact stays in DB for historical reference; upsert updates on re-add.
+            self.db.delete_contact(pubkey)  # soft-delete: sets source='deleted'
             # Also remove from in-memory contacts cache
             if self.mc.contacts and pubkey in self.mc.contacts:
                 del self.mc.contacts[pubkey]

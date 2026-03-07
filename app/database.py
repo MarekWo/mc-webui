@@ -116,7 +116,7 @@ class Database:
     def get_contacts(self) -> List[Dict]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM contacts ORDER BY last_seen DESC"
+                "SELECT * FROM contacts WHERE source != 'deleted' ORDER BY last_seen DESC"
             ).fetchall()
             return [dict(r) for r in rows]
 
@@ -147,9 +147,14 @@ class Database:
             return dict(row) if row else None
 
     def delete_contact(self, public_key: str) -> bool:
+        """Soft-delete: mark as 'deleted' instead of removing.
+
+        Keeps the row so FK references in direct_messages stay intact.
+        upsert_contact() overwrites source on re-add, auto-undeleting.
+        """
         with self._connect() as conn:
             cursor = conn.execute(
-                "DELETE FROM contacts WHERE public_key = ?",
+                "UPDATE contacts SET source = 'deleted', lastmod = datetime('now') WHERE public_key = ?",
                 (public_key.lower(),)
             )
             return cursor.rowcount > 0
