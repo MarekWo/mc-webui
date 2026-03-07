@@ -1180,6 +1180,14 @@ class DeviceManager:
             # Refresh mc.contacts so send_dm can find the new contact
             self.execute(self.mc.ensure_contacts(follow=True))
 
+            # Fallback: if ensure_contacts didn't pick up the new contact,
+            # add it manually to mc.contacts (firmware may need time)
+            if pubkey not in (self.mc.contacts or {}):
+                if self.mc.contacts is None:
+                    self.mc.contacts = {}
+                self.mc.contacts[pubkey] = contact
+                logger.info(f"Manually added {pubkey[:12]}... to mc.contacts")
+
             last_adv = contact.get('last_advert')
             last_advert_val = (
                 str(int(last_adv))
