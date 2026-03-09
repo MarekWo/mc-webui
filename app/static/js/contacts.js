@@ -1652,9 +1652,9 @@ async function loadExistingContacts() {
                     public_key: c.public_key,
                     public_key_prefix: c.public_key_prefix || c.public_key.substring(0, 12),
                     type_label: c.type_label || '',
-                    adv_lat: c.lat || 0,
-                    adv_lon: c.lon || 0,
-                    last_seen: c.last_seen || 0,
+                    adv_lat: c.adv_lat || 0,
+                    adv_lon: c.adv_lon || 0,
+                    last_seen: c.last_advert || 0,
                     on_device: false,
                     source: c.source || 'cache'
                 }));

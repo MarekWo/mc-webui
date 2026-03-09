@@ -531,8 +531,15 @@ class DeviceManager:
             contact = (self.mc.contacts or {}).get(pubkey, {})
             name = contact.get('adv_name', contact.get('name', ''))
 
-            # If contact is unknown or has no name, firmware may have just auto-added it.
-            # Refresh contacts from device to pick up the new entry.
+            # Also check pending contacts (manual approval mode)
+            if not name:
+                pending = (self.mc.pending_contacts or {}).get(pubkey, {})
+                if pending:
+                    name = pending.get('adv_name', pending.get('name', ''))
+                    if not contact:
+                        contact = pending
+
+            # If contact is still unknown, firmware may have just auto-added it.
             if not name and pubkey not in (self.mc.contacts or {}):
                 logger.info(f"Unknown advert from {pubkey[:8]}..., refreshing contacts")
                 await self.mc.ensure_contacts(follow=True)
@@ -749,9 +756,26 @@ class DeviceManager:
                 return
 
             if self._is_manual_approval_enabled():
-                # Manual mode: don't add to DB, just notify frontend
-                # meshcore library already puts it in mc.pending_contacts
+                # Manual mode: meshcore puts it in mc.pending_contacts for approval
                 logger.info(f"Pending contact (manual mode): {name} ({pubkey[:8]}...)")
+
+                # Also add to DB cache for @mentions and Cache filter
+                last_adv = data.get('last_advert')
+                last_advert_val = (
+                    str(int(last_adv))
+                    if last_adv and isinstance(last_adv, (int, float)) and last_adv > 0
+                    else str(int(time.time()))
+                )
+                self.db.upsert_contact(
+                    public_key=pubkey,
+                    name=name,
+                    type=data.get('type', data.get('adv_type', 0)),
+                    adv_lat=data.get('adv_lat'),
+                    adv_lon=data.get('adv_lon'),
+                    last_advert=last_advert_val,
+                    source='advert',  # cache-only until approved
+                )
+
                 if self.socketio:
                     self.socketio.emit('pending_contact', {
                         'public_key': pubkey,
@@ -1158,6 +1182,7 @@ class DeviceManager:
                     'type': c.get('type', c.get('adv_type', 0)),
                     'adv_lat': c.get('adv_lat'),
                     'adv_lon': c.get('adv_lon'),
+                    'last_advert': c.get('last_advert'),
                 }
                 for pk, c in pending.items()
             ]

@@ -107,7 +107,11 @@ class Database:
                        adv_lat = COALESCE(excluded.adv_lat, contacts.adv_lat),
                        adv_lon = COALESCE(excluded.adv_lon, contacts.adv_lon),
                        last_seen = datetime('now'),
-                       source = excluded.source,
+                       source = CASE
+                           WHEN excluded.source = 'device' THEN 'device'
+                           WHEN contacts.source = 'device' THEN contacts.source
+                           ELSE excluded.source
+                       END,
                        is_protected = CASE WHEN contacts.is_protected = 1 THEN 1 ELSE excluded.is_protected END,
                        lastmod = datetime('now')""",
                 fields

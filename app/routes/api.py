@@ -675,12 +675,20 @@ def get_cached_contacts():
                 contacts = []
                 for c in db_contacts:
                     pk = c.get('public_key', '')
+                    # Parse last_advert to numeric timestamp
+                    la = c.get('last_advert')
+                    try:
+                        last_advert_ts = int(la) if la else 0
+                    except (ValueError, TypeError):
+                        last_advert_ts = 0
+
                     contacts.append({
                         'public_key': pk,
                         'public_key_prefix': pk[:12],
                         'name': c.get('name', ''),
                         'first_seen': c.get('first_seen', ''),
                         'last_seen': c.get('last_seen', ''),
+                        'last_advert': last_advert_ts,
                         'source': c.get('source', ''),
                         'adv_lat': c.get('adv_lat'),
                         'adv_lon': c.get('adv_lon'),
