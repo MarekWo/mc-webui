@@ -1069,6 +1069,49 @@ function updateProtectionUI(publicKey, isProtected, buttonEl) {
     }
 }
 
+async function toggleContactIgnore(publicKey, ignored) {
+    try {
+        const response = await fetch(`/api/contacts/${encodeURIComponent(publicKey)}/ignore`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ignored })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message, 'info');
+            loadExistingContacts();
+            loadContactCounts();
+        } else {
+            showToast('Failed: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error toggling ignore:', error);
+        showToast('Network error', 'danger');
+    }
+}
+
+async function toggleContactBlock(publicKey, blocked) {
+    if (blocked && !confirm('Block this contact? Their messages will be hidden from chat.')) return;
+    try {
+        const response = await fetch(`/api/contacts/${encodeURIComponent(publicKey)}/block`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blocked })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message, blocked ? 'warning' : 'info');
+            loadExistingContacts();
+            loadContactCounts();
+        } else {
+            showToast('Failed: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error toggling block:', error);
+        showToast('Network error', 'danger');
+    }
+}
+
 /**
  * Check if a contact is protected.
  * @param {string} publicKey - Public key to check
@@ -1337,6 +1380,24 @@ function createContactCard(contact, index) {
     copyBtn.onclick = () => copyPublicKey(contact.public_key, copyBtn);
 
     actionsDiv.appendChild(copyBtn);
+
+    // Ignore button
+    const ignoreBtn = document.createElement('button');
+    ignoreBtn.className = 'btn btn-sm btn-outline-secondary';
+    ignoreBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Ignore';
+    ignoreBtn.onclick = () => {
+        toggleContactIgnore(contact.public_key, true).then(() => loadPendingContacts());
+    };
+    actionsDiv.appendChild(ignoreBtn);
+
+    // Block button
+    const blockBtn = document.createElement('button');
+    blockBtn.className = 'btn btn-sm btn-outline-danger';
+    blockBtn.innerHTML = '<i class="bi bi-slash-circle"></i> Block';
+    blockBtn.onclick = () => {
+        toggleContactBlock(contact.public_key, true).then(() => loadPendingContacts());
+    };
+    actionsDiv.appendChild(blockBtn);
 
     // Assemble card
     card.appendChild(infoRow);
@@ -1656,7 +1717,9 @@ async function loadExistingContacts() {
                     adv_lon: c.adv_lon || 0,
                     last_seen: c.last_advert || 0,
                     on_device: false,
-                    source: c.source || 'cache'
+                    source: c.source || 'cache',
+                    is_ignored: c.is_ignored || false,
+                    is_blocked: c.is_blocked || false,
                 }));
 
             existingContacts = [...deviceContacts, ...cacheOnlyContacts];
@@ -1752,6 +1815,12 @@ function applySortAndFilters() {
         // Source filter
         if (selectedSource === 'DEVICE' && !contact.on_device) return false;
         if (selectedSource === 'CACHE' && contact.on_device) return false;
+        if (selectedSource === 'IGNORED' && !contact.is_ignored) return false;
+        if (selectedSource === 'BLOCKED' && !contact.is_blocked) return false;
+        // Hide ignored/blocked from ALL/DEVICE/CACHE views
+        if (selectedSource !== 'IGNORED' && selectedSource !== 'BLOCKED') {
+            if (contact.is_ignored || contact.is_blocked) return false;
+        }
 
         // Type filter (cache-only contacts have no type_label)
         if (selectedType !== 'ALL') {
@@ -1948,9 +2017,24 @@ function createExistingContactCard(contact, index) {
         sourceIcon.innerHTML = '<i class="bi bi-cloud text-secondary" title="Cache only"></i>';
     }
 
+    // Status icon (ignored/blocked)
+    let statusIcon = null;
+    if (contact.is_blocked) {
+        statusIcon = document.createElement('span');
+        statusIcon.className = 'ms-1';
+        statusIcon.style.fontSize = '0.85rem';
+        statusIcon.innerHTML = '<i class="bi bi-slash-circle text-danger" title="Blocked"></i>';
+    } else if (contact.is_ignored) {
+        statusIcon = document.createElement('span');
+        statusIcon.className = 'ms-1';
+        statusIcon.style.fontSize = '0.85rem';
+        statusIcon.innerHTML = '<i class="bi bi-eye-slash text-secondary" title="Ignored"></i>';
+    }
+
     infoRow.appendChild(nameDiv);
     infoRow.appendChild(typeBadge);
     infoRow.appendChild(sourceIcon);
+    if (statusIcon) infoRow.appendChild(statusIcon);
 
     // Public key row (clickable to copy)
     const keyDiv = document.createElement('div');
@@ -2031,6 +2115,33 @@ function createExistingContactCard(contact, index) {
             deleteBtn.title = 'Cannot delete protected contact';
         }
         actionsDiv.appendChild(deleteBtn);
+    }
+
+    // Ignore/Block/Unignore/Unblock buttons
+    if (contact.is_blocked) {
+        const unblockBtn = document.createElement('button');
+        unblockBtn.className = 'btn btn-sm btn-outline-success';
+        unblockBtn.innerHTML = '<i class="bi bi-slash-circle"></i> Unblock';
+        unblockBtn.onclick = () => toggleContactBlock(contact.public_key, false);
+        actionsDiv.appendChild(unblockBtn);
+    } else if (contact.is_ignored) {
+        const unignoreBtn = document.createElement('button');
+        unignoreBtn.className = 'btn btn-sm btn-outline-success';
+        unignoreBtn.innerHTML = '<i class="bi bi-eye"></i> Unignore';
+        unignoreBtn.onclick = () => toggleContactIgnore(contact.public_key, false);
+        actionsDiv.appendChild(unignoreBtn);
+    } else {
+        const ignoreBtn = document.createElement('button');
+        ignoreBtn.className = 'btn btn-sm btn-outline-secondary';
+        ignoreBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Ignore';
+        ignoreBtn.onclick = () => toggleContactIgnore(contact.public_key, true);
+        actionsDiv.appendChild(ignoreBtn);
+
+        const blockBtn = document.createElement('button');
+        blockBtn.className = 'btn btn-sm btn-outline-danger';
+        blockBtn.innerHTML = '<i class="bi bi-slash-circle"></i> Block';
+        blockBtn.onclick = () => toggleContactBlock(contact.public_key, true);
+        actionsDiv.appendChild(blockBtn);
     }
 
     // Assemble card

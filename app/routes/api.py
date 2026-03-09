@@ -483,6 +483,11 @@ def get_messages():
                         msg['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
 
                 messages.append(msg)
+
+            # Filter out blocked contacts' messages
+            blocked_names = db.get_blocked_contact_names()
+            if blocked_names:
+                messages = [m for m in messages if m.get('sender', '') not in blocked_names]
         else:
             # Fallback to parser for file-based reads
             messages = parser.read_messages(
@@ -672,6 +677,8 @@ def get_cached_contacts():
         if db:
             db_contacts = db.get_contacts()
             if fmt == 'full':
+                ignored_keys = db.get_ignored_keys()
+                blocked_keys = db.get_blocked_keys()
                 contacts = []
                 for c in db_contacts:
                     pk = c.get('public_key', '')
@@ -693,6 +700,8 @@ def get_cached_contacts():
                         'adv_lat': c.get('adv_lat'),
                         'adv_lon': c.get('adv_lon'),
                         'type_label': {0: 'CLI', 1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}.get(c.get('type', 1), 'UNKNOWN'),
+                        'is_ignored': pk in ignored_keys,
+                        'is_blocked': pk in blocked_keys,
                     })
                 return jsonify({
                     'success': True,
@@ -1761,6 +1770,9 @@ def get_dm_conversations():
         db = _get_db()
         if db:
             convos = db.get_dm_conversations()
+            # Filter out blocked contacts
+            blocked_keys = db.get_blocked_keys()
+            convos = [c for c in convos if c.get('contact_pubkey', '').lower() not in blocked_keys]
             # Convert to frontend-compatible format
             conversations = []
             for c in convos:
@@ -2182,8 +2194,11 @@ def get_contacts_detailed_api():
         type_labels = {1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
         contacts = []
 
-        # Get protected contacts for is_protected field
+        # Get protected/ignored/blocked contacts for status fields
         protected_contacts = get_protected_contacts()
+        db = _get_db()
+        ignored_keys = db.get_ignored_keys() if db else set()
+        blocked_keys = db.get_blocked_keys() if db else set()
 
         for public_key, details in contacts_detailed.items():
             # Compute path display string
@@ -2214,6 +2229,8 @@ def get_contacts_detailed_api():
                 'path_or_mode': path_or_mode,  # For UI display
                 'last_seen': details.get('last_advert'),  # Alias for compatibility
                 'is_protected': public_key.lower() in protected_contacts,  # Protection status
+                'is_ignored': public_key.lower() in ignored_keys,
+                'is_blocked': public_key.lower() in blocked_keys,
             }
             contacts.append(contact)
 
@@ -2422,6 +2439,114 @@ def toggle_contact_protection(public_key):
         }), 500
 
 
+@api_bp.route('/contacts/<public_key>/ignore', methods=['POST'])
+def toggle_contact_ignore(public_key):
+    """Toggle ignore status for a contact."""
+    try:
+        if not public_key or not re.match(r'^[a-fA-F0-9]{12,64}$', public_key):
+            return jsonify({'success': False, 'error': 'Invalid public_key format'}), 400
+
+        public_key = public_key.lower()
+
+        # Resolve prefix to full key via DB
+        db = _get_db()
+        if len(public_key) < 64 and db:
+            contact = db.get_contact_by_prefix(public_key)
+            if contact:
+                public_key = contact['public_key']
+            else:
+                return jsonify({'success': False, 'error': 'Contact not found'}), 404
+
+        data = request.get_json() or {}
+        if 'ignored' in data:
+            should_ignore = data['ignored']
+        else:
+            should_ignore = not db.is_contact_ignored(public_key)
+
+        # If ignoring a device contact, delete from device first
+        if should_ignore:
+            contact = db.get_contact(public_key)
+            if contact and contact.get('source') == 'device':
+                dm = _get_dm()
+                if dm:
+                    dm.delete_contact(public_key)
+
+        db.set_contact_ignored(public_key, should_ignore)
+        invalidate_contacts_cache()
+
+        return jsonify({
+            'success': True,
+            'public_key': public_key,
+            'ignored': should_ignore,
+            'message': 'Contact ignored' if should_ignore else 'Contact unignored'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error toggling contact ignore: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<public_key>/block', methods=['POST'])
+def toggle_contact_block(public_key):
+    """Toggle block status for a contact."""
+    try:
+        if not public_key or not re.match(r'^[a-fA-F0-9]{12,64}$', public_key):
+            return jsonify({'success': False, 'error': 'Invalid public_key format'}), 400
+
+        public_key = public_key.lower()
+
+        db = _get_db()
+        if len(public_key) < 64 and db:
+            contact = db.get_contact_by_prefix(public_key)
+            if contact:
+                public_key = contact['public_key']
+            else:
+                return jsonify({'success': False, 'error': 'Contact not found'}), 404
+
+        data = request.get_json() or {}
+        if 'blocked' in data:
+            should_block = data['blocked']
+        else:
+            should_block = not db.is_contact_blocked(public_key)
+
+        # If blocking a device contact, delete from device first
+        if should_block:
+            contact = db.get_contact(public_key)
+            if contact and contact.get('source') == 'device':
+                dm = _get_dm()
+                if dm:
+                    dm.delete_contact(public_key)
+
+        db.set_contact_blocked(public_key, should_block)
+        invalidate_contacts_cache()
+
+        return jsonify({
+            'success': True,
+            'public_key': public_key,
+            'blocked': should_block,
+            'message': 'Contact blocked' if should_block else 'Contact unblocked'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error toggling contact block: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/blocked-names', methods=['GET'])
+def get_blocked_contact_names_api():
+    """Get list of current names of blocked contacts (for frontend filtering)."""
+    try:
+        db = _get_db()
+        if db:
+            names = list(db.get_blocked_contact_names())
+        else:
+            names = []
+        return jsonify({'success': True, 'names': names}), 200
+    except Exception as e:
+        logger.error(f"Error getting blocked contact names: {e}")
+        return jsonify({'success': False, 'error': str(e), 'names': []}), 500
+
+
 @api_bp.route('/contacts/cleanup-settings', methods=['GET'])
 def get_cleanup_settings_api():
     """
@@ -2618,6 +2743,14 @@ def get_pending_contacts_api():
         success, pending, error = cli.get_pending_contacts()
 
         if success:
+            # Filter out ignored/blocked contacts from pending list
+            db = _get_db()
+            if db:
+                ignored_keys = db.get_ignored_keys()
+                blocked_keys = db.get_blocked_keys()
+                excluded = ignored_keys | blocked_keys
+                pending = [c for c in pending if c.get('public_key', '').lower() not in excluded]
+
             # Filter by types if specified
             if types_param:
                 pending = [contact for contact in pending if contact.get('type') in types_param]

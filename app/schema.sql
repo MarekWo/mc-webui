@@ -137,6 +137,18 @@ CREATE TABLE IF NOT EXISTS read_status (
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Ignored contacts (adverts cached but not pending/auto-added)
+CREATE TABLE IF NOT EXISTS ignored_contacts (
+    public_key  TEXT PRIMARY KEY REFERENCES contacts(public_key),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Blocked contacts (ignored + messages hidden from display)
+CREATE TABLE IF NOT EXISTS blocked_contacts (
+    public_key  TEXT PRIMARY KEY REFERENCES contacts(public_key),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ============================================================
 -- Indexes
 -- ============================================================

@@ -357,6 +357,10 @@ class DeviceManager:
                 sender = 'Unknown'
                 content = raw_text
 
+            # Check if sender is blocked (store but don't emit)
+            blocked_names = self.db.get_blocked_contact_names()
+            is_blocked = sender in blocked_names
+
             msg_id = self.db.insert_channel_message(
                 channel_idx=channel_idx,
                 sender=sender,
@@ -370,6 +374,10 @@ class DeviceManager:
             )
 
             logger.info(f"Channel msg #{msg_id} from {sender} on ch{channel_idx}")
+
+            if is_blocked:
+                logger.debug(f"Blocked channel msg from {sender}, stored but not emitted")
+                return
 
             if self.socketio:
                 self.socketio.emit('new_message', {
@@ -421,6 +429,9 @@ class DeviceManager:
                     logger.info(f"DM dedup: skipping retry from {sender_key[:8]}...")
                     return
 
+            # Check if sender is blocked
+            is_blocked = sender_key and self.db.is_contact_blocked(sender_key)
+
             if sender_key:
                 # Only upsert with name if we have a real name (not just a prefix)
                 self.db.upsert_contact(
@@ -442,6 +453,10 @@ class DeviceManager:
             )
 
             logger.info(f"DM #{dm_id} from {sender_name or sender_key[:12]}")
+
+            if is_blocked:
+                logger.debug(f"Blocked DM from {sender_key[:12]}, stored but not emitted")
+                return
 
             if self.socketio:
                 self.socketio.emit('new_message', {
@@ -753,6 +768,26 @@ class DeviceManager:
             name = data.get('adv_name', data.get('name', ''))
 
             if not pubkey:
+                return
+
+            # Ignored/blocked: still update cache but don't add to pending or device
+            if self.db.is_contact_ignored(pubkey) or self.db.is_contact_blocked(pubkey):
+                last_adv = data.get('last_advert')
+                last_advert_val = (
+                    str(int(last_adv))
+                    if last_adv and isinstance(last_adv, (int, float)) and last_adv > 0
+                    else str(int(time.time()))
+                )
+                self.db.upsert_contact(
+                    public_key=pubkey,
+                    name=name,
+                    type=data.get('type', data.get('adv_type', 0)),
+                    adv_lat=data.get('adv_lat'),
+                    adv_lon=data.get('adv_lon'),
+                    last_advert=last_advert_val,
+                    source='advert',
+                )
+                logger.info(f"Ignored/blocked contact advert: {name} ({pubkey[:8]}...)")
                 return
 
             if self._is_manual_approval_enabled():

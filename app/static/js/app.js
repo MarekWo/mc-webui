@@ -21,6 +21,8 @@ let dmUnreadCounts = {};  // Track unread DM counts per conversation
 let leafletMap = null;
 let markersGroup = null;
 let contactsGeoCache = {};  // { 'contactName': { lat, lon }, ... }
+let contactsPubkeyMap = {};  // { 'contactName': 'full_pubkey', ... }
+let blockedContactNames = new Set();  // Names of blocked contacts
 let allContactsWithGps = [];  // Cached contacts for map filtering
 
 // SocketIO state
@@ -239,20 +241,56 @@ async function showAllContactsOnMap() {
  */
 async function loadContactsGeoCache() {
     try {
-        const response = await fetch('/api/contacts/detailed');
-        const data = await response.json();
+        // Load detailed (device) and cached contacts in parallel
+        const [detailedResp, cachedResp] = await Promise.all([
+            fetch('/api/contacts/detailed'),
+            fetch('/api/contacts/cached?format=full')
+        ]);
+        const detailedData = await detailedResp.json();
+        const cachedData = await cachedResp.json();
 
-        if (data.success && data.contacts) {
-            contactsGeoCache = {};
-            data.contacts.forEach(c => {
+        contactsGeoCache = {};
+        contactsPubkeyMap = {};
+
+        // Process device contacts
+        if (detailedData.success && detailedData.contacts) {
+            detailedData.contacts.forEach(c => {
                 if (c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)) {
                     contactsGeoCache[c.name] = { lat: c.adv_lat, lon: c.adv_lon };
                 }
+                if (c.name && c.public_key) {
+                    contactsPubkeyMap[c.name] = c.public_key;
+                }
             });
-            console.log(`Loaded geo cache for ${Object.keys(contactsGeoCache).length} contacts`);
         }
+
+        // Process cached contacts (fills gaps for contacts not on device)
+        if (cachedData.success && cachedData.contacts) {
+            cachedData.contacts.forEach(c => {
+                if (!contactsGeoCache[c.name] && c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)) {
+                    contactsGeoCache[c.name] = { lat: c.adv_lat, lon: c.adv_lon };
+                }
+                if (c.name && c.public_key && !contactsPubkeyMap[c.name]) {
+                    contactsPubkeyMap[c.name] = c.public_key;
+                }
+            });
+        }
+
+        console.log(`Loaded geo cache for ${Object.keys(contactsGeoCache).length} contacts, pubkey map for ${Object.keys(contactsPubkeyMap).length}`);
     } catch (err) {
         console.error('Error loading contacts geo cache:', err);
+    }
+}
+
+async function loadBlockedNames() {
+    try {
+        const resp = await fetch('/api/contacts/blocked-names');
+        const data = await resp.json();
+        if (data.success) {
+            blockedContactNames = new Set(data.names);
+        }
+    } catch (err) {
+        console.error('Error loading blocked names:', err);
     }
 }
 
@@ -280,6 +318,10 @@ function connectChatSocket() {
 
     // Real-time new channel message
     chatSocket.on('new_message', (data) => {
+        // Filter blocked contacts in real-time
+        if (data.type === 'channel' && blockedContactNames.has(data.sender)) return;
+        if (data.type === 'dm' && blockedContactNames.has(data.sender)) return;
+
         if (data.type === 'channel') {
             // Update unread count for this channel
             if (data.channel_idx !== currentChannelIdx) {
@@ -347,6 +389,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Start these in parallel - messages are critical, geo cache can load async
     const messagesPromise = loadMessages();
     const geoCachePromise = loadContactsGeoCache();  // Non-blocking, Map buttons update when ready
+    const blockedPromise = loadBlockedNames();  // Non-blocking, for real-time filtering
 
     // Also start archive list loading in parallel
     loadArchiveList();
@@ -868,6 +911,14 @@ function createMessageElement(msg) {
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
+                        ${contactsPubkeyMap[msg.sender] ? `
+                            <button class="btn btn-outline-secondary btn-msg-action" onclick="ignoreContactFromChat('${contactsPubkeyMap[msg.sender]}')" title="Ignore ${escapeHtml(msg.sender)}">
+                                <i class="bi bi-eye-slash"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat('${contactsPubkeyMap[msg.sender]}', '${escapeHtml(msg.sender)}')" title="Block ${escapeHtml(msg.sender)}">
+                                <i class="bi bi-slash-circle"></i>
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -978,6 +1029,45 @@ function resendMessage(content) {
     input.value = content;
     updateCharCounter();
     input.focus();
+}
+
+async function ignoreContactFromChat(pubkey) {
+    try {
+        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/ignore`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ignored: true })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message, 'info');
+        } else {
+            showToast('Failed: ' + data.error, 'danger');
+        }
+    } catch (err) {
+        showToast('Network error', 'danger');
+    }
+}
+
+async function blockContactFromChat(pubkey, senderName) {
+    if (!confirm(`Block ${senderName || 'this contact'}? Their messages will be hidden from chat.`)) return;
+    try {
+        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/block`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blocked: true })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message, 'warning');
+            await loadBlockedNames();
+            loadMessages();  // re-render to hide blocked messages
+        } else {
+            showToast('Failed: ' + data.error, 'danger');
+        }
+    } catch (err) {
+        showToast('Network error', 'danger');
+    }
 }
 
 /**

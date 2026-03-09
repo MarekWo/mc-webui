@@ -187,6 +187,74 @@ class Database:
             return cursor.rowcount > 0
 
     # ================================================================
+    # Ignored / Blocked Contacts
+    # ================================================================
+
+    def set_contact_ignored(self, public_key: str, ignored: bool) -> bool:
+        pk = public_key.lower()
+        with self._connect() as conn:
+            if ignored:
+                conn.execute(
+                    "INSERT OR IGNORE INTO ignored_contacts (public_key) VALUES (?)", (pk,))
+                # Remove from blocked if setting ignored
+                conn.execute(
+                    "DELETE FROM blocked_contacts WHERE public_key = ?", (pk,))
+            else:
+                conn.execute(
+                    "DELETE FROM ignored_contacts WHERE public_key = ?", (pk,))
+            return True
+
+    def set_contact_blocked(self, public_key: str, blocked: bool) -> bool:
+        pk = public_key.lower()
+        with self._connect() as conn:
+            if blocked:
+                conn.execute(
+                    "INSERT OR IGNORE INTO blocked_contacts (public_key) VALUES (?)", (pk,))
+                # Remove from ignored if setting blocked
+                conn.execute(
+                    "DELETE FROM ignored_contacts WHERE public_key = ?", (pk,))
+            else:
+                conn.execute(
+                    "DELETE FROM blocked_contacts WHERE public_key = ?", (pk,))
+            return True
+
+    def is_contact_ignored(self, public_key: str) -> bool:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM ignored_contacts WHERE public_key = ?",
+                (public_key.lower(),)
+            ).fetchone()
+            return row is not None
+
+    def is_contact_blocked(self, public_key: str) -> bool:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM blocked_contacts WHERE public_key = ?",
+                (public_key.lower(),)
+            ).fetchone()
+            return row is not None
+
+    def get_ignored_keys(self) -> set:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT public_key FROM ignored_contacts").fetchall()
+            return {r['public_key'] for r in rows}
+
+    def get_blocked_keys(self) -> set:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT public_key FROM blocked_contacts").fetchall()
+            return {r['public_key'] for r in rows}
+
+    def get_blocked_contact_names(self) -> set:
+        """Return current names of blocked contacts (for channel msg filtering)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT c.name FROM blocked_contacts bc
+                   JOIN contacts c ON bc.public_key = c.public_key
+                   WHERE c.name != ''"""
+            ).fetchall()
+            return {r['name'] for r in rows}
+
+    # ================================================================
     # Channels
     # ================================================================
 
