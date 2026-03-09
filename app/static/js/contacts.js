@@ -1938,8 +1938,19 @@ function createExistingContactCard(contact, index) {
         typeBadge.title = 'Not on device - type unknown';
     }
 
+    // Source icon (device vs cache)
+    const sourceIcon = document.createElement('span');
+    sourceIcon.className = 'ms-1';
+    sourceIcon.style.fontSize = '0.85rem';
+    if (contact.on_device !== false) {
+        sourceIcon.innerHTML = '<i class="bi bi-cpu text-success" title="On device"></i>';
+    } else {
+        sourceIcon.innerHTML = '<i class="bi bi-cloud text-secondary" title="Cache only"></i>';
+    }
+
     infoRow.appendChild(nameDiv);
     infoRow.appendChild(typeBadge);
+    infoRow.appendChild(sourceIcon);
 
     // Public key row (clickable to copy)
     const keyDiv = document.createElement('div');
