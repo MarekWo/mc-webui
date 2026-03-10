@@ -2547,6 +2547,49 @@ def get_blocked_contact_names_api():
         return jsonify({'success': False, 'error': str(e), 'names': []}), 500
 
 
+@api_bp.route('/contacts/block-name', methods=['POST'])
+def block_name_api():
+    """Block/unblock a contact by name (for bots without known public_key)."""
+    try:
+        data = request.get_json()
+        if not data or 'name' not in data:
+            return jsonify({'success': False, 'error': 'Missing name parameter'}), 400
+
+        name = data['name'].strip()
+        if not name:
+            return jsonify({'success': False, 'error': 'Name cannot be empty'}), 400
+
+        blocked = data.get('blocked', True)
+        db = _get_db()
+        if db:
+            db.set_name_blocked(name, blocked)
+            return jsonify({
+                'success': True,
+                'name': name,
+                'blocked': blocked,
+                'message': f'Name "{name}" blocked' if blocked else f'Name "{name}" unblocked'
+            }), 200
+        return jsonify({'success': False, 'error': 'Database not available'}), 500
+    except Exception as e:
+        logger.error(f"Error blocking name: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/blocked-names-list', methods=['GET'])
+def get_blocked_names_list_api():
+    """Get list of directly blocked names (from blocked_names table)."""
+    try:
+        db = _get_db()
+        if db:
+            entries = db.get_blocked_names_list()
+        else:
+            entries = []
+        return jsonify({'success': True, 'blocked_names': entries}), 200
+    except Exception as e:
+        logger.error(f"Error getting blocked names list: {e}")
+        return jsonify({'success': False, 'error': str(e), 'blocked_names': []}), 500
+
+
 @api_bp.route('/contacts/cleanup-settings', methods=['GET'])
 def get_cleanup_settings_api():
     """

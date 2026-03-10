@@ -149,6 +149,12 @@ CREATE TABLE IF NOT EXISTS blocked_contacts (
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Blocked names (for bots/contacts without known public_key)
+CREATE TABLE IF NOT EXISTS blocked_names (
+    name        TEXT PRIMARY KEY,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ============================================================
 -- Indexes
 -- ============================================================

@@ -1847,6 +1847,13 @@ function applySortAndFilters() {
 
     // Render sorted and filtered contacts
     renderExistingList(filteredContacts);
+
+    // When Blocked filter is active, also show name-blocked entries
+    const sourceFilter = document.getElementById('sourceFilter');
+    const selectedSource = sourceFilter ? sourceFilter.value : 'ALL';
+    if (selectedSource === 'BLOCKED') {
+        loadBlockedNamesList();
+    }
 }
 
 function renderExistingList(contacts) {
@@ -1868,6 +1875,75 @@ function renderExistingList(contacts) {
         const card = createExistingContactCard(contact, index);
         listEl.appendChild(card);
     });
+}
+
+async function loadBlockedNamesList() {
+    const listEl = document.getElementById('existingList');
+    if (!listEl) return;
+
+    try {
+        const response = await fetch('/api/contacts/blocked-names-list');
+        const data = await response.json();
+        if (!data.success || !data.blocked_names || data.blocked_names.length === 0) return;
+
+        // Add a separator header
+        const header = document.createElement('div');
+        header.className = 'text-muted small fw-bold mt-3 mb-2 px-1';
+        header.innerHTML = '<i class="bi bi-slash-circle"></i> Blocked by name';
+        listEl.appendChild(header);
+
+        data.blocked_names.forEach(entry => {
+            const card = document.createElement('div');
+            card.className = 'existing-contact-card';
+
+            const infoRow = document.createElement('div');
+            infoRow.className = 'contact-info-row';
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'contact-name flex-grow-1';
+            nameDiv.textContent = entry.name;
+
+            const statusIcon = document.createElement('span');
+            statusIcon.className = 'ms-1';
+            statusIcon.style.fontSize = '0.85rem';
+            statusIcon.innerHTML = '<i class="bi bi-slash-circle text-danger" title="Blocked by name"></i>';
+
+            infoRow.appendChild(nameDiv);
+            infoRow.appendChild(statusIcon);
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'd-flex gap-2 mt-2';
+
+            const unblockBtn = document.createElement('button');
+            unblockBtn.className = 'btn btn-sm btn-outline-success';
+            unblockBtn.innerHTML = '<i class="bi bi-slash-circle"></i> <span class="btn-label">Unblock</span>';
+            unblockBtn.onclick = async () => {
+                try {
+                    const resp = await fetch('/api/contacts/block-name', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: entry.name, blocked: false })
+                    });
+                    const result = await resp.json();
+                    if (result.success) {
+                        showToast(result.message, 'info');
+                        loadExistingContacts();
+                    } else {
+                        showToast('Failed: ' + result.error, 'danger');
+                    }
+                } catch (err) {
+                    showToast('Network error', 'danger');
+                }
+            };
+            actionsDiv.appendChild(unblockBtn);
+
+            card.appendChild(infoRow);
+            card.appendChild(actionsDiv);
+            listEl.appendChild(card);
+        });
+    } catch (err) {
+        console.error('Error loading blocked names:', err);
+    }
 }
 
 /**

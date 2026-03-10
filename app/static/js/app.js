@@ -915,10 +915,10 @@ function createMessageElement(msg) {
                             <button class="btn btn-outline-secondary btn-msg-action" onclick="ignoreContactFromChat('${contactsPubkeyMap[msg.sender]}')" title="Ignore ${escapeHtml(msg.sender)}">
                                 <i class="bi bi-eye-slash"></i>
                             </button>
-                            <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat('${contactsPubkeyMap[msg.sender]}', '${escapeHtml(msg.sender)}')" title="Block ${escapeHtml(msg.sender)}">
-                                <i class="bi bi-slash-circle"></i>
-                            </button>
                         ` : ''}
+                        <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat('${escapeHtml(msg.sender)}')" title="Block ${escapeHtml(msg.sender)}">
+                            <i class="bi bi-slash-circle"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1049,14 +1049,26 @@ async function ignoreContactFromChat(pubkey) {
     }
 }
 
-async function blockContactFromChat(pubkey, senderName) {
-    if (!confirm(`Block ${senderName || 'this contact'}? Their messages will be hidden from chat.`)) return;
+async function blockContactFromChat(senderName) {
+    if (!confirm(`Block ${senderName}? Their messages will be hidden from chat.`)) return;
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/block`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ blocked: true })
-        });
+        const pubkey = contactsPubkeyMap[senderName];
+        let response;
+        if (pubkey) {
+            // Block by pubkey (known contact)
+            response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/block`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ blocked: true })
+            });
+        } else {
+            // Block by name (bot/unknown contact)
+            response = await fetch('/api/contacts/block-name', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: senderName, blocked: true })
+            });
+        }
         const data = await response.json();
         if (data.success) {
             showToast(data.message, 'warning');

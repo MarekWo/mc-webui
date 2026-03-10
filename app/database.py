@@ -244,15 +244,38 @@ class Database:
             rows = conn.execute("SELECT public_key FROM blocked_contacts").fetchall()
             return {r['public_key'] for r in rows}
 
-    def get_blocked_contact_names(self) -> set:
-        """Return current names of blocked contacts (for channel msg filtering)."""
+    def set_name_blocked(self, name: str, blocked: bool) -> bool:
+        with self._connect() as conn:
+            if blocked:
+                conn.execute(
+                    "INSERT OR IGNORE INTO blocked_names (name) VALUES (?)", (name,))
+            else:
+                conn.execute(
+                    "DELETE FROM blocked_names WHERE name = ?", (name,))
+            return True
+
+    def get_blocked_names_list(self) -> list:
+        """Return list of directly blocked names (from blocked_names table)."""
         with self._connect() as conn:
             rows = conn.execute(
+                "SELECT name, created_at FROM blocked_names ORDER BY created_at DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_blocked_contact_names(self) -> set:
+        """Return all blocked names: from blocked_contacts (by pubkey) + blocked_names (by name)."""
+        with self._connect() as conn:
+            # Names from pubkey-blocked contacts
+            rows1 = conn.execute(
                 """SELECT c.name FROM blocked_contacts bc
                    JOIN contacts c ON bc.public_key = c.public_key
                    WHERE c.name != ''"""
             ).fetchall()
-            return {r['name'] for r in rows}
+            # Names from directly blocked names
+            rows2 = conn.execute(
+                "SELECT name FROM blocked_names"
+            ).fetchall()
+            return {r['name'] for r in rows1} | {r['name'] for r in rows2}
 
     # ================================================================
     # Channels
