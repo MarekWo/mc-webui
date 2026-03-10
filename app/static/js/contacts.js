@@ -1849,8 +1849,6 @@ function applySortAndFilters() {
     renderExistingList(filteredContacts);
 
     // When Blocked filter is active, also show name-blocked entries
-    const sourceFilter = document.getElementById('sourceFilter');
-    const selectedSource = sourceFilter ? sourceFilter.value : 'ALL';
     if (selectedSource === 'BLOCKED') {
         loadBlockedNamesList();
     }
