@@ -257,12 +257,25 @@ The Existing Contacts section displays all contacts currently stored on your dev
 3. **Copy public key:** Click "Copy Key" button to copy the public key prefix to clipboard
 4. **Delete a contact:** Click the "Delete" button (red trash icon) and confirm
 
+**Ignoring and Blocking Contacts:**
+- **Ignore**: The contact is hidden from the main view and their messages do not trigger notifications.
+- **Block**: The contact is completely blocked. Their messages are dropped and will not appear anywhere.
+
+To ignore or block a contact, click the "Ignore" or "Block" button on their contact card. To restore them, switch the type filter to "Ignored" or "Blocked" and click the "Restore" button.
+
 **Contact capacity monitoring:**
 - MeshCore devices have a limit of 350 contacts
 - The counter badge changes color as you approach the limit:
   - **0-299**: Green (plenty of space)
   - **300-339**: Yellow warning (nearing limit)
   - **340-350**: Red alarm (critical - delete some contacts soon)
+
+### Contact Map
+
+Access the map from the main menu to view the GPS locations of your contacts.
+- Contacts with known GPS coordinates will be displayed as markers on OpenStreetMap.
+- Click a marker to see the contact name and details.
+- Use the **Cached** switch to toggle the display of cache-only contacts (contacts that are saved in your database but no longer present in the device's internal memory).
 
 ### Contact Cleanup Tool
 

@@ -1,13 +1,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 # mc-webui
 
-A lightweight web interface for meshcore-cli, providing browser-based access to MeshCore mesh network.
+A lightweight web interface providing browser-based access to MeshCore mesh network.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MarekWo/mc-webui)
 
 ## Overview
 
-**mc-webui** is a Flask-based web application that wraps `meshcore-cli`, eliminating the need for SSH/terminal access when using MeshCore chat on a LoRa device connected to a Debian VM via BLE or USB. Tested on Heltec V3 and Heltec V4.
+**mc-webui** is a Flask-based web application that wraps `meshcore-cli`, eliminating the need for SSH/terminal access when using MeshCore chat on a LoRa device connected to a Debian VM via USB, BLE, or TCP. Tested on Heltec V3 and Heltec V4.
 
 ![Diagram](images/diagram.jpeg)
 
@@ -17,7 +17,8 @@ A lightweight web interface for meshcore-cli, providing browser-based access to 
 - **Channel management** - Create, join, share (QR code), and switch between encrypted channels
 - **Direct Messages (DM)** - Private messaging with delivery status tracking
 - **Smart notifications** - Unread message counters per channel with cross-device sync
-- **Contact management** - Manual approval mode, filtering, protection, cleanup tools
+- **Contact management** - Manual approval mode, filtering, protection, ignoring, blocking, and cleanup tools
+- **Database** - Fast and reliable SQLite storage for messages, contacts, and configurations
 - **Contact map** - View contacts with GPS coordinates on OpenStreetMap (Leaflet)
 - **Message archives** - Automatic daily archiving with browse-by-date selector
 - **Interactive Console** - Direct meshcli command execution via WebSocket
@@ -43,9 +44,9 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
 - Docker and Docker Compose installed ([installation guide](docs/docker-install.md))
 
 **Important Notes:**
-- No meshcore-cli installation required on host - automatically installed inside Docker container
+- Powered by direct meshcore library integration (v2 architecture)
 - No manual directory setup needed - all data stored in `./data/` inside the project directory
-- meshcore-cli version 1.3.12+ is automatically installed for proper DM functionality
+- Uses a single-container architecture with a fast SQLite database
 
 ---
 
@@ -100,7 +101,7 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
     - Download base images (Python, Alpine Linux)
     - Install meshcore-cli inside containers
     - Create `./data/` directory structure automatically
-    - Start both containers (meshcore-bridge and mc-webui)
+    - Start the mc-webui container
 
 5. **Verify installation**
     ```bash
@@ -307,7 +308,7 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 - [x] @Mentions Autocomplete - Type @ to get contact suggestions with fuzzy search
 - [x] PWA Notifications (Experimental) - Browser notifications and app badge counters
 - [x] Full Offline Support - Local Bootstrap libraries and Service Worker caching
-- [x] Interactive Console - Direct meshcli access via WebSocket with command history
+- [x] Interactive Console - Direct MeshCore commands access via WebSocket with command history
 - [x] Contact Map - View contacts with GPS coordinates on OpenStreetMap (Leaflet)
 - [x] Echo Tracking - "Heard X repeats" badge for sent channel messages
 - [x] MeshCore Analyzer - Packet analysis links on channel messages (analyzer.letsmesh.net)

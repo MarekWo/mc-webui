@@ -1,15 +1,16 @@
 # Container Watchdog
 
-The Container Watchdog is a systemd service that monitors Docker containers and automatically restarts unhealthy or stopped ones. This is useful for ensuring reliability, especially on resource-constrained systems.
+The Container Watchdog is a systemd service that monitors the `mc-webui` Docker container and automatically restarts it if it becomes unhealthy or if the LoRa device becomes unresponsive. This is useful for ensuring reliability, especially on resource-constrained systems or when the LoRa hardware hangs.
 
 ## Features
 
 - **Health monitoring** - Checks container status every 30 seconds
-- **Automatic restart** - Restarts containers that become unhealthy
-- **Auto-start stopped containers** - Starts containers that have stopped (configurable)
-- **Hardware USB reset** - Performs a low-level USB bus reset if the LoRa device freezes (detected after 3 failed container restarts within 8 minutes)
+- **Log monitoring** - Monitors `mc-webui` logs for specific "unresponsive LoRa device" errors
+- **Automatic restart** - Restarts the container when issues are detected
+- **Auto-start stopped container** - Starts the container if it has stopped (configurable)
+- **Hardware USB reset** - Performs a low-level USB bus reset (unbind/bind or DTR/RTS) if the LoRa device freezes. *Note: USB reset is automatically skipped if a TCP connection is used.*
 - **Diagnostic logging** - Captures container logs before restart for troubleshooting
-- **HTTP status endpoint** - Query container status via HTTP API
+- **HTTP status endpoint** - Query watchdog status via HTTP API
 - **Restart history** - Tracks all automatic restarts with timestamps
 
 ## Installation
@@ -21,9 +22,9 @@ sudo ./scripts/watchdog/install.sh
 
 The installer will:
 - Create a systemd service `mc-webui-watchdog`
-- Start monitoring containers immediately
+- Start monitoring the container immediately
 - Enable automatic startup on boot
-- Create log file at `/var/log/mc-webui-watchdog.log`
+- Create a log file at `/var/log/mc-webui-watchdog.log`
 
 ## Usage
 
@@ -60,9 +61,9 @@ curl http://localhost:5051/history
 
 ### Diagnostic Files
 
-When a container is restarted, diagnostic information is saved to:
+When the container is restarted, diagnostic information is saved to:
 ```
-/tmp/mc-webui-watchdog-{container}-{timestamp}.log
+/tmp/mc-webui-watchdog-mc-webui-{timestamp}.log
 ```
 
 These files contain:
@@ -82,8 +83,8 @@ If you need to customize the behavior, the service supports these environment va
 | `CHECK_INTERVAL` | `30` | Seconds between health checks |
 | `LOG_FILE` | `/var/log/mc-webui-watchdog.log` | Path to log file |
 | `HTTP_PORT` | `5051` | HTTP status port (0 to disable) |
-| `AUTO_START` | `true` | Start stopped containers (set to `false` to disable) |
-| `USB_DEVICE_PATH` | *(auto-detected)* | Path to the LoRa device (e.g., `/dev/bus/usb/001/002`) for hardware USB bus reset |
+| `AUTO_START` | `true` | Start stopped container (set to `false` to disable) |
+| `USB_DEVICE_PATH` | *(auto-detected)* | Path to the LoRa device for hardware USB bus reset |
 
 To modify defaults, create an override file:
 ```bash
@@ -106,30 +107,4 @@ sudo ~/mc-webui/scripts/watchdog/install.sh --uninstall
 Note: The log file is preserved after uninstall. Remove manually if needed:
 ```bash
 sudo rm /var/log/mc-webui-watchdog.log
-```
-
-## Troubleshooting
-
-### Service won't start
-
-Check the logs:
-```bash
-journalctl -u mc-webui-watchdog -n 50
-```
-
-Common issues:
-- Docker not running
-- Python 3 not installed
-- Permission issues
-
-### Containers keep restarting
-
-Check the diagnostic files in `/tmp/mc-webui-watchdog-*.log` to see what's causing the containers to become unhealthy.
-
-### HTTP endpoint not responding
-
-Verify the service is running and check if port 5051 is available:
-```bash
-systemctl status mc-webui-watchdog
-ss -tlnp | grep 5051
 ```
