@@ -1669,6 +1669,12 @@ def get_messages_updates():
         else:
             all_messages = parser.read_messages(limit=None, days=7)
 
+        # Filter out blocked contacts' messages from unread counts
+        if db:
+            blocked_names = db.get_blocked_contact_names()
+            if blocked_names:
+                all_messages = [m for m in all_messages if m.get('sender', '') not in blocked_names]
+
         # Group messages by channel and compute stats
         channel_stats = {}  # channel_idx -> {latest_ts, messages_after_last_seen}
         for msg in all_messages:
@@ -2083,10 +2089,17 @@ def get_dm_updates():
 
         if db:
             convos = db.get_dm_conversations()
+            blocked_names = db.get_blocked_contact_names()
+            blocked_keys = db.get_blocked_keys()
             for c in convos:
                 pk = c.get('contact_pubkey', '')
+                # Skip blocked contacts
+                if pk in blocked_keys:
+                    continue
                 conv_id = f"pk_{pk}" if pk else 'unknown'
                 display_name = c.get('display_name', pk[:8] + '...' if pk else 'Unknown')
+                if display_name in blocked_names:
+                    continue
                 last_msg_ts = c.get('last_message_timestamp', 0)
                 last_seen_ts = last_seen.get(conv_id, 0)
 
