@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mc-webui-v4';
+const CACHE_NAME = 'mc-webui-v5';
 const ASSETS_TO_CACHE = [
     '/',
     '/static/css/style.css',
@@ -6,6 +6,7 @@ const ASSETS_TO_CACHE = [
     '/static/js/dm.js',
     '/static/js/contacts.js',
     '/static/js/message-utils.js',
+    '/static/js/filter-utils.js',
     '/static/js/console.js',
     '/static/images/android-chrome-192x192.png',
     '/static/images/android-chrome-512x512.png',
