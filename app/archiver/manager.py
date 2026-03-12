@@ -21,6 +21,7 @@ _scheduler: Optional[BackgroundScheduler] = None
 # Job IDs
 CLEANUP_JOB_ID = 'daily_cleanup'
 RETENTION_JOB_ID = 'daily_retention'
+BACKUP_JOB_ID = 'daily_backup'
 
 # Module-level db reference (set by init_retention_schedule)
 _db = None
@@ -603,8 +604,58 @@ def schedule_daily_archiving():
         # Initialize cleanup schedule from saved settings
         init_cleanup_schedule()
 
+        # Initialize backup schedule
+        init_backup_schedule()
+
     except Exception as e:
         logger.error(f"Failed to start archive scheduler: {e}", exc_info=True)
+
+
+def init_backup_schedule():
+    """Initialize daily backup job from config."""
+    global _scheduler, _db
+
+    if _scheduler is None or _db is None:
+        return
+
+    if not config.MC_BACKUP_ENABLED:
+        logger.info("Backup is disabled in configuration")
+        return
+
+    try:
+        backup_hour = config.MC_BACKUP_HOUR
+        trigger = CronTrigger(hour=backup_hour, minute=0)
+        backup_dir = Path(config.MC_CONFIG_DIR) / 'backups'
+
+        _scheduler.add_job(
+            func=_backup_job,
+            trigger=trigger,
+            id=BACKUP_JOB_ID,
+            name='Daily Database Backup',
+            replace_existing=True,
+            args=[backup_dir]
+        )
+        logger.info(f"Backup schedule initialized: daily at {backup_hour:02d}:00")
+    except Exception as e:
+        logger.error(f"Error scheduling backup: {e}", exc_info=True)
+
+
+def _backup_job(backup_dir):
+    """Execute daily backup and cleanup old backups."""
+    global _db
+    if _db is None:
+        logger.warning("No database reference for backup")
+        return
+
+    try:
+        backup_path = _db.create_backup(backup_dir)
+        logger.info(f"Daily backup completed: {backup_path}")
+
+        removed = _db.cleanup_old_backups(backup_dir, config.MC_BACKUP_RETENTION_DAYS)
+        if removed > 0:
+            logger.info(f"Cleaned up {removed} old backup(s)")
+    except Exception as e:
+        logger.error(f"Backup job failed: {e}", exc_info=True)
 
 
 def stop_scheduler():

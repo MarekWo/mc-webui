@@ -3756,3 +3756,95 @@ function highlightSearchTerm(html, query) {
 // Initialize search when DOM is ready
 document.addEventListener('DOMContentLoaded', initializeSearch);
 
+// =============================================================================
+// Backup Management
+// =============================================================================
+
+function initializeBackup() {
+    document.getElementById('backupModal')?.addEventListener('shown.bs.modal', loadBackupList);
+}
+
+async function loadBackupList() {
+    const container = document.getElementById('backupList');
+    const statusEl = document.getElementById('backupAutoStatus');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+
+    try {
+        const response = await fetch('/api/backup/list');
+        const data = await response.json();
+
+        if (!data.success) {
+            container.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.error)}</div>`;
+            return;
+        }
+
+        // Show auto-backup status
+        if (statusEl) {
+            statusEl.textContent = data.auto_backup_enabled
+                ? `Auto: daily at ${String(data.backup_hour).padStart(2, '0')}:00, keep ${data.retention_days}d`
+                : 'Auto-backup disabled';
+        }
+
+        if (data.backups.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-inbox"></i><p class="mt-2 mb-0">No backups yet</p></div>';
+            return;
+        }
+
+        const list = document.createElement('div');
+        list.className = 'list-group';
+
+        data.backups.forEach(b => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+            item.innerHTML = `
+                <div>
+                    <i class="bi bi-file-earmark-zip"></i>
+                    <span class="ms-1">${escapeHtml(b.filename)}</span>
+                    <small class="text-muted ms-2">${b.size_display}</small>
+                </div>
+                <a href="/api/backup/download?file=${encodeURIComponent(b.filename)}" class="btn btn-sm btn-outline-primary" title="Download">
+                    <i class="bi bi-download"></i>
+                </a>
+            `;
+            list.appendChild(item);
+        });
+
+        container.innerHTML = '';
+        container.appendChild(list);
+
+    } catch (error) {
+        console.error('Error loading backups:', error);
+        container.innerHTML = '<div class="alert alert-danger">Failed to load backups</div>';
+    }
+}
+
+async function createBackup() {
+    const btn = document.getElementById('createBackupBtn');
+    if (!btn) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Creating...';
+
+    try {
+        const response = await fetch('/api/backup/create', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            showNotification(`Backup created: ${data.filename}`, 'success');
+            loadBackupList();
+        } else {
+            showNotification('Backup failed: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error creating backup:', error);
+        showNotification('Backup failed', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-plus-circle"></i> Create Backup';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initializeBackup);
+

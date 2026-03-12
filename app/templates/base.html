@@ -148,6 +148,13 @@
                     <i class="bi bi-cpu" style="font-size: 1.5rem;"></i>
                     <span>Device Info</span>
                 </button>
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#backupModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-database-down" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <span>Backup</span>
+                        <small class="d-block text-muted">Database backup & restore</small>
+                    </div>
+                </button>
             </div>
         </div>
     </div>
@@ -350,6 +357,31 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="updateCancelBtn">Cancel</button>
                     <button type="button" class="btn btn-primary d-none" id="updateConfirmBtn">Update Now</button>
                     <button type="button" class="btn btn-primary d-none" id="updateReloadBtn" onclick="location.reload()">Reload Page</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup Modal -->
+    <div class="modal fade" id="backupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-database-down"></i> Database Backup</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <button class="btn btn-primary" id="createBackupBtn" onclick="createBackup()">
+                            <i class="bi bi-plus-circle"></i> Create Backup
+                        </button>
+                        <span id="backupAutoStatus" class="text-muted small"></span>
+                    </div>
+                    <div id="backupList">
+                        <div class="text-center text-muted py-3">
+                            <div class="spinner-border spinner-border-sm"></div> Loading...
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

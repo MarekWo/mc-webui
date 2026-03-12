@@ -3783,3 +3783,91 @@ def clear_console_history():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# =============================================================================
+# Backup Endpoints
+# =============================================================================
+
+@api_bp.route('/backup/list', methods=['GET'])
+def list_backups():
+    """List available database backups."""
+    try:
+        dm = current_app.config.get('DEVICE_MANAGER')
+        db = dm.db if dm else None
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 503
+
+        backup_dir = Path(config.MC_CONFIG_DIR) / 'backups'
+        backups = db.list_backups(backup_dir)
+
+        # Format sizes for display
+        for b in backups:
+            size = b.get('size_bytes', 0)
+            if size >= 1024 * 1024:
+                b['size_display'] = f"{size / (1024*1024):.1f} MB"
+            elif size >= 1024:
+                b['size_display'] = f"{size / 1024:.1f} KB"
+            else:
+                b['size_display'] = f"{size} B"
+
+        return jsonify({
+            'success': True,
+            'backups': backups,
+            'auto_backup_enabled': config.MC_BACKUP_ENABLED,
+            'backup_hour': config.MC_BACKUP_HOUR,
+            'retention_days': config.MC_BACKUP_RETENTION_DAYS,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error listing backups: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/backup/create', methods=['POST'])
+def create_backup():
+    """Create an immediate database backup."""
+    try:
+        dm = current_app.config.get('DEVICE_MANAGER')
+        db = dm.db if dm else None
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 503
+
+        backup_dir = Path(config.MC_CONFIG_DIR) / 'backups'
+        backup_path = db.create_backup(backup_dir)
+
+        return jsonify({
+            'success': True,
+            'message': 'Backup created',
+            'filename': backup_path.name,
+            'size_bytes': backup_path.stat().st_size,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error creating backup: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/backup/download', methods=['GET'])
+def download_backup():
+    """Download a backup file."""
+    filename = request.args.get('file', '')
+    if not filename:
+        return jsonify({'success': False, 'error': 'Missing file parameter'}), 400
+
+    # Security: prevent path traversal
+    if '/' in filename or '\\' in filename or '..' in filename:
+        return jsonify({'success': False, 'error': 'Invalid filename'}), 400
+
+    backup_dir = Path(config.MC_CONFIG_DIR) / 'backups'
+    backup_path = backup_dir / filename
+
+    if not backup_path.exists():
+        return jsonify({'success': False, 'error': 'Backup not found'}), 404
+
+    return send_file(
+        str(backup_path),
+        mimetype='application/x-sqlite3',
+        as_attachment=True,
+        download_name=filename
+    )
