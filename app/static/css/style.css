@@ -1240,9 +1240,9 @@ main {
     color: white;
 }
 
-/* Search FAB button (orange gradient) */
+/* Search FAB button (muted teal) */
 .fab-search {
-    background: linear-gradient(135deg, #fd7e14 0%, #e8590c 100%);
+    background: linear-gradient(135deg, #5fa8a0 0%, #4a8f88 100%);
     color: white;
 }
 

@@ -1303,19 +1303,10 @@ async function loadDeviceInfo() {
             return;
         }
 
-        // Parse JSON from the info string
-        let info;
-        try {
-            // Extract JSON part (skip the header lines like "MarWoj|*...")
-            const jsonMatch = data.info.match(/\{[\s\S]*\}/);
-            info = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-        } catch (e) {
-            container.innerHTML = `<pre class="mb-0 small">${escapeHtml(data.info)}</pre>`;
-            return;
-        }
-
-        if (!info) {
-            container.innerHTML = `<pre class="mb-0 small">${escapeHtml(data.info)}</pre>`;
+        // API returns info as a dict directly (v2 DeviceManager)
+        const info = data.info;
+        if (!info || typeof info !== 'object') {
+            container.innerHTML = `<div class="alert alert-warning mb-0">No device info available</div>`;
             return;
         }
 
@@ -1401,11 +1392,11 @@ async function loadDeviceStats() {
         const bat = data.battery || {};
         let html = '<table class="table table-sm mb-0"><tbody>';
 
-        // Battery
+        // Battery (from dedicated get_bat or from core stats)
         if (bat && typeof bat === 'object' && bat.voltage) {
             html += `<tr><td class="text-muted">Battery</td><td>${bat.voltage}V</td></tr>`;
-        } else if (bat) {
-            html += `<tr><td class="text-muted">Battery</td><td>${bat}</td></tr>`;
+        } else if (stats.core && stats.core.battery_mv) {
+            html += `<tr><td class="text-muted">Battery</td><td>${(stats.core.battery_mv / 1000).toFixed(2)}V</td></tr>`;
         }
 
         // Core stats
