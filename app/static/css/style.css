@@ -1425,3 +1425,9 @@ main {
     padding: 0 2px;
     border-radius: 2px;
 }
+
+/* Own device map marker */
+.own-device-marker {
+    background: transparent;
+    border: none;
+}

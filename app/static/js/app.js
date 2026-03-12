@@ -25,6 +25,7 @@ let contactsPubkeyMap = {};  // { 'contactName': 'full_pubkey', ... }
 let blockedContactNames = new Set();  // Names of blocked contacts
 let allContactsWithGps = [];  // Device contacts for map filtering
 let allCachedContactsWithGps = [];  // Cache-only contacts for map
+let _selfInfo = null;  // Own device info (for map marker)
 
 // SocketIO state
 let chatSocket = null;  // SocketIO connection to /chat namespace
@@ -179,9 +180,25 @@ function updateMapMarkers() {
     }
 
     const bounds = [];
+
+    // Add own device marker (star shape, distinct from contacts)
+    if (_selfInfo && _selfInfo.adv_lat && _selfInfo.adv_lon && (_selfInfo.adv_lat !== 0 || _selfInfo.adv_lon !== 0)) {
+        const ownIcon = L.divIcon({
+            html: '<i class="bi bi-star-fill" style="color: #dc3545; font-size: 20px; text-shadow: 0 0 3px #fff;"></i>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+            className: 'own-device-marker'
+        });
+        L.marker([_selfInfo.adv_lat, _selfInfo.adv_lon], { icon: ownIcon })
+            .addTo(markersGroup)
+            .bindPopup(`<b>${_selfInfo.name || 'This device'}</b><br><span class="text-muted">Own device</span>`);
+        bounds.push([_selfInfo.adv_lat, _selfInfo.adv_lon]);
+    }
+
     filteredContacts.forEach(c => {
         const color = CONTACT_TYPE_COLORS[c.type] || '#2196F3';
         const typeName = CONTACT_TYPE_NAMES[c.type] || 'Unknown';
+        const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
 
         L.circleMarker([c.adv_lat, c.adv_lon], {
             radius: 10,
@@ -192,7 +209,7 @@ function updateMapMarkers() {
             fillOpacity: 0.8
         })
             .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>`);
+            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>${lastSeen ? `<br><small class="text-muted">Last seen: ${lastSeen}</small>` : ''}`);
 
         bounds.push([c.adv_lat, c.adv_lon]);
     });
@@ -200,6 +217,7 @@ function updateMapMarkers() {
     cachedFiltered.forEach(c => {
         const typeNum = TYPE_LABEL_TO_NUM[c.type_label] || 1;
         const color = CONTACT_TYPE_COLORS[typeNum] || '#2196F3';
+        const lastSeen = c.last_seen ? formatTimeAgo(c.last_seen) : '';
 
         L.circleMarker([c.adv_lat, c.adv_lon], {
             radius: 8,
@@ -210,14 +228,14 @@ function updateMapMarkers() {
             fillOpacity: 0.5
         })
             .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${c.type_label || 'Cache'} (cached)</span>`);
+            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${c.type_label || 'Cache'} (cached)</span>${lastSeen ? `<br><small class="text-muted">Last seen: ${lastSeen}</small>` : ''}`);
 
         bounds.push([c.adv_lat, c.adv_lon]);
     });
 
     if (bounds.length === 1) {
         leafletMap.setView(bounds[0], 13);
-    } else {
+    } else if (bounds.length > 1) {
         leafletMap.fitBounds(bounds, { padding: [20, 20] });
     }
 }
@@ -239,13 +257,23 @@ async function showAllContactsOnMap() {
         markersGroup.clearLayers();
 
         try {
-            // Fetch device and cached contacts in parallel
-            const [deviceResp, cachedResp] = await Promise.all([
+            // Fetch device info, device contacts, and cached contacts in parallel
+            const [deviceInfoResp, deviceResp, cachedResp] = await Promise.all([
+                fetch('/api/device/info'),
                 fetch('/api/contacts/detailed'),
                 fetch('/api/contacts/cached?format=full')
             ]);
+            const deviceInfoData = await deviceInfoResp.json();
             const deviceData = await deviceResp.json();
             const cachedData = await cachedResp.json();
+
+            // Parse self info for own device marker
+            if (deviceInfoData.success && deviceInfoData.info) {
+                try {
+                    const jsonMatch = deviceInfoData.info.match(/\{[\s\S]*\}/);
+                    _selfInfo = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+                } catch (e) { _selfInfo = null; }
+            }
 
             if (deviceData.success && deviceData.contacts) {
                 allContactsWithGps = deviceData.contacts.filter(c =>
@@ -2070,6 +2098,19 @@ function formatTime(timestamp) {
         // Older - show date and time
         return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
+}
+
+/**
+ * Format a unix timestamp as relative time (e.g., "5 min ago", "2h ago")
+ */
+function formatTimeAgo(timestamp) {
+    const now = Math.floor(Date.now() / 1000);
+    const diff = now - timestamp;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return new Date(timestamp * 1000).toLocaleDateString();
 }
 
 /**
