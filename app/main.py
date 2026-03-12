@@ -266,11 +266,80 @@ def _execute_console_command(args: list) -> str:
             return "No channels configured"
         return f"Channels ({len(lines)}):\n" + "\n".join(lines)
 
+    elif cmd == 'stats':
+        stats = device_manager.get_device_stats()
+        if not stats:
+            return "No statistics available"
+        lines = ["Device Statistics:"]
+        if 'core' in stats:
+            core = stats['core']
+            uptime_s = core.get('uptime', 0)
+            days, rem = divmod(uptime_s, 86400)
+            hours, rem = divmod(rem, 3600)
+            mins = rem // 60
+            lines.append(f"  Uptime: {int(days)}d {int(hours)}h {int(mins)}m")
+            if 'queue_length' in core:
+                lines.append(f"  Queue: {core['queue_length']}")
+            if 'errors' in core:
+                lines.append(f"  Errors: {core['errors']}")
+        if 'radio' in stats:
+            radio = stats['radio']
+            if 'tx_air_time' in radio:
+                lines.append(f"  TX air time: {radio['tx_air_time']:.1f} min")
+            if 'rx_air_time' in radio:
+                lines.append(f"  RX air time: {radio['rx_air_time']:.1f} min")
+        if 'packets' in stats:
+            pkts = stats['packets']
+            if 'sent' in pkts:
+                lines.append(f"  Packets TX: {pkts['sent']}")
+            if 'received' in pkts:
+                lines.append(f"  Packets RX: {pkts['received']}")
+        return "\n".join(lines)
+
+    elif cmd == 'telemetry' and len(args) >= 2:
+        contact_name = ' '.join(args[1:])
+        result = device_manager.request_telemetry(contact_name)
+        if not result:
+            return "Telemetry unavailable"
+        if 'error' in result:
+            return f"Error: {result['error']}"
+        lines = [f"Telemetry: {contact_name}"]
+        for k, v in result.items():
+            lines.append(f"  {k}: {v}")
+        return "\n".join(lines)
+
+    elif cmd == 'neighbors' and len(args) >= 2:
+        contact_name = ' '.join(args[1:])
+        result = device_manager.request_neighbors(contact_name)
+        if not result:
+            return "Neighbors unavailable"
+        if 'error' in result:
+            return f"Error: {result['error']}"
+        if isinstance(result, list):
+            lines = [f"Neighbors of {contact_name} ({len(result)}):"]
+            for n in result:
+                name = n.get('name', n.get('public_key', '?')[:8])
+                snr = n.get('snr', '?')
+                lines.append(f"  {name} (SNR: {snr})")
+            return "\n".join(lines)
+        lines = [f"Neighbors: {contact_name}"]
+        for k, v in result.items():
+            lines.append(f"  {k}: {v}")
+        return "\n".join(lines)
+
+    elif cmd == 'trace':
+        tag = int(args[1]) if len(args) >= 2 else 0
+        result = device_manager.send_trace(tag)
+        if not result:
+            return "Trace unavailable"
+        return result.get('message', result.get('error', 'Unknown'))
+
     elif cmd == 'help':
         return (
             "Available commands:\n"
             "  infos      — Device info (firmware, freq, etc.)\n"
             "  status     — Connection status, battery, contacts count\n"
+            "  stats      — Device statistics (uptime, TX/RX, packets)\n"
             "  bat        — Battery voltage\n"
             "  contacts   — List all contacts\n"
             "  channels   — List configured channels\n"
@@ -278,6 +347,9 @@ def _execute_console_command(args: list) -> str:
             "  msg <name> <msg> — Send direct message\n"
             "  advert     — Send advertisement\n"
             "  floodadv   — Send flood advertisement\n"
+            "  telemetry <name> — Request sensor telemetry\n"
+            "  neighbors <name> — List neighbors of a node\n"
+            "  trace [tag]      — Send trace packet\n"
             "  help       — Show this help"
         )
 

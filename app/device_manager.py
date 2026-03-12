@@ -1323,3 +1323,89 @@ class DeviceManager:
         except Exception as e:
             logger.error(f"Failed to get battery: {e}")
         return None
+
+    def get_device_stats(self) -> Dict:
+        """Get combined device statistics (core + radio + packets)."""
+        if not self.is_connected:
+            return {}
+
+        stats = {}
+        try:
+            event = self.execute(self.mc.commands.get_stats_core(), timeout=5)
+            if event and hasattr(event, 'payload'):
+                stats['core'] = event.payload
+        except Exception as e:
+            logger.debug(f"get_stats_core failed: {e}")
+
+        try:
+            event = self.execute(self.mc.commands.get_stats_radio(), timeout=5)
+            if event and hasattr(event, 'payload'):
+                stats['radio'] = event.payload
+        except Exception as e:
+            logger.debug(f"get_stats_radio failed: {e}")
+
+        try:
+            event = self.execute(self.mc.commands.get_stats_packets(), timeout=5)
+            if event and hasattr(event, 'payload'):
+                stats['packets'] = event.payload
+        except Exception as e:
+            logger.debug(f"get_stats_packets failed: {e}")
+
+        return stats
+
+    def request_telemetry(self, contact_name: str) -> Optional[Dict]:
+        """Request telemetry data from a remote sensor node."""
+        if not self.is_connected:
+            return None
+
+        contact = self.mc.get_contact_by_name(contact_name)
+        if not contact:
+            return {'error': f"Contact '{contact_name}' not found"}
+
+        try:
+            event = self.execute(
+                self.mc.commands.req_telemetry_sync(contact),
+                timeout=30
+            )
+            if event and hasattr(event, 'payload'):
+                return event.payload
+            return {'error': 'No telemetry response (timeout)'}
+        except Exception as e:
+            logger.error(f"Telemetry request failed: {e}")
+            return {'error': str(e)}
+
+    def request_neighbors(self, contact_name: str) -> Optional[Dict]:
+        """Request neighbor list from a remote node."""
+        if not self.is_connected:
+            return None
+
+        contact = self.mc.get_contact_by_name(contact_name)
+        if not contact:
+            return {'error': f"Contact '{contact_name}' not found"}
+
+        try:
+            event = self.execute(
+                self.mc.commands.req_neighbours_sync(contact),
+                timeout=30
+            )
+            if event and hasattr(event, 'payload'):
+                return event.payload
+            return {'error': 'No neighbors response (timeout)'}
+        except Exception as e:
+            logger.error(f"Neighbors request failed: {e}")
+            return {'error': str(e)}
+
+    def send_trace(self, tag: int = 0) -> Optional[Dict]:
+        """Send a trace packet to discover mesh topology."""
+        if not self.is_connected:
+            return None
+
+        try:
+            event = self.execute(
+                self.mc.commands.send_trace(tag=tag),
+                timeout=5
+            )
+            return {'success': True, 'message': f'Trace sent (tag={tag})'}
+        except Exception as e:
+            logger.error(f"Trace failed: {e}")
+            return {'error': str(e)}
