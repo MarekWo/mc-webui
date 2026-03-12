@@ -1240,6 +1240,12 @@ main {
     color: white;
 }
 
+/* Search FAB button (orange gradient) */
+.fab-search {
+    background: linear-gradient(135deg, #fd7e14 0%, #e8590c 100%);
+    color: white;
+}
+
 /* Filter bar overlay - slides down from top of chat area */
 .filter-bar {
     position: absolute;

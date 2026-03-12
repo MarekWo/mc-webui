@@ -1034,31 +1034,25 @@ def cleanup_contacts():
 @api_bp.route('/device/info', methods=['GET'])
 def get_device_info():
     """
-    Get detailed device information.
-
-    Returns:
-        JSON with device info
+    Get detailed device information from DeviceManager.
     """
     try:
-        success, info = cli.get_device_info()
+        dm = _get_dm()
+        if not dm or not dm.is_connected:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
 
-        if success:
+        info = dm.get_device_info()
+        if info:
             return jsonify({
                 'success': True,
-                'info': info
+                'info': info,
             }), 200
         else:
-            return jsonify({
-                'success': False,
-                'error': info
-            }), 500
+            return jsonify({'success': False, 'error': 'No device info available'}), 503
 
     except Exception as e:
         logger.error(f"Error getting device info: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @api_bp.route('/device/stats', methods=['GET'])
@@ -1067,13 +1061,14 @@ def get_device_stats():
     Get device statistics (uptime, radio, packets).
     """
     try:
-        dm = current_app.config.get('DEVICE_MANAGER')
+        dm = _get_dm()
         if not dm or not dm.is_connected:
             return jsonify({'success': False, 'error': 'Device not connected'}), 503
 
         stats = dm.get_device_stats()
         bat = dm.get_battery()
-        db_stats = dm.db.get_stats() if dm.db else {}
+        db = _get_db()
+        db_stats = db.get_stats() if db else {}
 
         return jsonify({
             'success': True,
@@ -1789,8 +1784,7 @@ def search_messages():
     limit = min(limit, 200)
 
     try:
-        dm = current_app.config.get('DEVICE_MANAGER')
-        db = dm.db if dm else None
+        db = _get_db()
         if not db:
             return jsonify({'success': False, 'error': 'Database not available'}), 503
 
@@ -3819,8 +3813,7 @@ def clear_console_history():
 def list_backups():
     """List available database backups."""
     try:
-        dm = current_app.config.get('DEVICE_MANAGER')
-        db = dm.db if dm else None
+        db = _get_db()
         if not db:
             return jsonify({'success': False, 'error': 'Database not available'}), 503
 
@@ -3854,8 +3847,7 @@ def list_backups():
 def create_backup():
     """Create an immediate database backup."""
     try:
-        dm = current_app.config.get('DEVICE_MANAGER')
-        db = dm.db if dm else None
+        db = _get_db()
         if not db:
             return jsonify({'success': False, 'error': 'Database not available'}), 503
 

@@ -267,12 +267,9 @@ async function showAllContactsOnMap() {
             const deviceData = await deviceResp.json();
             const cachedData = await cachedResp.json();
 
-            // Parse self info for own device marker
+            // Use self info for own device marker
             if (deviceInfoData.success && deviceInfoData.info) {
-                try {
-                    const jsonMatch = deviceInfoData.info.match(/\{[\s\S]*\}/);
-                    _selfInfo = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-                } catch (e) { _selfInfo = null; }
+                _selfInfo = deviceInfoData.info;
             }
 
             if (deviceData.success && deviceData.contacts) {
