@@ -7,11 +7,15 @@ Event handlers capture incoming data and write to Database + emit SocketIO.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import threading
 import time
 from typing import Optional, Any, Dict, List
+
+ANALYZER_BASE_URL = 'https://analyzer.letsmesh.net/packets?packet_hash='
+GRP_TXT_TYPE_BYTE = 0x05
 
 logger = logging.getLogger(__name__)
 
@@ -380,6 +384,20 @@ class DeviceManager:
                 return
 
             if self.socketio:
+                snr = data.get('SNR', data.get('snr'))
+                path_len = data.get('path_len')
+                pkt_payload = data.get('pkt_payload')
+
+                # Compute analyzer URL from pkt_payload
+                analyzer_url = None
+                if pkt_payload:
+                    try:
+                        raw = bytes([GRP_TXT_TYPE_BYTE]) + bytes.fromhex(pkt_payload)
+                        packet_hash = hashlib.sha256(raw).hexdigest()[:16].upper()
+                        analyzer_url = f"{ANALYZER_BASE_URL}{packet_hash}"
+                    except (ValueError, TypeError):
+                        pass
+
                 self.socketio.emit('new_message', {
                     'type': 'channel',
                     'channel_idx': channel_idx,
@@ -387,6 +405,10 @@ class DeviceManager:
                     'content': content,
                     'timestamp': ts,
                     'id': msg_id,
+                    'snr': snr,
+                    'path_len': path_len,
+                    'pkt_payload': pkt_payload,
+                    'analyzer_url': analyzer_url,
                 }, namespace='/chat')
                 logger.debug(f"SocketIO emitted new_message for ch{channel_idx} msg #{msg_id}")
 

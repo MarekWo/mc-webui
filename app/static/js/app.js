@@ -908,7 +908,7 @@ function appendMessageFromSocket(data) {
         path_len: data.path_len || null,
         echo_paths: [],
         echo_snrs: [],
-        analyzer_url: null,
+        analyzer_url: data.analyzer_url || null,
         pkt_payload: data.pkt_payload || null,
         txt_type: data.txt_type || 0,
     };
