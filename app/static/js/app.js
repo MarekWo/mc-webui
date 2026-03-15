@@ -422,6 +422,19 @@ function connectChatSocket() {
         }
     });
 
+    // Real-time echo data — refresh messages to pick up route/analyzer metadata
+    let echoRefreshTimer = null;
+    chatSocket.on('echo', (data) => {
+        if (currentArchiveDate) return;  // Don't refresh archive view
+        if (data.direction !== 'incoming') return;  // Only care about incoming echoes
+        // Debounce: wait for echoes to settle, then refresh once
+        if (echoRefreshTimer) clearTimeout(echoRefreshTimer);
+        echoRefreshTimer = setTimeout(() => {
+            echoRefreshTimer = null;
+            loadMessages();
+        }, 2000);
+    });
+
     // Real-time device status
     chatSocket.on('device_status', (data) => {
         const statusEl = document.getElementById('connectionStatus');
