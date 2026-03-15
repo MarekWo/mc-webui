@@ -328,6 +328,13 @@ class Database:
             )
             return cursor.lastrowid
 
+    def get_channel_message_by_id(self, msg_id: int) -> Optional[Dict]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM channel_messages WHERE id = ?", (msg_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
     def get_channel_messages(self, channel_idx: int = None, limit: int = 50,
                               offset: int = 0, days: int = None) -> List[Dict]:
         with self._connect() as conn:

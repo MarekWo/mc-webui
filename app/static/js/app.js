@@ -422,16 +422,15 @@ function connectChatSocket() {
         }
     });
 
-    // Real-time echo data — refresh messages to pick up route/analyzer metadata
+    // Real-time echo data — update metadata for specific messages (no full reload)
     let echoRefreshTimer = null;
     chatSocket.on('echo', (data) => {
         if (currentArchiveDate) return;  // Don't refresh archive view
-        if (data.direction !== 'incoming') return;  // Only care about incoming echoes
-        // Debounce: wait for echoes to settle, then refresh once
+        // Debounce: wait for echoes to settle, then update affected messages
         if (echoRefreshTimer) clearTimeout(echoRefreshTimer);
         echoRefreshTimer = setTimeout(() => {
             echoRefreshTimer = null;
-            loadMessages();
+            refreshMessagesMeta();
         }, 2000);
     });
 
@@ -917,8 +916,8 @@ function appendMessageFromSocket(data) {
         timestamp: data.timestamp || Math.floor(Date.now() / 1000),
         is_own: !!data.is_own,
         channel_idx: data.channel_idx,
-        snr: data.snr || null,
-        path_len: data.path_len || null,
+        snr: data.snr ?? null,
+        path_len: data.path_len ?? null,
         echo_paths: [],
         echo_snrs: [],
         analyzer_url: data.analyzer_url || null,
@@ -940,11 +939,149 @@ function appendMessageFromSocket(data) {
 }
 
 /**
+ * Refresh metadata (SNR, hops, route, analyzer) for messages missing it.
+ * Fetches /api/messages/<id>/meta for each incomplete message, updates DOM in-place.
+ */
+async function refreshMessagesMeta() {
+    const container = document.getElementById('messagesList');
+    if (!container) return;
+
+    // Find message wrappers that don't have full metadata yet
+    const wrappers = container.querySelectorAll('.message-wrapper[data-msg-id]');
+    for (const wrapper of wrappers) {
+        // Skip messages that already have meta info with route/analyzer data
+        const metaEl = wrapper.querySelector('.message-meta');
+        const actionsEl = wrapper.querySelector('.message-actions');
+        const hasRoute = metaEl && metaEl.querySelector('.path-info');
+        const hasAnalyzer = actionsEl && actionsEl.querySelector('[title="View in Analyzer"]');
+        if (hasRoute && hasAnalyzer) continue;
+
+        const msgId = wrapper.dataset.msgId;
+        if (!msgId || msgId.startsWith('_pending_')) continue;
+
+        try {
+            const resp = await fetch(`/api/messages/${msgId}/meta`);
+            const meta = await resp.json();
+            if (!meta.success) continue;
+
+            updateMessageMetaDOM(wrapper, meta);
+        } catch (e) {
+            console.error(`Error fetching meta for msg #${msgId}:`, e);
+        }
+    }
+}
+
+/**
+ * Update metadata and action buttons in-place for a single message wrapper.
+ */
+function updateMessageMetaDOM(wrapper, meta) {
+    const isOwn = wrapper.classList.contains('own');
+
+    // Build meta info string
+    let metaParts = [];
+    const displaySnr = (meta.snr !== undefined && meta.snr !== null) ? meta.snr
+        : (meta.echo_snrs && meta.echo_snrs.length > 0) ? meta.echo_snrs[0] : null;
+    if (displaySnr !== null) {
+        metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
+    }
+    if (meta.path_len !== undefined && meta.path_len !== null) {
+        metaParts.push(`Hops: ${meta.path_len}`);
+    }
+
+    // Build paths from echo data
+    let paths = null;
+    if (meta.echo_paths && meta.echo_paths.length > 0) {
+        paths = meta.echo_paths.map((p, i) => ({
+            path: p,
+            snr: meta.echo_snrs ? meta.echo_snrs[i] : null,
+        }));
+    }
+    if (paths && paths.length > 0) {
+        const firstPath = paths[0];
+        const segments = firstPath.path ? firstPath.path.match(/.{1,2}/g) || [] : [];
+        const shortPath = segments.length > 4
+            ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
+            : segments.join('\u2192');
+        const pathsData = encodeURIComponent(JSON.stringify(paths));
+        const routeLabel = paths.length > 1 ? `Route (${paths.length})` : 'Route';
+        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}')">${routeLabel}: ${shortPath}</span>`);
+    }
+    const metaInfo = metaParts.join(' | ');
+
+    if (!isOwn) {
+        // Update or insert .message-meta div
+        const msgDiv = wrapper.querySelector('.message.other');
+        if (!msgDiv) return;
+        let metaEl = msgDiv.querySelector('.message-meta');
+        if (metaInfo) {
+            if (!metaEl) {
+                metaEl = document.createElement('div');
+                metaEl.className = 'message-meta';
+                const actionsEl = msgDiv.querySelector('.message-actions');
+                msgDiv.insertBefore(metaEl, actionsEl);
+            }
+            metaEl.innerHTML = metaInfo;
+        }
+
+        // Add analyzer button if not already present
+        if (meta.analyzer_url) {
+            const actionsEl = msgDiv.querySelector('.message-actions');
+            if (actionsEl && !actionsEl.querySelector('[title="View in Analyzer"]')) {
+                const ignoreBtn = actionsEl.querySelector('[title^="Ignore"]');
+                const analyzerBtn = document.createElement('button');
+                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action';
+                analyzerBtn.setAttribute('onclick', `window.open('${meta.analyzer_url}', 'meshcore-analyzer')`);
+                analyzerBtn.title = 'View in Analyzer';
+                analyzerBtn.innerHTML = '<i class="bi bi-clipboard-data"></i>';
+                actionsEl.insertBefore(analyzerBtn, ignoreBtn);
+            }
+        }
+    } else {
+        // Own messages: update echo badge and analyzer button
+        const msgDiv = wrapper.querySelector('.message.own');
+        if (!msgDiv) return;
+
+        // Update echo badge
+        if (meta.echo_paths && meta.echo_paths.length > 0) {
+            const echoPaths = [...new Set(meta.echo_paths.map(p => p.substring(0, 2)))];
+            const echoCount = echoPaths.length;
+            const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
+            const actionsEl = msgDiv.querySelector('.message-actions');
+            if (actionsEl) {
+                let badge = actionsEl.querySelector('.echo-badge');
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'echo-badge';
+                    actionsEl.insertBefore(badge, actionsEl.firstChild);
+                }
+                badge.title = `Heard by ${echoCount} repeater(s): ${echoPaths.join(', ')}`;
+                badge.innerHTML = `<i class="bi bi-broadcast"></i> ${echoCount}${pathDisplay}`;
+            }
+        }
+
+        // Add analyzer button
+        if (meta.analyzer_url) {
+            const actionsEl = msgDiv.querySelector('.message-actions');
+            if (actionsEl && !actionsEl.querySelector('[title="View in Analyzer"]')) {
+                const resendBtn = actionsEl.querySelector('[title="Resend"]');
+                const analyzerBtn = document.createElement('button');
+                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action';
+                analyzerBtn.setAttribute('onclick', `window.open('${meta.analyzer_url}', 'meshcore-analyzer')`);
+                analyzerBtn.title = 'View in Analyzer';
+                analyzerBtn.innerHTML = '<i class="bi bi-clipboard-data"></i>';
+                actionsEl.insertBefore(analyzerBtn, resendBtn);
+            }
+        }
+    }
+}
+
+/**
  * Create message DOM element
  */
 function createMessageElement(msg) {
     const wrapper = document.createElement('div');
     wrapper.className = `message-wrapper ${msg.is_own ? 'own' : 'other'}`;
+    if (msg.id) wrapper.dataset.msgId = msg.id;
 
     const time = formatTime(msg.timestamp);
 

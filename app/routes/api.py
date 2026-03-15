@@ -514,6 +514,76 @@ def get_messages():
         }), 500
 
 
+@api_bp.route('/messages/<int:msg_id>/meta', methods=['GET'])
+def get_message_meta(msg_id):
+    """Return metadata (SNR, hops, route, analyzer URL) for a single channel message."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'No database'}), 500
+
+        row = db.get_channel_message_by_id(msg_id)
+        if not row:
+            return jsonify({'success': False, 'error': 'Not found'}), 404
+
+        pkt_payload = row.get('pkt_payload')
+        sender_ts = row.get('sender_timestamp')
+        ch_idx = row.get('channel_idx', 0)
+        txt_type = row.get('txt_type', 0)
+
+        # Compute pkt_payload if not stored
+        if not pkt_payload and sender_ts:
+            _, channels_list = get_channels_cached()
+            channel_secrets = {}
+            if channels_list:
+                for ch_info in channels_list:
+                    ch_key = ch_info.get('key', '')
+                    ci = ch_info.get('index')
+                    if ch_key and ci is not None:
+                        channel_secrets[ci] = ch_key
+
+            if ch_idx in channel_secrets:
+                raw_text = None
+                raw_json_str = row.get('raw_json')
+                if raw_json_str:
+                    try:
+                        raw_text = json.loads(raw_json_str).get('text')
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                if not raw_text:
+                    is_own = bool(row.get('is_own', 0))
+                    if is_own:
+                        device_name = runtime_config.get_device_name() or ''
+                        raw_text = f"{device_name}: {row.get('content', '')}" if device_name else row.get('content', '')
+                    else:
+                        sender = row.get('sender', '')
+                        raw_text = f"{sender}: {row.get('content', '')}" if sender else row.get('content', '')
+                pkt_payload = compute_pkt_payload(
+                    channel_secrets[ch_idx], sender_ts, txt_type, raw_text
+                )
+
+        meta = {
+            'success': True,
+            'snr': row.get('snr'),
+            'path_len': row.get('path_len'),
+            'pkt_payload': pkt_payload,
+        }
+
+        if pkt_payload:
+            meta['analyzer_url'] = compute_analyzer_url(pkt_payload)
+            echoes = db.get_echoes_for_message(pkt_payload)
+            if echoes:
+                meta['echo_count'] = len(echoes)
+                meta['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
+                meta['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
+
+        return jsonify(meta)
+
+    except Exception as e:
+        logger.error(f"Error fetching message meta: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/messages', methods=['POST'])
 def send_message():
     """
