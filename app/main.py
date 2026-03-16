@@ -230,12 +230,19 @@ def _execute_console_command(args: list) -> str:
             typ = type_names.get(c.get('type', 1), '?')
             pk_short = pk[:12]
             opl = c.get('out_path_len', -1)
-            if opl == -1:
-                path_str = 'Flood'
+            if opl > 0:
+                # Decode path: lower 6 bits = hop count, upper 2 bits = hash_size-1
+                hop_count = opl & 0x3F
+                hash_size = (opl >> 6) + 1
+                raw = c.get('out_path', '')
+                meaningful = raw[:hop_count * hash_size * 2]
+                chunk = hash_size * 2
+                hops = [meaningful[i:i+chunk].upper() for i in range(0, len(meaningful), chunk)]
+                path_str = '→'.join(hops) if hops else f'len:{opl}'
             elif opl == 0:
-                path_str = '0 hop'
+                path_str = 'Direct'
             else:
-                path_str = c.get('out_path', f'len:{opl}')
+                path_str = 'Flood'
             lines.append(f"  {name:30} {typ:4}  {pk_short}  {path_str}")
         return f"Contacts ({len(lines)}) on device:\n" + "\n".join(lines)
 

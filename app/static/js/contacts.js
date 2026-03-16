@@ -2148,15 +2148,14 @@ function createExistingContactCard(contact, index) {
         pathDiv = document.createElement('div');
         pathDiv.className = 'text-muted small';
         const mode = contact.path_or_mode || 'Flood';
-        const pathLen = contact.out_path_len;
         if (mode === 'Flood') {
             pathDiv.innerHTML = '<i class="bi bi-broadcast"></i> Flood';
-        } else if (mode === '0 hop') {
-            pathDiv.innerHTML = '<i class="bi bi-arrow-right-short"></i> Direct (0 hop)';
+        } else if (mode === 'Direct') {
+            pathDiv.innerHTML = '<i class="bi bi-arrow-right-short"></i> Direct';
         } else {
-            // mode is hex path string, show hops count + path
-            const hops = pathLen >= 0 ? pathLen : '?';
-            pathDiv.innerHTML = `<i class="bi bi-signpost-split"></i> Path: ${mode} (${hops} hops)`;
+            // mode is formatted path like "E7→DE→54→54→D8"
+            const hopCount = mode.split('→').length;
+            pathDiv.innerHTML = `<i class="bi bi-signpost-split"></i> ${mode} <span class="text-muted">(${hopCount} hops)</span>`;
         }
     }
 

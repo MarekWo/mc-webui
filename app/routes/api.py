@@ -2376,17 +2376,23 @@ def get_contacts_detailed_api():
 
         for public_key, details in contacts_detailed.items():
             # Compute path display string
+            # out_path_len encodes hop count (lower 6 bits) and hash_size (upper 2 bits)
+            # In MeshCore V1: hash_size=1 byte per hop, so each hop = 2 hex chars
             out_path_len = details.get('out_path_len', -1)
-            out_path = details.get('out_path', '')
-            if out_path:
-                # out_path present = known route (even if out_path_len says -1)
-                path_or_mode = out_path
-            elif out_path_len == -1:
-                path_or_mode = 'Flood'
+            out_path_raw = details.get('out_path', '')
+            if out_path_len > 0 and out_path_raw:
+                hop_count = out_path_len & 0x3F
+                hash_size = (out_path_len >> 6) + 1  # 1, 2, or 3 bytes per hop
+                # Truncate to meaningful bytes (firmware buffer may have trailing garbage)
+                meaningful_hex = out_path_raw[:hop_count * hash_size * 2]
+                # Format as HEX→HEX→HEX (each hop is hash_size*2 hex chars)
+                chunk = hash_size * 2
+                hops = [meaningful_hex[i:i+chunk].upper() for i in range(0, len(meaningful_hex), chunk)]
+                path_or_mode = '→'.join(hops) if hops else out_path_raw
             elif out_path_len == 0:
-                path_or_mode = '0 hop'
+                path_or_mode = 'Direct'
             else:
-                path_or_mode = f'Path len: {out_path_len}'
+                path_or_mode = 'Flood'
 
             contact = {
                 # All original fields from contact_info
