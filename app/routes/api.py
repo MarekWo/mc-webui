@@ -2400,7 +2400,7 @@ def get_contacts_detailed_api():
                 'type': details.get('type'),
                 'flags': details.get('flags'),
                 'out_path_len': out_path_len,
-                'out_path': out_path,
+                'out_path': out_path_raw,
                 'last_advert': details.get('last_advert'),
                 'adv_lat': details.get('adv_lat'),
                 'adv_lon': details.get('adv_lon'),
