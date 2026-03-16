@@ -539,8 +539,16 @@ class DeviceManager:
                          (f" (dm_id={dm_id})" if dm_id else ""))
 
             if self.socketio:
+                # Emit the ORIGINAL expected_ack (from DB) so frontend can match
+                # the DOM element. Retry sends generate new ack codes, but the
+                # DOM still has the original expected_ack from the first send.
+                original_ack = ack_code
+                if dm_id:
+                    dm = self.db.get_dm_by_id(dm_id)
+                    if dm and dm.get('expected_ack'):
+                        original_ack = dm['expected_ack']
                 self.socketio.emit('ack', {
-                    'expected_ack': ack_code,
+                    'expected_ack': original_ack,
                     'dm_id': dm_id,
                     'snr': data.get('snr'),
                     'rssi': data.get('rssi'),
@@ -1119,8 +1127,13 @@ class DeviceManager:
         logger.info(f"DM delivery confirmed: dm_id={dm_id}, ack={ack_code}")
 
         if self.socketio:
+            # Emit original expected_ack so frontend can match the DOM element
+            original_ack = ack_code
+            dm = self.db.get_dm_by_id(dm_id)
+            if dm and dm.get('expected_ack'):
+                original_ack = dm['expected_ack']
             self.socketio.emit('ack', {
-                'expected_ack': ack_code,
+                'expected_ack': original_ack,
                 'dm_id': dm_id,
                 'snr': data.get('snr'),
             }, namespace='/chat')
