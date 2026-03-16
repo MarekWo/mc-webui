@@ -216,15 +216,41 @@ def _execute_console_command(args: list) -> str:
         return "No device info available"
 
     elif cmd == 'contacts':
+        # Show device-only contacts with path info (like meshcore-cli)
+        type_names = {0: 'NONE', 1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
+        if not device_manager.mc or not device_manager.mc.contacts:
+            return "No contacts on device"
+        try:
+            device_manager.execute(device_manager.mc.ensure_contacts(follow=True))
+        except Exception:
+            pass  # use whatever is in memory
+        lines = []
+        for pk, c in device_manager.mc.contacts.items():
+            name = c.get('adv_name', c.get('name', '?'))
+            typ = type_names.get(c.get('type', 1), '?')
+            pk_short = pk[:12]
+            opl = c.get('out_path_len', -1)
+            if opl == -1:
+                path_str = 'Flood'
+            elif opl == 0:
+                path_str = '0 hop'
+            else:
+                path_str = c.get('out_path', f'len:{opl}')
+            lines.append(f"  {name:30} {typ:4}  {pk_short}  {path_str}")
+        return f"Contacts ({len(lines)}) on device:\n" + "\n".join(lines)
+
+    elif cmd == 'contacts_all':
+        # Show all known contacts (device + cached from DB)
         contacts = device_manager.get_contacts_from_device()
         if not contacts:
             return "No contacts"
         lines = []
         for c in contacts:
             name = c.get('name', '?')
-            pk = c.get('public_key', '')[:8]
-            lines.append(f"  {name} ({pk}...)")
-        return f"Contacts ({len(contacts)}):\n" + "\n".join(lines)
+            pk = c.get('public_key', '')[:12]
+            source = c.get('source', '')
+            lines.append(f"  {name} ({pk}...) [{source}]")
+        return f"All contacts ({len(contacts)}):\n" + "\n".join(lines)
 
     elif cmd == 'bat':
         bat = device_manager.get_battery()
@@ -356,7 +382,8 @@ def _execute_console_command(args: list) -> str:
             "  status     — Connection status, battery, contacts count\n"
             "  stats      — Device statistics (uptime, TX/RX, packets)\n"
             "  bat        — Battery voltage\n"
-            "  contacts   — List all contacts\n"
+            "  contacts   — List device contacts with path info\n"
+            "  contacts_all — List all known contacts (device + cached)\n"
             "  channels   — List configured channels\n"
             "  chan <idx> <msg> — Send channel message\n"
             "  msg <name> <msg> — Send direct message\n"

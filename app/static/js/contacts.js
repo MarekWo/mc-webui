@@ -2142,12 +2142,22 @@ function createExistingContactCard(contact, index) {
         lastAdvertDiv.appendChild(timeText);
     }
 
-    // Path/mode (optional)
+    // Path/route info for device contacts
     let pathDiv = null;
-    if (contact.path_or_mode && contact.path_or_mode !== 'Flood') {
+    if (contact.on_device !== false) {
         pathDiv = document.createElement('div');
         pathDiv.className = 'text-muted small';
-        pathDiv.textContent = `Path: ${contact.path_or_mode}`;
+        const mode = contact.path_or_mode || 'Flood';
+        const pathLen = contact.out_path_len;
+        if (mode === 'Flood') {
+            pathDiv.innerHTML = '<i class="bi bi-broadcast"></i> Flood';
+        } else if (mode === '0 hop') {
+            pathDiv.innerHTML = '<i class="bi bi-arrow-right-short"></i> Direct (0 hop)';
+        } else {
+            // mode is hex path string, show hops count + path
+            const hops = pathLen >= 0 ? pathLen : '?';
+            pathDiv.innerHTML = `<i class="bi bi-signpost-split"></i> Path: ${mode} (${hops} hops)`;
+        }
     }
 
     // Action buttons

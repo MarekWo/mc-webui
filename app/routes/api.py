@@ -2378,10 +2378,13 @@ def get_contacts_detailed_api():
             # Compute path display string
             out_path_len = details.get('out_path_len', -1)
             out_path = details.get('out_path', '')
-            if out_path_len == -1:
-                path_or_mode = 'Flood'
-            elif out_path:
+            if out_path:
+                # out_path present = known route (even if out_path_len says -1)
                 path_or_mode = out_path
+            elif out_path_len == -1:
+                path_or_mode = 'Flood'
+            elif out_path_len == 0:
+                path_or_mode = '0 hop'
             else:
                 path_or_mode = f'Path len: {out_path_len}'
 
