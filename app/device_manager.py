@@ -1018,11 +1018,30 @@ class DeviceManager:
 
     async def _dm_retry_task(self, dm_id: int, contact, text: str,
                               timestamp: int, initial_ack: str,
-                              suggested_timeout: int, max_attempts: int = 10):
-        """Background retry with same timestamp for dedup on receiver."""
+                              suggested_timeout: int):
+        """Background retry with same timestamp for dedup on receiver.
+
+        Strategy depends on whether contact has a known DIRECT path:
+        - DIRECT path known: up to 10 attempts (8 DIRECT + 2 FLOOD), 30s wait
+        - No path (FLOOD):   up to 3 attempts, 60s wait
+        """
         from meshcore.events import EventType
 
-        wait_s = max(suggested_timeout / 1000 * 1.2, 5.0)
+        has_path = contact.get('out_path_len', -1) > 0
+
+        if has_path:
+            max_attempts = 10
+            flood_at = 8       # reset path to flood at this attempt
+            min_wait = 30.0    # seconds between DIRECT attempts
+        else:
+            max_attempts = 3
+            flood_at = None    # already flood, no reset needed
+            min_wait = 60.0    # seconds between FLOOD attempts
+
+        wait_s = max(suggested_timeout / 1000 * 1.2, min_wait)
+        mode = "DIRECT" if has_path else "FLOOD"
+        logger.info(f"DM retry task started: dm_id={dm_id}, mode={mode}, "
+                     f"max_attempts={max_attempts}, wait={wait_s:.0f}s")
 
         # Wait for ACK on initial send
         if initial_ack:
@@ -1037,8 +1056,7 @@ class DeviceManager:
 
         # Retry with same timestamp, incrementing attempt
         for attempt in range(1, max_attempts):
-            # After 2 failed direct attempts, reset path to flood
-            if attempt >= 8:
+            if flood_at and attempt >= flood_at:
                 try:
                     await self.mc.commands.reset_path(contact)
                     logger.info(f"DM retry {attempt}: reset path to flood")
@@ -1061,7 +1079,7 @@ class DeviceManager:
             if retry_ack:
                 self._pending_acks[retry_ack] = dm_id
                 new_timeout = result.payload.get('suggested_timeout', suggested_timeout)
-                wait_s = max(new_timeout / 1000 * 1.2, 5.0)
+                wait_s = max(new_timeout / 1000 * 1.2, min_wait)
 
             if retry_ack:
                 ack_event = await self.mc.dispatcher.wait_for_event(
@@ -1073,7 +1091,7 @@ class DeviceManager:
                     self._confirm_delivery(dm_id, retry_ack, ack_event)
                     return
 
-        logger.warning(f"DM retry exhausted ({max_attempts} attempts) for dm_id={dm_id}")
+        logger.warning(f"DM retry exhausted ({max_attempts} {mode} attempts) for dm_id={dm_id}")
         # Keep pending acks for grace period so late ACKs can still be matched
         self._retry_tasks.pop(dm_id, None)
         await asyncio.sleep(60)
