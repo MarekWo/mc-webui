@@ -189,7 +189,13 @@ function setupEventListeners() {
             contactDropdown.style.display = 'block';
         });
 
-        document.addEventListener('click', (e) => {
+        // Prevent dropdown mousedown from stealing focus/closing dropdown
+        contactDropdown.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+        });
+
+        // Close dropdown when clicking outside the wrapper
+        document.addEventListener('mousedown', (e) => {
             if (searchWrapper && !searchWrapper.contains(e.target)) {
                 contactDropdown.style.display = 'none';
             }
@@ -452,12 +458,14 @@ function createDropdownItem(name, conversationId, isUnread, contact) {
 /**
  * Handle selection from the searchable dropdown.
  */
-function selectConversationFromDropdown(conversationId, name) {
-    const input = document.getElementById('dmContactSearchInput');
+async function selectConversationFromDropdown(conversationId, name) {
     const dropdown = document.getElementById('dmContactDropdown');
-    if (input) input.value = displayName(name);
     if (dropdown) dropdown.style.display = 'none';
-    selectConversation(conversationId);
+    await selectConversation(conversationId);
+    // Override search input with the known name (selectConversation may not resolve it)
+    const input = document.getElementById('dmContactSearchInput');
+    if (input && name) input.value = displayName(name);
+    if (name) currentRecipient = name;
 }
 
 /**
