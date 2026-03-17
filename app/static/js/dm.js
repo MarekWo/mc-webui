@@ -7,7 +7,8 @@
 let currentConversationId = null;
 let currentRecipient = null;
 let dmConversations = [];
-let contactsList = [];  // List of all contacts from device
+let contactsList = [];  // List of detailed contact objects from device
+let contactsMap = {};   // Map of public_key -> contact object
 let dmLastSeenTimestamps = {};
 let autoRefreshInterval = null;
 let lastMessageTimestamp = 0;  // Track latest message timestamp for smart refresh
@@ -172,16 +173,47 @@ document.addEventListener('visibilitychange', function() {
  * Setup event listeners
  */
 function setupEventListeners() {
-    // Conversation selector
-    const selector = document.getElementById('dmConversationSelector');
-    if (selector) {
-        selector.addEventListener('change', function() {
-            const convId = this.value;
-            if (convId) {
-                selectConversation(convId);
-            } else {
-                clearConversation();
+    // Searchable contact input
+    const searchInput = document.getElementById('dmContactSearchInput');
+    const contactDropdown = document.getElementById('dmContactDropdown');
+    const searchWrapper = document.getElementById('dmContactSearchWrapper');
+
+    if (searchInput && contactDropdown) {
+        searchInput.addEventListener('focus', () => {
+            renderDropdownItems(searchInput.value);
+            contactDropdown.style.display = 'block';
+        });
+
+        searchInput.addEventListener('input', () => {
+            renderDropdownItems(searchInput.value);
+            contactDropdown.style.display = 'block';
+        });
+
+        document.addEventListener('click', (e) => {
+            if (searchWrapper && !searchWrapper.contains(e.target)) {
+                contactDropdown.style.display = 'none';
             }
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                contactDropdown.style.display = 'none';
+                searchInput.blur();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const first = contactDropdown.querySelector('.dm-contact-item');
+                if (first) first.click();
+            }
+        });
+    }
+
+    // Contact info button
+    const infoBtn = document.getElementById('dmContactInfoBtn');
+    if (infoBtn) {
+        infoBtn.addEventListener('click', () => {
+            const modal = new bootstrap.Modal(document.getElementById('dmContactInfoModal'));
+            populateContactInfoModal();
+            modal.show();
         });
     }
 
@@ -233,19 +265,26 @@ function setupEventListeners() {
  */
 async function loadContacts() {
     try {
-        const response = await fetch('/api/contacts');
+        const response = await fetch('/api/contacts/detailed');
         const data = await response.json();
 
         if (data.success) {
-            contactsList = data.contacts || [];
-            console.log(`[DM] Loaded ${contactsList.length} contacts:`, contactsList);
+            contactsList = (data.contacts || []).sort((a, b) =>
+                (a.name || '').localeCompare(b.name || ''));
+            contactsMap = {};
+            contactsList.forEach(c => {
+                if (c.public_key) contactsMap[c.public_key] = c;
+            });
+            console.log(`[DM] Loaded ${contactsList.length} device contacts`);
         } else {
             console.error('[DM] Failed to load contacts:', data.error);
             contactsList = [];
+            contactsMap = {};
         }
     } catch (error) {
         console.error('[DM] Error loading contacts:', error);
         contactsList = [];
+        contactsMap = {};
     }
 }
 
@@ -279,79 +318,146 @@ async function loadConversations() {
 }
 
 /**
- * Populate the conversation selector dropdown
- * Shows both existing conversations and all contacts
+ * Populate the searchable conversation dropdown data.
+ * Two sections: recent conversations (by recency) + device contacts (alphabetical).
  */
 function populateConversationSelector() {
-    const selector = document.getElementById('dmConversationSelector');
-    if (!selector) return;
+    // Build conversation entries with contact data
+    const convPubkeyPrefixes = new Set();
+    const conversations = dmConversations.map(conv => {
+        // Extract pubkey prefix from conversation_id
+        let pkPrefix = '';
+        if (conv.conversation_id.startsWith('pk_')) {
+            pkPrefix = conv.conversation_id.substring(3);
+        }
+        convPubkeyPrefixes.add(pkPrefix);
 
-    // Clear existing options
-    selector.innerHTML = '<option value="">Select chat...</option>';
+        const lastSeen = dmLastSeenTimestamps[conv.conversation_id] || 0;
+        const isUnread = conv.last_message_timestamp > lastSeen;
 
-    // Track which names are already in conversations
-    const conversationNames = new Set();
+        // Find matching device contact
+        const contact = pkPrefix
+            ? contactsList.find(c => c.public_key && c.public_key.startsWith(pkPrefix))
+            : contactsList.find(c => c.name === conv.display_name);
 
-    // 1. Add existing conversations (with history)
-    if (dmConversations.length > 0) {
-        dmConversations.forEach(conv => {
-            const opt = document.createElement('option');
-            opt.value = conv.conversation_id;
+        return {
+            conversationId: conv.conversation_id,
+            name: conv.display_name,
+            isUnread,
+            contact: contact || null,
+        };
+    });
 
-            // Show unread indicator
-            const lastSeen = dmLastSeenTimestamps[conv.conversation_id] || 0;
-            const isUnread = conv.last_message_timestamp > lastSeen;
+    // Device contacts without existing conversations
+    const contacts = contactsList.filter(c => {
+        const prefix = (c.public_key_prefix || c.public_key?.substring(0, 12) || '');
+        return !convPubkeyPrefixes.has(prefix);
+    });
 
-            let label = displayName(conv.display_name);
-            if (isUnread) {
-                label = `* ${label}`;
-            }
+    window._dmDropdownItems = { conversations, contacts };
+    renderDropdownItems('');
 
-            opt.textContent = label;
-            selector.appendChild(opt);
+    // Update search input if conversation is selected
+    if (currentConversationId && currentRecipient) {
+        const input = document.getElementById('dmContactSearchInput');
+        if (input) input.value = displayName(currentRecipient);
+    }
+}
 
-            // Track this name
-            conversationNames.add(conv.display_name);
+/**
+ * Render dropdown items filtered by search query.
+ */
+function renderDropdownItems(query) {
+    const dropdown = document.getElementById('dmContactDropdown');
+    if (!dropdown) return;
+    dropdown.innerHTML = '';
+
+    const q = query.toLowerCase().trim();
+    const { conversations = [], contacts = [] } = window._dmDropdownItems || {};
+
+    const filteredConvs = q
+        ? conversations.filter(item => (item.name || '').toLowerCase().includes(q))
+        : conversations;
+
+    const filteredContacts = q
+        ? contacts.filter(c => (c.name || '').toLowerCase().includes(q))
+        : contacts;
+
+    if (filteredConvs.length > 0) {
+        const sep = document.createElement('div');
+        sep.className = 'dm-dropdown-separator';
+        sep.textContent = 'Recent conversations';
+        dropdown.appendChild(sep);
+
+        filteredConvs.forEach(item => {
+            dropdown.appendChild(createDropdownItem(
+                item.name, item.conversationId, item.isUnread, item.contact));
         });
     }
 
-    // 2. Add separator if we have both conversations and contacts
-    if (dmConversations.length > 0 && contactsList.length > 0) {
-        const separator = document.createElement('option');
-        separator.disabled = true;
-        separator.textContent = '--- Available contacts ---';
-        selector.appendChild(separator);
-    }
+    if (filteredContacts.length > 0) {
+        const sep = document.createElement('div');
+        sep.className = 'dm-dropdown-separator';
+        sep.textContent = 'Contacts';
+        dropdown.appendChild(sep);
 
-    // 3. Add all contacts from device (skip those already in conversations)
-    if (contactsList.length > 0) {
-        contactsList.forEach(contactName => {
-            // Skip if already in conversations
-            if (conversationNames.has(contactName)) {
-                return;
-            }
-
-            const opt = document.createElement('option');
-            // Create conversation_id as name_<contactName>
-            opt.value = `name_${contactName}`;
-            opt.textContent = contactName;
-            selector.appendChild(opt);
+        filteredContacts.forEach(contact => {
+            const prefix = contact.public_key_prefix || contact.public_key?.substring(0, 12) || '';
+            const convId = `pk_${prefix}`;
+            dropdown.appendChild(createDropdownItem(
+                contact.name, convId, false, contact));
         });
     }
 
-    // Show message if no conversations and no contacts
-    if (dmConversations.length === 0 && contactsList.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'No contacts available';
-        opt.disabled = true;
-        selector.appendChild(opt);
+    if (filteredConvs.length === 0 && filteredContacts.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'dm-dropdown-separator text-center';
+        empty.textContent = q ? 'No matches' : 'No contacts available';
+        dropdown.appendChild(empty);
+    }
+}
+
+/**
+ * Create a single dropdown item element.
+ */
+function createDropdownItem(name, conversationId, isUnread, contact) {
+    const el = document.createElement('div');
+    el.className = 'dm-contact-item';
+
+    if (isUnread) {
+        const dot = document.createElement('span');
+        dot.style.cssText = 'color: #0d6efd; font-weight: bold;';
+        dot.textContent = '*';
+        el.appendChild(dot);
     }
 
-    // If we have a current conversation, select it
-    if (currentConversationId) {
-        selector.value = currentConversationId;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'contact-name';
+    nameSpan.textContent = displayName(name);
+    el.appendChild(nameSpan);
+
+    if (contact && contact.type_label) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        const colors = { CLI: 'bg-primary', REP: 'bg-success', ROOM: 'bg-info', SENS: 'bg-warning' };
+        badge.classList.add(colors[contact.type_label] || 'bg-secondary');
+        badge.textContent = contact.type_label;
+        el.appendChild(badge);
     }
+
+    el.addEventListener('click', () => selectConversationFromDropdown(conversationId, name));
+    return el;
+}
+
+/**
+ * Handle selection from the searchable dropdown.
+ */
+function selectConversationFromDropdown(conversationId, name) {
+    const input = document.getElementById('dmContactSearchInput');
+    const dropdown = document.getElementById('dmContactDropdown');
+    if (input) input.value = displayName(name);
+    if (dropdown) dropdown.style.display = 'none';
+    selectConversation(conversationId);
 }
 
 /**
@@ -368,8 +474,11 @@ async function selectConversation(conversationId) {
     if (conv && conv.display_name) {
         currentRecipient = conv.display_name;
     } else {
-        // Extract name from conversation_id
-        if (conversationId.startsWith('name_')) {
+        // Try to find name from contactsList
+        const contact = findCurrentContactByConvId(conversationId);
+        if (contact && contact.name) {
+            currentRecipient = contact.name;
+        } else if (conversationId.startsWith('name_')) {
             currentRecipient = conversationId.substring(5);
         } else if (conversationId.startsWith('pk_')) {
             currentRecipient = conversationId.substring(3, 11) + '...';
@@ -378,11 +487,13 @@ async function selectConversation(conversationId) {
         }
     }
 
-    // Update selector if not already selected
-    const selector = document.getElementById('dmConversationSelector');
-    if (selector && selector.value !== conversationId) {
-        selector.value = conversationId;
-    }
+    // Update search input
+    const searchInput = document.getElementById('dmContactSearchInput');
+    if (searchInput) searchInput.value = displayName(currentRecipient);
+
+    // Enable info button
+    const infoBtn = document.getElementById('dmContactInfoBtn');
+    if (infoBtn) infoBtn.disabled = false;
 
     // Enable input
     const input = document.getElementById('dmMessageInput');
@@ -409,6 +520,12 @@ function clearConversation() {
     // Clear from localStorage
     localStorage.removeItem('mc_active_dm_conversation');
 
+    // Reset search input and info button
+    const searchInput = document.getElementById('dmContactSearchInput');
+    if (searchInput) searchInput.value = '';
+    const infoBtn = document.getElementById('dmContactInfoBtn');
+    if (infoBtn) infoBtn.disabled = true;
+
     // Disable input
     const input = document.getElementById('dmMessageInput');
     const sendBtn = document.getElementById('dmSendBtn');
@@ -434,6 +551,130 @@ function clearConversation() {
     }
 
     updateCharCounter();
+}
+
+/**
+ * Find contact object matching a conversation ID.
+ */
+function findCurrentContactByConvId(convId) {
+    if (!convId) return null;
+    let pkPrefix = '';
+    if (convId.startsWith('pk_')) {
+        pkPrefix = convId.substring(3);
+    }
+    if (pkPrefix) {
+        return contactsList.find(c => c.public_key && c.public_key.startsWith(pkPrefix)) || null;
+    }
+    // Fallback: match by name
+    if (convId.startsWith('name_')) {
+        const name = convId.substring(5);
+        return contactsList.find(c => c.name === name) || null;
+    }
+    return null;
+}
+
+/**
+ * Find current contact from contactsList.
+ */
+function findCurrentContact() {
+    return findCurrentContactByConvId(currentConversationId);
+}
+
+/**
+ * Minimal relative time formatter.
+ */
+function formatRelativeTimeDm(timestamp) {
+    if (!timestamp) return 'Never';
+    const diff = Math.floor(Date.now() / 1000) - timestamp;
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+}
+
+/**
+ * Populate the Contact Info modal body.
+ */
+function populateContactInfoModal() {
+    const body = document.getElementById('dmContactInfoBody');
+    if (!body) return;
+
+    const contact = findCurrentContact();
+    if (!contact) {
+        body.innerHTML = '<p class="text-muted">No contact information available.</p>';
+        return;
+    }
+
+    body.innerHTML = '';
+
+    // Name + type badge
+    const nameRow = document.createElement('div');
+    nameRow.className = 'd-flex align-items-center gap-2 mb-3';
+    const nameEl = document.createElement('h6');
+    nameEl.className = 'mb-0';
+    nameEl.textContent = contact.name;
+    nameRow.appendChild(nameEl);
+
+    if (contact.type_label) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        const colors = { CLI: 'bg-primary', REP: 'bg-success', ROOM: 'bg-info', SENS: 'bg-warning' };
+        badge.classList.add(colors[contact.type_label] || 'bg-secondary');
+        badge.textContent = contact.type_label;
+        nameRow.appendChild(badge);
+    }
+    body.appendChild(nameRow);
+
+    // Public key
+    const keyDiv = document.createElement('div');
+    keyDiv.className = 'text-muted small font-monospace mb-2';
+    keyDiv.style.cursor = 'pointer';
+    keyDiv.textContent = contact.public_key_prefix || contact.public_key?.substring(0, 12) || '';
+    keyDiv.title = 'Click to copy full public key';
+    keyDiv.onclick = () => {
+        const pk = contact.public_key || contact.public_key_prefix || '';
+        navigator.clipboard.writeText(pk).then(() => {
+            showNotification('Public key copied', 'info');
+        }).catch(() => {});
+    };
+    body.appendChild(keyDiv);
+
+    // Last advert
+    if (contact.last_seen || contact.last_advert) {
+        const ts = contact.last_seen || contact.last_advert;
+        const diff = Math.floor(Date.now() / 1000) - ts;
+        let icon = '🔴';
+        if (diff < 300) icon = '🟢';
+        else if (diff < 3600) icon = '🟡';
+        const div = document.createElement('div');
+        div.className = 'small mb-2';
+        div.textContent = `${icon} Last advert: ${formatRelativeTimeDm(ts)}`;
+        body.appendChild(div);
+    }
+
+    // Path/route
+    if (contact.path_or_mode) {
+        const div = document.createElement('div');
+        div.className = 'small mb-2';
+        const mode = contact.path_or_mode;
+        if (mode === 'Flood') {
+            div.innerHTML = '<i class="bi bi-broadcast"></i> Flood';
+        } else if (mode === 'Direct') {
+            div.innerHTML = '<i class="bi bi-arrow-right-short"></i> Direct';
+        } else {
+            const hops = mode.split('→').length;
+            div.innerHTML = `<i class="bi bi-signpost-split"></i> ${mode} <span class="text-muted">(${hops} hops)</span>`;
+        }
+        body.appendChild(div);
+    }
+
+    // GPS
+    if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
+        const div = document.createElement('div');
+        div.className = 'small mb-2';
+        div.innerHTML = `<i class="bi bi-geo-alt"></i> ${contact.adv_lat.toFixed(4)}, ${contact.adv_lon.toFixed(4)}`;
+        body.appendChild(div);
+    }
 }
 
 /**

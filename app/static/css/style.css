@@ -322,7 +322,7 @@ main {
 
     /* Navbar: Channel selector on mobile */
     #channelSelector,
-    #dmConversationSelector {
+    #dmContactSearchInput {
         min-width: 100px !important;
         font-size: 0.9rem;
     }

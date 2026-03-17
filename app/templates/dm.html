@@ -57,6 +57,50 @@
                 max-width: 100%;
             }
         }
+
+        /* Searchable contact dropdown */
+        .dm-contact-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1050;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 0.375rem 0.375rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+        .dm-contact-item {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .dm-contact-item:hover,
+        .dm-contact-item.active {
+            background-color: #e9ecef;
+        }
+        .dm-contact-item .contact-name {
+            flex-grow: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .dm-contact-item .badge {
+            font-size: 0.7rem;
+        }
+        .dm-dropdown-separator {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
+            color: #6c757d;
+            background: #f8f9fa;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -67,14 +111,23 @@
             <div class="row border-bottom bg-light">
                 <div class="col-12 p-2">
                     <div class="d-flex align-items-center gap-2">
-                        <select id="dmConversationSelector" class="form-select" title="Select conversation">
-                            <option value="">Select chat...</option>
-                            <!-- Conversations loaded dynamically via JavaScript -->
-                        </select>
-                        <div class="form-check form-switch flex-shrink-0" title="Auto Retry: resend DM if no ACK received">
-                            <input class="form-check-input" type="checkbox" id="dmAutoRetryToggle" checked>
-                            <label class="form-check-label small text-nowrap" for="dmAutoRetryToggle">Retry</label>
+                        <!-- Searchable contact selector -->
+                        <div class="position-relative flex-grow-1" id="dmContactSearchWrapper">
+                            <input type="text"
+                                   id="dmContactSearchInput"
+                                   class="form-control"
+                                   placeholder="Select chat..."
+                                   autocomplete="off">
+                            <div id="dmContactDropdown" class="dm-contact-dropdown" style="display: none;"></div>
                         </div>
+                        <!-- Contact info button -->
+                        <button type="button"
+                                class="btn btn-outline-secondary flex-shrink-0"
+                                id="dmContactInfoBtn"
+                                title="Contact info"
+                                disabled>
+                            <i class="bi bi-info-circle"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -165,6 +218,28 @@
             </button>
         </div>
     </main>
+
+    <!-- Contact Info Modal -->
+    <div class="modal fade" id="dmContactInfoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title"><i class="bi bi-person-circle"></i> Contact Info</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="dmContactInfoBody"></div>
+                <div class="modal-footer">
+                    <div class="d-flex align-items-center justify-content-between w-100">
+                        <div class="form-check form-switch" title="Auto Retry: resend DM if no ACK received">
+                            <input class="form-check-input" type="checkbox" id="dmAutoRetryToggle" checked>
+                            <label class="form-check-label small" for="dmAutoRetryToggle">Auto Retry</label>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast container for notifications -->
     <div class="toast-container position-fixed top-0 start-0 p-3">
