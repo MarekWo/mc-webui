@@ -261,6 +261,17 @@ function setupEventListeners() {
         });
     }
 
+    // Clear search button
+    const clearBtn = document.getElementById('dmClearSearchBtn');
+    if (clearBtn && searchInput && contactDropdown) {
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            renderDropdownItems('');
+            contactDropdown.style.display = 'block';
+            searchInput.focus();
+        });
+    }
+
     // Contact info button
     const infoBtn = document.getElementById('dmContactInfoBtn');
     if (infoBtn) {
@@ -553,7 +564,9 @@ async function selectConversation(conversationId) {
     const searchInput = document.getElementById('dmContactSearchInput');
     if (searchInput) searchInput.value = displayName(currentRecipient);
 
-    // Enable info button
+    // Show clear button and enable info button
+    const clearBtn = document.getElementById('dmClearSearchBtn');
+    if (clearBtn) clearBtn.style.display = '';
     const infoBtn = document.getElementById('dmContactInfoBtn');
     if (infoBtn) infoBtn.disabled = false;
 
@@ -582,9 +595,11 @@ function clearConversation() {
     // Clear from localStorage
     localStorage.removeItem('mc_active_dm_conversation');
 
-    // Reset search input and info button
+    // Reset search input, hide clear button, disable info button
     const searchInput = document.getElementById('dmContactSearchInput');
     if (searchInput) searchInput.value = '';
+    const clearBtn = document.getElementById('dmClearSearchBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
     const infoBtn = document.getElementById('dmContactInfoBtn');
     if (infoBtn) infoBtn.disabled = true;
 
