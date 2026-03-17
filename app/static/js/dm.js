@@ -469,8 +469,23 @@ async function selectConversation(conversationId) {
     // Save to localStorage for next visit
     localStorage.setItem('mc_active_dm_conversation', conversationId);
 
-    // Find the conversation to get recipient name
-    const conv = dmConversations.find(c => c.conversation_id === conversationId);
+    // Find the conversation to get recipient name (exact or prefix match)
+    let conv = dmConversations.find(c => c.conversation_id === conversationId);
+    if (!conv && conversationId.startsWith('pk_')) {
+        // Partial match: saved ID may have different prefix length than API
+        const prefix = conversationId.substring(3);
+        conv = dmConversations.find(c =>
+            c.conversation_id.startsWith('pk_') &&
+            (c.conversation_id.substring(3).startsWith(prefix) || prefix.startsWith(c.conversation_id.substring(3)))
+        );
+        // Upgrade to full conversation_id if found
+        if (conv) {
+            conversationId = conv.conversation_id;
+            currentConversationId = conversationId;
+            localStorage.setItem('mc_active_dm_conversation', conversationId);
+        }
+    }
+
     if (conv && conv.display_name) {
         currentRecipient = conv.display_name;
     } else {
