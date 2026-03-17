@@ -19,8 +19,41 @@ let chatSocket = null;  // SocketIO connection to /chat namespace
  */
 function displayName(name) {
     if (!name) return 'Unknown';
-    if (/^[0-9a-f]{64}$/i.test(name)) return name.substring(0, 8) + '...';
+    if (/^[0-9a-f]{12,64}$/i.test(name)) return name.substring(0, 8) + '...';
     return name;
+}
+
+/**
+ * Check if a string looks like a hex pubkey (not a real name)
+ */
+function isPubkey(name) {
+    return !name || /^[0-9a-f]{8,64}$/i.test(name) || /^[0-9a-f]{6,}\.\.\./i.test(name);
+}
+
+/**
+ * Resolve the best display name for a conversation ID.
+ * Priority: contactsList (device) > conversations API > pubkey fallback.
+ */
+function resolveConversationName(conversationId) {
+    // Try device contacts first (most reliable source of names)
+    const contact = findCurrentContactByConvId(conversationId);
+    if (contact && contact.name && !isPubkey(contact.name)) return contact.name;
+
+    // Try conversations list
+    let conv = dmConversations.find(c => c.conversation_id === conversationId);
+    if (!conv && conversationId && conversationId.startsWith('pk_')) {
+        const prefix = conversationId.substring(3);
+        conv = dmConversations.find(c =>
+            c.conversation_id.startsWith('pk_') &&
+            (c.conversation_id.substring(3).startsWith(prefix) || prefix.startsWith(c.conversation_id.substring(3)))
+        );
+    }
+    if (conv && conv.display_name && !isPubkey(conv.display_name)) return conv.display_name;
+
+    // Fallback
+    if (conversationId && conversationId.startsWith('name_')) return conversationId.substring(5);
+    if (conversationId && conversationId.startsWith('pk_')) return conversationId.substring(3, 11) + '...';
+    return 'Unknown';
 }
 
 /**
@@ -207,8 +240,23 @@ function setupEventListeners() {
                 searchInput.blur();
             } else if (e.key === 'Enter') {
                 e.preventDefault();
-                const first = contactDropdown.querySelector('.dm-contact-item');
-                if (first) first.click();
+                const active = contactDropdown.querySelector('.dm-contact-item.active');
+                const target = active || contactDropdown.querySelector('.dm-contact-item');
+                if (target) target.click();
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const items = Array.from(contactDropdown.querySelectorAll('.dm-contact-item'));
+                if (items.length === 0) return;
+                const activeIdx = items.findIndex(el => el.classList.contains('active'));
+                items.forEach(el => el.classList.remove('active'));
+                let nextIdx;
+                if (e.key === 'ArrowDown') {
+                    nextIdx = activeIdx < 0 ? 0 : Math.min(activeIdx + 1, items.length - 1);
+                } else {
+                    nextIdx = activeIdx <= 0 ? 0 : activeIdx - 1;
+                }
+                items[nextIdx].classList.add('active');
+                items[nextIdx].scrollIntoView({ block: 'nearest' });
             }
         });
     }
@@ -363,8 +411,10 @@ function populateConversationSelector() {
     window._dmDropdownItems = { conversations, contacts };
     renderDropdownItems('');
 
-    // Update search input if conversation is selected
-    if (currentConversationId && currentRecipient) {
+    // Update search input if conversation is selected — re-resolve name in case contacts loaded
+    if (currentConversationId) {
+        const bestName = resolveConversationName(currentConversationId);
+        if (!isPubkey(bestName)) currentRecipient = bestName;
         const input = document.getElementById('dmContactSearchInput');
         if (input) input.value = displayName(currentRecipient);
     }
@@ -379,13 +429,15 @@ function renderDropdownItems(query) {
     dropdown.innerHTML = '';
 
     const q = query.toLowerCase().trim();
+    // If query looks like a pubkey hex, don't filter — show all items instead
+    const qIsPubkey = /^[0-9a-f]{6,}\.{0,3}$/i.test(q);
     const { conversations = [], contacts = [] } = window._dmDropdownItems || {};
 
-    const filteredConvs = q
+    const filteredConvs = (q && !qIsPubkey)
         ? conversations.filter(item => (item.name || '').toLowerCase().includes(q))
         : conversations;
 
-    const filteredContacts = q
+    const filteredContacts = (q && !qIsPubkey)
         ? contacts.filter(c => (c.name || '').toLowerCase().includes(q))
         : contacts;
 
@@ -465,7 +517,10 @@ async function selectConversationFromDropdown(conversationId, name) {
     // Override search input with the known name (selectConversation may not resolve it)
     const input = document.getElementById('dmContactSearchInput');
     if (input && name) input.value = displayName(name);
-    if (name) currentRecipient = name;
+    if (name && !isPubkey(name)) currentRecipient = name;
+    // Move focus to message input for immediate typing
+    const msgInput = document.getElementById('dmMessageInput');
+    if (msgInput && !msgInput.disabled) msgInput.focus();
 }
 
 /**
@@ -477,16 +532,13 @@ async function selectConversation(conversationId) {
     // Save to localStorage for next visit
     localStorage.setItem('mc_active_dm_conversation', conversationId);
 
-    // Find the conversation to get recipient name (exact or prefix match)
-    let conv = dmConversations.find(c => c.conversation_id === conversationId);
-    if (!conv && conversationId.startsWith('pk_')) {
-        // Partial match: saved ID may have different prefix length than API
+    // Upgrade to full conversation_id if prefix match found
+    if (conversationId.startsWith('pk_')) {
         const prefix = conversationId.substring(3);
-        conv = dmConversations.find(c =>
+        const conv = dmConversations.find(c =>
             c.conversation_id.startsWith('pk_') &&
             (c.conversation_id.substring(3).startsWith(prefix) || prefix.startsWith(c.conversation_id.substring(3)))
         );
-        // Upgrade to full conversation_id if found
         if (conv) {
             conversationId = conv.conversation_id;
             currentConversationId = conversationId;
@@ -494,21 +546,8 @@ async function selectConversation(conversationId) {
         }
     }
 
-    if (conv && conv.display_name) {
-        currentRecipient = conv.display_name;
-    } else {
-        // Try to find name from contactsList
-        const contact = findCurrentContactByConvId(conversationId);
-        if (contact && contact.name) {
-            currentRecipient = contact.name;
-        } else if (conversationId.startsWith('name_')) {
-            currentRecipient = conversationId.substring(5);
-        } else if (conversationId.startsWith('pk_')) {
-            currentRecipient = conversationId.substring(3, 11) + '...';
-        } else {
-            currentRecipient = 'Unknown';
-        }
-    }
+    // Resolve name: prefer device contacts over backend data
+    currentRecipient = resolveConversationName(conversationId);
 
     // Update search input
     const searchInput = document.getElementById('dmContactSearchInput');
@@ -718,13 +757,19 @@ async function loadMessages() {
         if (data.success) {
             displayMessages(data.messages);
 
-            // Update recipient if we got a better name
-            if (data.display_name && data.display_name !== 'Unknown') {
+            // Update recipient if backend has a better (non-pubkey) name
+            if (data.display_name && !isPubkey(data.display_name)) {
                 currentRecipient = data.display_name;
-                const input = document.getElementById('dmMessageInput');
-                if (input) {
-                    input.placeholder = `Message ${displayName(currentRecipient)}...`;
-                }
+            }
+            // Always update placeholder with best known name
+            const msgInput = document.getElementById('dmMessageInput');
+            if (msgInput) {
+                msgInput.placeholder = `Message ${displayName(currentRecipient)}...`;
+            }
+            // Keep search input in sync
+            const searchInput = document.getElementById('dmContactSearchInput');
+            if (searchInput && !isPubkey(currentRecipient)) {
+                searchInput.value = displayName(currentRecipient);
             }
 
             // Mark as read
