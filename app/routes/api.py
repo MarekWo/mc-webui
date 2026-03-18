@@ -2494,6 +2494,37 @@ def delete_contact_api():
         }), 500
 
 
+@api_bp.route('/contacts/cached/delete', methods=['POST'])
+def delete_cached_contact_api():
+    """Delete a cache-only contact from the database."""
+    try:
+        data = request.get_json()
+
+        if not data or 'public_key' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: public_key'
+            }), 400
+
+        public_key = data['public_key']
+        if not isinstance(public_key, str) or not public_key.strip():
+            return jsonify({
+                'success': False,
+                'error': 'public_key must be a non-empty string'
+            }), 400
+
+        success, message = cli.delete_cached_contact(public_key)
+
+        if success:
+            return jsonify({'success': True, 'message': message}), 200
+        else:
+            return jsonify({'success': False, 'error': message}), 500
+
+    except Exception as e:
+        logger.error(f"Error deleting cached contact: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/contacts/protected', methods=['GET'])
 def get_protected_contacts_api():
     """

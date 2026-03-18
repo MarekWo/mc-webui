@@ -224,6 +224,19 @@ def delete_contact(selector: str) -> Tuple[bool, str]:
         return False, str(e)
 
 
+def delete_cached_contact(public_key: str) -> Tuple[bool, str]:
+    """Hard-delete a cache-only contact from the database."""
+    if not public_key or not public_key.strip():
+        return False, "Public key is required"
+
+    try:
+        dm = _get_dm()
+        result = dm.delete_cached_contact(public_key.strip())
+        return result['success'], result.get('message', result.get('error', ''))
+    except Exception as e:
+        return False, str(e)
+
+
 def clean_inactive_contacts(hours: int = 48) -> Tuple[bool, str]:
     """Remove contacts inactive for specified hours. Simplified in v2."""
     # TODO: implement time-based cleanup via database query

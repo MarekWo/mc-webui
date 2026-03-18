@@ -163,6 +163,15 @@ class Database:
             )
             return cursor.rowcount > 0
 
+    def hard_delete_contact(self, public_key: str) -> bool:
+        """Permanently delete a contact from the database."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM contacts WHERE public_key = ?",
+                (public_key.lower(),)
+            )
+            return cursor.rowcount > 0
+
     def downgrade_stale_device_contacts(self, active_device_keys: set) -> int:
         """Downgrade contacts marked 'device' that are no longer on the device."""
         with self._connect() as conn:

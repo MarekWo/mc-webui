@@ -629,6 +629,34 @@ class DeviceManager:
                 source='advert',
             )
 
+            # If manual mode: add cache-only contacts to pending list
+            # (meshcore may fire ADVERTISEMENT instead of NEW_CONTACT for
+            # contacts already in mc.pending_contacts or after restart)
+            if (self._is_manual_approval_enabled()
+                    and pubkey not in (self.mc.contacts or {})
+                    and pubkey not in (self.mc.pending_contacts or {})
+                    and not self.db.is_contact_ignored(pubkey)
+                    and not self.db.is_contact_blocked(pubkey)):
+                # Add to pending_contacts so it shows in pending list
+                if self.mc.pending_contacts is None:
+                    self.mc.pending_contacts = {}
+                self.mc.pending_contacts[pubkey] = {
+                    'public_key': pubkey,
+                    'adv_name': name,
+                    'name': name,
+                    'type': adv_type,
+                    'adv_lat': adv_lat,
+                    'adv_lon': adv_lon,
+                    'last_advert': int(time.time()),
+                }
+                logger.info(f"Cache contact added to pending (advert): {name} ({pubkey[:8]}...)")
+                if self.socketio:
+                    self.socketio.emit('pending_contact', {
+                        'public_key': pubkey,
+                        'name': name,
+                        'type': adv_type,
+                    }, namespace='/chat')
+
             logger.info(f"Advert from '{name}' ({pubkey[:8]}...) type={adv_type}")
 
         except Exception as e:
@@ -1164,13 +1192,27 @@ class DeviceManager:
 
         try:
             self.execute(self.mc.commands.remove_contact(pubkey))
-            self.db.delete_contact(pubkey)  # soft-delete: sets source='deleted'
+            self.db.delete_contact(pubkey)  # soft-delete: sets source='advert'
             # Also remove from in-memory contacts cache
             if self.mc.contacts and pubkey in self.mc.contacts:
                 del self.mc.contacts[pubkey]
             return {'success': True, 'message': 'Contact deleted'}
         except Exception as e:
             logger.error(f"Failed to delete contact: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def delete_cached_contact(self, pubkey: str) -> Dict:
+        """Hard-delete a cache-only contact from the database."""
+        try:
+            # Don't delete if contact is on device
+            if self.mc and self.mc.contacts and pubkey in self.mc.contacts:
+                return {'success': False, 'error': 'Contact is on device, use delete_contact instead'}
+            deleted = self.db.hard_delete_contact(pubkey)
+            if deleted:
+                return {'success': True, 'message': 'Cache contact deleted'}
+            return {'success': False, 'error': 'Contact not found in cache'}
+        except Exception as e:
+            logger.error(f"Failed to delete cached contact: {e}")
             return {'success': False, 'error': str(e)}
 
     def reset_path(self, pubkey: str) -> Dict:
@@ -1322,6 +1364,19 @@ class DeviceManager:
 
         try:
             contact = (self.mc.pending_contacts or {}).get(pubkey)
+            # Also check DB cache for contacts not in meshcore's pending list
+            if not contact:
+                db_contact = self.db.get_contact(pubkey)
+                if db_contact and db_contact.get('source') == 'advert':
+                    contact = {
+                        'public_key': pubkey,
+                        'name': db_contact.get('name', ''),
+                        'adv_name': db_contact.get('name', ''),
+                        'type': db_contact.get('type', 0),
+                        'adv_lat': db_contact.get('adv_lat'),
+                        'adv_lon': db_contact.get('adv_lon'),
+                        'last_advert': db_contact.get('last_advert'),
+                    }
             if not contact:
                 return {'success': False, 'error': 'Contact not in pending list'}
 
@@ -1372,6 +1427,11 @@ class DeviceManager:
         try:
             removed = self.mc.pending_contacts.pop(pubkey, None)
             if removed:
+                return {'success': True, 'message': 'Contact rejected'}
+            # Also check DB cache - remove cache-only contacts on reject
+            db_contact = self.db.get_contact(pubkey)
+            if db_contact and db_contact.get('source') == 'advert':
+                self.db.hard_delete_contact(pubkey)
                 return {'success': True, 'message': 'Contact rejected'}
             return {'success': False, 'error': 'Contact not in pending list'}
         except Exception as e:

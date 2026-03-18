@@ -2193,6 +2193,15 @@ function createExistingContactCard(contact, index) {
         actionsDiv.appendChild(deleteBtn);
     }
 
+    // Delete button for cache-only contacts
+    if (contact.on_device === false) {
+        const deleteCacheBtn = document.createElement('button');
+        deleteCacheBtn.className = 'btn btn-sm btn-outline-danger';
+        deleteCacheBtn.innerHTML = '<i class="bi bi-trash"></i> <span class="btn-label">Delete</span>';
+        deleteCacheBtn.onclick = () => showDeleteModal(contact);
+        actionsDiv.appendChild(deleteCacheBtn);
+    }
+
     // Ignore/Block/Unignore/Unblock buttons
     if (contact.is_blocked) {
         const unblockBtn = document.createElement('button');
@@ -2317,17 +2326,19 @@ async function confirmDelete() {
     }
 
     try {
-        // Use contact name for deletion (meshcli remove_contact only works with name)
-        const selector = contactToDelete.name;
+        // Use different endpoint for cache-only vs device contacts
+        const isCacheOnly = contactToDelete.on_device === false;
+        const url = isCacheOnly ? '/api/contacts/cached/delete' : '/api/contacts/delete';
+        const body = isCacheOnly
+            ? { public_key: contactToDelete.public_key }
+            : { selector: contactToDelete.public_key };
 
-        const response = await fetch('/api/contacts/delete', {
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                selector: selector
-            })
+            body: JSON.stringify(body)
         });
 
         const data = await response.json();
