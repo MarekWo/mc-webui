@@ -767,11 +767,20 @@ def _execute_console_command(args: list) -> str:
         return f"Error: {result.get('error')}"
 
     elif cmd == 'ver':
-        info = device_manager.get_device_info()
-        if info:
-            fw = info.get('firmware', info.get('fw_ver', '?'))
-            return f"Firmware: {fw}"
-        return "Version info unavailable"
+        result = device_manager.query_device()
+        if result.get('success'):
+            data = result['data']
+            fw_ver = data.get('fw ver', 0)
+            if fw_ver >= 3:
+                lines = ["Device info:"]
+                lines.append(f"  Model: {data.get('model', '?')}")
+                lines.append(f"  Version: {data.get('ver', '?')}")
+                lines.append(f"  Build date: {data.get('fw_build', '?')}")
+                if 'repeat' in data:
+                    lines.append(f"  Repeat: {'on' if data['repeat'] else 'off'}")
+                return "\n".join(lines)
+            return f"Firmware version: {fw_ver}"
+        return f"Error: {result.get('error')}"
 
     elif cmd == 'scope' and len(args) >= 2:
         scope = ' '.join(args[1:])

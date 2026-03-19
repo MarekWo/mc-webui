@@ -1923,6 +1923,19 @@ class DeviceManager:
 
     # ── Device Management ────────────────────────────────────────
 
+    def query_device(self) -> Dict:
+        """Query device for firmware version and hardware info."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            event = self.execute(self.mc.commands.send_device_query(), timeout=5)
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No device query response'}
+        except Exception as e:
+            logger.error(f"query_device failed: {e}")
+            return {'success': False, 'error': str(e)}
+
     def get_clock(self) -> Dict:
         """Get device clock time."""
         if not self.is_connected:
