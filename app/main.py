@@ -442,10 +442,7 @@ def _execute_console_command(args: list) -> str:
         result = device_manager.repeater_req_regions(name)
         if result.get('success'):
             data = result['data']
-            lines = [f"Regions of {name}:"]
-            for k, v in data.items():
-                lines.append(f"  {k}: {v}")
-            return "\n".join(lines)
+            return f"{name} repeats {data}"
         return f"Error: {result.get('error')}"
 
     elif cmd == 'req_owner' and len(args) >= 2:
@@ -453,10 +450,10 @@ def _execute_console_command(args: list) -> str:
         result = device_manager.repeater_req_owner(name)
         if result.get('success'):
             data = result['data']
-            lines = [f"Owner of {name}:"]
-            for k, v in data.items():
-                lines.append(f"  {k}: {v}")
-            return "\n".join(lines)
+            owner = data.get('owner', '')
+            if owner:
+                return f"{data.get('name', name)} is owned by {owner}"
+            return f"{data.get('name', name)} has no owner set"
         return f"Error: {result.get('error')}"
 
     elif cmd == 'req_acl' and len(args) >= 2:
