@@ -1741,6 +1741,37 @@ class DeviceManager:
             logger.error(f"req_mma failed: {e}")
             return {'success': False, 'error': str(e)}
 
+    def repeater_req_neighbours(self, name_or_key: str) -> Dict:
+        """Request neighbours from a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            contact_timeout = contact.get('timeout', 0) or 0
+            result = self.execute(
+                self.mc.commands.fetch_all_neighbours(contact, timeout=contact_timeout),
+                timeout=120
+            )
+            if result is not None:
+                return {'success': True, 'data': result}
+            return {'success': False, 'error': 'No neighbours response (timeout)'}
+        except Exception as e:
+            logger.error(f"req_neighbours failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def resolve_contact_name(self, pubkey_prefix: str) -> str:
+        """Resolve a contact name from pubkey prefix using device memory and DB cache."""
+        if self.mc:
+            contact = self.mc.get_contact_by_key_prefix(pubkey_prefix)
+            if contact:
+                return contact.get('adv_name', '') or contact.get('name', '')
+        db_contact = self.db.get_contact_by_prefix(pubkey_prefix)
+        if db_contact:
+            return db_contact.get('name', '')
+        return ''
+
     # ── Contact Management (extended) ────────────────────────────
 
     def contact_info(self, name_or_key: str) -> Dict:

@@ -477,10 +477,42 @@ def _execute_console_command(args: list) -> str:
         name = ' '.join(args[1:])
         result = device_manager.repeater_req_clock(name)
         if result.get('success'):
+            import datetime as _dt
             data = result['data']
-            lines = [f"Clock of {name}:"]
-            for k, v in data.items():
-                lines.append(f"  {k}: {v}")
+            hex_data = data.get('data', '')
+            timestamp = int.from_bytes(bytes.fromhex(hex_data[0:8]), byteorder="little", signed=False)
+            dt_str = _dt.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+            return f"Clock of {name}: {dt_str} ({timestamp})"
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'req_neighbours' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.repeater_req_neighbours(name)
+        if result.get('success'):
+            data = result['data']
+            total = data.get('neighbours_count', 0)
+            got = data.get('results_count', 0)
+            lines = [f"Got {got} neighbours out of {total} from {name}:"]
+            for n in data.get('neighbours', []):
+                pubkey = n.get('pubkey', '')
+                ct_name = device_manager.resolve_contact_name(pubkey)
+                if ct_name:
+                    label = f"[{pubkey[0:8]}] {ct_name}"
+                else:
+                    label = f"[{pubkey}]"
+
+                t_s = n.get('secs_ago', 0)
+                if t_s >= 86400:
+                    time_ago = f"{int(t_s / 86400)}d ago ({t_s}s)"
+                elif t_s >= 3600:
+                    time_ago = f"{int(t_s / 3600)}h ago ({t_s}s)"
+                elif t_s >= 60:
+                    time_ago = f"{int(t_s / 60)}m ago ({t_s}s)"
+                else:
+                    time_ago = f"{t_s}s"
+
+                snr = n.get('snr', 0)
+                lines.append(f" {label:30s} {time_ago}, {snr}dB SNR")
             return "\n".join(lines)
         return f"Error: {result.get('error')}"
 
@@ -868,12 +900,13 @@ def _execute_console_command(args: list) -> str:
             "  login <name> <pwd>  — Log into a repeater\n"
             "  logout <name>       — Log out of a repeater\n"
             "  cmd <name> <cmd>    — Send command to a repeater\n"
-            "  req_status <name>   — Request repeater status\n"
-            "  req_regions <name>  — Request repeater regions\n"
-            "  req_owner <name>    — Request repeater owner\n"
-            "  req_acl <name>      — Request access control list\n"
-            "  req_clock <name>    — Request repeater clock\n"
-            "  req_mma <n> <f> <t> — Request min/max/avg sensor data\n\n"
+            "  req_status <name>      — Request repeater status\n"
+            "  req_neighbours <name>  — Request repeater neighbours\n"
+            "  req_regions <name>     — Request repeater regions\n"
+            "  req_owner <name>       — Request repeater owner\n"
+            "  req_acl <name>         — Request access control list\n"
+            "  req_clock <name>       — Request repeater clock\n"
+            "  req_mma <n> <f> <t>    — Request min/max/avg sensor data\n\n"
             " Management\n"
             "  get <param>          — Get device parameter\n"
             "  set <param> <value>  — Set device parameter\n"
