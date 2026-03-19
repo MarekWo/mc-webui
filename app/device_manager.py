@@ -1888,3 +1888,212 @@ class DeviceManager:
         except Exception as e:
             logger.error(f"change_flags failed: {e}")
             return {'success': False, 'error': str(e)}
+
+    # ── Device Management ────────────────────────────────────────
+
+    def get_clock(self) -> Dict:
+        """Get device clock time."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            event = self.execute(self.mc.commands.get_time(), timeout=5)
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No time response'}
+        except Exception as e:
+            logger.error(f"get_clock failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def set_clock(self, epoch: int) -> Dict:
+        """Set device clock to given epoch timestamp."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            self.execute(self.mc.commands.set_time(epoch), timeout=5)
+            return {'success': True, 'message': f'Clock set to {epoch}'}
+        except Exception as e:
+            logger.error(f"set_clock failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def reboot_device(self) -> Dict:
+        """Reboot the device."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            self.execute(self.mc.commands.reboot(), timeout=5)
+            return {'success': True, 'message': 'Device rebooting...'}
+        except Exception as e:
+            logger.error(f"reboot failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def set_flood_scope(self, scope: str) -> Dict:
+        """Set flood message scope."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            self.execute(self.mc.commands.set_flood_scope(scope), timeout=5)
+            return {'success': True, 'message': f'Scope set to: {scope}'}
+        except Exception as e:
+            logger.error(f"set_flood_scope failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def get_self_telemetry(self) -> Dict:
+        """Get own telemetry data."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            event = self.execute(self.mc.commands.get_self_telemetry(), timeout=5)
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No telemetry response'}
+        except Exception as e:
+            logger.error(f"get_self_telemetry failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def get_param(self, param: str) -> Dict:
+        """Get a device parameter."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            info = self.get_device_info()
+            if param == 'name':
+                return {'success': True, 'data': {'name': info.get('name', info.get('adv_name', '?'))}}
+            elif param == 'tx':
+                return {'success': True, 'data': {'tx': info.get('tx_power', '?')}}
+            elif param in ('coords', 'lat', 'lon'):
+                return {'success': True, 'data': {'lat': info.get('lat', 0), 'lon': info.get('lon', 0)}}
+            elif param == 'bat':
+                bat = self.get_battery()
+                return {'success': True, 'data': bat or {}}
+            elif param == 'radio':
+                return {'success': True, 'data': {
+                    'freq': info.get('freq', '?'),
+                    'bw': info.get('bw', '?'),
+                    'sf': info.get('sf', '?'),
+                    'cr': info.get('cr', '?'),
+                }}
+            elif param == 'stats':
+                stats = self.get_device_stats()
+                return {'success': True, 'data': stats}
+            elif param == 'custom':
+                event = self.execute(self.mc.commands.get_custom_vars(), timeout=5)
+                if event and hasattr(event, 'payload'):
+                    return {'success': True, 'data': event.payload}
+                return {'success': False, 'error': 'No custom vars response'}
+            elif param == 'path_hash_mode':
+                event = self.execute(self.mc.commands.get_path_hash_mode(), timeout=5)
+                if event and hasattr(event, 'payload'):
+                    return {'success': True, 'data': event.payload}
+                return {'success': False, 'error': 'No response'}
+            elif param == 'help':
+                return {'success': True, 'data': {
+                    'Available params': 'name, tx, coords, lat, lon, bat, radio, stats, custom, path_hash_mode'
+                }}
+            else:
+                return {'success': False, 'error': f"Unknown param: {param}. Type 'get help' for list."}
+        except Exception as e:
+            logger.error(f"get_param failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def set_param(self, param: str, value: str) -> Dict:
+        """Set a device parameter."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            if param == 'name':
+                self.execute(self.mc.commands.set_name(value), timeout=5)
+                return {'success': True, 'message': f'Name set to: {value}'}
+            elif param == 'tx':
+                self.execute(self.mc.commands.set_tx_power(value), timeout=5)
+                return {'success': True, 'message': f'TX power set to: {value}'}
+            elif param == 'coords':
+                parts = value.split(',')
+                if len(parts) != 2:
+                    return {'success': False, 'error': 'Format: set coords <lat>,<lon>'}
+                lat, lon = float(parts[0].strip()), float(parts[1].strip())
+                self.execute(self.mc.commands.set_coords(lat, lon), timeout=5)
+                return {'success': True, 'message': f'Coords set to: {lat}, {lon}'}
+            elif param == 'lat':
+                info = self.get_device_info()
+                lon = info.get('lon', 0)
+                self.execute(self.mc.commands.set_coords(float(value), lon), timeout=5)
+                return {'success': True, 'message': f'Lat set to: {value}'}
+            elif param == 'lon':
+                info = self.get_device_info()
+                lat = info.get('lat', 0)
+                self.execute(self.mc.commands.set_coords(lat, float(value)), timeout=5)
+                return {'success': True, 'message': f'Lon set to: {value}'}
+            elif param == 'pin':
+                self.execute(self.mc.commands.set_devicepin(value), timeout=5)
+                return {'success': True, 'message': 'PIN set'}
+            elif param == 'telemetry_mode_base':
+                self.execute(self.mc.commands.set_telemetry_mode_base(int(value)), timeout=5)
+                return {'success': True, 'message': f'Telemetry mode base set to: {value}'}
+            elif param == 'telemetry_mode_loc':
+                self.execute(self.mc.commands.set_telemetry_mode_loc(int(value)), timeout=5)
+                return {'success': True, 'message': f'Telemetry mode loc set to: {value}'}
+            elif param == 'telemetry_mode_env':
+                self.execute(self.mc.commands.set_telemetry_mode_env(int(value)), timeout=5)
+                return {'success': True, 'message': f'Telemetry mode env set to: {value}'}
+            elif param == 'advert_loc_policy':
+                self.execute(self.mc.commands.set_advert_loc_policy(int(value)), timeout=5)
+                return {'success': True, 'message': f'Advert loc policy set to: {value}'}
+            elif param == 'manual_add_contacts':
+                enabled = value.lower() in ('true', '1', 'yes', 'on')
+                self.execute(self.mc.commands.set_manual_add_contacts(enabled), timeout=5)
+                return {'success': True, 'message': f'Manual add contacts: {enabled}'}
+            elif param == 'multi_acks':
+                enabled = value.lower() in ('true', '1', 'yes', 'on')
+                self.execute(self.mc.commands.set_multi_acks(enabled), timeout=5)
+                return {'success': True, 'message': f'Multi acks: {enabled}'}
+            elif param == 'path_hash_mode':
+                self.execute(self.mc.commands.set_path_hash_mode(int(value)), timeout=5)
+                return {'success': True, 'message': f'Path hash mode set to: {value}'}
+            elif param == 'help':
+                return {'success': True, 'data': {
+                    'Available params': 'name, tx, coords, lat, lon, pin, telemetry_mode_base, '
+                                        'telemetry_mode_loc, telemetry_mode_env, advert_loc_policy, '
+                                        'manual_add_contacts, multi_acks, path_hash_mode, <custom_var>'
+                }}
+            else:
+                # Try as custom variable
+                self.execute(self.mc.commands.set_custom_var(param, value), timeout=5)
+                return {'success': True, 'message': f'Custom var {param} set to: {value}'}
+        except Exception as e:
+            logger.error(f"set_param failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def node_discover(self, type_filter: str = None) -> Dict:
+        """Discover nodes on the mesh."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            from meshcore.events import EventType
+            types = 0xFF  # all types
+            if type_filter:
+                type_map = {'cli': 1, 'rep': 2, 'room': 3, 'sensor': 4, 'sens': 4}
+                t = type_map.get(type_filter.lower())
+                if t:
+                    types = t
+            res = self.execute(
+                self.mc.commands.send_node_discover_req(types),
+                timeout=10
+            )
+            # Collect responses with timeout
+            results = []
+            try:
+                while True:
+                    ev = self.execute(
+                        self.mc.wait_for_event(EventType.DISCOVER_RESPONSE, timeout=5),
+                        timeout=10
+                    )
+                    if ev and hasattr(ev, 'payload'):
+                        results.append(ev.payload)
+                    else:
+                        break
+            except Exception:
+                pass  # timeout = no more responses
+            return {'success': True, 'data': results}
+        except Exception as e:
+            logger.error(f"node_discover failed: {e}")
+            return {'success': False, 'error': str(e)}

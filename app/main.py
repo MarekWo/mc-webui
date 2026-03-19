@@ -661,6 +661,173 @@ def _execute_console_command(args: list) -> str:
             return result.get('message', 'Pending contacts flushed')
         return f"Error: {result.get('error')}"
 
+    # ── Device management commands ───────────────────────────────
+
+    elif cmd == 'get' and len(args) >= 2:
+        param = args[1]
+        result = device_manager.get_param(param)
+        if result.get('success'):
+            data = result.get('data', {})
+            lines = []
+            for k, v in data.items():
+                if isinstance(v, dict):
+                    lines.append(f"  {k}:")
+                    for k2, v2 in v.items():
+                        lines.append(f"    {k2}: {v2}")
+                else:
+                    lines.append(f"  {k}: {v}")
+            return "\n".join(lines) if lines else "OK"
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'get':
+        return "Usage: get <param>\n  Type 'get help' for available params"
+
+    elif cmd == 'set' and len(args) >= 3:
+        param = args[1]
+        value = ' '.join(args[2:])
+        result = device_manager.set_param(param, value)
+        if result.get('success'):
+            if 'data' in result:
+                data = result['data']
+                lines = []
+                for k, v in data.items():
+                    lines.append(f"  {k}: {v}")
+                return "\n".join(lines)
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'set':
+        return "Usage: set <param> <value>\n  Type 'set help' for available params"
+
+    elif cmd == 'clock':
+        if len(args) >= 2 and args[1] == 'sync':
+            import time as _time
+            epoch = int(_time.time())
+            result = device_manager.set_clock(epoch)
+            if result.get('success'):
+                return f"Clock synced to {epoch}"
+            return f"Error: {result.get('error')}"
+        result = device_manager.get_clock()
+        if result.get('success'):
+            data = result['data']
+            lines = ["Device clock:"]
+            for k, v in data.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'time' and len(args) >= 2:
+        try:
+            epoch = int(args[1])
+        except ValueError:
+            return "Usage: time <epoch>"
+        result = device_manager.set_clock(epoch)
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'reboot':
+        result = device_manager.reboot_device()
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'ver':
+        info = device_manager.get_device_info()
+        if info:
+            fw = info.get('firmware', info.get('fw_ver', '?'))
+            return f"Firmware: {fw}"
+        return "Version info unavailable"
+
+    elif cmd == 'scope' and len(args) >= 2:
+        scope = ' '.join(args[1:])
+        result = device_manager.set_flood_scope(scope)
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'self_telemetry':
+        result = device_manager.get_self_telemetry()
+        if result.get('success'):
+            data = result['data']
+            lines = ["Self telemetry:"]
+            for k, v in data.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'node_discover':
+        type_filter = args[1] if len(args) >= 2 else None
+        result = device_manager.node_discover(type_filter)
+        if result.get('success'):
+            data = result['data']
+            if not data:
+                return "No nodes discovered"
+            lines = [f"Discovered nodes ({len(data)}):"]
+            for node in data:
+                if isinstance(node, dict):
+                    name = node.get('adv_name', node.get('name', '?'))
+                    pk = node.get('public_key', '')[:12]
+                    lines.append(f"  {name} ({pk}...)")
+                else:
+                    lines.append(f"  {node}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    # ── Channel management commands ──────────────────────────────
+
+    elif cmd == 'get_channel' and len(args) >= 2:
+        try:
+            idx = int(args[1])
+        except ValueError:
+            return "Usage: get_channel <index>"
+        ch = device_manager.get_channel_info(idx)
+        if ch and ch.get('name'):
+            lines = [f"Channel [{idx}]:"]
+            for k, v in ch.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Channel {idx} not configured"
+
+    elif cmd == 'set_channel' and len(args) >= 3:
+        try:
+            idx = int(args[1])
+            name = args[2]
+            secret = bytes.fromhex(args[3]) if len(args) >= 4 else None
+            result = device_manager.set_channel(idx, name, secret)
+            if result.get('success'):
+                return f"Channel [{idx}] set to: {name}"
+            return f"Error: {result.get('error')}"
+        except (ValueError, IndexError) as e:
+            return f"Usage: set_channel <index> <name> [key_hex]"
+
+    elif cmd == 'add_channel' and len(args) >= 2:
+        name = args[1]
+        secret = bytes.fromhex(args[2]) if len(args) >= 3 else None
+        # Find next available channel slot
+        idx = None
+        for i in range(device_manager._max_channels):
+            ch = device_manager.get_channel_info(i)
+            if not ch or not ch.get('name'):
+                idx = i
+                break
+        if idx is None:
+            return "Error: No free channel slots"
+        result = device_manager.set_channel(idx, name, secret)
+        if result.get('success'):
+            return f"Channel [{idx}] added: {name}"
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'remove_channel' and len(args) >= 2:
+        try:
+            idx = int(args[1])
+        except ValueError:
+            return "Usage: remove_channel <index>"
+        result = device_manager.remove_channel(idx)
+        if result.get('success'):
+            return f"Channel [{idx}] removed"
+        return f"Error: {result.get('error')}"
+
     elif cmd == 'help':
         return (
             "Available commands:\n\n"
@@ -705,6 +872,22 @@ def _execute_console_command(args: list) -> str:
             "  req_acl <name>      — Request access control list\n"
             "  req_clock <name>    — Request repeater clock\n"
             "  req_mma <n> <f> <t> — Request min/max/avg sensor data\n\n"
+            " Management\n"
+            "  get <param>          — Get device parameter\n"
+            "  set <param> <value>  — Set device parameter\n"
+            "  clock                — Get device clock\n"
+            "  clock sync           — Sync device clock to now\n"
+            "  time <epoch>         — Set device time\n"
+            "  reboot               — Reboot device\n"
+            "  ver                  — Firmware version\n"
+            "  scope <scope>        — Set flood scope\n"
+            "  self_telemetry       — Own telemetry data\n"
+            "  node_discover [type] — Discover mesh nodes\n\n"
+            " Channels\n"
+            "  get_channel <n>            — Channel info\n"
+            "  set_channel <n> <nm> [key] — Set channel\n"
+            "  add_channel <name> [key]   — Add channel\n"
+            "  remove_channel <n>         — Remove channel\n\n"
             "  help       — Show this help"
         )
 
