@@ -197,6 +197,19 @@ def handle_send_command(data):
     socketio.start_background_task(execute_and_respond)
 
 
+def _parse_time_arg(value: str) -> int:
+    """Parse time argument with optional suffix: s (seconds), m (minutes, default), h (hours)."""
+    value = value.strip().lower()
+    if value.endswith('s'):
+        return int(value[:-1])
+    elif value.endswith('h'):
+        return int(value[:-1]) * 3600
+    elif value.endswith('m'):
+        return int(value[:-1]) * 60
+    else:
+        return int(value) * 60  # default: minutes
+
+
 def _execute_console_command(args: list) -> str:
     """
     Execute a console command via DeviceManager.
@@ -382,23 +395,143 @@ def _execute_console_command(args: list) -> str:
             return "Trace unavailable"
         return result.get('message', result.get('error', 'Unknown'))
 
+    # ── Repeater commands ────────────────────────────────────────
+
+    elif cmd == 'login' and len(args) >= 3:
+        name = args[1]
+        password = ' '.join(args[2:])
+        result = device_manager.repeater_login(name, password)
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'login':
+        return "Usage: login <name> <password>"
+
+    elif cmd == 'logout' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.repeater_logout(name)
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'cmd' and len(args) >= 3:
+        name = args[1]
+        remote_cmd = ' '.join(args[2:])
+        result = device_manager.repeater_cmd(name, remote_cmd)
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'cmd':
+        return "Usage: cmd <name> <command>"
+
+    elif cmd == 'req_status' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.repeater_req_status(name)
+        if result.get('success'):
+            data = result['data']
+            lines = [f"Status of {name}:"]
+            for k, v in data.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'req_regions' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.repeater_req_regions(name)
+        if result.get('success'):
+            data = result['data']
+            lines = [f"Regions of {name}:"]
+            for k, v in data.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'req_owner' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.repeater_req_owner(name)
+        if result.get('success'):
+            data = result['data']
+            lines = [f"Owner of {name}:"]
+            for k, v in data.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'req_acl' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.repeater_req_acl(name)
+        if result.get('success'):
+            data = result['data']
+            lines = [f"ACL of {name}:"]
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    lines.append(f"  {k}: {v}")
+            else:
+                lines.append(f"  {data}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'req_clock' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.repeater_req_clock(name)
+        if result.get('success'):
+            data = result['data']
+            lines = [f"Clock of {name}:"]
+            for k, v in data.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'req_mma' and len(args) >= 4:
+        name = args[1]
+        try:
+            from_secs = _parse_time_arg(args[2])
+            to_secs = _parse_time_arg(args[3])
+        except ValueError as e:
+            return f"Error: {e}"
+        result = device_manager.repeater_req_mma(name, from_secs, to_secs)
+        if result.get('success'):
+            data = result['data']
+            lines = [f"MMA of {name} ({args[2]} → {args[3]}):"]
+            for k, v in data.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'req_mma':
+        return "Usage: req_mma <name> <from_time> <to_time>\n  Time format: number with optional suffix s/m/h (default: minutes)"
+
     elif cmd == 'help':
         return (
-            "Available commands:\n"
+            "Available commands:\n\n"
+            " General\n"
             "  infos      — Device info (firmware, freq, etc.)\n"
             "  status     — Connection status, battery, contacts count\n"
             "  stats      — Device statistics (uptime, TX/RX, packets)\n"
             "  bat        — Battery voltage\n"
             "  contacts   — List device contacts with path info\n"
             "  contacts_all — List all known contacts (device + cached)\n"
-            "  channels   — List configured channels\n"
+            "  channels   — List configured channels\n\n"
+            " Messaging\n"
             "  chan <idx> <msg> — Send channel message\n"
             "  msg <name> <msg> — Send direct message\n"
             "  advert     — Send advertisement\n"
             "  floodadv   — Send flood advertisement\n"
             "  telemetry <name> — Request sensor telemetry\n"
             "  neighbors <name> — List neighbors of a node\n"
-            "  trace [tag]      — Send trace packet\n"
+            "  trace [tag]      — Send trace packet\n\n"
+            " Repeaters\n"
+            "  login <name> <pwd>  — Log into a repeater\n"
+            "  logout <name>       — Log out of a repeater\n"
+            "  cmd <name> <cmd>    — Send command to a repeater\n"
+            "  req_status <name>   — Request repeater status\n"
+            "  req_regions <name>  — Request repeater regions\n"
+            "  req_owner <name>    — Request repeater owner\n"
+            "  req_acl <name>      — Request access control list\n"
+            "  req_clock <name>    — Request repeater clock\n"
+            "  req_mma <n> <f> <t> — Request min/max/avg sensor data\n\n"
             "  help       — Show this help"
         )
 

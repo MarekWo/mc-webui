@@ -1547,3 +1547,195 @@ class DeviceManager:
         except Exception as e:
             logger.error(f"Trace failed: {e}")
             return {'error': str(e)}
+
+    def resolve_contact(self, name_or_key: str) -> Optional[Dict]:
+        """Resolve a contact by name or public key prefix."""
+        if not self.is_connected or not self.mc:
+            return None
+        contact = self.mc.get_contact_by_name(name_or_key)
+        if not contact:
+            contact = self.mc.get_contact_by_key_prefix(name_or_key)
+        return contact
+
+    # ── Repeater Management ──────────────────────────────────────────
+
+    def repeater_login(self, name_or_key: str, password: str) -> Dict:
+        """Log into a repeater with given password."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            from meshcore.events import EventType
+            res = self.execute(
+                self.mc.commands.send_login(contact, password),
+                timeout=10
+            )
+            # Wait for LOGIN_SUCCESS or LOGIN_FAILED
+            timeout = 30
+            if res and hasattr(res, 'payload') and 'suggested_timeout' in res.payload:
+                timeout = res.payload['suggested_timeout'] / 800
+            timeout = max(timeout, contact.get('timeout', 0) or 30)
+            event = self.execute(
+                self.mc.wait_for_event(EventType.LOGIN_SUCCESS, timeout=timeout),
+                timeout=timeout + 5
+            )
+            if event and hasattr(event, 'type') and event.type == EventType.LOGIN_SUCCESS:
+                return {'success': True, 'message': f'Logged into {contact.get("adv_name", name_or_key)}'}
+            return {'success': False, 'error': 'Login failed (timeout)'}
+        except Exception as e:
+            err = str(e)
+            if 'LOGIN_FAILED' in err or 'login' in err.lower():
+                return {'success': False, 'error': 'Login failed (wrong password?)'}
+            logger.error(f"Repeater login failed: {e}")
+            return {'success': False, 'error': err}
+
+    def repeater_logout(self, name_or_key: str) -> Dict:
+        """Log out of a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            self.execute(self.mc.commands.send_logout(contact), timeout=10)
+            return {'success': True, 'message': f'Logged out of {contact.get("adv_name", name_or_key)}'}
+        except Exception as e:
+            logger.error(f"Repeater logout failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def repeater_cmd(self, name_or_key: str, cmd: str) -> Dict:
+        """Send a command to a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            res = self.execute(self.mc.commands.send_cmd(contact, cmd), timeout=10)
+            msg = f'Command sent to {contact.get("adv_name", name_or_key)}: {cmd}'
+            return {'success': True, 'message': msg}
+        except Exception as e:
+            logger.error(f"Repeater cmd failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def repeater_req_status(self, name_or_key: str) -> Dict:
+        """Request status from a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            timeout = contact.get('timeout', 0) or 30
+            event = self.execute(
+                self.mc.commands.req_status_sync(contact, timeout),
+                timeout=timeout + 5
+            )
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No status response (timeout)'}
+        except Exception as e:
+            logger.error(f"req_status failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def repeater_req_regions(self, name_or_key: str) -> Dict:
+        """Request regions from a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            timeout = contact.get('timeout', 0) or 30
+            event = self.execute(
+                self.mc.commands.req_regions_sync(contact, timeout),
+                timeout=timeout + 5
+            )
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No regions response (timeout)'}
+        except Exception as e:
+            logger.error(f"req_regions failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def repeater_req_owner(self, name_or_key: str) -> Dict:
+        """Request owner info from a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            timeout = contact.get('timeout', 0) or 30
+            event = self.execute(
+                self.mc.commands.req_owner_sync(contact, timeout),
+                timeout=timeout + 5
+            )
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No owner response (timeout)'}
+        except Exception as e:
+            logger.error(f"req_owner failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def repeater_req_acl(self, name_or_key: str) -> Dict:
+        """Request access control list from a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            timeout = contact.get('timeout', 0) or 30
+            event = self.execute(
+                self.mc.commands.req_acl_sync(contact, timeout),
+                timeout=timeout + 5
+            )
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No ACL response (timeout)'}
+        except Exception as e:
+            logger.error(f"req_acl failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def repeater_req_clock(self, name_or_key: str) -> Dict:
+        """Request clock/basic info from a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            timeout = contact.get('timeout', 0) or 30
+            event = self.execute(
+                self.mc.commands.req_basic_sync(contact, timeout),
+                timeout=timeout + 5
+            )
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No clock response (timeout)'}
+        except Exception as e:
+            logger.error(f"req_clock failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def repeater_req_mma(self, name_or_key: str, from_secs: int, to_secs: int) -> Dict:
+        """Request min/max/avg sensor data from a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            timeout = contact.get('timeout', 0) or 30
+            event = self.execute(
+                self.mc.commands.req_mma_sync(contact, from_secs, to_secs, timeout),
+                timeout=timeout + 5
+            )
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No MMA response (timeout)'}
+        except Exception as e:
+            logger.error(f"req_mma failed: {e}")
+            return {'success': False, 'error': str(e)}
