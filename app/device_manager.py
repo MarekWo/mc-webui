@@ -1628,10 +1628,11 @@ class DeviceManager:
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
-            timeout = contact.get('timeout', 0) or 30
+            # Pass timeout=0 to let library use device's suggested_timeout
+            contact_timeout = contact.get('timeout', 0) or 0
             event = self.execute(
-                self.mc.commands.req_status_sync(contact, timeout),
-                timeout=timeout + 5
+                self.mc.commands.req_status_sync(contact, contact_timeout),
+                timeout=120
             )
             if event and hasattr(event, 'payload'):
                 return {'success': True, 'data': event.payload}
@@ -1648,10 +1649,10 @@ class DeviceManager:
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
-            timeout = contact.get('timeout', 0) or 30
+            contact_timeout = contact.get('timeout', 0) or 0
             event = self.execute(
-                self.mc.commands.req_regions_sync(contact, timeout),
-                timeout=timeout + 5
+                self.mc.commands.req_regions_sync(contact, contact_timeout),
+                timeout=120
             )
             if event and hasattr(event, 'payload'):
                 return {'success': True, 'data': event.payload}
@@ -1668,10 +1669,10 @@ class DeviceManager:
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
-            timeout = contact.get('timeout', 0) or 30
+            contact_timeout = contact.get('timeout', 0) or 0
             event = self.execute(
-                self.mc.commands.req_owner_sync(contact, timeout),
-                timeout=timeout + 5
+                self.mc.commands.req_owner_sync(contact, contact_timeout),
+                timeout=120
             )
             if event and hasattr(event, 'payload'):
                 return {'success': True, 'data': event.payload}
@@ -1688,10 +1689,10 @@ class DeviceManager:
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
-            timeout = contact.get('timeout', 0) or 30
+            contact_timeout = contact.get('timeout', 0) or 0
             event = self.execute(
-                self.mc.commands.req_acl_sync(contact, timeout),
-                timeout=timeout + 5
+                self.mc.commands.req_acl_sync(contact, contact_timeout),
+                timeout=120
             )
             if event and hasattr(event, 'payload'):
                 return {'success': True, 'data': event.payload}
@@ -1708,10 +1709,10 @@ class DeviceManager:
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
-            timeout = contact.get('timeout', 0) or 30
+            contact_timeout = contact.get('timeout', 0) or 0
             event = self.execute(
-                self.mc.commands.req_basic_sync(contact, timeout),
-                timeout=timeout + 5
+                self.mc.commands.req_basic_sync(contact, contact_timeout),
+                timeout=120
             )
             if event and hasattr(event, 'payload'):
                 return {'success': True, 'data': event.payload}
@@ -1728,10 +1729,10 @@ class DeviceManager:
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
-            timeout = contact.get('timeout', 0) or 30
+            contact_timeout = contact.get('timeout', 0) or 0
             event = self.execute(
-                self.mc.commands.req_mma_sync(contact, from_secs, to_secs, timeout),
-                timeout=timeout + 5
+                self.mc.commands.req_mma_sync(contact, from_secs, to_secs, contact_timeout),
+                timeout=120
             )
             if event and hasattr(event, 'payload'):
                 return {'success': True, 'data': event.payload}

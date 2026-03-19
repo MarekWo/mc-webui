@@ -702,18 +702,20 @@ def _execute_console_command(args: list) -> str:
     elif cmd == 'clock':
         if len(args) >= 2 and args[1] == 'sync':
             import time as _time
+            import datetime as _dt
             epoch = int(_time.time())
             result = device_manager.set_clock(epoch)
             if result.get('success'):
-                return f"Clock synced to {epoch}"
+                dt_str = _dt.datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M:%S")
+                return f"Clock synced to {dt_str} ({epoch})"
             return f"Error: {result.get('error')}"
         result = device_manager.get_clock()
         if result.get('success'):
+            import datetime as _dt
             data = result['data']
-            lines = ["Device clock:"]
-            for k, v in data.items():
-                lines.append(f"  {k}: {v}")
-            return "\n".join(lines)
+            timestamp = data.get('time', 0)
+            dt_str = _dt.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+            return f"Current time: {dt_str} ({timestamp})"
         return f"Error: {result.get('error')}"
 
     elif cmd == 'time' and len(args) >= 2:
