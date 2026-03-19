@@ -334,27 +334,27 @@ def _execute_console_command(args: list) -> str:
         lines = ["Device Statistics:"]
         if 'core' in stats:
             core = stats['core']
-            uptime_s = core.get('uptime', 0)
+            uptime_s = core.get('uptime_secs', 0)
             days, rem = divmod(uptime_s, 86400)
             hours, rem = divmod(rem, 3600)
             mins = rem // 60
             lines.append(f"  Uptime: {int(days)}d {int(hours)}h {int(mins)}m")
-            if 'queue_length' in core:
-                lines.append(f"  Queue: {core['queue_length']}")
-            if 'errors' in core:
-                lines.append(f"  Errors: {core['errors']}")
+            lines.append(f"  Battery: {core.get('battery_mv', '?')} mV")
+            lines.append(f"  Queue: {core.get('queue_len', 0)}")
+            lines.append(f"  Errors: {core.get('errors', 0)}")
         if 'radio' in stats:
             radio = stats['radio']
-            if 'tx_air_time' in radio:
-                lines.append(f"  TX air time: {radio['tx_air_time']:.1f} min")
-            if 'rx_air_time' in radio:
-                lines.append(f"  RX air time: {radio['rx_air_time']:.1f} min")
+            lines.append(f"  Noise floor: {radio.get('noise_floor', '?')} dBm")
+            lines.append(f"  Last RSSI: {radio.get('last_rssi', '?')} dBm")
+            lines.append(f"  Last SNR: {radio.get('last_snr', '?')} dB")
+            tx_s = radio.get('tx_air_secs', 0)
+            rx_s = radio.get('rx_air_secs', 0)
+            lines.append(f"  TX air time: {tx_s / 60:.1f} min")
+            lines.append(f"  RX air time: {rx_s / 60:.1f} min")
         if 'packets' in stats:
             pkts = stats['packets']
-            if 'sent' in pkts:
-                lines.append(f"  Packets TX: {pkts['sent']}")
-            if 'received' in pkts:
-                lines.append(f"  Packets RX: {pkts['received']}")
+            lines.append(f"  Packets TX: {pkts.get('sent', 0)} (flood: {pkts.get('flood_tx', 0)}, direct: {pkts.get('direct_tx', 0)})")
+            lines.append(f"  Packets RX: {pkts.get('recv', 0)} (flood: {pkts.get('flood_rx', 0)}, direct: {pkts.get('direct_rx', 0)})")
         return "\n".join(lines)
 
     elif cmd == 'telemetry' and len(args) >= 2:
@@ -388,12 +388,22 @@ def _execute_console_command(args: list) -> str:
             lines.append(f"  {k}: {v}")
         return "\n".join(lines)
 
+    elif cmd == 'trace' and len(args) >= 2:
+        path = args[1]
+        result = device_manager.send_trace(path)
+        if result.get('success'):
+            data = result['data']
+            # Format like meshcore-cli: snr [hash] > snr [hash] > ... snr
+            parts = []
+            for t in data.get('path', []):
+                snr = f"{t['snr']:.2f}"
+                h = f"[{t['hash']}]" if 'hash' in t else ''
+                parts.append(f"{snr} {h}")
+            return " > ".join(parts) if parts else "(empty trace)"
+        return f"Error: {result.get('error')}"
+
     elif cmd == 'trace':
-        tag = int(args[1]) if len(args) >= 2 else 0
-        result = device_manager.send_trace(tag)
-        if not result:
-            return "Trace unavailable"
-        return result.get('message', result.get('error', 'Unknown'))
+        return "Usage: trace <path>\n  Path: comma-separated hex hashes (e.g. 5e,d1,e7)"
 
     # ── Repeater commands ────────────────────────────────────────
 
@@ -827,8 +837,23 @@ def _execute_console_command(args: list) -> str:
         if result.get('success'):
             data = result['data']
             lines = ["Self telemetry:"]
-            for k, v in data.items():
-                lines.append(f"  {k}: {v}")
+            lpp = data.get('lpp', [])
+            for sensor in lpp:
+                ch = sensor.get('channel', '?')
+                stype = sensor.get('type', '?')
+                val = sensor.get('value', '?')
+                unit = ''
+                if stype == 'voltage':
+                    unit = ' V'
+                elif stype == 'temperature':
+                    unit = ' C'
+                elif stype == 'humidity':
+                    unit = ' %'
+                elif stype == 'pressure':
+                    unit = ' hPa'
+                lines.append(f"  Ch {ch}: {stype} = {val}{unit}")
+            if not lpp:
+                lines.append("  (no sensor data)")
             return "\n".join(lines)
         return f"Error: {result.get('error')}"
 

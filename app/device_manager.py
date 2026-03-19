@@ -1533,20 +1533,35 @@ class DeviceManager:
             logger.error(f"Neighbors request failed: {e}")
             return {'error': str(e)}
 
-    def send_trace(self, tag: int = 0) -> Optional[Dict]:
-        """Send a trace packet to discover mesh topology."""
+    def send_trace(self, path: str) -> Dict:
+        """Send a trace packet and wait for trace data response."""
         if not self.is_connected:
-            return None
+            return {'success': False, 'error': 'Device not connected'}
 
         try:
-            event = self.execute(
-                self.mc.commands.send_trace(tag=tag),
-                timeout=5
-            )
-            return {'success': True, 'message': f'Trace sent (tag={tag})'}
+            async def _trace():
+                from meshcore.events import EventType
+                res = await self.mc.commands.send_trace(path=path)
+                if res is None or res.type == EventType.ERROR:
+                    return None
+                tag = int.from_bytes(res.payload['expected_ack'], byteorder="little")
+                timeout = res.payload["suggested_timeout"] / 1000 * 1.2
+                ev = await self.mc.wait_for_event(
+                    EventType.TRACE_DATA,
+                    attribute_filters={"tag": tag},
+                    timeout=timeout
+                )
+                if ev is None or ev.type == EventType.ERROR:
+                    return None
+                return ev.payload
+
+            result = self.execute(_trace(), timeout=120)
+            if result is not None:
+                return {'success': True, 'data': result}
+            return {'success': False, 'error': f'Timeout waiting trace for path {path}'}
         except Exception as e:
             logger.error(f"Trace failed: {e}")
-            return {'error': str(e)}
+            return {'success': False, 'error': str(e)}
 
     def resolve_contact(self, name_or_key: str) -> Optional[Dict]:
         """Resolve a contact by name or public key prefix."""
