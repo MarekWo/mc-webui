@@ -393,13 +393,14 @@ def _execute_console_command(args: list) -> str:
         result = device_manager.send_trace(path)
         if result.get('success'):
             data = result['data']
-            # Format: snr > [hash]snr > [hash]snr > ... > [hash]snr
-            parts = []
+            # Format like meshcore-cli: snr > [hash]snr > [hash]snr
+            # Each element has snr + optional hash pointing to next hop
+            output = ""
             for t in data.get('path', []):
-                snr = f"{t['snr']:.2f}"
-                h = f"[{t['hash']}]" if 'hash' in t else ''
-                parts.append(f"{h}{snr}")
-            return " > ".join(parts) if parts else "(empty trace)"
+                output += f"{t['snr']:.2f}"
+                if 'hash' in t:
+                    output += f" > [{t['hash']}]"
+            return output if output else "(empty trace)"
         return f"Error: {result.get('error')}"
 
     elif cmd == 'trace':
