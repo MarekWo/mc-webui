@@ -2026,14 +2026,11 @@ class DeviceManager:
                     return {'success': True, 'data': event.payload}
                 return {'success': False, 'error': 'No custom vars response'}
             elif param == 'path_hash_mode':
-                event = self.execute(self.mc.commands.get_path_hash_mode(), timeout=5)
-                if event and hasattr(event, 'payload'):
-                    return {'success': True, 'data': event.payload}
-                return {'success': False, 'error': 'No response'}
+                # get_path_hash_mode() returns int, not Event
+                value = self.execute(self.mc.commands.get_path_hash_mode(), timeout=5)
+                return {'success': True, 'data': {'path_hash_mode': value}}
             elif param == 'help':
-                return {'success': True, 'data': {
-                    'Available params': 'name, tx, coords, lat, lon, bat, radio, stats, custom, path_hash_mode'
-                }}
+                return {'success': True, 'help': 'get'}
             else:
                 return {'success': False, 'error': f"Unknown param: {param}. Type 'get help' for list."}
         except Exception as e:
@@ -2095,11 +2092,7 @@ class DeviceManager:
                 self.execute(self.mc.commands.set_path_hash_mode(int(value)), timeout=5)
                 return {'success': True, 'message': f'Path hash mode set to: {value}'}
             elif param == 'help':
-                return {'success': True, 'data': {
-                    'Available params': 'name, tx, coords, lat, lon, pin, telemetry_mode_base, '
-                                        'telemetry_mode_loc, telemetry_mode_env, advert_loc_policy, '
-                                        'manual_add_contacts, multi_acks, path_hash_mode, <custom_var>'
-                }}
+                return {'success': True, 'help': 'set'}
             else:
                 # Try as custom variable
                 self.execute(self.mc.commands.set_custom_var(param, value), timeout=5)

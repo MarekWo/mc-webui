@@ -698,6 +698,20 @@ def _execute_console_command(args: list) -> str:
     elif cmd == 'get' and len(args) >= 2:
         param = args[1]
         result = device_manager.get_param(param)
+        if result.get('help') == 'get':
+            return (
+                "Get parameters from device:\n"
+                "  name             — node name\n"
+                "  tx               — TX power\n"
+                "  coords           — adv coordinates (lat, lon)\n"
+                "  lat              — latitude\n"
+                "  lon              — longitude\n"
+                "  bat              — battery level in mV\n"
+                "  radio            — radio parameters (freq, bw, sf, cr)\n"
+                "  stats            — device status/statistics\n"
+                "  custom           — all custom variables (JSON)\n"
+                "  path_hash_mode   — path hash mode"
+            )
         if result.get('success'):
             data = result.get('data', {})
             lines = []
@@ -727,6 +741,28 @@ def _execute_console_command(args: list) -> str:
                 return "\n".join(lines)
             return result.get('message', 'OK')
         return f"Error: {result.get('error')}"
+
+    elif cmd == 'set' and len(args) == 2 and args[1] == 'help':
+        result = device_manager.set_param('help', '')
+        return (
+            "Set device parameters:\n"
+            " Device:\n"
+            "  name <name>                    — node name\n"
+            "  tx <dbm>                       — TX power\n"
+            "  coords <lat>,<lon>             — coordinates\n"
+            "  lat <lat>                      — latitude\n"
+            "  lon <lon>                      — longitude\n"
+            "  pin <pin>                      — BLE pin\n"
+            "  radio <freq,bw,sf,cr>          — radio params\n"
+            "  multi_acks <on/off>            — multi-acks feature\n"
+            "  manual_add_contacts <on/off>   — manual contact approval\n"
+            "  telemetry_mode_base <mode>     — basic telemetry (all/selected/off)\n"
+            "  telemetry_mode_loc <mode>      — location telemetry\n"
+            "  telemetry_mode_env <mode>      — environment telemetry\n"
+            "  advert_loc_policy <policy>     — location in adverts\n"
+            "  path_hash_mode <value>         — path hash mode\n"
+            "  <custom_var> <value>           — set custom variable"
+        )
 
     elif cmd == 'set':
         return "Usage: set <param> <value>\n  Type 'set help' for available params"
