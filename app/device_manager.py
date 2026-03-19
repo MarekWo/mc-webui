@@ -1630,12 +1630,12 @@ class DeviceManager:
         try:
             # Pass timeout=0 to let library use device's suggested_timeout
             contact_timeout = contact.get('timeout', 0) or 0
-            event = self.execute(
+            result = self.execute(
                 self.mc.commands.req_status_sync(contact, contact_timeout),
                 timeout=120
             )
-            if event and hasattr(event, 'payload'):
-                return {'success': True, 'data': event.payload}
+            if result is not None:
+                return {'success': True, 'data': result}
             return {'success': False, 'error': 'No status response (timeout)'}
         except Exception as e:
             logger.error(f"req_status failed: {e}")
@@ -1650,12 +1650,12 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            event = self.execute(
+            result = self.execute(
                 self.mc.commands.req_regions_sync(contact, contact_timeout),
                 timeout=120
             )
-            if event and hasattr(event, 'payload'):
-                return {'success': True, 'data': event.payload}
+            if result is not None:
+                return {'success': True, 'data': result}
             return {'success': False, 'error': 'No regions response (timeout)'}
         except Exception as e:
             logger.error(f"req_regions failed: {e}")
@@ -1670,12 +1670,12 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            event = self.execute(
+            result = self.execute(
                 self.mc.commands.req_owner_sync(contact, contact_timeout),
                 timeout=120
             )
-            if event and hasattr(event, 'payload'):
-                return {'success': True, 'data': event.payload}
+            if result is not None:
+                return {'success': True, 'data': result}
             return {'success': False, 'error': 'No owner response (timeout)'}
         except Exception as e:
             logger.error(f"req_owner failed: {e}")
@@ -1690,12 +1690,12 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            event = self.execute(
+            result = self.execute(
                 self.mc.commands.req_acl_sync(contact, contact_timeout),
                 timeout=120
             )
-            if event and hasattr(event, 'payload'):
-                return {'success': True, 'data': event.payload}
+            if result is not None:
+                return {'success': True, 'data': result}
             return {'success': False, 'error': 'No ACL response (timeout)'}
         except Exception as e:
             logger.error(f"req_acl failed: {e}")
@@ -1710,12 +1710,12 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            event = self.execute(
+            result = self.execute(
                 self.mc.commands.req_basic_sync(contact, contact_timeout),
                 timeout=120
             )
-            if event and hasattr(event, 'payload'):
-                return {'success': True, 'data': event.payload}
+            if result is not None:
+                return {'success': True, 'data': result}
             return {'success': False, 'error': 'No clock response (timeout)'}
         except Exception as e:
             logger.error(f"req_clock failed: {e}")
@@ -1730,12 +1730,12 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            event = self.execute(
+            result = self.execute(
                 self.mc.commands.req_mma_sync(contact, from_secs, to_secs, contact_timeout),
                 timeout=120
             )
-            if event and hasattr(event, 'payload'):
-                return {'success': True, 'data': event.payload}
+            if result is not None:
+                return {'success': True, 'data': result}
             return {'success': False, 'error': 'No MMA response (timeout)'}
         except Exception as e:
             logger.error(f"req_mma failed: {e}")
