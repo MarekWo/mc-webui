@@ -503,6 +503,164 @@ def _execute_console_command(args: list) -> str:
     elif cmd == 'req_mma':
         return "Usage: req_mma <name> <from_time> <to_time>\n  Time format: number with optional suffix s/m/h (default: minutes)"
 
+    # ── Contact management commands ──────────────────────────────
+
+    elif cmd == 'contact_info' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.contact_info(name)
+        if result.get('success'):
+            data = result['data']
+            lines = [f"Contact: {data.get('adv_name', data.get('name', name))}"]
+            for k, v in sorted(data.items()):
+                if isinstance(v, bytes):
+                    v = v.hex()
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'path' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.contact_path(name)
+        if result.get('success'):
+            data = result['data']
+            opl = data.get('out_path_len', -1)
+            raw = data.get('out_path', '')
+            if opl > 0:
+                hop_count = opl & 0x3F
+                hash_size = (opl >> 6) + 1
+                meaningful = raw[:hop_count * hash_size * 2]
+                chunk = hash_size * 2
+                hops = [meaningful[i:i+chunk].upper() for i in range(0, len(meaningful), chunk)]
+                path_str = ' → '.join(hops) if hops else f'len:{opl}'
+                return f"Path to {name}: {path_str} ({hop_count} hops)"
+            elif opl == 0:
+                return f"Path to {name}: Direct"
+            else:
+                return f"Path to {name}: Flood (no path)"
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'disc_path' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.discover_path(name)
+        if result.get('success'):
+            data = result['data']
+            lines = [f"Discovered path to {name}:"]
+            for k, v in data.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'reset_path' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        contact = device_manager.resolve_contact(name)
+        if not contact:
+            return f"Error: Contact not found: {name}"
+        result = device_manager.reset_path(contact.get('public_key', name))
+        if result.get('success'):
+            return f"Path reset for {contact.get('adv_name', name)}"
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'change_path' and len(args) >= 3:
+        name = args[1]
+        path = args[2]
+        result = device_manager.change_path(name, path)
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'change_path':
+        return "Usage: change_path <name> <path>\n  Path: hex string, e.g. 6a61"
+
+    elif cmd == 'advert_path' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.advert_path(name)
+        if result.get('success'):
+            data = result['data']
+            lines = [f"Advert path to {name}:"]
+            for k, v in data.items():
+                lines.append(f"  {k}: {v}")
+            return "\n".join(lines)
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'share_contact' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.share_contact(name)
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'export_contact' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        result = device_manager.export_contact(name)
+        if result.get('success'):
+            uri = result['data'].get('uri', '')
+            return f"URI: {uri}"
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'import_contact' and len(args) >= 2:
+        uri = args[1]
+        result = device_manager.import_contact_uri(uri)
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'remove_contact' and len(args) >= 2:
+        name = ' '.join(args[1:])
+        contact = device_manager.resolve_contact(name)
+        if not contact:
+            return f"Error: Contact not found: {name}"
+        result = device_manager.delete_contact(contact.get('public_key', name))
+        if result.get('success'):
+            return f"Contact removed: {contact.get('adv_name', name)}"
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'change_flags' and len(args) >= 3:
+        name = args[1]
+        try:
+            flags = int(args[2])
+        except ValueError:
+            return "Error: flags must be an integer"
+        result = device_manager.change_contact_flags(name, flags)
+        if result.get('success'):
+            return result.get('message', 'OK')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'change_flags':
+        return "Usage: change_flags <name> <flags>\n  Flags: integer (tel_l|tel_a|star)"
+
+    elif cmd == 'pending_contacts':
+        result = device_manager.get_pending_contacts()
+        if not result:
+            return "No pending contacts"
+        lines = [f"Pending contacts ({len(result)}):"]
+        for c in result:
+            name = c.get('adv_name', c.get('name', '?'))
+            pk = c.get('public_key', '')[:12]
+            lines.append(f"  {name} ({pk}...)")
+        return "\n".join(lines)
+
+    elif cmd == 'add_pending' and len(args) >= 2:
+        key_or_name = ' '.join(args[1:])
+        # Try to find in pending contacts
+        pending = device_manager.get_pending_contacts()
+        target = None
+        for c in (pending or []):
+            if c.get('public_key', '').startswith(key_or_name) or c.get('adv_name', '') == key_or_name:
+                target = c
+                break
+        if not target:
+            return f"Error: Not found in pending: {key_or_name}"
+        result = device_manager.approve_contact(target['public_key'])
+        if result.get('success'):
+            return f"Contact added: {target.get('adv_name', key_or_name)}"
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'flush_pending':
+        result = device_manager.clear_pending_contacts()
+        if result.get('success'):
+            return result.get('message', 'Pending contacts flushed')
+        return f"Error: {result.get('error')}"
+
     elif cmd == 'help':
         return (
             "Available commands:\n\n"
@@ -522,6 +680,21 @@ def _execute_console_command(args: list) -> str:
             "  telemetry <name> — Request sensor telemetry\n"
             "  neighbors <name> — List neighbors of a node\n"
             "  trace [tag]      — Send trace packet\n\n"
+            " Contacts\n"
+            "  contact_info <name>     — Contact details (JSON)\n"
+            "  path <name>             — Show path to contact\n"
+            "  disc_path <name>        — Discover new path\n"
+            "  reset_path <name>       — Reset path to flood\n"
+            "  change_path <name> <p>  — Change path to contact\n"
+            "  advert_path <name>      — Get path from advert\n"
+            "  share_contact <name>    — Share contact with mesh\n"
+            "  export_contact <name>   — Export contact URI\n"
+            "  import_contact <URI>    — Import contact from URI\n"
+            "  remove_contact <name>   — Remove contact from device\n"
+            "  change_flags <n> <f>    — Change contact flags\n"
+            "  pending_contacts        — Show pending contacts\n"
+            "  add_pending <name>      — Add pending contact\n"
+            "  flush_pending           — Flush pending list\n\n"
             " Repeaters\n"
             "  login <name> <pwd>  — Log into a repeater\n"
             "  logout <name>       — Log out of a repeater\n"

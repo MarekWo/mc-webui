@@ -1739,3 +1739,152 @@ class DeviceManager:
         except Exception as e:
             logger.error(f"req_mma failed: {e}")
             return {'success': False, 'error': str(e)}
+
+    # ── Contact Management (extended) ────────────────────────────
+
+    def contact_info(self, name_or_key: str) -> Dict:
+        """Get full info for a contact."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        return {'success': True, 'data': dict(contact)}
+
+    def contact_path(self, name_or_key: str) -> Dict:
+        """Get path info for a contact."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        return {'success': True, 'data': {
+            'out_path': contact.get('out_path', ''),
+            'out_path_len': contact.get('out_path_len', -1),
+            'out_path_hash_len': contact.get('out_path_hash_len', 0),
+        }}
+
+    def discover_path(self, name_or_key: str) -> Dict:
+        """Discover a new path to a contact."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            from meshcore.events import EventType
+            res = self.execute(
+                self.mc.commands.send_path_discovery(contact),
+                timeout=10
+            )
+            timeout = 30
+            if res and hasattr(res, 'payload') and 'suggested_timeout' in res.payload:
+                timeout = res.payload['suggested_timeout'] / 600
+            timeout = max(timeout, contact.get('timeout', 0) or 30)
+            event = self.execute(
+                self.mc.wait_for_event(EventType.PATH_RESPONSE, timeout=timeout),
+                timeout=timeout + 5
+            )
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No path response (timeout)'}
+        except Exception as e:
+            logger.error(f"discover_path failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def change_path(self, name_or_key: str, path: str) -> Dict:
+        """Change the path to a contact."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            self.execute(self.mc.commands.change_contact_path(contact, path), timeout=10)
+            return {'success': True, 'message': f'Path changed for {contact.get("adv_name", name_or_key)}'}
+        except Exception as e:
+            logger.error(f"change_path failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def advert_path(self, name_or_key: str) -> Dict:
+        """Get advertisement path for a contact."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            event = self.execute(self.mc.commands.get_advert_path(contact), timeout=10)
+            if event and hasattr(event, 'payload'):
+                return {'success': True, 'data': event.payload}
+            return {'success': False, 'error': 'No advert path response'}
+        except Exception as e:
+            logger.error(f"advert_path failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def share_contact(self, name_or_key: str) -> Dict:
+        """Share a contact with others on the mesh."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            self.execute(self.mc.commands.share_contact(contact), timeout=10)
+            return {'success': True, 'message': f'Contact shared: {contact.get("adv_name", name_or_key)}'}
+        except Exception as e:
+            logger.error(f"share_contact failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def export_contact(self, name_or_key: str) -> Dict:
+        """Export a contact as URI."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            event = self.execute(self.mc.commands.export_contact(contact), timeout=10)
+            if event and hasattr(event, 'payload'):
+                uri = event.payload.get('uri', '')
+                if isinstance(uri, bytes):
+                    uri = 'meshcore://' + uri.hex()
+                return {'success': True, 'data': {'uri': uri}}
+            return {'success': False, 'error': 'No export response'}
+        except Exception as e:
+            logger.error(f"export_contact failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def import_contact_uri(self, uri: str) -> Dict:
+        """Import a contact from meshcore:// URI."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            if uri.startswith('meshcore://'):
+                hex_data = uri[11:]
+            else:
+                hex_data = uri
+            contact_bytes = bytes.fromhex(hex_data)
+            self.execute(self.mc.commands.import_contact(contact_bytes), timeout=10)
+            # Refresh contacts
+            self.execute(self.mc.commands.get_contacts(), timeout=10)
+            return {'success': True, 'message': 'Contact imported'}
+        except ValueError:
+            return {'success': False, 'error': 'Invalid URI format (expected hex data)'}
+        except Exception as e:
+            logger.error(f"import_contact failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def change_contact_flags(self, name_or_key: str, flags: int) -> Dict:
+        """Change flags for a contact."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            self.execute(self.mc.commands.change_contact_flags(contact, flags), timeout=10)
+            return {'success': True, 'message': f'Flags changed for {contact.get("adv_name", name_or_key)}'}
+        except Exception as e:
+            logger.error(f"change_flags failed: {e}")
+            return {'success': False, 'error': str(e)}
