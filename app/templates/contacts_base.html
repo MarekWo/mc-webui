@@ -61,7 +61,7 @@
             font-size: 1.1rem;
             font-weight: 600;
             color: #212529;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.1rem;
             word-wrap: break-word;
         }
 
@@ -70,7 +70,7 @@
             font-size: 0.85rem;
             color: #6c757d;
             word-break: break-all;
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.15rem;
         }
 
         .contact-key.clickable-key {
@@ -295,9 +295,10 @@
             margin-bottom: 0.75rem;
         }
 
-        /* NEW: Full-screen lists for dedicated pages */
+        /* NEW: Full-screen lists for dedicated pages - fill remaining space */
         .contacts-list-fullscreen {
-            height: calc(100vh - 240px);
+            flex: 1 1 0;
+            min-height: 0;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             padding: 0;
@@ -374,25 +375,42 @@
         /* Override global overflow: hidden from style.css for Contact Management pages */
         html, body {
             overflow: auto !important;
+            height: 100%;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
         }
 
         main {
             overflow: auto !important;
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        main > .container-fluid,
+        main > .container-fluid > .row,
+        main > .container-fluid > .row > .col-12 {
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Page content containers should fill available space */
+        #pendingPageContent,
+        #existingPageContent {
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
         }
 
         /* Mobile responsiveness */
         @media (max-width: 768px) {
-            #existingList {
-                height: calc(100vh - 300px);
-            }
-
-            #pendingList {
-                height: calc(100vh - 320px);
-            }
-
-            .contacts-list-fullscreen {
-                height: calc(100vh - 300px);
-            }
         }
     </style>
 
