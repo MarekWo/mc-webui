@@ -74,6 +74,21 @@ def create_app():
     db = Database(config.db_path)
     app.db = db
 
+    # Migrate settings from .webui_settings.json to DB (one-time)
+    from pathlib import Path
+    settings_file = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
+    if settings_file.exists() and db.get_setting('manual_add_contacts') is None:
+        logger.info("Migrating settings from .webui_settings.json to database...")
+        db.migrate_protected_contacts_from_file(settings_file)
+        db.migrate_settings_from_file(settings_file)
+        # Rename old file as backup
+        backup = settings_file.with_suffix('.json.bak')
+        try:
+            settings_file.rename(backup)
+            logger.info(f"Settings file backed up to {backup.name}")
+        except Exception as e:
+            logger.warning(f"Could not rename settings file: {e}")
+
     # v2: Initialize and start device manager
     device_manager = DeviceManager(config, db, socketio)
     app.device_manager = device_manager

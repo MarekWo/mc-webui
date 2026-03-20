@@ -5,8 +5,6 @@ Function signatures preserved for backward compatibility with api.py.
 """
 
 import logging
-import json
-from pathlib import Path
 from typing import Tuple, Optional, List, Dict
 from app.config import config
 
@@ -32,6 +30,22 @@ def _get_dm():
     if device_manager is None:
         raise MeshCLIError("DeviceManager not initialized")
     return device_manager
+
+
+def _get_db():
+    """Get Database instance — try Flask app context first, then DeviceManager."""
+    try:
+        from flask import current_app
+        db = getattr(current_app, 'db', None)
+        if db is not None:
+            return db
+    except RuntimeError:
+        pass
+    try:
+        dm = _get_dm()
+        return dm.db
+    except Exception:
+        return None
 
 
 # =============================================================================
@@ -454,16 +468,11 @@ def set_auto_retry_config(enabled=None, max_attempts=None, max_flood=None) -> Tu
 # =============================================================================
 
 def get_device_settings() -> Tuple[bool, Dict]:
-    """Get persistent device settings."""
-    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
+    """Get persistent device settings from database."""
     try:
-        if not settings_path.exists():
-            return True, {'manual_add_contacts': False}
-        with open(settings_path, 'r', encoding='utf-8') as f:
-            settings = json.load(f)
-            if 'manual_add_contacts' not in settings:
-                settings['manual_add_contacts'] = False
-            return True, settings
+        db = _get_db()
+        manual = db.get_setting_json('manual_add_contacts', False) if db else False
+        return True, {'manual_add_contacts': manual}
     except Exception as e:
         logger.error(f"Failed to read device settings: {e}")
         return False, {'manual_add_contacts': False}
@@ -475,19 +484,10 @@ def set_manual_add_contacts(enabled: bool) -> Tuple[bool, str]:
         dm_inst = _get_dm()
         result = dm_inst.set_manual_add_contacts(enabled)
         if result['success']:
-            # Persist to settings file
-            settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
-            try:
-                settings = {}
-                if settings_path.exists():
-                    with open(settings_path, 'r') as f:
-                        settings = json.load(f)
-                settings['manual_add_contacts'] = enabled
-                settings_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(settings_path, 'w') as f:
-                    json.dump(settings, f)
-            except Exception as e:
-                logger.warning(f"Failed to persist settings: {e}")
+            # Persist to database
+            db = _get_db()
+            if db:
+                db.set_setting_json('manual_add_contacts', enabled)
         return result['success'], result.get('message', result.get('error', ''))
     except Exception as e:
         return False, str(e)

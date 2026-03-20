@@ -287,6 +287,137 @@ class Database:
             return {r['name'] for r in rows1} | {r['name'] for r in rows2}
 
     # ================================================================
+    # Protected Contacts (DB-backed)
+    # ================================================================
+
+    def get_protected_keys(self) -> set:
+        """Return set of public_keys that are protected."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT public_key FROM contacts WHERE is_protected = 1"
+            ).fetchall()
+            return {r['public_key'] for r in rows}
+
+    # ================================================================
+    # App Settings (key-value store)
+    # ================================================================
+
+    def get_setting(self, key: str) -> Optional[str]:
+        """Get a setting value (JSON string) by key."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM app_settings WHERE key = ?", (key,)
+            ).fetchone()
+            return row['value'] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Set a setting value (JSON string)."""
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO app_settings (key, value)
+                   VALUES (?, ?)
+                   ON CONFLICT(key) DO UPDATE SET
+                       value = excluded.value,
+                       updated_at = datetime('now')""",
+                (key, value)
+            )
+
+    def get_setting_json(self, key: str, default=None):
+        """Get a setting, JSON-decoded. Returns default if not found."""
+        import json
+        raw = self.get_setting(key)
+        if raw is None:
+            return default
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return default
+
+    def set_setting_json(self, key: str, value) -> None:
+        """Set a setting, JSON-encoding the value."""
+        import json
+        self.set_setting(key, json.dumps(value, ensure_ascii=False))
+
+    def migrate_protected_contacts_from_file(self, settings_path) -> int:
+        """One-time migration: import protected_contacts from .webui_settings.json into DB.
+
+        Returns number of contacts marked as protected.
+        """
+        import json
+        from pathlib import Path
+        settings_path = Path(settings_path)
+        if not settings_path.exists():
+            return 0
+
+        try:
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+            protected = settings.get('protected_contacts', [])
+            if not protected:
+                return 0
+
+            count = 0
+            with self._connect() as conn:
+                for pk in protected:
+                    pk = pk.lower()
+                    cursor = conn.execute(
+                        "UPDATE contacts SET is_protected = 1, lastmod = datetime('now') WHERE public_key = ?",
+                        (pk,)
+                    )
+                    if cursor.rowcount > 0:
+                        count += 1
+                    else:
+                        # Contact not in DB yet - insert minimal record
+                        conn.execute(
+                            """INSERT OR IGNORE INTO contacts (public_key, name, is_protected, source)
+                               VALUES (?, '', 1, 'advert')""",
+                            (pk,)
+                        )
+                        count += 1
+
+            logger.info(f"Migrated {count} protected contacts from settings file to DB")
+            return count
+        except Exception as e:
+            logger.error(f"Failed to migrate protected contacts: {e}")
+            return 0
+
+    def migrate_settings_from_file(self, settings_path) -> bool:
+        """One-time migration: import cleanup/retention/manual_add settings from .webui_settings.json.
+
+        Returns True if migration was performed.
+        """
+        import json
+        from pathlib import Path
+        settings_path = Path(settings_path)
+        if not settings_path.exists():
+            return False
+
+        try:
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+
+            migrated = False
+
+            if 'cleanup_settings' in settings:
+                self.set_setting_json('cleanup_settings', settings['cleanup_settings'])
+                migrated = True
+
+            if 'retention_settings' in settings:
+                self.set_setting_json('retention_settings', settings['retention_settings'])
+                migrated = True
+
+            if 'manual_add_contacts' in settings:
+                self.set_setting_json('manual_add_contacts', settings['manual_add_contacts'])
+                migrated = True
+
+            if migrated:
+                logger.info("Migrated app settings from .webui_settings.json to DB")
+            return migrated
+        except Exception as e:
+            logger.error(f"Failed to migrate settings: {e}")
+            return False
+
+    # ================================================================
     # Channels
     # ================================================================
 

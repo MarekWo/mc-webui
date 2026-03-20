@@ -134,6 +134,41 @@ class TestContacts:
         assert abs(contact['adv_lat'] - 52.23) < 0.001
         assert abs(contact['adv_lon'] - 21.01) < 0.001
 
+    def test_get_protected_keys(self, db):
+        db.upsert_contact('AA', name='Alice')
+        db.upsert_contact('BB', name='Bob')
+        db.set_contact_protected('AA', True)
+        keys = db.get_protected_keys()
+        assert 'aa' in keys
+        assert 'bb' not in keys
+
+
+# ================================================================
+# App Settings
+# ================================================================
+
+class TestAppSettings:
+    def test_set_and_get_setting(self, db):
+        db.set_setting('test_key', 'test_value')
+        assert db.get_setting('test_key') == 'test_value'
+
+    def test_get_nonexistent_setting(self, db):
+        assert db.get_setting('nonexistent') is None
+
+    def test_set_and_get_json(self, db):
+        db.set_setting_json('cleanup', {'enabled': True, 'days': 7})
+        result = db.get_setting_json('cleanup')
+        assert result == {'enabled': True, 'days': 7}
+
+    def test_get_json_default(self, db):
+        result = db.get_setting_json('missing', {'default': True})
+        assert result == {'default': True}
+
+    def test_setting_upsert(self, db):
+        db.set_setting_json('key', 'old')
+        db.set_setting_json('key', 'new')
+        assert db.get_setting_json('key') == 'new'
+
 
 # ================================================================
 # Channels

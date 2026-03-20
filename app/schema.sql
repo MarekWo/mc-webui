@@ -155,6 +155,13 @@ CREATE TABLE IF NOT EXISTS blocked_names (
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Application settings (key-value store, replaces .webui_settings.json)
+CREATE TABLE IF NOT EXISTS app_settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL DEFAULT '',       -- JSON-encoded value
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ============================================================
 -- Indexes
 -- ============================================================

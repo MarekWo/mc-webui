@@ -180,136 +180,55 @@ def invalidate_contacts_cache():
 
 def get_protected_contacts() -> list:
     """
-    Get list of protected contact public keys from settings.
+    Get list of protected contact public keys from database.
 
     Returns:
         List of public_key strings (64 hex chars, lowercase)
     """
-    from pathlib import Path
-    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
-
-    try:
-        if not settings_path.exists():
-            return []
-
-        with open(settings_path, 'r', encoding='utf-8') as f:
-            settings = json.load(f)
-            # Return lowercase keys for consistent comparison
-            return [pk.lower() for pk in settings.get('protected_contacts', [])]
-    except Exception as e:
-        logger.error(f"Failed to read protected contacts: {e}")
-        return []
-
-
-def save_protected_contacts(protected_list: list) -> bool:
-    """
-    Save protected contacts list to settings file (atomic write).
-
-    Args:
-        protected_list: List of public_key strings
-
-    Returns:
-        True if successful, False otherwise
-    """
-    from pathlib import Path
-    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
-
-    try:
-        # Read existing settings
-        settings = {}
-        if settings_path.exists():
-            with open(settings_path, 'r', encoding='utf-8') as f:
-                settings = json.load(f)
-
-        # Update protected contacts (store lowercase)
-        settings['protected_contacts'] = [pk.lower() for pk in protected_list]
-
-        # Write back atomically
-        temp_file = settings_path.with_suffix('.tmp')
-        with open(temp_file, 'w', encoding='utf-8') as f:
-            json.dump(settings, f, indent=2, ensure_ascii=False)
-        temp_file.replace(settings_path)
-
-        return True
-    except Exception as e:
-        logger.error(f"Failed to save protected contacts: {e}")
-        return False
+    db = _get_db()
+    if db:
+        return list(db.get_protected_keys())
+    return []
 
 
 # =============================================================================
 # Cleanup Settings Management
 # =============================================================================
 
+CLEANUP_DEFAULTS = {
+    'enabled': False,
+    'types': [1, 2, 3, 4],
+    'date_field': 'last_advert',
+    'days': 30,
+    'name_filter': '',
+    'hour': 1
+}
+
+RETENTION_DEFAULTS = {
+    'enabled': False,
+    'days': 90,
+    'include_dms': False,
+    'include_adverts': False,
+    'hour': 2
+}
+
+
 def get_cleanup_settings() -> dict:
-    """
-    Get auto-cleanup settings from .webui_settings.json.
-
-    Returns:
-        Dict with cleanup settings:
-        {
-            'enabled': bool,
-            'types': list[int],
-            'date_field': str,
-            'days': int,
-            'name_filter': str,
-            'hour': int (0-23, UTC)
-        }
-    """
-    from pathlib import Path
-    defaults = {
-        'enabled': False,
-        'types': [1, 2, 3, 4],
-        'date_field': 'last_advert',
-        'days': 30,
-        'name_filter': '',
-        'hour': 1
-    }
-
-    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
-
-    try:
-        if not settings_path.exists():
-            return defaults
-
-        with open(settings_path, 'r', encoding='utf-8') as f:
-            settings = json.load(f)
-            cleanup = settings.get('cleanup_settings', {})
-            # Merge with defaults to ensure all fields exist
-            return {**defaults, **cleanup}
-    except Exception as e:
-        logger.error(f"Failed to read cleanup settings: {e}")
-        return defaults
+    """Get auto-cleanup settings from database."""
+    db = _get_db()
+    if db:
+        saved = db.get_setting_json('cleanup_settings', {})
+        return {**CLEANUP_DEFAULTS, **saved}
+    return dict(CLEANUP_DEFAULTS)
 
 
 def save_cleanup_settings(cleanup_settings: dict) -> bool:
-    """
-    Save auto-cleanup settings to .webui_settings.json (atomic write).
-
-    Args:
-        cleanup_settings: Dict with cleanup configuration
-
-    Returns:
-        True if successful, False otherwise
-    """
-    from pathlib import Path
-    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
-
+    """Save auto-cleanup settings to database."""
+    db = _get_db()
+    if not db:
+        return False
     try:
-        # Read existing settings
-        settings = {}
-        if settings_path.exists():
-            with open(settings_path, 'r', encoding='utf-8') as f:
-                settings = json.load(f)
-
-        # Update cleanup settings
-        settings['cleanup_settings'] = cleanup_settings
-
-        # Write back atomically
-        temp_file = settings_path.with_suffix('.tmp')
-        with open(temp_file, 'w', encoding='utf-8') as f:
-            json.dump(settings, f, indent=2, ensure_ascii=False)
-        temp_file.replace(settings_path)
-
+        db.set_setting_json('cleanup_settings', cleanup_settings)
         return True
     except Exception as e:
         logger.error(f"Failed to save cleanup settings: {e}")
@@ -317,49 +236,21 @@ def save_cleanup_settings(cleanup_settings: dict) -> bool:
 
 
 def get_retention_settings() -> dict:
-    """Get message retention settings from .webui_settings.json."""
-    from pathlib import Path
-    defaults = {
-        'enabled': False,
-        'days': 90,
-        'include_dms': False,
-        'include_adverts': False,
-        'hour': 2
-    }
-
-    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
-
-    try:
-        if not settings_path.exists():
-            return defaults
-
-        with open(settings_path, 'r', encoding='utf-8') as f:
-            settings = json.load(f)
-            retention = settings.get('retention_settings', {})
-            return {**defaults, **retention}
-    except Exception as e:
-        logger.error(f"Failed to read retention settings: {e}")
-        return defaults
+    """Get message retention settings from database."""
+    db = _get_db()
+    if db:
+        saved = db.get_setting_json('retention_settings', {})
+        return {**RETENTION_DEFAULTS, **saved}
+    return dict(RETENTION_DEFAULTS)
 
 
 def save_retention_settings(retention_settings: dict) -> bool:
-    """Save message retention settings to .webui_settings.json (atomic write)."""
-    from pathlib import Path
-    settings_path = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
-
+    """Save message retention settings to database."""
+    db = _get_db()
+    if not db:
+        return False
     try:
-        settings = {}
-        if settings_path.exists():
-            with open(settings_path, 'r', encoding='utf-8') as f:
-                settings = json.load(f)
-
-        settings['retention_settings'] = retention_settings
-
-        temp_file = settings_path.with_suffix('.tmp')
-        with open(temp_file, 'w', encoding='utf-8') as f:
-            json.dump(settings, f, indent=2, ensure_ascii=False)
-        temp_file.replace(settings_path)
-
+        db.set_setting_json('retention_settings', retention_settings)
         return True
     except Exception as e:
         logger.error(f"Failed to save retention settings: {e}")
@@ -837,13 +728,14 @@ def _filter_contacts_by_criteria(contacts: list, criteria: dict) -> list:
     current_time = int(time.time())
     days_threshold = days * 86400  # Convert days to seconds
 
-    # Get protected contacts list (exclude from cleanup)
-    protected_contacts = get_protected_contacts()
+    # Get protected contacts (exclude from cleanup)
+    db = _get_db()
+    protected_keys = db.get_protected_keys() if db else set()
 
     filtered = []
     for contact in contacts:
         # Skip protected contacts
-        if contact.get('public_key', '').lower() in protected_contacts:
+        if contact.get('public_key', '').lower() in protected_keys:
             continue
 
         # Filter by type
@@ -2369,8 +2261,8 @@ def get_contacts_detailed_api():
         contacts = []
 
         # Get protected/ignored/blocked contacts for status fields
-        protected_contacts = get_protected_contacts()
         db = _get_db()
+        protected_keys = db.get_protected_keys() if db else set()
         ignored_keys = db.get_ignored_keys() if db else set()
         blocked_keys = db.get_blocked_keys() if db else set()
 
@@ -2411,7 +2303,7 @@ def get_contacts_detailed_api():
                 'type_label': type_labels.get(details.get('type'), 'UNKNOWN'),
                 'path_or_mode': path_or_mode,  # For UI display
                 'last_seen': details.get('last_advert'),  # Alias for compatibility
-                'is_protected': public_key.lower() in protected_contacts,  # Protection status
+                'is_protected': public_key.lower() in protected_keys,  # Protection status
                 'is_ignored': public_key.lower() in ignored_keys,
                 'is_blocked': public_key.lower() in blocked_keys,
             }
@@ -2586,57 +2478,37 @@ def toggle_contact_protection(public_key):
             }), 400
 
         public_key = public_key.lower()
-
-        # Get current protected list
-        protected_contacts = get_protected_contacts()
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database unavailable'}), 500
 
         # Find matching full public_key if prefix provided
         if len(public_key) < 64:
-            # Fetch contacts to resolve prefix to full key
-            success, contacts_dict, error = cli.get_contacts_with_last_seen()
-            if not success:
-                return jsonify({
-                    'success': False,
-                    'error': error or 'Failed to get contacts'
-                }), 500
-
-            # Find matching contact
-            full_key = None
-            for pk in contacts_dict.keys():
-                if pk.lower().startswith(public_key):
-                    full_key = pk.lower()
-                    break
-
-            if not full_key:
+            contact = db.get_contact_by_prefix(public_key)
+            if not contact:
                 return jsonify({
                     'success': False,
                     'error': f'Contact not found with public_key prefix: {public_key}'
                 }), 404
-
-            public_key = full_key
+            public_key = contact['public_key']
+        else:
+            contact = db.get_contact(public_key)
 
         # Check if explicit protected value provided
         data = request.get_json() or {}
         if 'protected' in data:
-            should_protect = data['protected']
+            should_protect = bool(data['protected'])
         else:
             # Toggle current state
-            should_protect = public_key not in protected_contacts
+            is_currently_protected = contact['is_protected'] == 1 if contact else False
+            should_protect = not is_currently_protected
 
-        # Update protected list
-        if should_protect:
-            if public_key not in protected_contacts:
-                protected_contacts.append(public_key)
+        # Update in database
+        if contact:
+            db.set_contact_protected(public_key, should_protect)
         else:
-            if public_key in protected_contacts:
-                protected_contacts.remove(public_key)
-
-        # Save updated list
-        if not save_protected_contacts(protected_contacts):
-            return jsonify({
-                'success': False,
-                'error': 'Failed to save protected contacts'
-            }), 500
+            # Contact not in DB - create minimal record
+            db.upsert_contact(public_key, name='', is_protected=1 if should_protect else 0, source='advert')
 
         return jsonify({
             'success': True,
@@ -3185,7 +3057,7 @@ def update_device_settings_api():
         }
 
     This setting is:
-    1. Saved to .webui_settings.json for persistence across container restarts
+    1. Saved to database for persistence across container restarts
     2. Applied immediately to the running meshcli session
 
     Returns:

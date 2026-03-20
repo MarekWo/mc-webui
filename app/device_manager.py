@@ -824,14 +824,9 @@ class DeviceManager:
                 }, namespace='/chat')
 
     def _is_manual_approval_enabled(self) -> bool:
-        """Check if manual contact approval is enabled (from persisted settings)."""
+        """Check if manual contact approval is enabled (from database)."""
         try:
-            from pathlib import Path
-            settings_path = Path(self.config.MC_CONFIG_DIR) / ".webui_settings.json"
-            if settings_path.exists():
-                with open(settings_path, 'r', encoding='utf-8') as f:
-                    settings = json.load(f)
-                    return bool(settings.get('manual_add_contacts', False))
+            return bool(self.db.get_setting_json('manual_add_contacts', False))
         except Exception:
             pass
         return False
@@ -871,8 +866,44 @@ class DeviceManager:
                 return
 
             if self._is_manual_approval_enabled():
+                # Check if contact already exists on the device (firmware edge case:
+                # firmware may fire NEW_CONTACT for a contact that was previously
+                # on the device but got removed by firmware-level cleanup)
+                if pubkey in (self.mc.contacts or {}):
+                    logger.warning(
+                        f"NEW_CONTACT fired for contact already on device: {name} ({pubkey[:8]}...) "
+                        f"— skipping pending, updating DB cache only"
+                    )
+                    # Just update cache, don't add to pending
+                    last_adv = data.get('last_advert')
+                    last_advert_val = (
+                        str(int(last_adv))
+                        if last_adv and isinstance(last_adv, (int, float)) and last_adv > 0
+                        else str(int(time.time()))
+                    )
+                    self.db.upsert_contact(
+                        public_key=pubkey,
+                        name=name,
+                        type=data.get('type', data.get('adv_type', 0)),
+                        adv_lat=data.get('adv_lat'),
+                        adv_lon=data.get('adv_lon'),
+                        last_advert=last_advert_val,
+                        source='device',
+                    )
+                    return
+
+                # Check if contact was previously known (in DB cache)
+                existing = self.db.get_contact(pubkey)
+                if existing:
+                    logger.info(
+                        f"Pending contact (manual mode): {name} ({pubkey[:8]}...) "
+                        f"— previously known (source={existing['source']}, "
+                        f"protected={existing['is_protected']})"
+                    )
+                else:
+                    logger.info(f"Pending contact (manual mode): {name} ({pubkey[:8]}...) — first time seen")
+
                 # Manual mode: meshcore puts it in mc.pending_contacts for approval
-                logger.info(f"Pending contact (manual mode): {name} ({pubkey[:8]}...)")
 
                 # Also add to DB cache for @mentions and Cache filter
                 last_adv = data.get('last_advert')
