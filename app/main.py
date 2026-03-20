@@ -4,10 +4,13 @@ mc-webui v2 — Flask application entry point
 Direct device communication via meshcore library (no bridge).
 """
 
+import json
 import logging
+import re
 import shlex
 import threading
 import time
+from pathlib import Path
 from flask import Flask, request as flask_request
 from flask_socketio import SocketIO, emit
 from app.config import config, runtime_config
@@ -49,6 +52,92 @@ db = None
 device_manager = None
 
 
+def _sanitize_db_name(name: str) -> str:
+    """Sanitize device name for use as database filename."""
+    sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
+    sanitized = sanitized.strip('. ')
+    return sanitized or 'device'
+
+
+def _resolve_db_path() -> Path:
+    """Resolve database path, preferring existing device-named DB files.
+
+    Priority:
+    1. Explicit MC_DB_PATH that is NOT mc-webui.db -> use as-is
+    2. Existing device-named .db file in config dir (most recently modified)
+    3. Existing mc-webui.db (legacy, will be renamed on device connect)
+    4. New mc-webui.db (will be renamed on device connect)
+    """
+    if config.MC_DB_PATH:
+        p = Path(config.MC_DB_PATH)
+        if p.name != 'mc-webui.db':
+            return p
+        db_dir = p.parent
+    else:
+        db_dir = Path(config.MC_CONFIG_DIR)
+
+    # Scan for existing device-named DBs (anything except mc-webui.db)
+    try:
+        existing = sorted(
+            [f for f in db_dir.glob('*.db')
+             if f.name != 'mc-webui.db' and f.is_file()],
+            key=lambda f: f.stat().st_mtime,
+            reverse=True
+        )
+        if existing:
+            logger.info(f"Found device-named database: {existing[0].name}")
+            return existing[0]
+    except OSError:
+        pass
+
+    # Fallback: mc-webui.db (legacy or new install)
+    return db_dir / 'mc-webui.db'
+
+
+def _migrate_db_to_device_name(db, device_name: str):
+    """Rename DB file to match device name if needed.
+
+    Handles three cases:
+    - Current DB already matches device name -> no-op
+    - Target DB exists (different device was here before) -> switch to it
+    - Target DB doesn't exist -> rename current DB files
+    """
+    safe_name = _sanitize_db_name(device_name)
+    current = db.db_path
+    target = current.parent / f"{safe_name}.db"
+
+    if current.resolve() == target.resolve():
+        return
+
+    if target.exists():
+        # Target DB already exists — switch to it
+        db.db_path = target
+        db._init_db()
+        logger.info(f"Switched to existing database: {target.name}")
+        return
+
+    # Checkpoint WAL to merge pending writes before rename
+    try:
+        with db._connect() as conn:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except Exception as e:
+        logger.warning(f"WAL checkpoint before rename: {e}")
+
+    # Rename DB + WAL + SHM files
+    for suffix in ['', '-wal', '-shm']:
+        src = Path(str(current) + suffix)
+        dst = Path(str(target) + suffix)
+        if src.exists():
+            try:
+                src.rename(dst)
+            except OSError as e:
+                logger.error(f"Failed to rename {src.name} -> {dst.name}: {e}")
+                return  # abort migration
+
+    db.db_path = target
+    logger.info(f"Database renamed: {current.name} -> {target.name}")
+
+
 def create_app():
     """Create and configure Flask application"""
     global db, device_manager
@@ -78,12 +167,12 @@ def create_app():
     logging.getLogger().addHandler(log_handler)
     app.log_handler = log_handler
 
-    # v2: Initialize database
-    db = Database(config.db_path)
+    # v2: Initialize database (auto-detect device-named DB or use default)
+    db_path = _resolve_db_path()
+    db = Database(db_path)
     app.db = db
 
     # Migrate settings from .webui_settings.json to DB (one-time)
-    from pathlib import Path
     settings_file = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
     if settings_file.exists() and db.get_setting('manual_add_contacts') is None:
         logger.info("Migrating settings from .webui_settings.json to database...")
@@ -104,23 +193,31 @@ def create_app():
     # Start device connection in background (non-blocking)
     device_manager.start()
 
-    # Update runtime config when device connects, then run v1 migration if needed
+    # Update runtime config when device connects, then run migrations if needed
     def _wait_for_device_name():
         """Wait for device manager to connect and update runtime config."""
         for _ in range(60):  # wait up to 60 seconds
             time.sleep(1)
             if device_manager.is_connected:
-                runtime_config.set_device_name(
-                    device_manager.device_name, "device"
-                )
-                logger.info(f"Device name resolved: {device_manager.device_name}")
+                dev_name = device_manager.device_name
+                runtime_config.set_device_name(dev_name, "device")
+                logger.info(f"Device name resolved: {dev_name}")
+
+                # Rename DB to match device name (mc-webui.db -> {name}.db)
+                _migrate_db_to_device_name(db, dev_name)
+
+                # Ensure device info is stored in current DB
+                if device_manager.self_info:
+                    db.set_device_info(
+                        public_key=device_manager.self_info.get('public_key', ''),
+                        name=dev_name,
+                        self_info=json.dumps(device_manager.self_info, default=str)
+                    )
 
                 # Auto-migrate v1 data if .msgs file exists and DB is empty
                 try:
                     from app.migrate_v1 import should_migrate, migrate_v1_data
-                    from pathlib import Path
                     data_dir = Path(config.MC_CONFIG_DIR)
-                    dev_name = device_manager.device_name
                     if should_migrate(db, data_dir, dev_name):
                         logger.info("v1 .msgs file detected with empty DB — starting migration")
                         result = migrate_v1_data(db, data_dir, dev_name)
@@ -139,7 +236,7 @@ def create_app():
     init_retention_schedule(db=db)
 
     logger.info(f"mc-webui v2 started — transport: {'TCP' if config.use_tcp else 'serial'}")
-    logger.info(f"Database: {config.db_path}")
+    logger.info(f"Database: {db.db_path}")
 
     return app
 

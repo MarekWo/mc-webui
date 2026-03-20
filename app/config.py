@@ -26,7 +26,7 @@ class Config:
     MC_ARCHIVE_RETENTION_DAYS = int(os.getenv('MC_ARCHIVE_RETENTION_DAYS', '7'))
 
     # v2: Database
-    MC_DB_PATH = os.getenv('MC_DB_PATH', '')  # empty = auto: {MC_CONFIG_DIR}/mc-webui.db
+    MC_DB_PATH = os.getenv('MC_DB_PATH', '')  # empty = auto: {MC_CONFIG_DIR}/{device_name}.db
 
     # v2: TCP connection (alternative to serial, e.g. meshcore-proxy)
     MC_TCP_HOST = os.getenv('MC_TCP_HOST', '')  # empty = use serial

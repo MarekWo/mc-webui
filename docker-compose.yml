@@ -18,7 +18,6 @@ services:
       - MC_SERIAL_PORT=${MC_SERIAL_PORT:-auto}
       - MC_DEVICE_NAME=${MC_DEVICE_NAME:-MeshCore}
       - MC_CONFIG_DIR=/data
-      - MC_DB_PATH=/data/mc-webui.db
       - MC_TCP_HOST=${MC_TCP_HOST:-}
       - MC_TCP_PORT=${MC_TCP_PORT:-5555}
       - MC_BACKUP_ENABLED=${MC_BACKUP_ENABLED:-true}
