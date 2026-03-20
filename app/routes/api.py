@@ -3871,3 +3871,50 @@ def download_backup():
         as_attachment=True,
         download_name=filename
     )
+
+
+# =============================================================================
+# System Log API
+# =============================================================================
+
+@api_bp.route('/logs', methods=['GET'])
+def get_logs_api():
+    """
+    Get log entries from in-memory ring buffer.
+
+    Query parameters:
+        level: Minimum log level (DEBUG, INFO, WARNING, ERROR)
+        logger: Logger name prefix filter
+        search: Text search in message (case-insensitive)
+        limit: Max entries to return (default 500)
+
+    Returns:
+        JSON with log entries and available loggers
+    """
+    try:
+        log_handler = getattr(current_app, 'log_handler', None)
+        if not log_handler:
+            return jsonify({'success': False, 'error': 'Log handler not available'}), 500
+
+        level = request.args.get('level')
+        logger_filter = request.args.get('logger')
+        search = request.args.get('search')
+        limit = request.args.get('limit', 500, type=int)
+
+        entries = log_handler.get_entries(
+            level=level,
+            logger_filter=logger_filter,
+            search=search,
+            limit=limit
+        )
+
+        return jsonify({
+            'success': True,
+            'entries': entries,
+            'count': len(entries),
+            'loggers': log_handler.get_loggers(),
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting logs: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

@@ -13,6 +13,7 @@ from flask_socketio import SocketIO, emit
 from app.config import config, runtime_config
 from app.database import Database
 from app.device_manager import DeviceManager
+from app.log_handler import MemoryLogHandler
 from app.routes.views import views_bp
 from app.routes.api import api_bp
 from app.version import VERSION_STRING, GIT_BRANCH
@@ -69,6 +70,13 @@ def create_app():
 
     # Initialize SocketIO
     socketio.init_app(app, cors_allowed_origins="*", async_mode='threading')
+
+    # Initialize in-memory log handler (ring buffer + WebSocket broadcast)
+    log_handler = MemoryLogHandler(capacity=2000, socketio=socketio)
+    log_handler.setLevel(logging.DEBUG)
+    log_handler.setFormatter(logging.Formatter('%(message)s'))
+    logging.getLogger().addHandler(log_handler)
+    app.log_handler = log_handler
 
     # v2: Initialize database
     db = Database(config.db_path)
@@ -210,6 +218,21 @@ def handle_send_command(data):
             }, room=sid, namespace='/console')
 
     socketio.start_background_task(execute_and_respond)
+
+
+# ============================================================
+# WebSocket handlers for System Log viewer
+# ============================================================
+
+@socketio.on('connect', namespace='/logs')
+def handle_logs_connect():
+    """Handle log viewer WebSocket connection."""
+    logger.debug("Log viewer WebSocket client connected")
+
+
+@socketio.on('disconnect', namespace='/logs')
+def handle_logs_disconnect():
+    logger.debug("Log viewer WebSocket client disconnected")
 
 
 def _parse_time_arg(value: str) -> int:

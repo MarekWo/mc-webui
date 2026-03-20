@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>System Log - mc-webui</title>
+
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/favicon-16x16.png') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <!-- Bootstrap 5 CSS (local) -->
+    <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+    <!-- Bootstrap Icons (local) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            background-color: #1a1a2e;
+        }
+
+        .log-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .log-header {
+            background-color: #16213e;
+            border-bottom: 1px solid #0f3460;
+            padding: 0.5rem 1rem;
+            flex-shrink: 0;
+        }
+
+        .log-filters {
+            background-color: #16213e;
+            border-bottom: 1px solid #0f3460;
+            padding: 0.5rem 1rem;
+            flex-shrink: 0;
+        }
+
+        .log-entries {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+            background-color: #1a1a2e;
+            min-height: 0;
+            font-family: 'Courier New', Consolas, monospace;
+            font-size: 0.82rem;
+            line-height: 1.4;
+        }
+
+        .log-line {
+            padding: 1px 4px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+
+        .log-line:hover {
+            background-color: rgba(255,255,255,0.05);
+        }
+
+        .log-ts { color: #6c757d; }
+        .log-logger { color: #4ecdc4; }
+
+        .log-level-DEBUG { color: #6c757d; }
+        .log-level-INFO { color: #e0e0e0; }
+        .log-level-WARNING { color: #ffd93d; }
+        .log-level-ERROR { color: #ff6b6b; font-weight: bold; }
+        .log-level-CRITICAL { color: #ff3333; font-weight: bold; background-color: rgba(255,0,0,0.1); }
+
+        .log-msg-DEBUG { color: #888; }
+        .log-msg-INFO { color: #c8c8c8; }
+        .log-msg-WARNING { color: #e8d44d; }
+        .log-msg-ERROR { color: #ff8888; }
+        .log-msg-CRITICAL { color: #ff6666; }
+
+        /* Filter controls */
+        .filter-select, .filter-input {
+            background-color: #0f3460;
+            border: 1px solid #1a1a2e;
+            color: #e0e0e0;
+            font-size: 0.82rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .filter-select:focus, .filter-input:focus {
+            background-color: #0f3460;
+            border-color: #4ecdc4;
+            color: #e0e0e0;
+            box-shadow: 0 0 0 0.15rem rgba(78, 205, 196, 0.25);
+        }
+        .filter-select option {
+            background-color: #16213e;
+        }
+
+        .btn-log {
+            background-color: #0f3460;
+            border: 1px solid #1a1a2e;
+            color: #4ecdc4;
+            font-size: 0.82rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .btn-log:hover, .btn-log:focus {
+            background-color: #1a1a4e;
+            border-color: #4ecdc4;
+            color: #4ecdc4;
+        }
+        .btn-log.active {
+            background-color: #4ecdc4;
+            color: #1a1a2e;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-indicator.live { background-color: #00ff88; }
+        .status-indicator.paused { background-color: #ffd93d; }
+        .status-indicator.disconnected { background-color: #ff6b6b; }
+
+        .log-count {
+            color: #6c757d;
+            font-size: 0.75rem;
+        }
+
+        /* Highlight search matches */
+        mark {
+            background-color: rgba(255, 217, 61, 0.3);
+            color: inherit;
+            padding: 0;
+        }
+
+        @media (max-width: 576px) {
+            .log-header { padding: 0.4rem 0.5rem; }
+            .log-filters { padding: 0.4rem 0.5rem; }
+            .log-entries { font-size: 0.75rem; padding: 0.25rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="log-container">
+        <!-- Header -->
+        <div class="log-header d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <a href="/" class="btn btn-sm btn-log" title="Back to chat">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <h6 class="mb-0 text-light">System Log</h6>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="log-count" id="logCount">0 entries</span>
+                <span class="status-indicator" id="statusDot"></span>
+                <button class="btn btn-sm btn-log" id="pauseBtn" title="Pause/Resume">
+                    <i class="bi bi-pause-fill" id="pauseIcon"></i>
+                </button>
+                <button class="btn btn-sm btn-log" id="clearBtn" title="Clear display">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="log-filters">
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <select class="form-select form-select-sm filter-select" id="levelFilter" style="width: auto; min-width: 90px;">
+                    <option value="">All levels</option>
+                    <option value="DEBUG">DEBUG</option>
+                    <option value="INFO" selected>INFO</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="ERROR">ERROR</option>
+                </select>
+                <select class="form-select form-select-sm filter-select" id="loggerFilter" style="width: auto; min-width: 120px;">
+                    <option value="">All modules</option>
+                </select>
+                <input type="text" class="form-control form-control-sm filter-input" id="searchFilter"
+                       placeholder="Search..." style="width: auto; min-width: 150px; flex: 1;">
+                <button class="btn btn-sm btn-log" id="resetFilters" title="Reset filters">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Log entries -->
+        <div class="log-entries" id="logEntries">
+            <div class="text-muted text-center py-3" id="loadingMsg">Loading logs...</div>
+        </div>
+    </div>
+
+    <!-- Socket.IO client -->
+    <script src="{{ url_for('static', filename='vendor/socket.io/socket.io.min.js') }}"></script>
+    <!-- Bootstrap JS Bundle (local) -->
+    <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <!-- Log Viewer JS -->
+    <script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+</body>
+</html>

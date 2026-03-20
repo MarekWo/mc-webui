@@ -85,6 +85,12 @@ def console():
     )
 
 
+@views_bp.route('/logs')
+def logs():
+    """System log viewer - real-time log streaming with filters."""
+    return render_template('logs.html')
+
+
 @views_bp.route('/health')
 def health():
     """
