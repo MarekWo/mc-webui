@@ -1082,12 +1082,15 @@ function updateProtectionUI(publicKey, isProtected, buttonEl) {
         if (lockIcon) lockIcon.remove();
     }
 
-    // Enable/disable delete button
-    const deleteBtn = cardEl.querySelector('.btn-outline-danger');
-    if (deleteBtn) {
-        deleteBtn.disabled = isProtected;
-        deleteBtn.title = isProtected ? 'Cannot delete protected contact' : '';
-    }
+    // Enable/disable delete, ignore, and block buttons based on protection
+    cardEl.querySelectorAll('button').forEach(btn => {
+        const icon = btn.querySelector('i');
+        if (!icon) return;
+        if (icon.classList.contains('bi-trash') || icon.classList.contains('bi-eye-slash') || icon.classList.contains('bi-slash-circle')) {
+            btn.disabled = isProtected;
+            btn.title = isProtected ? 'Protected contact' : '';
+        }
+    });
 }
 
 async function toggleContactIgnore(publicKey, ignored) {
@@ -2335,12 +2338,20 @@ function createExistingContactCard(contact, index) {
         ignoreBtn.className = 'btn btn-sm btn-outline-secondary';
         ignoreBtn.innerHTML = '<i class="bi bi-eye-slash"></i> <span class="btn-label">Ignore</span>';
         ignoreBtn.onclick = () => toggleContactIgnore(contact.public_key, true);
+        if (isProtected) {
+            ignoreBtn.disabled = true;
+            ignoreBtn.title = 'Cannot ignore protected contact';
+        }
         actionsDiv.appendChild(ignoreBtn);
 
         const blockBtn = document.createElement('button');
         blockBtn.className = 'btn btn-sm btn-outline-danger';
         blockBtn.innerHTML = '<i class="bi bi-slash-circle"></i> <span class="btn-label">Block</span>';
         blockBtn.onclick = () => toggleContactBlock(contact.public_key, true);
+        if (isProtected) {
+            blockBtn.disabled = true;
+            blockBtn.title = 'Cannot block protected contact';
+        }
         actionsDiv.appendChild(blockBtn);
     }
 

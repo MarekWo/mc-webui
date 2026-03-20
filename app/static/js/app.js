@@ -23,6 +23,7 @@ let markersGroup = null;
 let contactsGeoCache = {};  // { 'contactName': { lat, lon }, ... }
 let contactsPubkeyMap = {};  // { 'contactName': 'full_pubkey', ... }
 let blockedContactNames = new Set();  // Names of blocked contacts
+let protectedContactPubkeys = new Set();  // Pubkeys of protected contacts
 let allContactsWithGps = [];  // Device contacts for map filtering
 let allCachedContactsWithGps = [];  // Cache-only contacts for map
 let _selfInfo = null;  // Own device info (for map marker)
@@ -372,6 +373,23 @@ async function loadBlockedNames() {
     }
 }
 
+async function loadProtectedPubkeys() {
+    try {
+        const resp = await fetch('/api/contacts/protected');
+        const data = await resp.json();
+        if (data.success) {
+            protectedContactPubkeys = new Set((data.protected_contacts || []).map(pk => pk.toLowerCase()));
+        }
+    } catch (err) {
+        console.error('Error loading protected contacts:', err);
+    }
+}
+
+function isContactProtectedByName(senderName) {
+    const pubkey = contactsPubkeyMap[senderName];
+    return pubkey && protectedContactPubkeys.has(pubkey.toLowerCase());
+}
+
 // Initialize on page load
 /**
  * Connect to SocketIO /chat namespace for real-time message updates
@@ -486,6 +504,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const messagesPromise = loadMessages();
     const geoCachePromise = loadContactsGeoCache();  // Non-blocking, Map buttons update when ready
     const blockedPromise = loadBlockedNames();  // Non-blocking, for real-time filtering
+    const protectedPromise = loadProtectedPubkeys();  // Non-blocking, for disabling ignore/block on protected
 
     // Also start archive list loading in parallel
     loadArchiveList();
@@ -1187,14 +1206,16 @@ function createMessageElement(msg) {
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
-                        ${contactsPubkeyMap[msg.sender] ? `
+                        ${contactsPubkeyMap[msg.sender] && !isContactProtectedByName(msg.sender) ? `
                             <button class="btn btn-outline-secondary btn-msg-action" onclick="ignoreContactFromChat('${contactsPubkeyMap[msg.sender]}')" title="Ignore ${escapeHtml(msg.sender)}">
                                 <i class="bi bi-eye-slash"></i>
                             </button>
                         ` : ''}
+                        ${!isContactProtectedByName(msg.sender) ? `
                         <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat('${escapeHtml(msg.sender)}')" title="Block ${escapeHtml(msg.sender)}">
                             <i class="bi bi-slash-circle"></i>
                         </button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
