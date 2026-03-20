@@ -26,42 +26,34 @@
     <div class="mb-3">
         <div class="card">
             <div class="card-body p-3">
-                <h6 class="mb-3"><i class="bi bi-funnel"></i> Filters</h6>
-
-                <!-- Name Search -->
-                <div class="mb-3">
-                    <input type="text" class="form-control" id="pendingSearchInput"
-                           placeholder="Search by name or public key...">
-                </div>
+                <h6 class="mb-2">
+                    <i class="bi bi-funnel"></i> Filters
+                    <i class="bi bi-info-circle text-muted ms-1" role="button" tabindex="0"
+                       data-bs-toggle="tooltip" data-bs-placement="right"
+                       title="Filter contacts by type or name, then approve or ignore them in bulk."></i>
+                </h6>
 
                 <!-- Type Filter Badges -->
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Contact Types:</label>
-                    <div class="d-flex flex-wrap gap-2">
-                        <span class="type-filter-badge active" data-type="CLI" id="typeFilterCLI">CLI</span>
-                        <span class="type-filter-badge" data-type="REP" id="typeFilterREP">REP</span>
-                        <span class="type-filter-badge" data-type="ROOM" id="typeFilterROOM">ROOM</span>
-                        <span class="type-filter-badge" data-type="SENS" id="typeFilterSENS">SENS</span>
-                    </div>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <span class="type-filter-badge active" data-type="CLI" id="typeFilterCLI">CLI</span>
+                    <span class="type-filter-badge" data-type="REP" id="typeFilterREP">REP</span>
+                    <span class="type-filter-badge" data-type="ROOM" id="typeFilterROOM">ROOM</span>
+                    <span class="type-filter-badge" data-type="SENS" id="typeFilterSENS">SENS</span>
                 </div>
 
-                <!-- Batch Approval Button -->
+                <!-- Search + Batch Action Buttons -->
                 <div class="d-flex gap-2">
-                    <button class="btn btn-success flex-grow-1" id="addFilteredBtn">
-                        <i class="bi bi-check-circle-fill"></i> Add Filtered
-                        <span class="badge bg-light text-dark ms-2" id="filteredCountBadge">0</span>
+                    <input type="text" class="form-control form-control-sm" id="pendingSearchInput"
+                           placeholder="Search..." style="min-width: 0;">
+                    <button class="btn btn-success btn-sm flex-shrink-0" id="addFilteredBtn">
+                        <i class="bi bi-check-circle-fill"></i> Approve
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm flex-shrink-0" id="ignoreFilteredBtn">
+                        <i class="bi bi-eye-slash"></i> Ignore
                     </button>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Page Description -->
-    <div class="mb-3">
-        <p class="text-muted small mb-0">
-            <i class="bi bi-info-circle"></i>
-            Approve or reject contacts waiting for manual approval.
-        </p>
     </div>
 
     <!-- Loading State -->
@@ -117,6 +109,36 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-success" id="confirmBatchApprovalBtn">
                     <i class="bi bi-check-circle-fill"></i> Approve All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Batch Ignore Confirmation Modal -->
+<div class="modal fade" id="batchIgnoreModal" tabindex="-1" aria-labelledby="batchIgnoreModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title" id="batchIgnoreModalLabel">
+                    <i class="bi bi-eye-slash"></i> Confirm Batch Ignore
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">You are about to ignore <strong id="batchIgnoreCount">0</strong> contacts:</p>
+
+                <div class="list-group mb-3" id="batchIgnoreList" style="max-height: 300px; overflow-y: auto;">
+                </div>
+
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-info-circle"></i> Ignored contacts will not trigger new pending requests. You can unignore them later from the Existing Contacts page.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary" id="confirmBatchIgnoreBtn">
+                    <i class="bi bi-eye-slash"></i> Ignore All
                 </button>
             </div>
         </div>

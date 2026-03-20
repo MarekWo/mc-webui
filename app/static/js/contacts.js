@@ -794,6 +794,14 @@ function attachPendingEventListeners() {
         });
     }
 
+    // Ignore Filtered button - show batch ignore modal
+    const ignoreFilteredBtn = document.getElementById('ignoreFilteredBtn');
+    if (ignoreFilteredBtn) {
+        ignoreFilteredBtn.addEventListener('click', () => {
+            showBatchIgnoreModal();
+        });
+    }
+
     // Confirm Batch Approval button - approve all filtered contacts
     const confirmBatchBtn = document.getElementById('confirmBatchApprovalBtn');
     if (confirmBatchBtn) {
@@ -801,6 +809,19 @@ function attachPendingEventListeners() {
             batchApproveContacts();
         });
     }
+
+    // Confirm Batch Ignore button - ignore all filtered contacts
+    const confirmBatchIgnoreBtn = document.getElementById('confirmBatchIgnoreBtn');
+    if (confirmBatchIgnoreBtn) {
+        confirmBatchIgnoreBtn.addEventListener('click', () => {
+            batchIgnoreContacts();
+        });
+    }
+
+    // Initialize Bootstrap tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        new bootstrap.Tooltip(el);
+    });
 }
 
 // =============================================================================
@@ -1500,12 +1521,6 @@ function applyPendingFilters() {
         return true;
     });
 
-    // Update filtered count badge
-    const countBadge = document.getElementById('filteredCountBadge');
-    if (countBadge) {
-        countBadge.textContent = filteredPendingContacts.length;
-    }
-
     // Render filtered list
     renderPendingList(filteredPendingContacts);
 }
@@ -1628,6 +1643,106 @@ async function batchApproveContacts() {
     if (confirmBtn) {
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Approve All';
+    }
+}
+
+function showBatchIgnoreModal() {
+    if (filteredPendingContacts.length === 0) {
+        showToast('No contacts to ignore', 'warning');
+        return;
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('batchIgnoreModal'));
+    const countEl = document.getElementById('batchIgnoreCount');
+    const listEl = document.getElementById('batchIgnoreList');
+
+    if (countEl) countEl.textContent = filteredPendingContacts.length;
+
+    if (listEl) {
+        listEl.innerHTML = '';
+        filteredPendingContacts.forEach(contact => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = contact.name;
+
+            const typeBadge = document.createElement('span');
+            typeBadge.className = 'badge';
+            typeBadge.textContent = contact.type_label;
+
+            switch (contact.type_label) {
+                case 'CLI': typeBadge.classList.add('bg-primary'); break;
+                case 'REP': typeBadge.classList.add('bg-success'); break;
+                case 'ROOM': typeBadge.classList.add('bg-info'); break;
+                case 'SENS': typeBadge.classList.add('bg-warning', 'text-dark'); break;
+                default: typeBadge.classList.add('bg-secondary');
+            }
+
+            item.appendChild(nameSpan);
+            item.appendChild(typeBadge);
+            listEl.appendChild(item);
+        });
+    }
+
+    modal.show();
+}
+
+async function batchIgnoreContacts() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('batchIgnoreModal'));
+    const confirmBtn = document.getElementById('confirmBatchIgnoreBtn');
+
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    let successCount = 0;
+    let failedCount = 0;
+    const failures = [];
+
+    for (let i = 0; i < filteredPendingContacts.length; i++) {
+        const contact = filteredPendingContacts[i];
+
+        if (confirmBtn) {
+            confirmBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> Ignoring ${i + 1}/${filteredPendingContacts.length}...`;
+        }
+
+        try {
+            const response = await fetch(`/api/contacts/${encodeURIComponent(contact.public_key)}/ignore`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ignored: true })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                successCount++;
+            } else {
+                failedCount++;
+                failures.push({ name: contact.name, error: data.error });
+            }
+        } catch (error) {
+            failedCount++;
+            failures.push({ name: contact.name, error: error.message });
+        }
+    }
+
+    if (modal) modal.hide();
+
+    if (successCount > 0 && failedCount === 0) {
+        showToast(`Successfully ignored ${successCount} contact${successCount !== 1 ? 's' : ''}`, 'info');
+    } else if (successCount > 0 && failedCount > 0) {
+        showToast(`Ignored ${successCount}, failed ${failedCount}. Check console for details.`, 'warning');
+        console.error('Failed ignores:', failures);
+    } else {
+        showToast(`Failed to ignore contacts. Check console for details.`, 'danger');
+        console.error('Failed ignores:', failures);
+    }
+
+    loadPendingContacts();
+
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Ignore All';
     }
 }
 
