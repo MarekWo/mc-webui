@@ -1928,8 +1928,8 @@ function applySortAndFilters() {
         if (selectedSource === 'CACHE' && contact.on_device) return false;
         if (selectedSource === 'IGNORED' && !contact.is_ignored) return false;
         if (selectedSource === 'BLOCKED' && !contact.is_blocked) return false;
-        // Hide ignored/blocked from ALL/DEVICE/CACHE views
-        if (selectedSource !== 'IGNORED' && selectedSource !== 'BLOCKED') {
+        // Hide ignored/blocked from DEVICE/CACHE views (but show in ALL)
+        if (selectedSource !== 'ALL' && selectedSource !== 'IGNORED' && selectedSource !== 'BLOCKED') {
             if (contact.is_ignored || contact.is_blocked) return false;
         }
 
