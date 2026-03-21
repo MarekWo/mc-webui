@@ -245,9 +245,26 @@ main {
     font-size: 1rem;
 }
 
+/* Navbar touch targets - larger for mobile */
+.navbar-touch-btn {
+    min-width: 40px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    padding: 0.35rem 0.6rem;
+}
+
+.navbar-touch-select {
+    min-height: 40px;
+    font-size: 1rem;
+    padding: 0.35rem 2rem 0.35rem 0.6rem;
+}
+
 /* Offcanvas menu styling */
 .offcanvas {
-    width: 280px !important;
+    width: 300px !important;
 }
 
 .offcanvas-body .list-group-item {
