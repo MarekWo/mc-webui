@@ -443,26 +443,6 @@ def check_dm_delivery(ack_codes: list) -> Tuple[bool, Dict, str]:
         return False, {}, str(e)
 
 
-def get_retry_ack_codes() -> set:
-    """Get retry ACK codes. Simplified in v2."""
-    return set()
-
-
-def get_auto_retry_config() -> Tuple[bool, Dict]:
-    """Get auto-retry config. Using meshcore library's built-in retry."""
-    return True, {
-        'enabled': True,
-        'max_attempts': 3,
-        'max_flood': 2,
-        'note': 'v2 uses meshcore library built-in retry (send_msg_with_retry)'
-    }
-
-
-def set_auto_retry_config(enabled=None, max_attempts=None, max_flood=None) -> Tuple[bool, Dict]:
-    """Set auto-retry config. Stub in v2."""
-    return get_auto_retry_config()
-
-
 # =============================================================================
 # Device Settings
 # =============================================================================

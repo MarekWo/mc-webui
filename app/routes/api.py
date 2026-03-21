@@ -257,6 +257,42 @@ def save_retention_settings(retention_settings: dict) -> bool:
         return False
 
 
+# =============================================================================
+# DM Retry Settings
+# =============================================================================
+
+DM_RETRY_DEFAULTS = {
+    'direct_max_retries': 3,       # DIRECT retries before switching to FLOOD
+    'direct_flood_retries': 1,     # FLOOD retries after DIRECT exhausted
+    'flood_max_retries': 3,        # FLOOD retries when no path known
+    'direct_interval': 30,         # seconds between DIRECT retries
+    'flood_interval': 60,          # seconds between FLOOD retries
+    'grace_period': 60,            # seconds to wait for late ACKs after exhaustion
+}
+
+
+def get_dm_retry_settings() -> dict:
+    """Get DM retry settings from database."""
+    db = _get_db()
+    if db:
+        saved = db.get_setting_json('dm_retry_settings', {})
+        return {**DM_RETRY_DEFAULTS, **saved}
+    return dict(DM_RETRY_DEFAULTS)
+
+
+def save_dm_retry_settings(settings: dict) -> bool:
+    """Save DM retry settings to database."""
+    db = _get_db()
+    if not db:
+        return False
+    try:
+        db.set_setting_json('dm_retry_settings', settings)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save DM retry settings: {e}")
+        return False
+
+
 @api_bp.route('/messages', methods=['GET'])
 def get_messages():
     """
@@ -2071,32 +2107,37 @@ def send_dm_message():
 
 @api_bp.route('/dm/auto_retry', methods=['GET'])
 def get_auto_retry_config():
-    """Get auto-retry configuration."""
+    """Get DM retry settings."""
     try:
-        success, data = cli.get_auto_retry_config()
-        if success:
-            return jsonify(data), 200
-        return jsonify({'success': False, 'error': 'Failed to get config'}), 500
+        return jsonify(get_dm_retry_settings()), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @api_bp.route('/dm/auto_retry', methods=['POST'])
 def set_auto_retry_config():
-    """Update auto-retry configuration."""
+    """Update DM retry settings."""
     try:
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': 'Missing JSON body'}), 400
 
-        success, result = cli.set_auto_retry_config(
-            enabled=data.get('enabled'),
-            max_attempts=data.get('max_attempts'),
-            max_flood=data.get('max_flood')
-        )
-        if success:
-            return jsonify(result), 200
-        return jsonify({'success': False, 'error': 'Failed to update config'}), 500
+        # Validate numeric fields
+        valid_keys = set(DM_RETRY_DEFAULTS.keys())
+        settings = {}
+        for key in valid_keys:
+            if key in data:
+                val = data[key]
+                if not isinstance(val, (int, float)) or val < 0:
+                    return jsonify({'success': False, 'error': f'Invalid value for {key}'}), 400
+                settings[key] = int(val)
+
+        if not settings:
+            return jsonify({'success': False, 'error': 'No valid settings provided'}), 400
+
+        if save_dm_retry_settings(settings):
+            return jsonify({**get_dm_retry_settings(), 'success': True}), 200
+        return jsonify({'success': False, 'error': 'Failed to save settings'}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

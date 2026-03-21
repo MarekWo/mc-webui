@@ -1089,21 +1089,32 @@ class DeviceManager:
         """Background retry with same timestamp for dedup on receiver.
 
         Strategy depends on whether contact has a known DIRECT path:
-        - DIRECT path known: up to 10 attempts (8 DIRECT + 2 FLOOD), 30s wait
-        - No path (FLOOD):   up to 3 attempts, 60s wait
+        - DIRECT path known: direct_max_retries DIRECT + direct_flood_retries FLOOD
+        - No path (FLOOD):   flood_max_retries attempts
+        Settings loaded from app_settings DB table (key: dm_retry_settings).
         """
         from meshcore.events import EventType
+
+        # Load configurable retry settings from DB
+        _defaults = {
+            'direct_max_retries': 3, 'direct_flood_retries': 1,
+            'flood_max_retries': 3, 'direct_interval': 30,
+            'flood_interval': 60, 'grace_period': 60,
+        }
+        saved = self.db.get_setting_json('dm_retry_settings', {})
+        cfg = {**_defaults, **(saved or {})}
 
         has_path = contact.get('out_path_len', -1) > 0
 
         if has_path:
-            max_attempts = 10
-            flood_at = 8       # reset path to flood at this attempt
-            min_wait = 30.0    # seconds between DIRECT attempts
+            # +1 counts the initial send
+            max_attempts = cfg['direct_max_retries'] + cfg['direct_flood_retries'] + 1
+            flood_at = cfg['direct_max_retries'] + 1
+            min_wait = float(cfg['direct_interval'])
         else:
-            max_attempts = 3
-            flood_at = None    # already flood, no reset needed
-            min_wait = 60.0    # seconds between FLOOD attempts
+            max_attempts = cfg['flood_max_retries'] + 1
+            flood_at = None
+            min_wait = float(cfg['flood_interval'])
 
         wait_s = max(suggested_timeout / 1000 * 1.2, min_wait)
         mode = "DIRECT" if has_path else "FLOOD"
@@ -1124,6 +1135,9 @@ class DeviceManager:
         # Retry with same timestamp, incrementing attempt
         for attempt in range(1, max_attempts):
             if flood_at and attempt >= flood_at:
+                # Switch to FLOOD mode: reset path and use flood interval
+                min_wait = float(cfg['flood_interval'])
+                wait_s = max(suggested_timeout / 1000 * 1.2, min_wait)
                 try:
                     await self.mc.commands.reset_path(contact)
                     logger.info(f"DM retry {attempt}: reset path to flood")
@@ -1161,7 +1175,7 @@ class DeviceManager:
         logger.warning(f"DM retry exhausted ({max_attempts} {mode} attempts) for dm_id={dm_id}")
         # Keep pending acks for grace period so late ACKs can still be matched
         self._retry_tasks.pop(dm_id, None)
-        await asyncio.sleep(60)
+        await asyncio.sleep(cfg['grace_period'])
         stale = [k for k, v in self._pending_acks.items() if v == dm_id]
         if stale:
             for k in stale:

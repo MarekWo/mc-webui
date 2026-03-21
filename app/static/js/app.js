@@ -1637,6 +1637,95 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('statsTabBtn')?.addEventListener('shown.bs.tab', loadDeviceStats);
 });
 
+// =============================================================================
+// Settings Modal
+// =============================================================================
+
+const DM_RETRY_DEFAULTS = {
+    direct_max_retries: 3,
+    direct_flood_retries: 1,
+    flood_max_retries: 3,
+    direct_interval: 30,
+    flood_interval: 60,
+    grace_period: 60
+};
+
+const DM_RETRY_FIELDS = {
+    direct_max_retries: 'settDirectMaxRetries',
+    direct_flood_retries: 'settDirectFloodRetries',
+    flood_max_retries: 'settFloodMaxRetries',
+    direct_interval: 'settDirectInterval',
+    flood_interval: 'settFloodInterval',
+    grace_period: 'settGracePeriod'
+};
+
+function populateDmRetryForm(data) {
+    for (const [key, elId] of Object.entries(DM_RETRY_FIELDS)) {
+        const el = document.getElementById(elId);
+        if (el) el.value = data[key] ?? DM_RETRY_DEFAULTS[key];
+    }
+}
+
+async function loadDmRetrySettings() {
+    try {
+        const resp = await fetch('/api/dm/auto_retry');
+        if (resp.ok) {
+            const data = await resp.json();
+            populateDmRetryForm(data);
+        }
+    } catch (e) {
+        console.error('Failed to load DM retry settings:', e);
+    }
+}
+
+async function saveDmRetrySettings() {
+    const payload = {};
+    for (const [key, elId] of Object.entries(DM_RETRY_FIELDS)) {
+        const el = document.getElementById(elId);
+        const val = parseInt(el.value, 10);
+        if (isNaN(val) || val < parseInt(el.min) || val > parseInt(el.max)) {
+            showNotification(`Invalid value for ${el.previousElementSibling?.textContent || key}`, 'danger');
+            el.focus();
+            return;
+        }
+        payload[key] = val;
+    }
+    try {
+        const resp = await fetch('/api/dm/auto_retry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+            showNotification('Settings saved', 'success');
+        } else {
+            const err = await resp.json();
+            showNotification(err.error || 'Failed to save', 'danger');
+        }
+    } catch (e) {
+        showNotification('Failed to save settings', 'danger');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal) {
+        settingsModal.addEventListener('show.bs.modal', loadDmRetrySettings);
+    }
+
+    const dmRetryForm = document.getElementById('dmRetrySettingsForm');
+    if (dmRetryForm) {
+        dmRetryForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveDmRetrySettings();
+        });
+    }
+
+    document.getElementById('settingsResetBtn')?.addEventListener('click', () => {
+        populateDmRetryForm(DM_RETRY_DEFAULTS);
+    });
+});
+
 /**
  * Cleanup inactive contacts
  */
