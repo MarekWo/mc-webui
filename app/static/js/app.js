@@ -1711,6 +1711,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsModal = document.getElementById('settingsModal');
     if (settingsModal) {
         settingsModal.addEventListener('show.bs.modal', loadDmRetrySettings);
+        settingsModal.addEventListener('shown.bs.modal', () => {
+            settingsModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+                bootstrap.Tooltip.getOrCreateInstance(el);
+            });
+        });
     }
 
     const dmRetryForm = document.getElementById('dmRetrySettingsForm');

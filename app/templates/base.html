@@ -354,40 +354,46 @@
                             <div id="settingsMessagesContent">
                                 <form id="dmRetrySettingsForm">
                                     <h6 class="text-muted mb-2">When path is known (DIRECT)</h6>
-                                    <div class="mb-2">
-                                        <label class="form-label mb-0 small">Direct retries</label>
-                                        <input type="number" class="form-control form-control-sm" id="settDirectMaxRetries" min="0" max="20" value="3">
-                                        <div class="form-text">Attempts via known path before switching to flood</div>
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label mb-0 small">Flood retries after direct</label>
-                                        <input type="number" class="form-control form-control-sm" id="settDirectFloodRetries" min="0" max="5" value="1">
-                                        <div class="form-text">Flood attempts after direct retries exhausted</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label mb-0 small">Interval (seconds)</label>
-                                        <input type="number" class="form-control form-control-sm" id="settDirectInterval" min="5" max="300" value="30">
-                                        <div class="form-text">Wait between direct retries</div>
-                                    </div>
+                                    <table class="table table-sm table-borderless mb-3 align-middle">
+                                        <tbody>
+                                            <tr>
+                                                <td class="ps-0">Direct retries <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Attempts via known path before switching to flood"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settDirectMaxRetries" min="0" max="20" value="3"></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="ps-0">Flood retries <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Flood attempts after direct retries exhausted"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="pe-0"><input type="number" class="form-control form-control-sm" id="settDirectFloodRetries" min="0" max="5" value="1"></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="ps-0">Interval (s) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Seconds to wait between direct retries"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="pe-0"><input type="number" class="form-control form-control-sm" id="settDirectInterval" min="5" max="300" value="30"></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
 
                                     <h6 class="text-muted mb-2">When no path (FLOOD)</h6>
-                                    <div class="mb-2">
-                                        <label class="form-label mb-0 small">Max retries</label>
-                                        <input type="number" class="form-control form-control-sm" id="settFloodMaxRetries" min="0" max="10" value="3">
-                                        <div class="form-text">Flood attempts when no path is known</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label mb-0 small">Interval (seconds)</label>
-                                        <input type="number" class="form-control form-control-sm" id="settFloodInterval" min="5" max="300" value="60">
-                                        <div class="form-text">Wait between flood retries</div>
-                                    </div>
+                                    <table class="table table-sm table-borderless mb-3 align-middle">
+                                        <tbody>
+                                            <tr>
+                                                <td class="ps-0">Max retries <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Flood attempts when no path is known"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settFloodMaxRetries" min="0" max="10" value="3"></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="ps-0">Interval (s) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Seconds to wait between flood retries"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="pe-0"><input type="number" class="form-control form-control-sm" id="settFloodInterval" min="5" max="300" value="60"></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
 
                                     <h6 class="text-muted mb-2">Other</h6>
-                                    <div class="mb-3">
-                                        <label class="form-label mb-0 small">Grace period (seconds)</label>
-                                        <input type="number" class="form-control form-control-sm" id="settGracePeriod" min="10" max="300" value="60">
-                                        <div class="form-text">Wait for late ACKs after all retries exhausted</div>
-                                    </div>
+                                    <table class="table table-sm table-borderless mb-3 align-middle">
+                                        <tbody>
+                                            <tr>
+                                                <td class="ps-0">Grace period (s) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Wait for late ACKs after all retries exhausted"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settGracePeriod" min="10" max="300" value="60"></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
 
                                     <div class="d-flex gap-2">
                                         <button type="submit" class="btn btn-primary btn-sm">Save</button>
