@@ -6,7 +6,7 @@ so @mention autocomplete works even for removed contacts.
 
 File format: JSONL ({device_name}.contacts_cache.jsonl)
 Each line: {"public_key": "...", "name": "...", "first_seen": ts, "last_seen": ts,
-            "source": "advert"|"device", "lat": float, "lon": float, "type_label": "CLI"|"REP"|...}
+            "source": "advert"|"device", "lat": float, "lon": float, "type_label": "COM"|"REP"|...}
 """
 
 import json
@@ -63,6 +63,9 @@ def load_cache() -> dict:
                         entry = json.loads(line)
                         pk = entry.get('public_key', '').lower()
                         if pk:
+                            # Migrate old "CLI" label to "COM"
+                            if entry.get('type_label') == 'CLI':
+                                entry['type_label'] = 'COM'
                             _cache[pk] = entry
                     except json.JSONDecodeError:
                         continue
@@ -248,7 +251,7 @@ def scan_new_adverts() -> int:
     return updated
 
 
-_TYPE_LABELS = {1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
+_TYPE_LABELS = {1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
 
 
 def initialize_from_device(contacts_detailed: dict):

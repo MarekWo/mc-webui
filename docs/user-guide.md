@@ -149,7 +149,7 @@ Access the Direct Messages feature:
 1. **Select a recipient** from the dropdown at the top:
    - **Existing conversations** are shown first (with message history)
    - Separator: "--- Available contacts ---"
-   - **All client contacts** from your device (only CLI type, no repeaters/rooms)
+   - **All companion contacts** from your device (only COM type, no repeaters/rooms)
    - You can start a new conversation with anyone in your contacts list
 2. Type your message in the input field (max 140 bytes, same as channels)
 3. Use the emoji picker button to insert emojis
@@ -162,7 +162,7 @@ Access the Direct Messages feature:
 - When you return to the DM page, it automatically opens the last conversation you were viewing
 - This works similarly to how the main page remembers your selected channel
 
-**Note:** Only client contacts (CLI) are shown in the dropdown. Repeaters (REP), rooms (ROOM), and sensors (SENS) are automatically filtered out.
+**Note:** Only companion contacts (COM) are shown in the dropdown. Repeaters (REP), rooms (ROOM), and sensors (SENS) are automatically filtered out.
 
 ### Message Status Indicators
 
@@ -206,8 +206,8 @@ When manual approval is enabled, new contacts appear in the Pending Contacts lis
 
 **View contact details:**
 - Contact name with emoji (if present)
-- Type badge (CLI, REP, ROOM, SENS) with color coding:
-  - CLI (blue): Regular clients
+- Type badge (COM, REP, ROOM, SENS) with color coding:
+  - COM (blue): Companions (clients)
   - REP (green): Repeaters
   - ROOM (cyan): Room servers
   - SENS (yellow): Sensors
@@ -216,7 +216,7 @@ When manual approval is enabled, new contacts appear in the Pending Contacts lis
 - Map button (when GPS coordinates are available)
 
 **Filter contacts:**
-- By type: Use checkboxes to show only specific contact types (default: CLI only)
+- By type: Use checkboxes to show only specific contact types (default: COM only)
 - By name or key: Search by partial contact name or public key prefix
 
 **Approve contacts:**
@@ -234,7 +234,7 @@ When manual approval is enabled, new contacts appear in the Pending Contacts lis
 
 ### Existing Contacts
 
-The Existing Contacts section displays all contacts currently stored on your device (CLI, REP, ROOM, SENS types).
+The Existing Contacts section displays all contacts currently stored on your device (COM, REP, ROOM, SENS types).
 
 **Features:**
 - **Counter badge** - Shows current contact count vs. 350 limit (MeshCore device max)
@@ -242,7 +242,7 @@ The Existing Contacts section displays all contacts currently stored on your dev
   - Yellow: Warning (300-339 contacts)
   - Red (pulsing): Alarm (≥ 340 contacts)
 - **Search** - Filter contacts by name or public key prefix
-- **Type filter** - Show only specific contact types (All / CLI / REP / ROOM / SENS)
+- **Type filter** - Show only specific contact types (All / COM / REP / ROOM / SENS)
 - **Contact cards** - Display name, type badge, public key prefix, path info, and last seen timestamp
 - **Last Seen** - Shows when each contact was last active with activity indicators:
   - 🟢 **Active** (seen < 5 minutes ago)
@@ -253,7 +253,7 @@ The Existing Contacts section displays all contacts currently stored on your dev
 
 **Managing contacts:**
 1. **Search contacts:** Type in the search box to filter by name or public key prefix
-2. **Filter by type:** Use the type dropdown to show only CLI, REP, ROOM, or SENS
+2. **Filter by type:** Use the type dropdown to show only COM, REP, ROOM, or SENS
 3. **Copy public key:** Click "Copy Key" button to copy the public key prefix to clipboard
 4. **Delete a contact:** Click the "Delete" button (red trash icon) and confirm
 
@@ -286,7 +286,7 @@ The advanced cleanup tool allows you to filter and remove contacts based on mult
 3. Configure filters:
    - **Name Filter:** Enter partial contact name to search (optional)
    - **Advanced Filters** (collapsible):
-     - **Contact Types:** Select which types to include (CLI, REP, ROOM, SENS)
+     - **Contact Types:** Select which types to include (COM, REP, ROOM, SENS)
      - **Date Field:** Choose between "Last Advert" (recommended) or "Last Modified"
      - **Days of Inactivity:** Contacts inactive for more than X days (0 = ignore)
 4. Click **Preview Cleanup** to see matching contacts

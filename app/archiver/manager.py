@@ -296,7 +296,7 @@ def _cleanup_job():
             return
 
         # Convert to list format (same as preview-cleanup endpoint)
-        type_labels = {1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
+        type_labels = {1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
         contacts = []
         for public_key, details in contacts_detailed.items():
             contacts.append({

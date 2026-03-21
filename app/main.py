@@ -365,7 +365,7 @@ def _execute_console_command(args: list) -> str:
 
     elif cmd == 'contacts':
         # Show device-only contacts with path info (like meshcore-cli)
-        type_names = {0: 'NONE', 1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
+        type_names = {0: 'NONE', 1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
         if not device_manager.mc or not device_manager.mc.contacts:
             return "No contacts on device"
         try:

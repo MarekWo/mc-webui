@@ -19,7 +19,7 @@ This guide explains how to manage a MeshCore repeater device directly from the m
 
     <img src="../images/RPT-Mgmt-03-new-rpt-approve.png" alt="Approve repeater" width="200px">
 
-- Reset your search filter (it is recommended to leave CLI selected only) and return to the main chat view
+- Reset your search filter (it is recommended to leave COM selected only) and return to the main chat view
 
     <img src="../images/RPT-Mgmt-04-back-to-home.png" alt="Return to home" width="200px">
 

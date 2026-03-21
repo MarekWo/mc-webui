@@ -508,7 +508,7 @@ function createDropdownItem(name, conversationId, isUnread, contact) {
     if (contact && contact.type_label) {
         const badge = document.createElement('span');
         badge.className = 'badge';
-        const colors = { CLI: 'bg-primary', REP: 'bg-success', ROOM: 'bg-info', SENS: 'bg-warning' };
+        const colors = { COM: 'bg-primary', REP: 'bg-success', ROOM: 'bg-info', SENS: 'bg-warning' };
         badge.classList.add(colors[contact.type_label] || 'bg-secondary');
         badge.textContent = contact.type_label;
         el.appendChild(badge);
@@ -695,7 +695,7 @@ function populateContactInfoModal() {
     if (contact.type_label) {
         const badge = document.createElement('span');
         badge.className = 'badge';
-        const colors = { CLI: 'bg-primary', REP: 'bg-success', ROOM: 'bg-info', SENS: 'bg-warning' };
+        const colors = { COM: 'bg-primary', REP: 'bg-success', ROOM: 'bg-info', SENS: 'bg-warning' };
         badge.classList.add(colors[contact.type_label] || 'bg-secondary');
         badge.textContent = contact.type_label;
         nameRow.appendChild(badge);

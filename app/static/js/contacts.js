@@ -769,7 +769,7 @@ function attachPendingEventListeners() {
     }
 
     // Type filter badges - toggle on click, save to localStorage and reload
-    ['typeFilterCLI', 'typeFilterREP', 'typeFilterROOM', 'typeFilterSENS'].forEach(id => {
+    ['typeFilterCOM', 'typeFilterREP', 'typeFilterROOM', 'typeFilterSENS'].forEach(id => {
         const badge = document.getElementById(id);
         if (badge) {
             badge.addEventListener('click', () => {
@@ -1154,7 +1154,7 @@ function isContactProtected(publicKey) {
  * This allows the filter to persist across page reloads and be used
  * in different parts of the app (Pending page, Contact Management badge, etc.)
  *
- * @param {Array<number>} types - Array of contact types to filter (1=CLI, 2=REP, 3=ROOM, 4=SENS)
+ * @param {Array<number>} types - Array of contact types to filter (1=COM, 2=REP, 3=ROOM, 4=SENS)
  */
 function savePendingTypeFilter(types) {
     try {
@@ -1168,7 +1168,7 @@ function savePendingTypeFilter(types) {
 /**
  * Load pending contacts type filter from localStorage.
  *
- * @returns {Array<number>} Array of contact types (default: [1] for CLI only)
+ * @returns {Array<number>} Array of contact types (default: [1] for COM only)
  */
 function loadPendingTypeFilter() {
     try {
@@ -1184,17 +1184,17 @@ function loadPendingTypeFilter() {
     } catch (e) {
         console.error('Failed to load pending type filter from localStorage:', e);
     }
-    // Default: CLI only (most common use case)
+    // Default: COM only (most common use case)
     return [1];
 }
 
 /**
  * Set type filter badges based on types array.
- * @param {Array<number>} types - Array of contact types (1=CLI, 2=REP, 3=ROOM, 4=SENS)
+ * @param {Array<number>} types - Array of contact types (1=COM, 2=REP, 3=ROOM, 4=SENS)
  */
 function setTypeFilterBadges(types) {
     const badges = {
-        1: document.getElementById('typeFilterCLI'),
+        1: document.getElementById('typeFilterCOM'),
         2: document.getElementById('typeFilterREP'),
         3: document.getElementById('typeFilterROOM'),
         4: document.getElementById('typeFilterSENS')
@@ -1218,7 +1218,7 @@ function setTypeFilterBadges(types) {
  */
 function getSelectedTypes() {
     const types = [];
-    if (document.getElementById('typeFilterCLI')?.classList.contains('active')) types.push(1);
+    if (document.getElementById('typeFilterCOM')?.classList.contains('active')) types.push(1);
     if (document.getElementById('typeFilterREP')?.classList.contains('active')) types.push(2);
     if (document.getElementById('typeFilterROOM')?.classList.contains('active')) types.push(3);
     if (document.getElementById('typeFilterSENS')?.classList.contains('active')) types.push(4);
@@ -1269,7 +1269,7 @@ async function loadPendingContacts() {
                 if (filteredCountBadge) filteredCountBadge.textContent = '0';
                 filteredPendingContacts = [];
             } else {
-                // Initialize filtered list and apply filters (default: CLI only)
+                // Initialize filtered list and apply filters (default: COM only)
                 filteredPendingContacts = [...pendingContacts];
                 applyPendingFilters();
 
@@ -1338,11 +1338,11 @@ function createContactCard(contact, index) {
 
     const typeBadge = document.createElement('span');
     typeBadge.className = 'badge type-badge';
-    typeBadge.textContent = contact.type_label || 'CLI';
+    typeBadge.textContent = contact.type_label || 'COM';
 
     // Color-code by type (same as existing contacts)
     switch (contact.type_label) {
-        case 'CLI':
+        case 'COM':
             typeBadge.classList.add('bg-primary');
             break;
         case 'REP':
@@ -1441,7 +1441,7 @@ async function approveContact(contact, index) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                public_key: contact.public_key  // ALWAYS use full public_key (works for CLI, ROOM, etc.)
+                public_key: contact.public_key  // ALWAYS use full public_key (works for COM, ROOM, etc.)
             })
         });
 
@@ -1556,7 +1556,7 @@ function showBatchApprovalModal() {
             typeBadge.textContent = contact.type_label;
 
             switch (contact.type_label) {
-                case 'CLI':
+                case 'COM':
                     typeBadge.classList.add('bg-primary');
                     break;
                 case 'REP':
@@ -1675,7 +1675,7 @@ function showBatchIgnoreModal() {
             typeBadge.textContent = contact.type_label;
 
             switch (contact.type_label) {
-                case 'CLI': typeBadge.classList.add('bg-primary'); break;
+                case 'COM': typeBadge.classList.add('bg-primary'); break;
                 case 'REP': typeBadge.classList.add('bg-success'); break;
                 case 'ROOM': typeBadge.classList.add('bg-info'); break;
                 case 'SENS': typeBadge.classList.add('bg-warning', 'text-dark'); break;
@@ -2180,7 +2180,7 @@ function createExistingContactCard(contact, index) {
     if (contact.type_label) {
         typeBadge.textContent = contact.type_label;
         switch (contact.type_label) {
-            case 'CLI': typeBadge.classList.add('bg-primary'); break;
+            case 'COM': typeBadge.classList.add('bg-primary'); break;
             case 'REP': typeBadge.classList.add('bg-success'); break;
             case 'ROOM': typeBadge.classList.add('bg-info'); break;
             case 'SENS': typeBadge.classList.add('bg-warning'); break;

@@ -40,14 +40,14 @@ let isMentionMode = false;           // Is mention dropdown active
 
 // Contact type colors for map markers
 const CONTACT_TYPE_COLORS = {
-    1: '#2196F3',  // CLI - blue
+    1: '#2196F3',  // COM - blue
     2: '#4CAF50',  // REP - green
     3: '#9C27B0',  // ROOM - purple
     4: '#FF9800'   // SENS - orange
 };
 
 const CONTACT_TYPE_NAMES = {
-    1: 'CLI',
+    1: 'COM',
     2: 'REP',
     3: 'ROOM',
     4: 'SENS'
@@ -140,7 +140,7 @@ window.showContactOnMap = showContactOnMap;
  */
 function getSelectedMapTypes() {
     const types = [];
-    if (document.getElementById('mapFilterCLI')?.classList.contains('active')) types.push(1);
+    if (document.getElementById('mapFilterCOM')?.classList.contains('active')) types.push(1);
     if (document.getElementById('mapFilterREP')?.classList.contains('active')) types.push(2);
     if (document.getElementById('mapFilterROOM')?.classList.contains('active')) types.push(3);
     if (document.getElementById('mapFilterSENS')?.classList.contains('active')) types.push(4);
@@ -162,7 +162,7 @@ function updateMapMarkers() {
     const filteredContacts = allContactsWithGps.filter(c => selectedTypes.includes(c.type));
 
     // Cache-only contacts (not on device) filtered by type
-    const TYPE_LABEL_TO_NUM = { 'CLI': 1, 'REP': 2, 'ROOM': 3, 'SENS': 4 };
+    const TYPE_LABEL_TO_NUM = { 'COM': 1, 'REP': 2, 'ROOM': 3, 'SENS': 4 };
     let cachedFiltered = [];
     if (showCached) {
         cachedFiltered = allCachedContactsWithGps
@@ -295,7 +295,7 @@ async function showAllContactsOnMap() {
     };
 
     // Setup filter badge listeners
-    ['mapFilterCLI', 'mapFilterREP', 'mapFilterROOM', 'mapFilterSENS'].forEach(id => {
+    ['mapFilterCOM', 'mapFilterREP', 'mapFilterROOM', 'mapFilterSENS'].forEach(id => {
         const badge = document.getElementById(id);
         if (badge) {
             badge.onclick = () => {
@@ -3303,7 +3303,7 @@ async function updatePendingContactsBadge() {
 /**
  * Load pending contacts type filter from localStorage.
  * This is a duplicate of the function in contacts.js for use in app.js
- * @returns {Array<number>} Array of contact types (default: [1] for CLI only)
+ * @returns {Array<number>} Array of contact types (default: [1] for COM only)
  */
 function loadPendingTypeFilter() {
     try {
@@ -3318,7 +3318,7 @@ function loadPendingTypeFilter() {
     } catch (e) {
         console.error('Failed to load pending type filter from localStorage:', e);
     }
-    // Default: CLI only (most common use case)
+    // Default: COM only (most common use case)
     return [1];
 }
 

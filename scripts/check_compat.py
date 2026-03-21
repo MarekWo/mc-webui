@@ -30,7 +30,7 @@ EXPECTED_CONTACT_FIELDS = {
 }
 
 # Valid contact types in text format
-VALID_CONTACT_TYPES = {"CLI", "REP", "ROOM", "SENS"}
+VALID_CONTACT_TYPES = {"COM", "REP", "ROOM", "SENS"}
 
 # Expected fields in /health response
 EXPECTED_HEALTH_FIELDS = {
@@ -148,7 +148,7 @@ class CompatChecker:
                 return
 
             # Parse using same logic as cli.py parse_contacts()
-            type_counts = {"CLI": 0, "REP": 0, "ROOM": 0, "SENS": 0}
+            type_counts = {"COM": 0, "REP": 0, "ROOM": 0, "SENS": 0}
             parsed = 0
             unparsed_lines = []
 
@@ -247,7 +247,7 @@ class CompatChecker:
 
             stdout = data.get("stdout", "").strip()
             if not stdout:
-                self.add(self.WARN, cat, "empty response (no CLI contacts)")
+                self.add(self.WARN, cat, "empty response (no COM contacts)")
                 return
 
             # contact_info returns multiple JSON objects (one per contact)

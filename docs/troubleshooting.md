@@ -330,7 +330,7 @@ After successful installation:
 
 1. **Join channels** - Create or join encrypted channels with other users
 2. **Configure contacts** - Enable manual approval if desired
-3. **Test Direct Messages** - Send DM to other CLI contacts
+3. **Test Direct Messages** - Send DM to other COM contacts
 4. **Set up backups** - Schedule regular backups of `data/` directory
 5. **Read full documentation** - See [User Guide](user-guide.md) for all features
 

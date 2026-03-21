@@ -130,7 +130,7 @@ def get_all_contacts_detailed() -> Tuple[bool, List[Dict], int, str]:
             result.append({
                 'name': c.get('name', ''),
                 'public_key_prefix': pk[:12] if len(pk) >= 12 else pk,
-                'type_label': {0: 'CLI', 1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}.get(c.get('type', 1), 'UNKNOWN'),
+                'type_label': {0: 'COM', 1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}.get(c.get('type', 1), 'UNKNOWN'),
                 'path_or_mode': c.get('out_path', '') or 'Flood',
                 'raw_line': '',
             })

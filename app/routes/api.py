@@ -696,7 +696,7 @@ def get_cached_contacts():
                         'source': c.get('source', ''),
                         'adv_lat': c.get('adv_lat'),
                         'adv_lon': c.get('adv_lon'),
-                        'type_label': {0: 'CLI', 1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}.get(c.get('type', 1), 'UNKNOWN'),
+                        'type_label': {0: 'COM', 1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}.get(c.get('type', 1), 'UNKNOWN'),
                         'is_ignored': pk in ignored_keys,
                         'is_blocked': pk in blocked_keys,
                     })
@@ -811,7 +811,7 @@ def preview_cleanup_contacts():
     JSON body:
         {
             "name_filter": "",              # Partial name match (empty = ignore)
-            "types": [1, 2, 3, 4],          # Contact types (1=CLI, 2=REP, 3=ROOM, 4=SENS)
+            "types": [1, 2, 3, 4],          # Contact types (1=COM, 2=REP, 3=ROOM, 4=SENS)
             "date_field": "last_advert",    # "last_advert" or "lastmod"
             "days": 2                       # Days of inactivity (0 = ignore)
         }
@@ -865,7 +865,7 @@ def preview_cleanup_contacts():
             }), 500
 
         # Convert to list format (same as /api/contacts/detailed)
-        type_labels = {1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
+        type_labels = {1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
         contacts = []
         for public_key, details in contacts_detailed.items():
             out_path_len = details.get('out_path_len', -1)
@@ -907,7 +907,7 @@ def cleanup_contacts():
     JSON body:
         {
             "name_filter": "",              # Partial name match (empty = ignore)
-            "types": [1, 2, 3, 4],          # Contact types (1=CLI, 2=REP, 3=ROOM, 4=SENS)
+            "types": [1, 2, 3, 4],          # Contact types (1=COM, 2=REP, 3=ROOM, 4=SENS)
             "date_field": "last_advert",    # "last_advert" or "lastmod"
             "days": 2                       # Days of inactivity (0 = ignore)
         }
@@ -965,7 +965,7 @@ def cleanup_contacts():
             }), 500
 
         # Convert to list format
-        type_labels = {1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
+        type_labels = {1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
         contacts = []
         for public_key, details in contacts_detailed.items():
             out_path_len = details.get('out_path_len', -1)
@@ -2254,7 +2254,7 @@ def get_dm_updates():
 @api_bp.route('/contacts/detailed', methods=['GET'])
 def get_contacts_detailed_api():
     """
-    Get detailed list of ALL existing contacts on the device (CLI, REP, ROOM, SENS).
+    Get detailed list of ALL existing contacts on the device (COM, REP, ROOM, SENS).
 
     Returns full contact_info data from meshcli including GPS coordinates, paths, etc.
 
@@ -2269,7 +2269,7 @@ def get_contacts_detailed_api():
                     "name": "TK Zalesie Test 🦜",              // adv_name
                     "public_key": "df2027d3f2ef...",           // Full public key (64 chars)
                     "public_key_prefix": "df2027d3f2ef",       // First 12 chars
-                    "type": 2,                                  // 1=CLI, 2=REP, 3=ROOM, 4=SENS
+                    "type": 2,                                  // 1=COM, 2=REP, 3=ROOM, 4=SENS
                     "type_label": "REP",                        // Human-readable type
                     "flags": 0,
                     "out_path_len": -1,                         // -1 = Flood mode
@@ -2298,7 +2298,7 @@ def get_contacts_detailed_api():
             }), 500
 
         # Convert dict to list and add computed fields
-        type_labels = {1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
+        type_labels = {1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
         contacts = []
 
         # Get protected/ignored/blocked contacts for status fields
@@ -2868,8 +2868,8 @@ def get_pending_contacts_api():
 
     Query parameters:
         types (list[int]): Filter by contact types (optional)
-                          Example: ?types=1&types=2 (CLI and REP only)
-                          Valid values: 1 (CLI), 2 (REP), 3 (ROOM), 4 (SENS)
+                          Example: ?types=1&types=2 (COM and REP only)
+                          Valid values: 1 (COM), 2 (REP), 3 (ROOM), 4 (SENS)
                           If not provided, returns all pending contacts
 
     Returns:
@@ -2906,7 +2906,7 @@ def get_pending_contacts_api():
             if invalid_types:
                 return jsonify({
                     'success': False,
-                    'error': f'Invalid types: {invalid_types}. Valid types: 1 (CLI), 2 (REP), 3 (ROOM), 4 (SENS)',
+                    'error': f'Invalid types: {invalid_types}. Valid types: 1 (COM), 2 (REP), 3 (ROOM), 4 (SENS)',
                     'pending': []
                 }), 400
 
@@ -2922,9 +2922,9 @@ def get_pending_contacts_api():
                 pending = [c for c in pending if c.get('public_key', '').lower() not in excluded]
 
             # Add type_label for frontend display
-            type_labels = {1: 'CLI', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
+            type_labels = {1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
             for c in pending:
-                c['type_label'] = type_labels.get(c.get('type', 0), 'CLI')
+                c['type_label'] = type_labels.get(c.get('type', 0), 'COM')
                 pk = c.get('public_key', '')
                 c['public_key_prefix'] = pk[:12] if len(pk) >= 12 else pk
 
@@ -2964,7 +2964,7 @@ def approve_pending_contact_api():
         }
 
     IMPORTANT: Always send the full public_key (not name or prefix).
-    Full public key works for all contact types (CLI, ROOM, REP, SENS).
+    Full public key works for all contact types (COM, ROOM, REP, SENS).
 
     Returns:
         JSON with approval result:
