@@ -347,7 +347,9 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabSettingsMessages" type="button">Messages</button>
                         </li>
-                        <!-- Future tabs added here -->
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsChat" type="button">Group Chat</button>
+                        </li>
                     </ul>
                     <div class="tab-content">
                         <div class="tab-pane fade show active" id="tabSettingsMessages">
@@ -403,7 +405,47 @@
                                 </form>
                             </div>
                         </div>
+                        <div class="tab-pane fade" id="tabSettingsChat">
+                            <form id="chatSettingsForm">
+                                <h6 class="text-muted mb-2">Quote</h6>
+                                <table class="table table-sm table-borderless mb-3 align-middle">
+                                    <tbody>
+                                        <tr>
+                                            <td class="ps-0">Quote length (bytes) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Default max UTF-8 bytes for truncated quotes"><i class="bi bi-info-circle"></i></span></td>
+                                            <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settQuoteMaxBytes" min="5" max="120" value="20"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="chatSettingsResetBtn">Reset to defaults</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quote Dialog Modal -->
+    <div class="modal fade" id="quoteModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title"><i class="bi bi-quote"></i> Quote message</h6>
+                    <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body py-2">
+                    <p class="text-muted small mb-2" id="quotePreview"></p>
+                    <div class="d-flex gap-2 align-items-center mb-2">
+                        <label class="form-label mb-0 small text-nowrap" for="quoteBytesInput">Max bytes:</label>
+                        <input type="number" class="form-control form-control-sm" id="quoteBytesInput" min="5" max="120" style="width:5rem">
+                    </div>
+                </div>
+                <div class="modal-footer py-1">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="quoteTruncatedBtn">Truncated</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="quoteFullBtn">Full quote</button>
                 </div>
             </div>
         </div>

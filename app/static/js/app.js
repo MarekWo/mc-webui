@@ -1292,37 +1292,78 @@ function replyTo(username) {
 }
 
 /**
- * Quote a user's message
+ * Truncate text to maxBytes UTF-8 bytes, respecting multi-byte characters.
+ * @returns {string} truncated text (without "..." suffix)
+ */
+function truncateToBytes(text, maxBytes) {
+    const encoder = new TextEncoder();
+    if (encoder.encode(text).length <= maxBytes) return text;
+    let truncated = '';
+    let byteCount = 0;
+    for (const char of text) {
+        const charBytes = encoder.encode(char).length;
+        if (byteCount + charBytes > maxBytes) break;
+        truncated += char;
+        byteCount += charBytes;
+    }
+    return truncated;
+}
+
+/**
+ * Insert a quote into the message input.
+ */
+function insertQuote(username, quotedText) {
+    const input = document.getElementById('messageInput');
+    input.value = `@[${username}] »${quotedText}« `;
+    updateCharCounter();
+    input.focus();
+}
+
+/**
+ * Quote a user's message — shows a dialog to choose full or truncated quote.
  * @param {string} username - Username to mention
  * @param {string} content - Original message content to quote
  */
 function quoteTo(username, content) {
-    const input = document.getElementById('messageInput');
-    const maxQuoteBytes = 20;
-
-    // Calculate UTF-8 byte length
     const encoder = new TextEncoder();
-    const contentBytes = encoder.encode(content);
+    const contentBytes = encoder.encode(content).length;
+    const maxBytes = chatSettingsCache.quote_max_bytes || CHAT_SETTINGS_DEFAULTS.quote_max_bytes;
 
-    let quotedText;
-    if (contentBytes.length <= maxQuoteBytes) {
-        quotedText = content;
-    } else {
-        // Truncate to ~maxQuoteBytes, being careful with multi-byte characters
-        let truncated = '';
-        let byteCount = 0;
-        for (const char of content) {
-            const charBytes = encoder.encode(char).length;
-            if (byteCount + charBytes > maxQuoteBytes) break;
-            truncated += char;
-            byteCount += charBytes;
-        }
-        quotedText = truncated + '...';
+    // If message fits within limit, insert directly — no dialog needed
+    if (contentBytes <= maxBytes) {
+        insertQuote(username, content);
+        return;
     }
 
-    input.value = `@[${username}] »${quotedText}« `;
-    updateCharCounter();
-    input.focus();
+    // Show quote dialog
+    const preview = truncateToBytes(content, 60);
+    document.getElementById('quotePreview').textContent =
+        preview.length < content.length ? preview + '...' : preview;
+    document.getElementById('quoteBytesInput').value = maxBytes;
+
+    const modal = new bootstrap.Modal(document.getElementById('quoteModal'));
+
+    // Clean up old listeners by replacing buttons
+    const fullBtn = document.getElementById('quoteFullBtn');
+    const truncBtn = document.getElementById('quoteTruncatedBtn');
+    const newFullBtn = fullBtn.cloneNode(true);
+    const newTruncBtn = truncBtn.cloneNode(true);
+    fullBtn.parentNode.replaceChild(newFullBtn, fullBtn);
+    truncBtn.parentNode.replaceChild(newTruncBtn, truncBtn);
+
+    newFullBtn.addEventListener('click', () => {
+        modal.hide();
+        insertQuote(username, content);
+    });
+
+    newTruncBtn.addEventListener('click', () => {
+        modal.hide();
+        const customBytes = parseInt(document.getElementById('quoteBytesInput').value, 10) || maxBytes;
+        const truncated = truncateToBytes(content, customBytes);
+        insertQuote(username, truncated + '...');
+    });
+
+    modal.show();
 }
 
 /**
@@ -1641,6 +1682,71 @@ document.addEventListener('DOMContentLoaded', () => {
 // Settings Modal
 // =============================================================================
 
+// --- Chat Settings ---
+
+const CHAT_SETTINGS_DEFAULTS = {
+    quote_max_bytes: 20
+};
+
+const CHAT_SETTINGS_FIELDS = {
+    quote_max_bytes: 'settQuoteMaxBytes'
+};
+
+let chatSettingsCache = { ...CHAT_SETTINGS_DEFAULTS };
+
+function populateChatSettingsForm(data) {
+    for (const [key, elId] of Object.entries(CHAT_SETTINGS_FIELDS)) {
+        const el = document.getElementById(elId);
+        if (el) el.value = data[key] ?? CHAT_SETTINGS_DEFAULTS[key];
+    }
+}
+
+async function loadChatSettings() {
+    try {
+        const resp = await fetch('/api/chat/settings');
+        if (resp.ok) {
+            const data = await resp.json();
+            chatSettingsCache = { ...CHAT_SETTINGS_DEFAULTS, ...data };
+            populateChatSettingsForm(chatSettingsCache);
+        }
+    } catch (e) {
+        console.error('Failed to load chat settings:', e);
+    }
+}
+
+async function saveChatSettings() {
+    const payload = {};
+    for (const [key, elId] of Object.entries(CHAT_SETTINGS_FIELDS)) {
+        const el = document.getElementById(elId);
+        const val = parseInt(el.value, 10);
+        if (isNaN(val) || val < parseInt(el.min) || val > parseInt(el.max)) {
+            showNotification(`Invalid value for ${el.previousElementSibling?.textContent || key}`, 'danger');
+            el.focus();
+            return;
+        }
+        payload[key] = val;
+    }
+    try {
+        const resp = await fetch('/api/chat/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            chatSettingsCache = { ...CHAT_SETTINGS_DEFAULTS, ...data };
+            showNotification('Settings saved', 'success');
+        } else {
+            const err = await resp.json();
+            showNotification(err.error || 'Failed to save', 'danger');
+        }
+    } catch (e) {
+        showNotification('Failed to save settings', 'danger');
+    }
+}
+
+// --- DM Retry Settings ---
+
 const DM_RETRY_DEFAULTS = {
     direct_max_retries: 3,
     direct_flood_retries: 1,
@@ -1710,7 +1816,10 @@ async function saveDmRetrySettings() {
 document.addEventListener('DOMContentLoaded', () => {
     const settingsModal = document.getElementById('settingsModal');
     if (settingsModal) {
-        settingsModal.addEventListener('show.bs.modal', loadDmRetrySettings);
+        settingsModal.addEventListener('show.bs.modal', () => {
+            loadDmRetrySettings();
+            loadChatSettings();
+        });
         settingsModal.addEventListener('shown.bs.modal', () => {
             settingsModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
                 bootstrap.Tooltip.getOrCreateInstance(el);
@@ -1729,6 +1838,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('settingsResetBtn')?.addEventListener('click', () => {
         populateDmRetryForm(DM_RETRY_DEFAULTS);
     });
+
+    const chatSettingsForm = document.getElementById('chatSettingsForm');
+    if (chatSettingsForm) {
+        chatSettingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveChatSettings();
+        });
+    }
+
+    document.getElementById('chatSettingsResetBtn')?.addEventListener('click', () => {
+        populateChatSettingsForm(CHAT_SETTINGS_DEFAULTS);
+    });
+
+    // Load chat settings cache on startup (for quote dialog)
+    loadChatSettings();
 });
 
 /**

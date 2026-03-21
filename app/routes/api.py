@@ -270,6 +270,10 @@ DM_RETRY_DEFAULTS = {
     'grace_period': 60,            # seconds to wait for late ACKs after exhaustion
 }
 
+CHAT_SETTINGS_DEFAULTS = {
+    'quote_max_bytes': 20,         # max UTF-8 bytes for truncated quote
+}
+
 
 def get_dm_retry_settings() -> dict:
     """Get DM retry settings from database."""
@@ -290,6 +294,28 @@ def save_dm_retry_settings(settings: dict) -> bool:
         return True
     except Exception as e:
         logger.error(f"Failed to save DM retry settings: {e}")
+        return False
+
+
+def get_chat_settings() -> dict:
+    """Get chat settings from database."""
+    db = _get_db()
+    if db:
+        saved = db.get_setting_json('chat_settings', {})
+        return {**CHAT_SETTINGS_DEFAULTS, **saved}
+    return dict(CHAT_SETTINGS_DEFAULTS)
+
+
+def save_chat_settings(settings: dict) -> bool:
+    """Save chat settings to database."""
+    db = _get_db()
+    if not db:
+        return False
+    try:
+        db.set_setting_json('chat_settings', settings)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save chat settings: {e}")
         return False
 
 
@@ -2137,6 +2163,42 @@ def set_auto_retry_config():
 
         if save_dm_retry_settings(settings):
             return jsonify({**get_dm_retry_settings(), 'success': True}), 200
+        return jsonify({'success': False, 'error': 'Failed to save settings'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/chat/settings', methods=['GET'])
+def get_chat_config():
+    """Get chat settings."""
+    try:
+        return jsonify(get_chat_settings()), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/chat/settings', methods=['POST'])
+def set_chat_config():
+    """Update chat settings."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Missing JSON body'}), 400
+
+        valid_keys = set(CHAT_SETTINGS_DEFAULTS.keys())
+        settings = {}
+        for key in valid_keys:
+            if key in data:
+                val = data[key]
+                if not isinstance(val, (int, float)) or val < 1:
+                    return jsonify({'success': False, 'error': f'Invalid value for {key}'}), 400
+                settings[key] = int(val)
+
+        if not settings:
+            return jsonify({'success': False, 'error': 'No valid settings provided'}), 400
+
+        if save_chat_settings(settings):
+            return jsonify({**get_chat_settings(), 'success': True}), 200
         return jsonify({'success': False, 'error': 'Failed to save settings'}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
