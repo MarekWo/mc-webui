@@ -7,7 +7,7 @@ A lightweight web interface providing browser-based access to MeshCore mesh netw
 
 ## Overview
 
-**mc-webui** is a Flask-based web application that wraps `meshcore-cli`, eliminating the need for SSH/terminal access when using MeshCore chat on a LoRa device connected to a Debian VM via USB, BLE, or TCP. Tested on Heltec V3 and Heltec V4.
+**mc-webui** is a Flask-based web application providing browser-based access to MeshCore mesh network. It communicates directly with your LoRa device (via USB, BLE, or TCP) using the `meshcore` Python library, eliminating the need for SSH/terminal access. Tested on Heltec V3 and Heltec V4.
 
 ![Diagram](images/diagram.jpeg)
 
@@ -15,17 +15,23 @@ A lightweight web interface providing browser-based access to MeshCore mesh netw
 
 - **Mobile-first design** - Responsive UI optimized for small screens
 - **Channel management** - Create, join, share (QR code), and switch between encrypted channels
-- **Direct Messages (DM)** - Private messaging with delivery status tracking
+- **Direct Messages (DM)** - Private messaging with searchable contact selector, delivery tracking, and configurable retry strategy
 - **Smart notifications** - Unread message counters per channel with cross-device sync
-- **Contact management** - Manual approval mode, filtering, protection, ignoring, blocking, and cleanup tools
+- **Contact management** - Manual approval mode, filtering, protection, ignoring, blocking, batch operations, and cleanup tools
+- **Global search** - Full-text search across all messages (channels and DMs) with FTS5 backend
 - **Database** - Fast and reliable SQLite storage for messages, contacts, and configurations
-- **Contact map** - View contacts with GPS coordinates on OpenStreetMap (Leaflet)
+- **Contact map** - View contacts and own device on OpenStreetMap (Leaflet) with last seen info
 - **Message archives** - Automatic daily archiving with browse-by-date selector
-- **Interactive Console** - Direct meshcli command execution via WebSocket
+- **Interactive Console** - Full MeshCore command suite via WebSocket — repeater, contact, device, and channel management
+- **Device dashboard** - Device info and statistics with firmware details
+- **Settings** - Configurable DM retry parameters, message retention, and quote length
+- **System Log** - Real-time log viewer with streaming
+- **Database backup** - Create, list, and download database backups from the UI
 - **@Mentions autocomplete** - Type @ to see contact suggestions with fuzzy search
 - **Echo tracking** - "Heard X repeats" with repeater IDs for sent messages, all route paths for incoming messages with deterministic payload matching (persisted across restarts)
 - **MeshCore Analyzer** - View packet details on analyzer.letsmesh.net directly from channel messages
 - **DM delivery tracking** - ACK-based delivery confirmation with SNR and route info
+- **Multi-device support** - Database file named after device for easy multi-device setups
 - **PWA support** - Browser notifications and installable app (experimental)
 - **Full offline support** - Works without internet (local Bootstrap, icons, emoji picker)
 
@@ -99,7 +105,7 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
 
     This will:
     - Download base images (Python, Alpine Linux)
-    - Install meshcore-cli inside containers
+    - Install the `meshcore` Python library
     - Create `./data/` directory structure automatically
     - Start the mc-webui container
 
@@ -108,7 +114,7 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
     docker compose ps
     ```
 
-    Both containers should show `Up` status. Check logs if needed:
+    The container should show `Up` status. Check logs if needed:
     ```bash
     docker compose logs -f
     ```
@@ -136,7 +142,9 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
 3. **Switch channels** - Use the dropdown in navbar
 4. **Direct Messages** - Access via menu (☰) → "Direct Messages"
 5. **Manage contacts** - Access via menu (☰) → "Contact Management"
-6. **Console** - Access via menu (☰) → "Console" for direct meshcli commands
+6. **Console** - Access via menu (☰) → "Console" for MeshCore commands
+7. **Search** - Access via menu (☰) → "Search" for full-text message search
+8. **Settings** - Access via menu (☰) → "Settings" for DM retry and other configuration
 
 For complete usage instructions, see the [User Guide](docs/user-guide.md).
 
@@ -267,6 +275,12 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
     <td align="center"><a href="gallery/channel_management.png"><img src="gallery/channel_management.png" width="150"><br>Channel Management</a></td>
   </tr>
   <tr>
+    <td align="center"><a href="gallery/global_search.png"><img src="gallery/global_search.png" width="150"><br>Global Search</a></td>
+    <td align="center"><a href="gallery/message_filtering.png"><img src="gallery/message_filtering.png" width="150"><br>Message Filtering</a></td>
+    <td align="center"><a href="gallery/DM_Settings.png"><img src="gallery/DM_Settings.png" width="150"><br>Settings</a></td>
+    <td align="center"><a href="gallery/sytem_log.png"><img src="gallery/sytem_log.png" width="150"><br>System Log</a></td>
+  </tr>
+  <tr>
     <td align="center"><a href="gallery/map.png"><img src="gallery/map.png" width="150"><br>Map</a></td>
     <td align="center"><a href="gallery/map_individual.png"><img src="gallery/map_individual.png" width="150"><br>Map (Individual)</a></td>
     <td align="center"><a href="gallery/image_preview_1.png"><img src="gallery/image_preview_1.png" width="150"><br>Image Preview (1)</a></td>
@@ -292,33 +306,37 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 
 ### Completed Features
 
-- [x] Environment Setup & Docker Architecture
-- [x] Backend Basics (REST API, message parsing, CLI wrapper)
-- [x] Frontend Chat View (Bootstrap UI, message display)
-- [x] Message Sending (Send form, reply functionality)
+- [x] Environment Setup & Docker Architecture (single-container, direct device access)
+- [x] Backend Basics (REST API, SQLite database, meshcore library integration)
+- [x] Frontend Chat View (Bootstrap UI, message display, quote/reply)
+- [x] Message Sending (Send form, reply, quote with configurable length)
 - [x] Intelligent Auto-refresh (10s checks, UI updates only when needed)
-- [x] Contact Management (Cleanup modal with configurable threshold)
+- [x] Contact Management (Approval, filtering, protection, ignore/block, batch operations, cleanup)
 - [x] Channel Management (Create, join, share via QR, delete with auto-cleanup)
 - [x] Public Channels (# prefix support, auto-key generation)
 - [x] Message Archiving (Daily archiving with browse-by-date selector)
 - [x] Smart Notifications (Unread counters per channel and total)
-- [x] Direct Messages (DM) - Private messaging with delivery status tracking
-- [x] Advanced Contact Management - Multi-page interface with sorting, filtering
+- [x] Direct Messages (DM) - Searchable contact selector, delivery tracking, configurable retry
+- [x] Global Message Search - Full-text search across channels and DMs (FTS5)
 - [x] Message Content Enhancements - Mention badges, clickable URLs, image previews
 - [x] @Mentions Autocomplete - Type @ to get contact suggestions with fuzzy search
 - [x] PWA Notifications (Experimental) - Browser notifications and app badge counters
 - [x] Full Offline Support - Local Bootstrap libraries and Service Worker caching
-- [x] Interactive Console - Direct MeshCore commands access via WebSocket with command history
-- [x] Contact Map - View contacts with GPS coordinates on OpenStreetMap (Leaflet)
+- [x] Interactive Console - Full MeshCore command suite (repeater, contact, device, channel management)
+- [x] Contact Map - View contacts and own device on OpenStreetMap (Leaflet)
 - [x] Echo Tracking - "Heard X repeats" badge for sent channel messages
 - [x] MeshCore Analyzer - Packet analysis links on channel messages (analyzer.letsmesh.net)
 - [x] DM Delivery Tracking - ACK-based delivery checkmarks with SNR/route details
+- [x] Device Dashboard - Device info and statistics with firmware details
+- [x] Settings Modal - Configurable DM retry parameters and message retention
+- [x] System Log - Real-time log viewer with streaming
+- [x] Database Backup - Create, list, and download backups from the UI
+- [x] Multi-device Support - Database file named after device name
 
 ### Next Steps
 
 - [ ] Performance Optimization - Frontend and backend improvements
 - [ ] Enhanced Testing - Unit and integration tests
-- [ ] Documentation Polish - API docs and usage guides
 
 ---
 

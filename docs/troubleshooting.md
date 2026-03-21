@@ -5,9 +5,8 @@ Common issues and solutions for mc-webui.
 ## Table of Contents
 
 - [Common Issues](#common-issues)
-- [Device Not Responding](#device-not-responding-bridge-crash-loop)
+- [Device Not Responding](#device-not-responding)
 - [Docker Commands](#docker-commands)
-- [Testing Bridge API](#testing-bridge-api)
 - [Backup and Restore](#backup-and-restore)
 - [Next Steps](#next-steps)
 - [Getting Help](#getting-help)
@@ -20,8 +19,7 @@ Common issues and solutions for mc-webui.
 
 **Check logs:**
 ```bash
-docker compose logs meshcore-bridge
-docker compose logs mc-webui
+docker compose logs -f mc-webui
 ```
 
 **Common causes:**
@@ -53,18 +51,19 @@ docker compose ps
 
 ### No messages appearing
 
-**Verify meshcli is working:**
+**Check device connection:**
 ```bash
-# Test meshcli directly in bridge container
-docker compose exec meshcore-bridge meshcli -s /dev/ttyUSB0 infos
+# Check container logs for device communication
+docker compose logs -f mc-webui
 ```
 
-**Check .msgs file:**
+**Check database:**
 ```bash
-docker compose exec mc-webui cat /root/.config/meshcore/YourDeviceName.msgs
+# Verify the database file exists
+ls -la data/meshcore/*.db
 ```
 
-Replace `YourDeviceName` with your `MC_DEVICE_NAME`.
+**Check System Log in the web UI** (Menu → System Log) for real-time device event information.
 
 ---
 
@@ -87,9 +86,9 @@ sudo chmod 666 /dev/serial/by-id/usb-Espressif*
 ls -l /dev/serial/by-id/
 ```
 
-**Restart bridge container:**
+**Restart container:**
 ```bash
-docker compose restart meshcore-bridge
+docker compose restart mc-webui
 ```
 
 **Check device permissions:**
@@ -101,32 +100,15 @@ Should show `crw-rw----` with group `dialout`.
 
 ---
 
-### USB Communication Issues
-
-The 2-container architecture resolves common USB timeout/deadlock problems:
-
-- **meshcore-bridge** has exclusive USB access
-- **mc-webui** uses HTTP (no direct device access)
-- Restarting `mc-webui` **does not** affect USB connection
-- If bridge has USB issues, restart only that service:
-  ```bash
-  docker compose restart meshcore-bridge
-  ```
-
----
-
-### Device not responding (bridge crash-loop)
+### Device not responding
 
 **Symptoms:**
-- `meshcore-bridge` container shows `unhealthy` status
-- Bridge logs show repeated `no_event_received` errors and restarts:
+- Container logs show repeated `no_event_received` errors and restarts:
   ```
   ERROR:meshcore:Error while querying device: Event(type=<EventType.ERROR: 'command_error'>, payload={'reason': 'no_event_received'})
-  meshcli process died (exit code: 0)
-  Attempting to restart meshcli session...
   ```
-- Device name not detected, falls back to `auto.msgs` (file not found)
-- All commands (`infos`, `contacts`, etc.) time out
+- Device name not detected (auto-detection fails)
+- All commands timeout in the Console
 
 **What this means:**
 
@@ -148,44 +130,15 @@ This can happen after a power failure during OTA update, flash memory corruption
 
 ---
 
-### Bridge connection errors
-
-```bash
-# Check bridge health
-docker compose exec mc-webui curl http://meshcore-bridge:5001/health
-
-# Bridge logs
-docker compose logs -f meshcore-bridge
-
-# Test meshcli directly in bridge container
-docker compose exec meshcore-bridge meshcli -s /dev/ttyUSB0 infos
-```
-
----
-
-### Messages not updating
-
-- Check that `.msgs` file exists in `MC_CONFIG_DIR`
-- Verify bridge service is healthy: `docker compose ps`
-- Check bridge logs for command errors
-
----
-
 ### Contact Management Issues
 
 **Check logs:**
 ```bash
 # mc-webui container logs
 docker compose logs -f mc-webui
-
-# meshcore-bridge container logs (where settings are applied)
-docker compose logs -f meshcore-bridge
 ```
 
-**Look for:**
-- "Loaded webui settings" - confirms settings file is being read
-- "manual_add_contacts set to on/off" - confirms setting is applied to meshcli session
-- "Saved manual_add_contacts=..." - confirms setting is persisted to file
+You can also check the System Log in the web UI (Menu → System Log) for real-time information about contact events and settings changes.
 
 ---
 
@@ -194,17 +147,13 @@ docker compose logs -f meshcore-bridge
 ### View logs
 
 ```bash
-docker compose logs -f              # All services
-docker compose logs -f mc-webui     # Main app only
-docker compose logs -f meshcore-bridge  # Bridge only
+docker compose logs -f mc-webui
 ```
 
-### Restart services
+### Restart
 
 ```bash
-docker compose restart              # Restart both
-docker compose restart mc-webui     # Restart main app only
-docker compose restart meshcore-bridge  # Restart bridge only
+docker compose restart mc-webui
 ```
 
 ### Start / Stop
@@ -230,61 +179,7 @@ docker compose ps
 
 ```bash
 docker compose exec mc-webui sh
-docker compose exec meshcore-bridge sh
 ```
-
----
-
-## Testing Bridge API
-
-The `meshcore-bridge` container exposes HTTP endpoints for diagnostics.
-
-### Test endpoints
-
-```bash
-# List pending contacts (from inside mc-webui container or server)
-curl -s http://meshcore-bridge:5001/pending_contacts | jq
-
-# Add a pending contact
-curl -s -X POST http://meshcore-bridge:5001/add_pending \
-  -H 'Content-Type: application/json' \
-  -d '{"selector":"Skyllancer"}' | jq
-
-# Check bridge health
-docker compose exec mc-webui curl http://meshcore-bridge:5001/health
-```
-
-### Example responses
-
-**GET /pending_contacts:**
-```json
-{
-  "success": true,
-  "pending": [
-    {
-      "name": "Skyllancer",
-      "public_key": "f9ef..."
-    },
-    {
-      "name": "KRA Reksio mob2🐕",
-      "public_key": "41d5..."
-    }
-  ],
-  "raw_stdout": "Skyllancer: f9ef...\nKRA Reksio mob2🐕: 41d5..."
-}
-```
-
-**POST /add_pending:**
-```json
-{
-  "success": true,
-  "stdout": "Contact added successfully",
-  "stderr": "",
-  "returncode": 0
-}
-```
-
-**Note:** These endpoints require `manual_add_contacts` mode to be enabled.
 
 ---
 
@@ -292,7 +187,14 @@ docker compose exec mc-webui curl http://meshcore-bridge:5001/health
 
 **All important data is in the `data/` directory.**
 
-### Create backup
+### UI Backup (recommended)
+
+You can create and download database backups directly from the web UI:
+1. Click the menu icon (☰) → "Backup"
+2. Click "Create Backup" to create a timestamped backup
+3. Click "Download" to save a backup to your local machine
+
+### Manual backup (CLI)
 
 ```bash
 cd ~/mc-webui
@@ -343,9 +245,8 @@ After successful installation:
 - [Architecture](architecture.md) - Technical documentation
 - [README](../README.md) - Installation guide
 - MeshCore docs: https://meshcore.org
-- meshcore-cli docs: https://github.com/meshcore-dev/meshcore-cli
 
 **Issues:**
 - GitHub Issues: https://github.com/MarekWo/mc-webui/issues
 - Check existing issues before creating new ones
-- Include logs when reporting problems
+- Include logs when reporting problems (use Menu → System Log for easy access)

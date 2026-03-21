@@ -10,6 +10,7 @@ Technical documentation for mc-webui, covering system architecture, project stru
 - [Project Structure](#project-structure)
 - [Database Architecture](#database-architecture)
 - [API Reference](#api-reference)
+- [WebSocket API](#websocket-api)
 - [Offline Support](#offline-support)
 
 ---
@@ -75,11 +76,13 @@ mc-webui/
 ├── docker-compose.yml              # Single-container orchestration
 ├── app/
 │   ├── __init__.py
-│   ├── main.py                     # Flask entry point + Socket.IO
+│   ├── main.py                     # Flask entry point + Socket.IO handlers
 │   ├── config.py                   # Configuration from env vars
 │   ├── database.py                 # SQLite database models and CRUD operations
 │   ├── device_manager.py           # Core logic for meshcore communication
+│   ├── contacts_cache.py           # Persistent contacts cache
 │   ├── read_status.py              # Server-side read status manager
+│   ├── version.py                  # Git-based version management
 │   ├── migrate_v1.py               # Migration script from v1 flat files to v2 SQLite
 │   ├── meshcore/
 │   │   ├── __init__.py
@@ -94,7 +97,7 @@ mc-webui/
 │   ├── static/                     # Frontend assets (CSS, JS, images, vendors)
 │   └── templates/                  # HTML templates
 ├── docs/                           # Documentation
-├── scripts/                        # Utility scripts (update, watchdog, etc.)
+├── scripts/                        # Utility scripts (update, watchdog, updater)
 └── README.md
 ```
 
@@ -107,45 +110,151 @@ mc-webui v2 uses a robust **SQLite Database** with WAL (Write-Ahead Logging) ena
 Location: `./data/meshcore/<device_name>.db`
 
 Key tables:
-- `messages` - All channel and direct messages
+- `messages` - All channel and direct messages (with FTS5 index for full-text search)
 - `contacts` - Contact list with sync status, types, block/ignore flags
 - `channels` - Channel configuration and keys
 - `echoes` - Sent message tracking and repeater paths
 - `acks` - DM delivery status
+- `settings` - Application settings (migrated from .webui_settings.json)
 
-The use of SQLite allows for fast queries, reliable data storage, and complex filtering (such as contact ignoring/blocking) without the risk of file corruption inherent to flat JSON files.
+The use of SQLite allows for fast queries, reliable data storage, full-text search, and complex filtering (such as contact ignoring/blocking) without the risk of file corruption inherent to flat JSON files.
 
 ---
 
 ## API Reference
 
-### Main Web UI Endpoints
+### Messages
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/messages` | List messages (supports `?archive_date`, `?days`, `?channel_idx`) |
+| GET | `/api/messages` | List messages (`?archive_date`, `?days`, `?channel_idx`) |
 | POST | `/api/messages` | Send message (`{text, channel_idx, reply_to?}`) |
 | GET | `/api/messages/updates` | Check for new messages (smart refresh) |
-| GET | `/api/status` | Connection status |
+| GET | `/api/messages/<id>/meta` | Get message metadata (echoes, paths) |
+| GET | `/api/messages/search` | Full-text search (`?q=`, `?channel_idx=`, `?limit=`) |
+
+### Contacts
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
 | GET | `/api/contacts` | List contacts |
-| GET | `/api/contacts/detailed` | Full contact data |
-| POST | `/api/contacts/delete` | Soft-delete contact by name |
-| POST | `/api/contacts/update` | Update contact properties (ignore, block) |
+| GET | `/api/contacts/detailed` | Full contact data (includes protection, ignore, block flags) |
+| GET | `/api/contacts/cached` | Get cached contacts (superset of device contacts) |
+| POST | `/api/contacts/delete` | Soft-delete contact (`{selector}`) |
+| POST | `/api/contacts/cached/delete` | Delete cached contact |
+| GET | `/api/contacts/protected` | List protected public keys |
+| POST | `/api/contacts/<key>/protect` | Toggle contact protection |
+| POST | `/api/contacts/<key>/ignore` | Toggle contact ignore |
+| POST | `/api/contacts/<key>/block` | Toggle contact block |
+| GET | `/api/contacts/blocked-names` | Get blocked names count |
+| POST | `/api/contacts/block-name` | Block a name pattern |
+| GET | `/api/contacts/blocked-names-list` | List blocked name patterns |
+| POST | `/api/contacts/preview-cleanup` | Preview cleanup criteria |
+| POST | `/api/contacts/cleanup` | Remove contacts by filter |
+| GET | `/api/contacts/cleanup-settings` | Get auto-cleanup settings |
+| POST | `/api/contacts/cleanup-settings` | Update auto-cleanup settings |
+| GET | `/api/contacts/pending` | Pending contacts (`?types=1&types=2`) |
+| POST | `/api/contacts/pending/approve` | Approve pending contact |
+| POST | `/api/contacts/pending/reject` | Reject pending contact |
+| POST | `/api/contacts/pending/clear` | Clear all pending contacts |
+
+### Channels
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
 | GET | `/api/channels` | List all channels |
 | POST | `/api/channels` | Create new channel |
 | POST | `/api/channels/join` | Join existing channel |
 | DELETE | `/api/channels/<index>` | Remove channel |
-| GET | `/api/dm/conversations` | List DM conversations |
-| GET | `/api/dm/messages` | Get messages for conversation |
-| POST | `/api/dm/messages` | Send DM |
-| GET | `/api/device/info` | Device information |
-| GET | `/api/read_status` | Get server-side read status |
+| GET | `/api/channels/<index>/qr` | QR code (`?format=json\|png`) |
+| GET | `/api/channels/muted` | Get muted channels |
+| POST | `/api/channels/<index>/mute` | Toggle channel mute |
 
-### WebSocket API (Console)
+### Direct Messages
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/dm/conversations` | List DM conversations |
+| GET | `/api/dm/messages` | Get messages (`?conversation_id=`, `?limit=`) |
+| POST | `/api/dm/messages` | Send DM (`{recipient, text}`) |
+| GET | `/api/dm/updates` | Check for new DMs |
+| GET | `/api/dm/auto_retry` | Get DM retry configuration |
+| POST | `/api/dm/auto_retry` | Update DM retry configuration |
+
+### Device & Settings
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/status` | Connection status (device name, serial port) |
+| GET | `/api/device/info` | Device information |
+| GET | `/api/device/stats` | Device statistics |
+| GET | `/api/device/settings` | Get device settings |
+| POST | `/api/device/settings` | Update device settings |
+| POST | `/api/device/command` | Execute command (advert, floodadv) |
+| GET | `/api/device/commands` | List available special commands |
+| GET | `/api/chat/settings` | Get chat settings (quote length) |
+| POST | `/api/chat/settings` | Update chat settings |
+| GET | `/api/retention-settings` | Get message retention settings |
+| POST | `/api/retention-settings` | Update retention settings |
+
+### Archives & Backup
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/archives` | List archives |
+| POST | `/api/archive/trigger` | Manual archive |
+| GET | `/api/backup/list` | List database backups |
+| POST | `/api/backup/create` | Create database backup |
+| GET | `/api/backup/download` | Download backup file |
+
+### Other
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/read_status` | Get server-side read status |
+| POST | `/api/read_status/mark_read` | Mark messages as read |
+| POST | `/api/read_status/mark_all_read` | Mark all messages as read |
+| GET | `/api/version` | Get app version |
+| GET | `/api/check-update` | Check for available updates |
+| GET | `/api/updater/status` | Get updater service status |
+| POST | `/api/updater/trigger` | Trigger remote update |
+| GET | `/api/advertisements` | Get recent advertisements |
+| GET | `/api/console/history` | Get console command history |
+| POST | `/api/console/history` | Save console command |
+| DELETE | `/api/console/history` | Clear console history |
+| GET | `/api/logs` | Get application logs |
+
+---
+
+## WebSocket API
+
+### Console Namespace (`/console`)
 
 Interactive console via Socket.IO WebSocket connection.
 
-**Namespace:** `/console`
+**Client → Server:**
+- `send_command` - Execute command (`{command: "infos"}`)
+
+**Server → Client:**
+- `console_status` - Connection status
+- `command_response` - Command result (`{success, command, output}`)
+
+### Chat Namespace (`/chat`)
+
+Real-time message delivery via Socket.IO.
+
+**Server → Client:**
+- `new_channel_message` - New channel message received
+- `new_dm_message` - New DM received
+- `message_echo` - Echo/ACK update for sent message
+- `dm_ack` - DM delivery confirmation
+
+### Logs Namespace (`/logs`)
+
+Real-time log streaming via Socket.IO.
+
+**Server → Client:**
+- `log_line` - New log line
 
 ---
 

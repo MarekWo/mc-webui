@@ -10,7 +10,13 @@ This guide covers all features and functionality of mc-webui. For installation i
 - [Sending Messages](#sending-messages)
 - [Message Content Features](#message-content-features)
 - [Direct Messages (DM)](#direct-messages-dm)
+- [Global Search](#global-search)
 - [Contact Management](#contact-management)
+- [Interactive Console](#interactive-console)
+- [Device Dashboard](#device-dashboard)
+- [Settings](#settings)
+- [System Log](#system-log)
+- [Database Backup](#database-backup)
 - [Network Commands](#network-commands)
 - [PWA Notifications](#pwa-notifications)
 
@@ -146,11 +152,12 @@ Access the Direct Messages feature:
 
 ### Using the DM Page
 
-1. **Select a recipient** from the dropdown at the top:
+1. **Select a recipient** using the searchable contact selector at the top:
+   - Type to search contacts by name (fuzzy matching)
    - **Existing conversations** are shown first (with message history)
-   - Separator: "--- Available contacts ---"
    - **All companion contacts** from your device (only COM type, no repeaters/rooms)
-   - You can start a new conversation with anyone in your contacts list
+   - Click the info icon next to a contact to view their details (public key, type, location)
+   - Use the (x) button to clear the search and select a different contact
 2. Type your message in the input field (max 140 bytes, same as channels)
 3. Use the emoji picker button to insert emojis
 4. Press Enter or click Send
@@ -162,7 +169,7 @@ Access the Direct Messages feature:
 - When you return to the DM page, it automatically opens the last conversation you were viewing
 - This works similarly to how the main page remembers your selected channel
 
-**Note:** Only companion contacts (COM) are shown in the dropdown. Repeaters (REP), rooms (ROOM), and sensors (SENS) are automatically filtered out.
+**Note:** Only companion contacts (COM) are shown in the selector. Repeaters (REP), rooms (ROOM), and sensors (SENS) are automatically filtered out.
 
 ### Message Status Indicators
 
@@ -175,6 +182,23 @@ Access the Direct Messages feature:
 - The bell icon shows a secondary green badge for unread DMs
 - Each conversation shows unread indicator (*) in the dropdown
 - DM badge in the menu shows total unread DM count
+
+---
+
+## Global Search
+
+Search across all your messages (channels and DMs) using full-text search:
+
+1. Click the menu icon (☰) in the navbar
+2. Select "Search" from the menu
+3. Type your search query and press Enter or click the search button
+
+**Features:**
+- **Full-text search** powered by SQLite FTS5 for fast results
+- **FTS5 syntax support** - Use quotes for exact phrases (`"hello world"`), prefix matching (`mesh*`), boolean operators (`hello AND world`)
+- Results show message content, sender, channel/conversation, and timestamp
+- Click a result to navigate to that channel or DM conversation
+- Syntax help available via the (?) icon next to the search field
 
 ---
 
@@ -225,8 +249,12 @@ When manual approval is enabled, new contacts appear in the Pending Contacts lis
   - Confirmation modal shows list of contacts to be approved
   - Progress indicator during batch approval
 
+**Ignore contacts:**
+- **Batch ignore:** Click "Ignore Filtered" to ignore all filtered contacts at once
+- **Single ignore:** Click "Ignore" on individual contacts
+
 **Other actions:**
-- Click "Map" button to view contact location on Google Maps (when GPS data available)
+- Click "Map" button to view contact location on the map (when GPS data available)
 - Click "Copy Key" to copy full public key to clipboard
 - Click "Refresh" to reload pending contacts list
 
@@ -314,6 +342,130 @@ You can schedule automatic cleanup to run daily at a specified hour:
 - Protected contacts are never deleted by auto-cleanup
 - Filter criteria changes are auto-saved when auto-cleanup is enabled
 - The scheduler uses the timezone configured in `.env` file (`TZ` variable, e.g., `TZ=Europe/Warsaw`)
+
+---
+
+## Interactive Console
+
+Access the interactive console for direct MeshCore command execution:
+
+1. Click the menu icon (☰) in the navbar
+2. Select "Console" from the menu
+3. Opens in a fullscreen modal with a command prompt
+
+### Available Command Categories
+
+The console supports a comprehensive set of MeshCore commands organized into categories:
+
+**Repeater Management:**
+- `req_owner <name>` - Request repeater owner info
+- `req_regions <name>` - Request repeater regions
+- `req_clock <name>` - Request repeater clock
+- `req_neighbours <name>` - Request repeater neighbors list
+- `set_owner <name> <value>` - Set repeater owner
+- `set_regions <name> <value>` - Set repeater regions
+- `set_clock <name>` - Sync repeater clock
+
+**Contact Management:**
+- `contacts` - List all device contacts
+- `.contacts` - List contacts (JSON format)
+- `.pending_contacts` - List pending contacts
+- `add_pending <key>` - Approve pending contact
+- `remove_contact <name>` - Remove contact
+
+**Device & Channel Management:**
+- `infos` / `ver` - Device info / firmware version
+- `stats` - Device statistics
+- `self_telemetry` - Own device telemetry
+- `get_channels` - List channels
+- `get <param>` / `set <param> <value>` - Get/set device parameters
+- `trace <name>` - Trace route to contact
+- `neighbours` - Request neighbor list from device
+
+### Console Features
+
+- **Command history** - Navigate with up/down arrows, or use the history dropdown
+- **Persistent history** - Saved on server, accessible across sessions
+- **Auto-reconnect** - WebSocket reconnects automatically on disconnect
+- **Status indicator** - Green/yellow/red dot shows connection status
+- **Human-readable output** - Clock times, statistics, and telemetry formatted for readability
+
+---
+
+## Device Dashboard
+
+Access device information and statistics:
+
+1. Click the menu icon (☰) in the navbar
+2. Select "Device Info" from the menu
+
+### Info Tab
+
+Displays device parameters in a readable table:
+- Device name, type, public key
+- Location coordinates with map button
+- Radio parameters (frequency, bandwidth, spreading factor, coding rate)
+- TX power, multi-acks, location sharing settings
+
+### Stats Tab
+
+Shows live device statistics:
+- Uptime, free memory, battery voltage
+- Message counters (sent, received, forwarded)
+- Current airtime usage
+
+---
+
+## Settings
+
+Access the Settings modal to configure application behavior:
+
+1. Click the menu icon (☰) in the navbar
+2. Select "Settings" from the menu
+
+### DM Retry Settings
+
+Configure how direct messages are retried when delivery is not confirmed:
+- **Retry count** - Number of retry attempts (includes initial send)
+- **Retry interval** - Seconds between retries
+- **Flood fallback attempt** - After which attempt to switch from DIRECT to FLOOD routing
+- **Grace period** - Seconds to wait for late ACKs after all retries complete
+
+### Quote Settings
+
+- **Max quote length** - Maximum number of bytes to include when quoting a message
+
+### Message Retention
+
+- **Live view days** - Number of days of messages shown in the live view (older messages are archived)
+
+---
+
+## System Log
+
+View real-time application logs:
+
+1. Click the menu icon (☰) in the navbar
+2. Select "System Log" from the menu
+3. Opens in a fullscreen modal with streaming log output
+
+The log viewer shows the most recent application log entries and streams new entries in real-time. Useful for monitoring device events, debugging issues, and verifying message delivery.
+
+---
+
+## Database Backup
+
+Create and manage database backups:
+
+1. Click the menu icon (☰) in the navbar
+2. Select "Backup" from the menu
+
+**Features:**
+- **Create backup** - Creates a timestamped copy of the current database
+- **List backups** - View all available backups with timestamps and file sizes
+- **Download** - Download any backup file to your local machine
+
+Backups are stored in the `./data/` directory alongside the main database.
 
 ---
 
@@ -432,6 +584,6 @@ To get the full PWA experience with app badge counters:
 - **Repeater Management:** [rpt-mgmt.md](rpt-mgmt.md)
 - **Troubleshooting:** [troubleshooting.md](troubleshooting.md)
 - **Architecture:** [architecture.md](architecture.md)
+- **Container Watchdog:** [watchdog.md](watchdog.md)
 - **MeshCore docs:** https://meshcore.org
-- **meshcore-cli docs:** https://github.com/meshcore-dev/meshcore-cli
 - **GitHub Issues:** https://github.com/MarekWo/mc-webui/issues
