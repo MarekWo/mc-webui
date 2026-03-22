@@ -883,14 +883,14 @@ class Database:
             return bool(row['no_auto_flood']) if row and row['no_auto_flood'] else False
 
     def get_repeater_contacts(self) -> List[Dict]:
-        """Get all repeater contacts (type=1) from DB, including ignored ones."""
+        """Get all repeater contacts (type=2) from DB, including ignored ones."""
         with self._connect() as conn:
             rows = conn.execute(
                 """SELECT c.public_key, c.name, c.last_advert, c.adv_lat, c.adv_lon,
                           CASE WHEN ic.public_key IS NOT NULL THEN 1 ELSE 0 END AS is_ignored
                    FROM contacts c
                    LEFT JOIN ignored_contacts ic ON c.public_key = ic.public_key
-                   WHERE c.type = 1
+                   WHERE c.type = 2
                    ORDER BY c.name ASC"""
             ).fetchall()
             return [dict(r) for r in rows]
