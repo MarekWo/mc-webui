@@ -1688,10 +1688,9 @@ class DeviceManager:
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
-            # Pass timeout=0 to let library use device's suggested_timeout
             contact_timeout = contact.get('timeout', 0) or 0
             result = self.execute(
-                self.mc.commands.req_status_sync(contact, contact_timeout),
+                self.mc.commands.req_status_sync(contact, contact_timeout, min_timeout=15),
                 timeout=120
             )
             if result is not None:
@@ -1751,7 +1750,7 @@ class DeviceManager:
         try:
             contact_timeout = contact.get('timeout', 0) or 0
             result = self.execute(
-                self.mc.commands.req_acl_sync(contact, contact_timeout),
+                self.mc.commands.req_acl_sync(contact, contact_timeout, min_timeout=15),
                 timeout=120
             )
             if result is not None:
@@ -1791,7 +1790,7 @@ class DeviceManager:
         try:
             contact_timeout = contact.get('timeout', 0) or 0
             result = self.execute(
-                self.mc.commands.req_mma_sync(contact, from_secs, to_secs, contact_timeout),
+                self.mc.commands.req_mma_sync(contact, from_secs, to_secs, contact_timeout, min_timeout=15),
                 timeout=120
             )
             if result is not None:
@@ -1811,7 +1810,7 @@ class DeviceManager:
         try:
             contact_timeout = contact.get('timeout', 0) or 0
             result = self.execute(
-                self.mc.commands.fetch_all_neighbours(contact, timeout=contact_timeout),
+                self.mc.commands.fetch_all_neighbours(contact, timeout=contact_timeout, min_timeout=15),
                 timeout=120
             )
             if result is not None:
