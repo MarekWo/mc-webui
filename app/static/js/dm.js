@@ -1841,7 +1841,7 @@ function setupPathFormHandlers(pubkey) {
         const newSearch = searchInput.cloneNode(true);
         searchInput.parentNode.replaceChild(newSearch, searchInput);
         newSearch.addEventListener('input', () => {
-            filterRepeaterList(newSearch.value);
+            filterRepeaterList();
         });
     }
 
@@ -1894,15 +1894,27 @@ async function loadRepeaterPicker(pubkey) {
     renderRepeaterList(listEl, _repeatersCache, pubkey);
 }
 
+function getRepeaterSearchMode() {
+    const checked = document.querySelector('input[name="repeaterSearchMode"]:checked');
+    return checked ? checked.value : 'name';
+}
+
 function renderRepeaterList(listEl, repeaters, pubkey) {
     const hashSize = parseInt(document.querySelector('input[name="pathHashSize"]:checked').value);
     const hexInput = document.getElementById('dmPathHexInput');
-    const searchVal = (document.getElementById('dmRepeaterSearch')?.value || '').toLowerCase();
+    const searchVal = (document.getElementById('dmRepeaterSearch')?.value || '').toLowerCase().trim();
+    const searchMode = getRepeaterSearchMode();
+    const prefixLen = hashSize * 2; // hex chars to match for ID mode
 
-    const filtered = repeaters.filter(r =>
-        r.name.toLowerCase().includes(searchVal) ||
-        r.public_key.toLowerCase().includes(searchVal)
-    );
+    const filtered = repeaters.filter(r => {
+        if (!searchVal) return true;
+        if (searchMode === 'id') {
+            // Match only against the first prefixLen hex chars of public_key
+            const idPrefix = r.public_key.substring(0, prefixLen).toLowerCase();
+            return idPrefix.startsWith(searchVal.substring(0, prefixLen));
+        }
+        return r.name.toLowerCase().includes(searchVal);
+    });
 
     if (!filtered.length) {
         listEl.innerHTML = '<div class="text-muted small p-2">No repeaters found</div>';
@@ -1943,15 +1955,13 @@ function renderRepeaterList(listEl, repeaters, pubkey) {
     });
 }
 
-function filterRepeaterList(searchVal) {
+function filterRepeaterList() {
     if (!_repeatersCache) return;
     const listEl = document.getElementById('dmRepeaterList');
     const pubkey = getCurrentContactPubkey();
     if (listEl) {
-        renderRepeaterList(listEl, _repeatersCache.filter(r =>
-            r.name.toLowerCase().includes(searchVal.toLowerCase()) ||
-            r.public_key.toLowerCase().includes(searchVal.toLowerCase())
-        ), pubkey);
+        // Filtering is done inside renderRepeaterList based on search input + mode
+        renderRepeaterList(listEl, _repeatersCache, pubkey);
     }
 }
 
@@ -2025,7 +2035,7 @@ async function loadNoAutoFloodToggle(pubkey) {
     });
 }
 
-// Listen for hash size radio changes to re-render repeater list
+// Listen for hash size and search mode radio changes
 document.addEventListener('change', (e) => {
     if (e.target.name === 'pathHashSize') {
         _repeatersCache = null; // Refresh to recalculate prefixes
@@ -2036,5 +2046,26 @@ document.addEventListener('change', (e) => {
         // Clear path hex input when changing hash size
         const hexInput = document.getElementById('dmPathHexInput');
         if (hexInput) hexInput.value = '';
+        // Update ID search placeholder with new prefix length
+        updateRepeaterSearchPlaceholder();
+    }
+    if (e.target.name === 'repeaterSearchMode') {
+        updateRepeaterSearchPlaceholder();
+        const searchInput = document.getElementById('dmRepeaterSearch');
+        if (searchInput) searchInput.value = '';
+        filterRepeaterList();
     }
 });
+
+function updateRepeaterSearchPlaceholder() {
+    const searchInput = document.getElementById('dmRepeaterSearch');
+    if (!searchInput) return;
+    const mode = getRepeaterSearchMode();
+    if (mode === 'id') {
+        const hashSize = parseInt(document.querySelector('input[name="pathHashSize"]:checked')?.value || '1');
+        const chars = hashSize * 2;
+        searchInput.placeholder = `Search by first ${chars} hex chars...`;
+    } else {
+        searchInput.placeholder = 'Search by name...';
+    }
+}

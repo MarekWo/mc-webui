@@ -343,9 +343,17 @@
                             <div id="dmPathUniquenessWarning" class="path-uniqueness-warning mt-1" style="display: none;"></div>
                         </div>
                         <!-- Repeater picker (hidden by default) -->
-                        <div id="dmRepeaterPicker" style="display: none;" class="border rounded mb-2" style="max-height: 200px; overflow-y: auto;">
-                            <input type="text" class="form-control form-control-sm border-0 border-bottom"
-                                   id="dmRepeaterSearch" placeholder="Search repeaters..." autocomplete="off">
+                        <div id="dmRepeaterPicker" style="display: none;" class="border rounded mb-2">
+                            <div class="d-flex border-bottom">
+                                <div class="btn-group btn-group-sm flex-shrink-0" role="group">
+                                    <input type="radio" class="btn-check" name="repeaterSearchMode" id="rptSearchName" value="name" checked>
+                                    <label class="btn btn-outline-secondary border-0 rounded-0" for="rptSearchName">Name</label>
+                                    <input type="radio" class="btn-check" name="repeaterSearchMode" id="rptSearchId" value="id">
+                                    <label class="btn btn-outline-secondary border-0 rounded-0" for="rptSearchId">ID</label>
+                                </div>
+                                <input type="text" class="form-control form-control-sm border-0"
+                                       id="dmRepeaterSearch" placeholder="Search by name..." autocomplete="off">
+                            </div>
                             <div id="dmRepeaterList" style="max-height: 180px; overflow-y: auto;"></div>
                         </div>
                         <div class="mb-2">
