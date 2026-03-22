@@ -730,18 +730,63 @@ function populateContactInfoModal() {
         body.appendChild(div);
     }
 
-    // Path/route
+    // Path/route (device path)
     if (contact.path_or_mode) {
         const div = document.createElement('div');
-        div.className = 'small mb-2';
+        div.className = 'small mb-2 d-flex align-items-center gap-2';
         const mode = contact.path_or_mode;
         if (mode === 'Flood') {
-            div.innerHTML = '<i class="bi bi-broadcast"></i> Flood';
+            div.innerHTML = '<span><i class="bi bi-broadcast"></i> Flood</span>';
         } else if (mode === 'Direct') {
-            div.innerHTML = '<i class="bi bi-arrow-right-short"></i> Direct';
+            div.innerHTML = '<span><i class="bi bi-arrow-right-short"></i> Direct</span>';
         } else {
             const hops = mode.split('→').length;
-            div.innerHTML = `<i class="bi bi-signpost-split"></i> ${mode} <span class="text-muted">(${hops} hops)</span>`;
+            const outPathLen = contact.out_path_len || 0;
+            const hashSize = outPathLen > 0 ? ((outPathLen >> 6) + 1) : 1;
+            const hopCount = outPathLen & 0x3F;
+            const pathHex = contact.out_path ? contact.out_path.substring(0, hopCount * hashSize * 2) : '';
+
+            div.innerHTML = `
+                <span><i class="bi bi-signpost-split"></i> ${mode} <span class="text-muted">(${hops} hops)</span></span>
+                ${pathHex ? `<button type="button" class="btn btn-outline-primary btn-sm py-0 px-1"
+                    id="dmImportDevicePathBtn" title="Import device path to configured paths"
+                    style="font-size: 0.7rem; line-height: 1.3;">
+                    <i class="bi bi-download"></i>
+                </button>` : ''}
+            `;
+
+            if (pathHex) {
+                // Defer event attachment to after DOM insertion
+                setTimeout(() => {
+                    const importBtn = document.getElementById('dmImportDevicePathBtn');
+                    if (importBtn) {
+                        importBtn.addEventListener('click', async () => {
+                            const pubkey = getCurrentContactPubkey();
+                            try {
+                                const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        path_hex: pathHex,
+                                        hash_size: hashSize,
+                                        label: 'Device path',
+                                        is_primary: true
+                                    })
+                                });
+                                const data = await response.json();
+                                if (data.success) {
+                                    await renderPathList(pubkey);
+                                    showNotification('Device path imported', 'info');
+                                } else {
+                                    showNotification(data.error || 'Import failed', 'danger');
+                                }
+                            } catch (e) {
+                                showNotification('Import failed', 'danger');
+                            }
+                        });
+                    }
+                }, 0);
+            }
         }
         body.appendChild(div);
     }
