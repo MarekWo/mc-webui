@@ -115,6 +115,18 @@ CREATE TABLE IF NOT EXISTS paths (
     received_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- User-configured paths for DM retry rotation
+CREATE TABLE IF NOT EXISTS contact_paths (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    contact_pubkey  TEXT NOT NULL REFERENCES contacts(public_key) ON DELETE CASCADE,
+    path_hex        TEXT NOT NULL DEFAULT '',   -- raw hex path bytes (e.g. "5e34e761")
+    hash_size       INTEGER NOT NULL DEFAULT 1, -- bytes per hop: 1, 2, or 3
+    label           TEXT NOT NULL DEFAULT '',    -- friendly label (e.g. "via Zalesie")
+    is_primary      INTEGER NOT NULL DEFAULT 0, -- 1 = priority/default path
+    sort_order      INTEGER NOT NULL DEFAULT 0, -- lower = tried first during rotation
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Advertisements (replaces .adverts.jsonl)
 CREATE TABLE IF NOT EXISTS advertisements (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,6 +186,7 @@ CREATE INDEX IF NOT EXISTS idx_acks_code ON acks(expected_ack);
 CREATE INDEX IF NOT EXISTS idx_echoes_pkt ON echoes(pkt_payload);
 CREATE INDEX IF NOT EXISTS idx_adv_pubkey ON advertisements(public_key, timestamp);
 CREATE INDEX IF NOT EXISTS idx_contacts_name ON contacts(name);
+CREATE INDEX IF NOT EXISTS idx_cp_contact ON contact_paths(contact_pubkey, sort_order);
 
 -- ============================================================
 -- Full-Text Search (FTS5)

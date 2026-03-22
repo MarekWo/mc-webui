@@ -33,7 +33,16 @@ class Database:
             conn.execute("PRAGMA foreign_keys=ON")
             schema_sql = SCHEMA_FILE.read_text(encoding='utf-8')
             conn.executescript(schema_sql)
+            self._run_migrations(conn)
         logger.info(f"Database initialized: {self.db_path}")
+
+    def _run_migrations(self, conn):
+        """Run schema migrations for columns added after initial release."""
+        # Check if contacts.no_auto_flood column exists
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(contacts)").fetchall()}
+        if 'no_auto_flood' not in columns:
+            conn.execute("ALTER TABLE contacts ADD COLUMN no_auto_flood INTEGER DEFAULT 0")
+            logger.info("Migration: added contacts.no_auto_flood column")
 
     @contextmanager
     def _connect(self):
@@ -752,6 +761,141 @@ class Database:
             )
 
     # ================================================================
+    # Contact Paths (user-configured paths for DM routing)
+    # ================================================================
+
+    def get_contact_paths(self, contact_pubkey: str) -> List[Dict]:
+        """Get all configured paths for a contact, ordered by sort_order."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM contact_paths
+                   WHERE contact_pubkey = ?
+                   ORDER BY sort_order ASC, id ASC""",
+                (contact_pubkey.lower(),)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def add_contact_path(self, contact_pubkey: str, path_hex: str,
+                         hash_size: int = 1, label: str = '',
+                         is_primary: bool = False) -> int:
+        """Add a new path for a contact. Returns the new row ID."""
+        pk = contact_pubkey.lower()
+        with self._connect() as conn:
+            if is_primary:
+                conn.execute(
+                    "UPDATE contact_paths SET is_primary = 0 WHERE contact_pubkey = ?",
+                    (pk,)
+                )
+            # Auto-assign sort_order as max+1
+            row = conn.execute(
+                "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM contact_paths WHERE contact_pubkey = ?",
+                (pk,)
+            ).fetchone()
+            next_order = row['next_order'] if row else 0
+            cursor = conn.execute(
+                """INSERT INTO contact_paths
+                   (contact_pubkey, path_hex, hash_size, label, is_primary, sort_order)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (pk, path_hex, hash_size, label, 1 if is_primary else 0, next_order)
+            )
+            return cursor.lastrowid
+
+    def update_contact_path(self, path_id: int, **kwargs) -> bool:
+        """Update fields on a contact path (path_hex, hash_size, label, is_primary)."""
+        allowed = {'path_hex', 'hash_size', 'label', 'is_primary', 'sort_order'}
+        updates = {k: v for k, v in kwargs.items() if k in allowed}
+        if not updates:
+            return False
+        with self._connect() as conn:
+            # If setting as primary, clear others first
+            if updates.get('is_primary'):
+                row = conn.execute(
+                    "SELECT contact_pubkey FROM contact_paths WHERE id = ?", (path_id,)
+                ).fetchone()
+                if row:
+                    conn.execute(
+                        "UPDATE contact_paths SET is_primary = 0 WHERE contact_pubkey = ?",
+                        (row['contact_pubkey'],)
+                    )
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            values = list(updates.values()) + [path_id]
+            cursor = conn.execute(
+                f"UPDATE contact_paths SET {set_clause} WHERE id = ?", values
+            )
+            return cursor.rowcount > 0
+
+    def delete_contact_path(self, path_id: int) -> bool:
+        """Delete a single configured path."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM contact_paths WHERE id = ?", (path_id,)
+            )
+            return cursor.rowcount > 0
+
+    def delete_all_contact_paths(self, contact_pubkey: str) -> int:
+        """Delete all configured paths for a contact. Returns count deleted."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM contact_paths WHERE contact_pubkey = ?",
+                (contact_pubkey.lower(),)
+            )
+            return cursor.rowcount
+
+    def reorder_contact_paths(self, contact_pubkey: str, path_ids: List[int]) -> bool:
+        """Set sort_order based on the order of IDs in the list."""
+        pk = contact_pubkey.lower()
+        with self._connect() as conn:
+            for order, pid in enumerate(path_ids):
+                conn.execute(
+                    "UPDATE contact_paths SET sort_order = ? WHERE id = ? AND contact_pubkey = ?",
+                    (order, pid, pk)
+                )
+            return True
+
+    def get_primary_contact_path(self, contact_pubkey: str) -> Optional[Dict]:
+        """Get the primary path (or first by sort_order if none marked primary)."""
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT * FROM contact_paths
+                   WHERE contact_pubkey = ?
+                   ORDER BY is_primary DESC, sort_order ASC
+                   LIMIT 1""",
+                (contact_pubkey.lower(),)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def set_contact_no_auto_flood(self, contact_pubkey: str, value: bool) -> bool:
+        """Set the no_auto_flood flag for a contact."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "UPDATE contacts SET no_auto_flood = ?, lastmod = datetime('now') WHERE public_key = ?",
+                (1 if value else 0, contact_pubkey.lower())
+            )
+            return cursor.rowcount > 0
+
+    def get_contact_no_auto_flood(self, contact_pubkey: str) -> bool:
+        """Get the no_auto_flood flag for a contact."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT no_auto_flood FROM contacts WHERE public_key = ?",
+                (contact_pubkey.lower(),)
+            ).fetchone()
+            return bool(row['no_auto_flood']) if row and row['no_auto_flood'] else False
+
+    def get_repeater_contacts(self) -> List[Dict]:
+        """Get all repeater contacts (type=1) from DB, including ignored ones."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT c.public_key, c.name, c.last_advert, c.adv_lat, c.adv_lon,
+                          CASE WHEN ic.public_key IS NOT NULL THEN 1 ELSE 0 END AS is_ignored
+                   FROM contacts c
+                   LEFT JOIN ignored_contacts ic ON c.public_key = ic.public_key
+                   WHERE c.type = 1
+                   ORDER BY c.name ASC"""
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ================================================================
     # Advertisements
     # ================================================================
 
@@ -861,7 +1005,7 @@ class Database:
         """Get row counts for all tables."""
         tables = ['device', 'contacts', 'channels', 'channel_messages',
                   'direct_messages', 'acks', 'echoes', 'paths',
-                  'advertisements', 'read_status']
+                  'contact_paths', 'advertisements', 'read_status']
         stats = {}
         with self._connect() as conn:
             for table in tables:

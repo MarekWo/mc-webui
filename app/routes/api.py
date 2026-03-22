@@ -2168,6 +2168,220 @@ def set_auto_retry_config():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+## ================================================================
+# Contact Paths (user-configured DM routing paths)
+# ================================================================
+
+@api_bp.route('/contacts/<pubkey>/paths', methods=['GET'])
+def get_contact_paths(pubkey):
+    """List all configured paths for a contact."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        paths = db.get_contact_paths(pubkey)
+        return jsonify({'success': True, 'paths': paths}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<pubkey>/paths', methods=['POST'])
+def add_contact_path(pubkey):
+    """Add a new configured path for a contact."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Missing JSON body'}), 400
+
+        path_hex = data.get('path_hex', '').strip()
+        hash_size = data.get('hash_size', 1)
+        label = data.get('label', '').strip()
+        is_primary = bool(data.get('is_primary', False))
+
+        # Validate path_hex
+        if not path_hex:
+            return jsonify({'success': False, 'error': 'path_hex is required'}), 400
+        if len(path_hex) % 2 != 0:
+            return jsonify({'success': False, 'error': 'path_hex must have even length'}), 400
+        try:
+            bytes.fromhex(path_hex)
+        except ValueError:
+            return jsonify({'success': False, 'error': 'path_hex must be valid hex'}), 400
+
+        # Validate hash_size
+        if hash_size not in (1, 2, 3):
+            return jsonify({'success': False, 'error': 'hash_size must be 1, 2, or 3'}), 400
+
+        # Validate hop count
+        hop_count = len(path_hex) // (hash_size * 2)
+        max_hops = {1: 64, 2: 32, 3: 21}
+        if hop_count < 1 or hop_count > max_hops[hash_size]:
+            return jsonify({'success': False, 'error': f'Hop count {hop_count} exceeds max {max_hops[hash_size]} for {hash_size}-byte hash'}), 400
+
+        # Validate path_hex length is a multiple of hash_size
+        if len(path_hex) % (hash_size * 2) != 0:
+            return jsonify({'success': False, 'error': f'path_hex length must be a multiple of {hash_size * 2} (hash_size={hash_size})'}), 400
+
+        # Validate label length
+        if len(label) > 50:
+            return jsonify({'success': False, 'error': 'Label must be 50 characters or less'}), 400
+
+        path_id = db.add_contact_path(pubkey, path_hex, hash_size, label, is_primary)
+        return jsonify({'success': True, 'id': path_id}), 201
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<pubkey>/paths/<int:path_id>', methods=['PUT'])
+def update_contact_path(pubkey, path_id):
+    """Update a configured path."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Missing JSON body'}), 400
+
+        kwargs = {}
+        if 'path_hex' in data:
+            path_hex = data['path_hex'].strip()
+            if len(path_hex) % 2 != 0:
+                return jsonify({'success': False, 'error': 'path_hex must have even length'}), 400
+            try:
+                bytes.fromhex(path_hex)
+            except ValueError:
+                return jsonify({'success': False, 'error': 'path_hex must be valid hex'}), 400
+            kwargs['path_hex'] = path_hex
+        if 'hash_size' in data:
+            if data['hash_size'] not in (1, 2, 3):
+                return jsonify({'success': False, 'error': 'hash_size must be 1, 2, or 3'}), 400
+            kwargs['hash_size'] = data['hash_size']
+        if 'label' in data:
+            label = data['label'].strip()
+            if len(label) > 50:
+                return jsonify({'success': False, 'error': 'Label must be 50 characters or less'}), 400
+            kwargs['label'] = label
+        if 'is_primary' in data:
+            kwargs['is_primary'] = 1 if data['is_primary'] else 0
+
+        if not kwargs:
+            return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+
+        if db.update_contact_path(path_id, **kwargs):
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False, 'error': 'Path not found'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<pubkey>/paths/<int:path_id>', methods=['DELETE'])
+def delete_contact_path(pubkey, path_id):
+    """Delete a single configured path."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        if db.delete_contact_path(path_id):
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False, 'error': 'Path not found'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<pubkey>/paths/reorder', methods=['POST'])
+def reorder_contact_paths(pubkey):
+    """Reorder configured paths. Body: {path_ids: [3, 1, 2]}"""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        data = request.get_json()
+        if not data or 'path_ids' not in data:
+            return jsonify({'success': False, 'error': 'path_ids array required'}), 400
+        path_ids = data['path_ids']
+        if not isinstance(path_ids, list) or not all(isinstance(i, int) for i in path_ids):
+            return jsonify({'success': False, 'error': 'path_ids must be an array of integers'}), 400
+        db.reorder_contact_paths(pubkey, path_ids)
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<pubkey>/paths/reset_flood', methods=['POST'])
+def reset_contact_to_flood(pubkey):
+    """Reset to FLOOD: clear all configured paths and reset device path."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        # Clear all saved paths from DB
+        deleted = db.delete_all_contact_paths(pubkey)
+        # Reset path on device
+        result = {'success': True, 'paths_deleted': deleted}
+        try:
+            dm = cli.get_device_manager()
+            if dm and dm.is_connected:
+                dev_result = dm.reset_path(pubkey)
+                result['device_reset'] = dev_result.get('success', False)
+            else:
+                result['device_reset'] = False
+                result['warning'] = 'Device not connected'
+        except Exception as e:
+            result['device_reset'] = False
+            result['warning'] = f'Device reset failed: {e}'
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<pubkey>/no_auto_flood', methods=['GET'])
+def get_no_auto_flood(pubkey):
+    """Get the no_auto_flood flag for a contact."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        value = db.get_contact_no_auto_flood(pubkey)
+        return jsonify({'success': True, 'no_auto_flood': value}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<pubkey>/no_auto_flood', methods=['PUT'])
+def set_no_auto_flood(pubkey):
+    """Set the no_auto_flood flag for a contact."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        data = request.get_json()
+        if data is None or 'no_auto_flood' not in data:
+            return jsonify({'success': False, 'error': 'no_auto_flood field required'}), 400
+        value = bool(data['no_auto_flood'])
+        if db.set_contact_no_auto_flood(pubkey, value):
+            return jsonify({'success': True, 'no_auto_flood': value}), 200
+        return jsonify({'success': False, 'error': 'Contact not found'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/repeaters', methods=['GET'])
+def get_repeater_contacts():
+    """List all repeater contacts (type=1) from DB, including ignored."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        repeaters = db.get_repeater_contacts()
+        return jsonify({'success': True, 'repeaters': repeaters}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/chat/settings', methods=['GET'])
 def get_chat_config():
     """Get chat settings."""

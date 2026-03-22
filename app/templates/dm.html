@@ -101,6 +101,78 @@
             background: #f8f9fa;
             font-weight: 600;
         }
+
+        /* Path management styles */
+        .path-list-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            margin-bottom: 0.25rem;
+            font-size: 0.8rem;
+            background: #fff;
+        }
+        .path-list-item.primary {
+            border-color: #0d6efd;
+            background: #f0f7ff;
+        }
+        .path-list-item .path-hex {
+            font-family: monospace;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .path-list-item .path-label {
+            color: #6c757d;
+            font-size: 0.7rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .path-list-item .path-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 0.15rem;
+            flex-shrink: 0;
+        }
+        .path-list-item .path-actions .btn {
+            padding: 0 0.25rem;
+            font-size: 0.7rem;
+            line-height: 1.2;
+        }
+        .path-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        .path-section-header h6 {
+            font-size: 0.85rem;
+            margin: 0;
+        }
+        .repeater-picker-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.5rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.8rem;
+        }
+        .repeater-picker-item:hover {
+            background-color: #e9ecef;
+        }
+        .repeater-picker-item .badge {
+            font-family: monospace;
+            font-size: 0.7rem;
+        }
+        .path-uniqueness-warning {
+            color: #dc3545;
+            font-size: 0.75rem;
+        }
     </style>
 </head>
 <body>
@@ -236,11 +308,75 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body" id="dmContactInfoBody"></div>
+                <!-- Path management section (populated dynamically) -->
+                <div class="modal-body border-top pt-2 pb-1" id="dmPathSection" style="display: none;">
+                    <div class="path-section-header">
+                        <h6><i class="bi bi-signpost-split"></i> Paths</h6>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="dmAddPathBtn" title="Add path">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
+                    <div id="dmPathList"></div>
+                    <!-- Add Path form (hidden by default) -->
+                    <div id="dmAddPathForm" style="display: none;" class="border rounded p-2 mb-2">
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Hash Size</label>
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                <input type="radio" class="btn-check" name="pathHashSize" id="pathHash1" value="1" checked>
+                                <label class="btn btn-outline-secondary" for="pathHash1">1B (max 64)</label>
+                                <input type="radio" class="btn-check" name="pathHashSize" id="pathHash2" value="2">
+                                <label class="btn btn-outline-secondary" for="pathHash2">2B (max 32)</label>
+                                <input type="radio" class="btn-check" name="pathHashSize" id="pathHash3" value="3">
+                                <label class="btn btn-outline-secondary" for="pathHash3">3B (max 21)</label>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Path (hex)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control font-monospace" id="dmPathHexInput"
+                                       placeholder="e.g. 5e,e7 or 5e34,e761" autocomplete="off">
+                                <button type="button" class="btn btn-outline-secondary" id="dmPickRepeaterBtn"
+                                        title="Pick repeater">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                            </div>
+                            <div id="dmPathUniquenessWarning" class="path-uniqueness-warning mt-1" style="display: none;"></div>
+                        </div>
+                        <!-- Repeater picker (hidden by default) -->
+                        <div id="dmRepeaterPicker" style="display: none;" class="border rounded mb-2" style="max-height: 200px; overflow-y: auto;">
+                            <input type="text" class="form-control form-control-sm border-0 border-bottom"
+                                   id="dmRepeaterSearch" placeholder="Search repeaters..." autocomplete="off">
+                            <div id="dmRepeaterList" style="max-height: 180px; overflow-y: auto;"></div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Label (optional)</label>
+                            <input type="text" class="form-control form-control-sm" id="dmPathLabelInput"
+                                   placeholder="e.g. via Mountain RPT" maxlength="50">
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="dmCancelPathBtn">Cancel</button>
+                            <button type="button" class="btn btn-sm btn-primary" id="dmSavePathBtn">Add Path</button>
+                        </div>
+                    </div>
+                    <!-- Reset to FLOOD button -->
+                    <div class="text-end mt-1">
+                        <button type="button" class="btn btn-outline-danger btn-sm" id="dmResetFloodBtn"
+                                title="Reset all paths and switch to FLOOD mode">
+                            <i class="bi bi-broadcast"></i> Reset to FLOOD
+                        </button>
+                    </div>
+                </div>
                 <div class="modal-footer">
                     <div class="d-flex align-items-center justify-content-between w-100">
-                        <div class="form-check form-switch" title="Auto Retry: resend DM if no ACK received">
-                            <input class="form-check-input" type="checkbox" id="dmAutoRetryToggle" checked>
-                            <label class="form-check-label small" for="dmAutoRetryToggle">Auto Retry</label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check form-switch" title="Auto Retry: resend DM if no ACK received">
+                                <input class="form-check-input" type="checkbox" id="dmAutoRetryToggle" checked>
+                                <label class="form-check-label small" for="dmAutoRetryToggle">Auto Retry</label>
+                            </div>
+                            <div class="form-check form-switch" title="No Flood Fallback: never auto-reset path to FLOOD">
+                                <input class="form-check-input" type="checkbox" id="dmNoAutoFloodToggle">
+                                <label class="form-check-label small" for="dmNoAutoFloodToggle">No Flood</label>
+                            </div>
                         </div>
                         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
                     </div>

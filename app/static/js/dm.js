@@ -278,6 +278,7 @@ function setupEventListeners() {
         infoBtn.addEventListener('click', () => {
             const modal = new bootstrap.Modal(document.getElementById('dmContactInfoModal'));
             populateContactInfoModal();
+            loadPathSection();
             modal.show();
         });
     }
@@ -1607,3 +1608,433 @@ async function loadAutoRetryConfig() {
         }
     });
 }
+
+// ================================================================
+// Path Management
+// ================================================================
+
+let _repeatersCache = null;
+
+/**
+ * Get the current contact's full public key for path API calls.
+ */
+function getCurrentContactPubkey() {
+    const contact = findCurrentContact();
+    return contact?.public_key || currentConversationId || '';
+}
+
+/**
+ * Load and display the path section in Contact Info modal.
+ */
+async function loadPathSection() {
+    const section = document.getElementById('dmPathSection');
+    const pubkey = getCurrentContactPubkey();
+    if (!section || !pubkey) {
+        if (section) section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+    await renderPathList(pubkey);
+    await loadNoAutoFloodToggle(pubkey);
+    setupPathFormHandlers(pubkey);
+}
+
+/**
+ * Render the list of configured paths for a contact.
+ */
+async function renderPathList(pubkey) {
+    const listEl = document.getElementById('dmPathList');
+    if (!listEl) return;
+
+    listEl.innerHTML = '<div class="text-muted small">Loading...</div>';
+
+    try {
+        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`);
+        const data = await response.json();
+        if (!data.success || !data.paths.length) {
+            listEl.innerHTML = '<div class="text-muted small mb-2">No paths configured. Use + to add.</div>';
+            return;
+        }
+
+        listEl.innerHTML = '';
+        data.paths.forEach((path, index) => {
+            const item = document.createElement('div');
+            item.className = 'path-list-item' + (path.is_primary ? ' primary' : '');
+
+            // Format path hex as hop→hop→hop
+            const chunk = path.hash_size * 2;
+            const hops = [];
+            for (let i = 0; i < path.path_hex.length; i += chunk) {
+                hops.push(path.path_hex.substring(i, i + chunk).toUpperCase());
+            }
+            const pathDisplay = hops.join('→');
+            const hashLabel = path.hash_size + 'B';
+
+            item.innerHTML = `
+                <span class="path-hex" title="${path.path_hex}">${pathDisplay}</span>
+                <span class="badge bg-secondary">${hashLabel}</span>
+                ${path.label ? `<span class="path-label" title="${path.label}">${path.label}</span>` : ''}
+                <span class="path-actions">
+                    <button class="btn btn-link p-0 ${path.is_primary ? 'text-warning' : 'text-muted'}"
+                            title="${path.is_primary ? 'Primary path' : 'Set as primary'}"
+                            data-action="primary" data-id="${path.id}">
+                        <i class="bi bi-star${path.is_primary ? '-fill' : ''}"></i>
+                    </button>
+                    ${index > 0 ? `<button class="btn btn-link p-0 text-muted" title="Move up" data-action="up" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-up"></i></button>` : ''}
+                    ${index < data.paths.length - 1 ? `<button class="btn btn-link p-0 text-muted" title="Move down" data-action="down" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-down"></i></button>` : ''}
+                    <button class="btn btn-link p-0 text-danger" title="Delete" data-action="delete" data-id="${path.id}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </span>
+            `;
+            listEl.appendChild(item);
+        });
+
+        // Attach action handlers
+        listEl.querySelectorAll('[data-action]').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                const pathId = parseInt(btn.dataset.id);
+
+                if (action === 'primary') {
+                    await setPathPrimary(pubkey, pathId);
+                } else if (action === 'delete') {
+                    await deletePathItem(pubkey, pathId);
+                } else if (action === 'up' || action === 'down') {
+                    await movePathItem(pubkey, data.paths, parseInt(btn.dataset.index), action);
+                }
+            });
+        });
+    } catch (e) {
+        listEl.innerHTML = '<div class="text-danger small">Failed to load paths</div>';
+        console.error('Failed to load paths:', e);
+    }
+}
+
+async function setPathPrimary(pubkey, pathId) {
+    try {
+        await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/${pathId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_primary: true })
+        });
+        await renderPathList(pubkey);
+    } catch (e) {
+        console.error('Failed to set primary path:', e);
+    }
+}
+
+async function deletePathItem(pubkey, pathId) {
+    try {
+        await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/${pathId}`, {
+            method: 'DELETE'
+        });
+        await renderPathList(pubkey);
+    } catch (e) {
+        console.error('Failed to delete path:', e);
+    }
+}
+
+async function movePathItem(pubkey, paths, currentIndex, direction) {
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= paths.length) return;
+
+    // Swap in the IDs array
+    const ids = paths.map(p => p.id);
+    [ids[currentIndex], ids[newIndex]] = [ids[newIndex], ids[currentIndex]];
+
+    try {
+        await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/reorder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path_ids: ids })
+        });
+        await renderPathList(pubkey);
+    } catch (e) {
+        console.error('Failed to reorder paths:', e);
+    }
+}
+
+/**
+ * Setup handlers for the Add Path form.
+ */
+function setupPathFormHandlers(pubkey) {
+    const addBtn = document.getElementById('dmAddPathBtn');
+    const form = document.getElementById('dmAddPathForm');
+    const cancelBtn = document.getElementById('dmCancelPathBtn');
+    const saveBtn = document.getElementById('dmSavePathBtn');
+    const pickBtn = document.getElementById('dmPickRepeaterBtn');
+    const picker = document.getElementById('dmRepeaterPicker');
+    const resetFloodBtn = document.getElementById('dmResetFloodBtn');
+
+    if (!addBtn || !form) return;
+
+    // Remove old listeners by cloning
+    const newAddBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+    newAddBtn.addEventListener('click', () => {
+        form.style.display = '';
+        newAddBtn.style.display = 'none';
+        document.getElementById('dmPathHexInput').value = '';
+        document.getElementById('dmPathLabelInput').value = '';
+        document.getElementById('dmPathUniquenessWarning').style.display = 'none';
+        if (picker) picker.style.display = 'none';
+    });
+
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener('click', () => {
+        form.style.display = 'none';
+        newAddBtn.style.display = '';
+    });
+
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    newSaveBtn.addEventListener('click', async () => {
+        const pathHex = document.getElementById('dmPathHexInput').value.replace(/[,\s→]/g, '').trim();
+        const hashSize = parseInt(document.querySelector('input[name="pathHashSize"]:checked').value);
+        const label = document.getElementById('dmPathLabelInput').value.trim();
+
+        if (!pathHex) {
+            showNotification('Path hex is required', 'danger');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path_hex: pathHex, hash_size: hashSize, label: label })
+            });
+            const data = await response.json();
+            if (data.success) {
+                form.style.display = 'none';
+                newAddBtn.style.display = '';
+                await renderPathList(pubkey);
+                showNotification('Path added', 'info');
+            } else {
+                showNotification(data.error || 'Failed to add path', 'danger');
+            }
+        } catch (e) {
+            showNotification('Failed to add path', 'danger');
+        }
+    });
+
+    // Repeater picker toggle
+    const newPickBtn = pickBtn.cloneNode(true);
+    pickBtn.parentNode.replaceChild(newPickBtn, pickBtn);
+    newPickBtn.addEventListener('click', () => {
+        if (!picker) return;
+        if (picker.style.display === 'none') {
+            picker.style.display = '';
+            loadRepeaterPicker(pubkey);
+        } else {
+            picker.style.display = 'none';
+        }
+    });
+
+    // Repeater search filter
+    const searchInput = document.getElementById('dmRepeaterSearch');
+    if (searchInput) {
+        const newSearch = searchInput.cloneNode(true);
+        searchInput.parentNode.replaceChild(newSearch, searchInput);
+        newSearch.addEventListener('input', () => {
+            filterRepeaterList(newSearch.value);
+        });
+    }
+
+    // Reset to FLOOD button
+    if (resetFloodBtn) {
+        const newResetBtn = resetFloodBtn.cloneNode(true);
+        resetFloodBtn.parentNode.replaceChild(newResetBtn, resetFloodBtn);
+        newResetBtn.addEventListener('click', async () => {
+            if (!confirm('Reset to FLOOD?\n\nThis will delete all configured paths and reset the device path to flood mode.')) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/reset_flood`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    await renderPathList(pubkey);
+                    showNotification('Reset to FLOOD mode', 'info');
+                } else {
+                    showNotification(data.error || 'Reset failed', 'danger');
+                }
+            } catch (e) {
+                showNotification('Reset failed', 'danger');
+            }
+        });
+    }
+}
+
+/**
+ * Load repeaters for the picker dropdown.
+ */
+async function loadRepeaterPicker(pubkey) {
+    const listEl = document.getElementById('dmRepeaterList');
+    if (!listEl) return;
+
+    if (!_repeatersCache) {
+        try {
+            const response = await fetch('/api/contacts/repeaters');
+            const data = await response.json();
+            if (data.success) {
+                _repeatersCache = data.repeaters;
+            }
+        } catch (e) {
+            listEl.innerHTML = '<div class="text-danger small p-2">Failed to load repeaters</div>';
+            return;
+        }
+    }
+
+    renderRepeaterList(listEl, _repeatersCache, pubkey);
+}
+
+function renderRepeaterList(listEl, repeaters, pubkey) {
+    const hashSize = parseInt(document.querySelector('input[name="pathHashSize"]:checked').value);
+    const hexInput = document.getElementById('dmPathHexInput');
+    const searchVal = (document.getElementById('dmRepeaterSearch')?.value || '').toLowerCase();
+
+    const filtered = repeaters.filter(r =>
+        r.name.toLowerCase().includes(searchVal) ||
+        r.public_key.toLowerCase().includes(searchVal)
+    );
+
+    if (!filtered.length) {
+        listEl.innerHTML = '<div class="text-muted small p-2">No repeaters found</div>';
+        return;
+    }
+
+    listEl.innerHTML = '';
+    filtered.forEach(rpt => {
+        const prefix = rpt.public_key.substring(0, hashSize * 2).toUpperCase();
+        // Check uniqueness: count repeaters with same prefix
+        const samePrefix = repeaters.filter(r =>
+            r.public_key.substring(0, hashSize * 2).toLowerCase() === prefix.toLowerCase()
+        ).length;
+
+        const item = document.createElement('div');
+        item.className = 'repeater-picker-item';
+        item.innerHTML = `
+            <span class="badge ${samePrefix > 1 ? 'bg-warning text-dark' : 'bg-success'}">${prefix}</span>
+            <span class="flex-grow-1 text-truncate">${rpt.name}</span>
+            ${samePrefix > 1 ? '<i class="bi bi-exclamation-triangle text-warning" title="' + samePrefix + ' repeaters share this prefix"></i>' : ''}
+        `;
+        item.addEventListener('click', () => {
+            // Append hop to path hex input
+            const current = hexInput.value.replace(/[,\s→]/g, '').trim();
+            const newVal = current + prefix.toLowerCase();
+            // Format with commas for readability
+            const chunk = hashSize * 2;
+            const parts = [];
+            for (let i = 0; i < newVal.length; i += chunk) {
+                parts.push(newVal.substring(i, i + chunk));
+            }
+            hexInput.value = parts.join(',');
+
+            // Show uniqueness warning if applicable
+            checkUniquenessWarning(repeaters, hashSize);
+        });
+        listEl.appendChild(item);
+    });
+}
+
+function filterRepeaterList(searchVal) {
+    if (!_repeatersCache) return;
+    const listEl = document.getElementById('dmRepeaterList');
+    const pubkey = getCurrentContactPubkey();
+    if (listEl) {
+        renderRepeaterList(listEl, _repeatersCache.filter(r =>
+            r.name.toLowerCase().includes(searchVal.toLowerCase()) ||
+            r.public_key.toLowerCase().includes(searchVal.toLowerCase())
+        ), pubkey);
+    }
+}
+
+function checkUniquenessWarning(repeaters, hashSize) {
+    const warningEl = document.getElementById('dmPathUniquenessWarning');
+    if (!warningEl) return;
+
+    const hexInput = document.getElementById('dmPathHexInput');
+    const rawHex = hexInput.value.replace(/[,\s→]/g, '').trim();
+    const chunk = hashSize * 2;
+    const hops = [];
+    for (let i = 0; i < rawHex.length; i += chunk) {
+        hops.push(rawHex.substring(i, i + chunk).toLowerCase());
+    }
+
+    const ambiguous = hops.filter(hop => {
+        const count = repeaters.filter(r =>
+            r.public_key.substring(0, chunk).toLowerCase() === hop
+        ).length;
+        return count > 1;
+    });
+
+    if (ambiguous.length > 0) {
+        warningEl.textContent = `⚠ Ambiguous prefix(es): ${ambiguous.map(h => h.toUpperCase()).join(', ')}. Consider using a larger hash size.`;
+        warningEl.style.display = '';
+    } else {
+        warningEl.style.display = 'none';
+    }
+}
+
+/**
+ * Load and setup the No Auto Flood toggle for current contact.
+ */
+async function loadNoAutoFloodToggle(pubkey) {
+    const toggle = document.getElementById('dmNoAutoFloodToggle');
+    if (!toggle || !pubkey) return;
+
+    try {
+        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/no_auto_flood`);
+        const data = await response.json();
+        if (data.success) {
+            toggle.checked = data.no_auto_flood;
+        }
+    } catch (e) {
+        console.debug('Failed to load no_auto_flood:', e);
+    }
+
+    // Replace to avoid duplicate listeners
+    const newToggle = toggle.cloneNode(true);
+    toggle.parentNode.replaceChild(newToggle, toggle);
+    newToggle.id = 'dmNoAutoFloodToggle';
+
+    newToggle.addEventListener('change', async function () {
+        try {
+            const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/no_auto_flood`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ no_auto_flood: this.checked })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showNotification(
+                    data.no_auto_flood ? 'No Flood Fallback enabled' : 'No Flood Fallback disabled',
+                    'info'
+                );
+            }
+        } catch (e) {
+            console.error('Failed to update no_auto_flood:', e);
+            this.checked = !this.checked;
+        }
+    });
+}
+
+// Listen for hash size radio changes to re-render repeater list
+document.addEventListener('change', (e) => {
+    if (e.target.name === 'pathHashSize') {
+        _repeatersCache = null; // Refresh to recalculate prefixes
+        const picker = document.getElementById('dmRepeaterPicker');
+        if (picker && picker.style.display !== 'none') {
+            loadRepeaterPicker(getCurrentContactPubkey());
+        }
+        // Clear path hex input when changing hash size
+        const hexInput = document.getElementById('dmPathHexInput');
+        if (hexInput) hexInput.value = '';
+    }
+});
