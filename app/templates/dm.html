@@ -327,59 +327,6 @@
                         </button>
                     </div>
                     <div id="dmPathList"></div>
-                    <!-- Add Path form (hidden by default) -->
-                    <div id="dmAddPathForm" style="display: none;" class="border rounded p-2 mb-2">
-                        <div class="mb-2">
-                            <label class="form-label small mb-1">Hash Size</label>
-                            <div class="btn-group btn-group-sm w-100" role="group">
-                                <input type="radio" class="btn-check" name="pathHashSize" id="pathHash1" value="1" checked>
-                                <label class="btn btn-outline-secondary" for="pathHash1">1B (max 64)</label>
-                                <input type="radio" class="btn-check" name="pathHashSize" id="pathHash2" value="2">
-                                <label class="btn btn-outline-secondary" for="pathHash2">2B (max 32)</label>
-                                <input type="radio" class="btn-check" name="pathHashSize" id="pathHash3" value="3">
-                                <label class="btn btn-outline-secondary" for="pathHash3">3B (max 21)</label>
-                            </div>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label small mb-1">Path (hex)</label>
-                            <div class="input-group input-group-sm">
-                                <input type="text" class="form-control font-monospace" id="dmPathHexInput"
-                                       placeholder="e.g. 5e,e7 or 5e34,e761" autocomplete="off">
-                                <button type="button" class="btn btn-outline-secondary" id="dmPickRepeaterBtn"
-                                        title="Pick repeater from list">
-                                    <i class="bi bi-plus-circle"></i>
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="dmPickRepeaterMapBtn"
-                                        title="Pick repeater from map">
-                                    <i class="bi bi-geo-alt"></i>
-                                </button>
-                            </div>
-                            <div id="dmPathUniquenessWarning" class="path-uniqueness-warning mt-1" style="display: none;"></div>
-                        </div>
-                        <!-- Repeater picker (hidden by default) -->
-                        <div id="dmRepeaterPicker" style="display: none;" class="border rounded mb-2">
-                            <div class="d-flex border-bottom">
-                                <div class="btn-group btn-group-sm flex-shrink-0" role="group">
-                                    <input type="radio" class="btn-check" name="repeaterSearchMode" id="rptSearchName" value="name" checked>
-                                    <label class="btn btn-outline-secondary border-0 rounded-0" for="rptSearchName">Name</label>
-                                    <input type="radio" class="btn-check" name="repeaterSearchMode" id="rptSearchId" value="id">
-                                    <label class="btn btn-outline-secondary border-0 rounded-0" for="rptSearchId">ID</label>
-                                </div>
-                                <input type="text" class="form-control form-control-sm border-0"
-                                       id="dmRepeaterSearch" placeholder="Search by name..." autocomplete="off">
-                            </div>
-                            <div id="dmRepeaterList" style="max-height: 180px; overflow-y: auto;"></div>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label small mb-1">Label (optional)</label>
-                            <input type="text" class="form-control form-control-sm" id="dmPathLabelInput"
-                                   placeholder="e.g. via Mountain RPT" maxlength="50">
-                        </div>
-                        <div class="d-flex justify-content-end gap-2">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="dmCancelPathBtn">Cancel</button>
-                            <button type="button" class="btn btn-sm btn-primary" id="dmSavePathBtn">Add Path</button>
-                        </div>
-                    </div>
                     <!-- Reset to FLOOD button -->
                     <div class="text-end mt-1">
                         <button type="button" class="btn btn-outline-danger btn-sm" id="dmResetFloodBtn"
@@ -408,7 +355,7 @@
     </div>
 
     <!-- Repeater Map Picker Modal -->
-    <div class="modal fade" id="repeaterMapModal" tabindex="-1" style="z-index: 1070;">
+    <div class="modal fade" id="repeaterMapModal" tabindex="-1" style="z-index: 1080;">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header py-2">
@@ -429,6 +376,70 @@
                     <span class="me-auto small text-muted" id="rptMapSelected">Click a repeater on the map</span>
                     <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="button" class="btn btn-sm btn-primary" id="rptMapAddBtn" disabled>Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Path Modal -->
+    <div class="modal fade" id="addPathModal" tabindex="-1" style="z-index: 1070;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title"><i class="bi bi-signpost-split"></i> Add Path</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="dmAddPathForm">
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Hash Size</label>
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            <input type="radio" class="btn-check" name="pathHashSize" id="pathHash1" value="1" checked>
+                            <label class="btn btn-outline-secondary" for="pathHash1">1B (max 64)</label>
+                            <input type="radio" class="btn-check" name="pathHashSize" id="pathHash2" value="2">
+                            <label class="btn btn-outline-secondary" for="pathHash2">2B (max 32)</label>
+                            <input type="radio" class="btn-check" name="pathHashSize" id="pathHash3" value="3">
+                            <label class="btn btn-outline-secondary" for="pathHash3">3B (max 21)</label>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Path (hex)</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control font-monospace" id="dmPathHexInput"
+                                   placeholder="e.g. 5e,e7 or 5e34,e761" autocomplete="off">
+                            <button type="button" class="btn btn-outline-secondary" id="dmPickRepeaterBtn"
+                                    title="Pick repeater from list">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="dmPickRepeaterMapBtn"
+                                    title="Pick repeater from map">
+                                <i class="bi bi-geo-alt"></i>
+                            </button>
+                        </div>
+                        <div id="dmPathUniquenessWarning" class="path-uniqueness-warning mt-1" style="display: none;"></div>
+                    </div>
+                    <!-- Repeater picker (hidden by default) -->
+                    <div id="dmRepeaterPicker" style="display: none;" class="border rounded mb-2">
+                        <div class="d-flex border-bottom">
+                            <div class="btn-group btn-group-sm flex-shrink-0" role="group">
+                                <input type="radio" class="btn-check" name="repeaterSearchMode" id="rptSearchName" value="name" checked>
+                                <label class="btn btn-outline-secondary border-0 rounded-0" for="rptSearchName">Name</label>
+                                <input type="radio" class="btn-check" name="repeaterSearchMode" id="rptSearchId" value="id">
+                                <label class="btn btn-outline-secondary border-0 rounded-0" for="rptSearchId">ID</label>
+                            </div>
+                            <input type="text" class="form-control form-control-sm border-0"
+                                   id="dmRepeaterSearch" placeholder="Search by name..." autocomplete="off">
+                        </div>
+                        <div id="dmRepeaterList" style="max-height: 180px; overflow-y: auto;"></div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Label (optional)</label>
+                        <input type="text" class="form-control form-control-sm" id="dmPathLabelInput"
+                               placeholder="e.g. via Mountain RPT" maxlength="50">
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="dmCancelPathBtn" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="dmSavePathBtn">Add Path</button>
                 </div>
             </div>
         </div>

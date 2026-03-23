@@ -1807,34 +1807,36 @@ async function movePathItem(pubkey, paths, currentIndex, direction) {
  */
 function setupPathFormHandlers(pubkey) {
     const addBtn = document.getElementById('dmAddPathBtn');
-    const form = document.getElementById('dmAddPathForm');
-    const cancelBtn = document.getElementById('dmCancelPathBtn');
     const saveBtn = document.getElementById('dmSavePathBtn');
     const pickBtn = document.getElementById('dmPickRepeaterBtn');
     const picker = document.getElementById('dmRepeaterPicker');
     const resetFloodBtn = document.getElementById('dmResetFloodBtn');
+    const addPathModalEl = document.getElementById('addPathModal');
 
-    if (!addBtn || !form) return;
+    if (!addBtn || !addPathModalEl) return;
 
-    // Remove old listeners by cloning
+    const addPathModal = new bootstrap.Modal(addPathModalEl);
+
+    // "+" button opens the Add Path modal
     const newAddBtn = addBtn.cloneNode(true);
     addBtn.parentNode.replaceChild(newAddBtn, addBtn);
     newAddBtn.addEventListener('click', () => {
-        form.style.display = '';
-        newAddBtn.style.display = 'none';
         document.getElementById('dmPathHexInput').value = '';
         document.getElementById('dmPathLabelInput').value = '';
         document.getElementById('dmPathUniquenessWarning').style.display = 'none';
         if (picker) picker.style.display = 'none';
+        addPathModal.show();
     });
 
-    const newCancelBtn = cancelBtn.cloneNode(true);
-    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-    newCancelBtn.addEventListener('click', () => {
-        form.style.display = 'none';
-        newAddBtn.style.display = '';
+    // Raise backdrop when Add Path modal opens (above Contact Info)
+    addPathModalEl.addEventListener('shown.bs.modal', () => {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        if (backdrops.length > 1) {
+            backdrops[backdrops.length - 1].style.zIndex = '1060';
+        }
     });
 
+    // Save button
     const newSaveBtn = saveBtn.cloneNode(true);
     saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
     newSaveBtn.addEventListener('click', async () => {
@@ -1855,8 +1857,7 @@ function setupPathFormHandlers(pubkey) {
             });
             const data = await response.json();
             if (data.success) {
-                form.style.display = 'none';
-                newAddBtn.style.display = '';
+                addPathModal.hide();
                 await renderPathList(pubkey);
                 showNotification('Path added', 'info');
             } else {
@@ -2069,10 +2070,10 @@ function openRepeaterMapPicker() {
     const modal = new bootstrap.Modal(modalEl);
 
     const onShown = async function () {
-        // Raise backdrop z-index so it covers the Contact Info modal behind
+        // Raise backdrop z-index so it covers modals behind (Contact Info + Add Path)
         const backdrops = document.querySelectorAll('.modal-backdrop');
-        if (backdrops.length > 1) {
-            backdrops[backdrops.length - 1].style.zIndex = '1060';
+        if (backdrops.length > 0) {
+            backdrops[backdrops.length - 1].style.zIndex = '1075';
         }
 
         // Init map once
