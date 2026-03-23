@@ -2336,7 +2336,7 @@ async function loadNoAutoFloodToggle(pubkey) {
             const data = await response.json();
             if (data.success) {
                 showNotification(
-                    data.no_auto_flood ? 'No Flood Fallback enabled' : 'No Flood Fallback disabled',
+                    data.no_auto_flood ? 'Keep path enabled' : 'Keep path disabled',
                     'info'
                 );
             }
