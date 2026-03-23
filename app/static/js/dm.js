@@ -1849,6 +1849,18 @@ function setupPathFormHandlers(pubkey) {
             return;
         }
 
+        // Check for duplicate hops in manually entered path
+        const chunk = hashSize * 2;
+        const hops = [];
+        for (let i = 0; i < pathHex.length; i += chunk) {
+            hops.push(pathHex.substring(i, i + chunk).toLowerCase());
+        }
+        const dupes = hops.filter((h, i) => hops.indexOf(h) !== i);
+        if (dupes.length > 0) {
+            showNotification(`Duplicate hop(s): ${[...new Set(dupes)].map(d => d.toUpperCase()).join(', ')}`, 'danger');
+            return;
+        }
+
         try {
             const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`, {
                 method: 'POST',
@@ -1993,6 +2005,12 @@ function renderRepeaterList(listEl, repeaters, pubkey) {
             ${samePrefix > 1 ? '<i class="bi bi-exclamation-triangle text-warning" title="' + samePrefix + ' repeaters share this prefix"></i>' : ''}
         `;
         item.addEventListener('click', () => {
+            // Check for duplicate hop
+            const existingHops = getCurrentPathHops(hashSize);
+            if (existingHops.includes(prefix.toLowerCase())) {
+                showNotification(`${prefix} is already in the path`, 'warning');
+                return;
+            }
             // Append hop to path hex input
             const current = hexInput.value.replace(/[,\s→]/g, '').trim();
             const newVal = current + prefix.toLowerCase();
@@ -2019,6 +2037,21 @@ function filterRepeaterList() {
         // Filtering is done inside renderRepeaterList based on search input + mode
         renderRepeaterList(listEl, _repeatersCache, pubkey);
     }
+}
+
+/**
+ * Get the list of hop prefixes currently in the path hex input.
+ */
+function getCurrentPathHops(hashSize) {
+    const hexInput = document.getElementById('dmPathHexInput');
+    if (!hexInput) return [];
+    const rawHex = hexInput.value.replace(/[,\s→]/g, '').trim().toLowerCase();
+    const chunk = hashSize * 2;
+    const hops = [];
+    for (let i = 0; i < rawHex.length; i += chunk) {
+        hops.push(rawHex.substring(i, i + chunk));
+    }
+    return hops;
 }
 
 function checkUniquenessWarning(repeaters, hashSize) {
@@ -2101,6 +2134,12 @@ function openRepeaterMapPicker() {
             if (!_rptMapSelectedRepeater) return;
             const hashSize = parseInt(document.querySelector('input[name="pathHashSize"]:checked').value);
             const prefix = _rptMapSelectedRepeater.public_key.substring(0, hashSize * 2).toLowerCase();
+            // Check for duplicate hop
+            const existingHops = getCurrentPathHops(hashSize);
+            if (existingHops.includes(prefix)) {
+                showNotification(`${prefix.toUpperCase()} is already in the path`, 'warning');
+                return;
+            }
             const hexInput = document.getElementById('dmPathHexInput');
             if (hexInput) {
                 const current = hexInput.value.replace(/[,\s→]/g, '').trim();
