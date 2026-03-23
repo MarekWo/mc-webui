@@ -2315,7 +2315,7 @@ def reorder_contact_paths(pubkey):
 def reset_contact_to_flood(pubkey):
     """Reset device path to FLOOD mode (does not delete configured paths)."""
     try:
-        dm = cli.get_device_manager()
+        dm = _get_dm()
         if not dm or not dm.is_connected:
             return jsonify({'success': False, 'error': 'Device not connected'}), 503
         dev_result = dm.reset_path(pubkey)
