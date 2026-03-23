@@ -149,14 +149,19 @@ class DeviceManager:
                 self.mc = await MeshCore.create_tcp(
                     host=self.config.MC_TCP_HOST,
                     port=self.config.MC_TCP_PORT,
-                    auto_reconnect=self.config.MC_AUTO_RECONNECT,
+                    # Disable library auto-reconnect — it has a bug where old
+                    # connection's close callback triggers infinite reconnect loop.
+                    # We handle reconnection ourselves in _on_disconnected().
+                    auto_reconnect=False,
                 )
             else:
                 port = self._detect_serial_port()
                 logger.info(f"Connecting via serial: {port}")
                 self.mc = await MeshCore.create_serial(
                     port=port,
-                    auto_reconnect=self.config.MC_AUTO_RECONNECT,
+                    # Disable library auto-reconnect — same bug as TCP.
+                    # We handle reconnection ourselves in _on_disconnected().
+                    auto_reconnect=False,
                 )
 
             # Read device info
@@ -953,7 +958,7 @@ class DeviceManager:
             logger.error(f"Error handling new contact: {e}")
 
     async def _on_disconnected(self, event):
-        """Handle device disconnection."""
+        """Handle device disconnection with auto-reconnect."""
         logger.warning("Device disconnected")
         self._connected = False
 
@@ -961,6 +966,25 @@ class DeviceManager:
             self.socketio.emit('device_status', {
                 'connected': False,
             }, namespace='/chat')
+
+        # Auto-reconnect with backoff
+        for attempt in range(1, 4):
+            delay = 5 * attempt
+            logger.info(f"Reconnecting in {delay}s (attempt {attempt}/3)...")
+            await asyncio.sleep(delay)
+            try:
+                await self._connect()
+                if self._connected:
+                    logger.info("Reconnected successfully")
+                    if self.socketio:
+                        self.socketio.emit('device_status', {
+                            'connected': True,
+                        }, namespace='/chat')
+                    return
+            except Exception as e:
+                logger.error(f"Reconnect attempt {attempt} failed: {e}")
+
+        logger.error("Failed to reconnect after 3 attempts")
 
     # ================================================================
     # Command Methods (sync — called from Flask routes)
