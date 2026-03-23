@@ -1200,8 +1200,35 @@ class DeviceManager:
             retries_per_path = max(1, cfg['direct_max_retries'])
             min_wait = float(cfg['direct_interval'])
 
-            for path_info in configured_paths:
-                # Switch to this path on the device
+            # Separate primary (starred) path from the rest
+            primary_path = None
+            other_paths = []
+            for p in configured_paths:
+                if p.get('is_primary') and primary_path is None:
+                    primary_path = p
+                else:
+                    other_paths.append(p)
+
+            # Phase 1: Exhaust retries on primary path first
+            # Initial send already used device path (assumed primary), so -1
+            if primary_path:
+                try:
+                    await self._change_path_async(contact, primary_path['path_hex'], primary_path['hash_size'])
+                    logger.info(f"DM retry: retrying on primary path '{primary_path.get('label', '')}' "
+                                f"({primary_path['path_hex']})")
+                except Exception as e:
+                    logger.warning(f"DM retry: failed to set primary path: {e}")
+
+                for _ in range(retries_per_path - 1):
+                    attempt += 1
+                    if await self._dm_retry_send_and_wait(
+                        contact, text, timestamp, attempt, dm_id,
+                        suggested_timeout, min_wait
+                    ):
+                        return  # Delivered on primary, no restore needed
+
+            # Phase 2: Rotate through remaining (non-primary) paths
+            for path_info in other_paths:
                 try:
                     await self._change_path_async(contact, path_info['path_hex'], path_info['hash_size'])
                     logger.info(f"DM retry: switched to path '{path_info.get('label', '')}' "
@@ -1210,20 +1237,17 @@ class DeviceManager:
                     logger.warning(f"DM retry: failed to switch path: {e}")
                     continue
 
-                # Try sending on this path
                 for _ in range(retries_per_path):
                     attempt += 1
                     if await self._dm_retry_send_and_wait(
                         contact, text, timestamp, attempt, dm_id,
                         suggested_timeout, min_wait
                     ):
-                        # Delivered! Restore primary path
                         await self._restore_primary_path(contact, contact_pubkey)
                         return
 
-            # All configured paths exhausted
+            # Phase 3: Optional FLOOD fallback
             if not no_auto_flood:
-                # Fall back to FLOOD
                 min_wait = float(cfg['flood_interval'])
                 try:
                     await self.mc.commands.reset_path(contact)
