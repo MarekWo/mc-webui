@@ -182,6 +182,7 @@
         #rptLeafletMap { z-index: 1; }
         #rptLeafletMap .leaflet-top,
         #rptLeafletMap .leaflet-bottom { z-index: 1000; }
+        /* Map modal backdrop stacks above Contact Info modal */
     </style>
 </head>
 <body>
@@ -407,7 +408,7 @@
     </div>
 
     <!-- Repeater Map Picker Modal -->
-    <div class="modal fade" id="repeaterMapModal" tabindex="-1">
+    <div class="modal fade" id="repeaterMapModal" tabindex="-1" style="z-index: 1070;">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header py-2">

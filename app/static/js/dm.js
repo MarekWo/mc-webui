@@ -2069,6 +2069,12 @@ function openRepeaterMapPicker() {
     const modal = new bootstrap.Modal(modalEl);
 
     const onShown = async function () {
+        // Raise backdrop z-index so it covers the Contact Info modal behind
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        if (backdrops.length > 1) {
+            backdrops[backdrops.length - 1].style.zIndex = '1060';
+        }
+
         // Init map once
         if (!_rptMap) {
             _rptMap = L.map('rptLeafletMap').setView([52.0, 19.0], 6);
