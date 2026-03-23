@@ -18,6 +18,7 @@ ANALYZER_BASE_URL = 'https://analyzer.letsmesh.net/packets?packet_hash='
 GRP_TXT_TYPE_BYTE = 0x05
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def _to_str(val) -> str:
@@ -1109,16 +1110,18 @@ class DeviceManager:
         """Send a DM retry attempt and wait for ACK. Returns True if delivered."""
         from meshcore.events import EventType
 
+        logger.debug(f"DM retry attempt #{attempt}: sending dm_id={dm_id}")
+
         try:
             result = await self.mc.commands.send_msg(
                 contact, text, timestamp=timestamp, attempt=attempt
             )
         except Exception as e:
-            logger.warning(f"DM retry {attempt}: send error: {e}")
+            logger.warning(f"DM retry #{attempt}: send error: {e}")
             return False
 
         if result.type == EventType.ERROR:
-            logger.warning(f"DM retry {attempt}: device error")
+            logger.warning(f"DM retry #{attempt}: device error")
             return False
 
         retry_ack = _to_str(result.payload.get('expected_ack'))
@@ -1126,6 +1129,8 @@ class DeviceManager:
             self._pending_acks[retry_ack] = dm_id
             new_timeout = result.payload.get('suggested_timeout', suggested_timeout)
             wait_s = max(new_timeout / 1000 * 1.2, min_wait)
+
+            logger.debug(f"DM retry #{attempt}: waiting {wait_s:.0f}s for ACK {retry_ack[:8]}...")
 
             ack_event = await self.mc.dispatcher.wait_for_event(
                 EventType.ACK,
@@ -1135,6 +1140,8 @@ class DeviceManager:
             if ack_event:
                 self._confirm_delivery(dm_id, retry_ack, ack_event)
                 return True
+
+            logger.debug(f"DM retry #{attempt}: no ACK received (timeout)")
 
         return False
 
@@ -1179,6 +1186,7 @@ class DeviceManager:
 
         # Wait for ACK on initial send
         if initial_ack:
+            logger.debug(f"DM retry: waiting {wait_s:.0f}s for initial ACK {initial_ack[:8]}...")
             ack_event = await self.mc.dispatcher.wait_for_event(
                 EventType.ACK,
                 attribute_filters={"code": initial_ack},
@@ -1187,6 +1195,7 @@ class DeviceManager:
             if ack_event:
                 self._confirm_delivery(dm_id, initial_ack, ack_event)
                 return
+            logger.debug(f"DM retry: initial ACK not received (timeout)")
 
         attempt = 0  # Global attempt counter (0 = initial send already done)
 
