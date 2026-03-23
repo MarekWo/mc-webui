@@ -1086,12 +1086,8 @@ class DeviceManager:
 
     async def _change_path_async(self, contact, path_hex: str, hash_size: int = 1):
         """Change contact path on device with proper hash_size encoding."""
-        hop_count = len(path_hex) // (hash_size * 2)
-        encoded_path_len = ((hash_size - 1) << 6) | hop_count
-        # Set encoded values on contact dict before calling update_contact
-        contact['out_path'] = path_hex
-        contact['out_path_len'] = encoded_path_len
-        await self.mc.commands.update_contact(contact)
+        path_hash_mode = hash_size - 1  # 0=1B, 1=2B, 2=3B
+        await self.mc.commands.change_contact_path(contact, path_hex, path_hash_mode=path_hash_mode)
 
     async def _restore_primary_path(self, contact, contact_pubkey: str):
         """Restore the primary configured path on the device after retry exhaustion."""
