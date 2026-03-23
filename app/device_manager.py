@@ -227,7 +227,7 @@ class DeviceManager:
             self._connected = False
 
     async def _load_channel_secrets(self):
-        """Load channel secrets from device for pkt_payload computation."""
+        """Load channel secrets from device for pkt_payload computation and persist to DB."""
         consecutive_empty = 0
         try:
             for idx in range(self._max_channels):
@@ -243,8 +243,17 @@ class DeviceManager:
                     secret = data.get('channel_secret', data.get('secret', b''))
                     if isinstance(secret, bytes):
                         secret = secret.hex()
+                    name = data.get('channel_name', data.get('name', ''))
+                    if isinstance(name, str):
+                        name = name.strip('\x00').strip()
                     if secret and len(secret) == 32:
                         self._channel_secrets[idx] = secret
+                        # Persist to DB so API endpoints can read without device calls
+                        self.db.upsert_channel(idx, name or f'Channel {idx}', secret)
+                        consecutive_empty = 0
+                    elif name:
+                        # Channel exists but has no secret (e.g. Public)
+                        self.db.upsert_channel(idx, name, None)
                         consecutive_empty = 0
                     else:
                         consecutive_empty += 1
