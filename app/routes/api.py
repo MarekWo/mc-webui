@@ -2315,20 +2315,16 @@ def reorder_contact_paths(pubkey):
 def reset_contact_to_flood(pubkey):
     """Reset device path to FLOOD mode (does not delete configured paths)."""
     try:
-        result = {'success': True}
-        try:
-            dm = cli.get_device_manager()
-            if dm and dm.is_connected:
-                dev_result = dm.reset_path(pubkey)
-                result['device_reset'] = dev_result.get('success', False)
-            else:
-                result['device_reset'] = False
-                result['warning'] = 'Device not connected'
-        except Exception as e:
-            result['device_reset'] = False
-            result['warning'] = f'Device reset failed: {e}'
-        return jsonify(result), 200
+        dm = cli.get_device_manager()
+        if not dm or not dm.is_connected:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
+        dev_result = dm.reset_path(pubkey)
+        logger.info(f"reset_path({pubkey[:12]}...) result: {dev_result}")
+        if dev_result.get('success'):
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False, 'error': dev_result.get('error', 'Device reset failed')}), 500
     except Exception as e:
+        logger.error(f"reset_flood error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

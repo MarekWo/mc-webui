@@ -1369,7 +1369,9 @@ class DeviceManager:
             return {'success': False, 'error': 'Device not connected'}
 
         try:
-            self.execute(self.mc.commands.reset_path(pubkey))
+            logger.info(f"Executing reset_path for {pubkey[:12]}...")
+            result = self.execute(self.mc.commands.reset_path(pubkey))
+            logger.info(f"reset_path result: {result}")
             return {'success': True, 'message': 'Path reset'}
         except Exception as e:
             logger.error(f"Failed to reset path: {e}")
