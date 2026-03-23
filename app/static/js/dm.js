@@ -2108,7 +2108,10 @@ function openRepeaterMapPicker() {
                     checkUniquenessWarning(_repeatersCache, hashSize);
                 }
             }
-            modal.hide();
+            // Reset selection for next pick
+            _rptMapSelectedRepeater = null;
+            if (addBtn) addBtn.disabled = true;
+            if (selectedLabel) selectedLabel.textContent = 'Click a repeater on the map';
         };
     }
 
