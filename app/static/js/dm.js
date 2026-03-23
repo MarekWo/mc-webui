@@ -1855,10 +1855,20 @@ function setupPathFormHandlers(pubkey) {
         for (let i = 0; i < pathHex.length; i += chunk) {
             hops.push(pathHex.substring(i, i + chunk).toLowerCase());
         }
-        const dupes = hops.filter((h, i) => hops.indexOf(h) !== i);
-        if (dupes.length > 0) {
-            showNotification(`Duplicate hop(s): ${[...new Set(dupes)].map(d => d.toUpperCase()).join(', ')}`, 'danger');
-            return;
+        if (hashSize === 1) {
+            // 1B: only block adjacent duplicates
+            const adjDupes = hops.filter((h, i) => i > 0 && hops[i - 1] === h);
+            if (adjDupes.length > 0) {
+                showNotification(`Adjacent duplicate hop(s): ${[...new Set(adjDupes)].map(d => d.toUpperCase()).join(', ')}`, 'danger');
+                return;
+            }
+        } else {
+            // 2B/3B: block any duplicate
+            const dupes = hops.filter((h, i) => hops.indexOf(h) !== i);
+            if (dupes.length > 0) {
+                showNotification(`Duplicate hop(s): ${[...new Set(dupes)].map(d => d.toUpperCase()).join(', ')}`, 'danger');
+                return;
+            }
         }
 
         try {
@@ -2007,9 +2017,19 @@ function renderRepeaterList(listEl, repeaters, pubkey) {
         item.addEventListener('click', () => {
             // Check for duplicate hop
             const existingHops = getCurrentPathHops(hashSize);
-            if (existingHops.includes(prefix.toLowerCase())) {
-                showNotification(`${prefix} is already in the path`, 'warning');
-                return;
+            const prefixLc = prefix.toLowerCase();
+            if (hashSize === 1) {
+                // 1B: only block if same as last hop (adjacent duplicate)
+                if (existingHops.length > 0 && existingHops[existingHops.length - 1] === prefixLc) {
+                    showNotification(`${prefix} cannot be adjacent to itself`, 'warning');
+                    return;
+                }
+            } else {
+                // 2B/3B: block any duplicate
+                if (existingHops.includes(prefixLc)) {
+                    showNotification(`${prefix} is already in the path`, 'warning');
+                    return;
+                }
             }
             // Append hop to path hex input
             const current = hexInput.value.replace(/[,\s→]/g, '').trim();
@@ -2136,9 +2156,16 @@ function openRepeaterMapPicker() {
             const prefix = _rptMapSelectedRepeater.public_key.substring(0, hashSize * 2).toLowerCase();
             // Check for duplicate hop
             const existingHops = getCurrentPathHops(hashSize);
-            if (existingHops.includes(prefix)) {
-                showNotification(`${prefix.toUpperCase()} is already in the path`, 'warning');
-                return;
+            if (hashSize === 1) {
+                if (existingHops.length > 0 && existingHops[existingHops.length - 1] === prefix) {
+                    showNotification(`${prefix.toUpperCase()} cannot be adjacent to itself`, 'warning');
+                    return;
+                }
+            } else {
+                if (existingHops.includes(prefix)) {
+                    showNotification(`${prefix.toUpperCase()} is already in the path`, 'warning');
+                    return;
+                }
             }
             const hexInput = document.getElementById('dmPathHexInput');
             if (hexInput) {
