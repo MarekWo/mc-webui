@@ -17,6 +17,11 @@
     <!-- Bootstrap Icons (local) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
 
+    <!-- Leaflet CSS (for repeater map picker) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="" />
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
@@ -173,6 +178,10 @@
             color: #dc3545;
             font-size: 0.75rem;
         }
+        /* Leaflet z-index fix for Bootstrap modal */
+        #rptLeafletMap { z-index: 1; }
+        #rptLeafletMap .leaflet-top,
+        #rptLeafletMap .leaflet-bottom { z-index: 1000; }
     </style>
 </head>
 <body>
@@ -336,8 +345,12 @@
                                 <input type="text" class="form-control font-monospace" id="dmPathHexInput"
                                        placeholder="e.g. 5e,e7 or 5e34,e761" autocomplete="off">
                                 <button type="button" class="btn btn-outline-secondary" id="dmPickRepeaterBtn"
-                                        title="Pick repeater">
+                                        title="Pick repeater from list">
                                     <i class="bi bi-plus-circle"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="dmPickRepeaterMapBtn"
+                                        title="Pick repeater from map">
+                                    <i class="bi bi-geo-alt"></i>
                                 </button>
                             </div>
                             <div id="dmPathUniquenessWarning" class="path-uniqueness-warning mt-1" style="display: none;"></div>
@@ -393,6 +406,33 @@
         </div>
     </div>
 
+    <!-- Repeater Map Picker Modal -->
+    <div class="modal fade" id="repeaterMapModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title"><i class="bi bi-geo-alt"></i> Select Repeater from Map</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-light">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="rptMapCachedSwitch">
+                            <label class="form-check-label small" for="rptMapCachedSwitch">Cached</label>
+                        </div>
+                        <span class="text-muted small ms-auto" id="rptMapCount"></span>
+                    </div>
+                    <div id="rptLeafletMap" style="height: 400px; width: 100%;"></div>
+                </div>
+                <div class="modal-footer py-2">
+                    <span class="me-auto small text-muted" id="rptMapSelected">Click a repeater on the map</span>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="rptMapAddBtn" disabled>Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast container for notifications -->
     <div class="toast-container position-fixed top-0 start-0 p-3">
         <div id="notificationToast" class="toast" role="alert">
@@ -412,6 +452,11 @@
 
     <!-- Filter Utilities (must load before dm.js) -->
     <script src="{{ url_for('static', filename='js/filter-utils.js') }}"></script>
+
+    <!-- Leaflet JS (for repeater map picker) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
 
     <!-- SocketIO for real-time updates -->
     <script src="{{ url_for('static', filename='vendor/socket.io/socket.io.min.js') }}"></script>

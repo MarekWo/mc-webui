@@ -1890,6 +1890,16 @@ function setupPathFormHandlers(pubkey) {
         });
     }
 
+    // Repeater map picker button
+    const mapBtn = document.getElementById('dmPickRepeaterMapBtn');
+    if (mapBtn) {
+        const newMapBtn = mapBtn.cloneNode(true);
+        mapBtn.parentNode.replaceChild(newMapBtn, mapBtn);
+        newMapBtn.addEventListener('click', () => {
+            openRepeaterMapPicker();
+        });
+    }
+
     // Reset to FLOOD button
     if (resetFloodBtn) {
         const newResetBtn = resetFloodBtn.cloneNode(true);
@@ -2034,6 +2044,162 @@ function checkUniquenessWarning(repeaters, hashSize) {
         warningEl.style.display = '';
     } else {
         warningEl.style.display = 'none';
+    }
+}
+
+// ================================================================
+// Repeater Map Picker
+// ================================================================
+
+let _rptMap = null;
+let _rptMapMarkers = null;
+let _rptMapSelectedRepeater = null;
+
+function openRepeaterMapPicker() {
+    _rptMapSelectedRepeater = null;
+
+    const modalEl = document.getElementById('repeaterMapModal');
+    if (!modalEl) return;
+
+    const addBtn = document.getElementById('rptMapAddBtn');
+    const selectedLabel = document.getElementById('rptMapSelected');
+    if (addBtn) addBtn.disabled = true;
+    if (selectedLabel) selectedLabel.textContent = 'Click a repeater on the map';
+
+    const modal = new bootstrap.Modal(modalEl);
+
+    const onShown = async function () {
+        // Init map once
+        if (!_rptMap) {
+            _rptMap = L.map('rptLeafletMap').setView([52.0, 19.0], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
+            }).addTo(_rptMap);
+            _rptMapMarkers = L.layerGroup().addTo(_rptMap);
+        }
+        _rptMap.invalidateSize();
+        await loadRepeaterMapMarkers();
+        modalEl.removeEventListener('shown.bs.modal', onShown);
+    };
+
+    // Cached toggle
+    const cachedSwitch = document.getElementById('rptMapCachedSwitch');
+    if (cachedSwitch) {
+        cachedSwitch.onchange = () => loadRepeaterMapMarkers();
+    }
+
+    // Add button
+    if (addBtn) {
+        addBtn.onclick = () => {
+            if (!_rptMapSelectedRepeater) return;
+            const hashSize = parseInt(document.querySelector('input[name="pathHashSize"]:checked').value);
+            const prefix = _rptMapSelectedRepeater.public_key.substring(0, hashSize * 2).toLowerCase();
+            const hexInput = document.getElementById('dmPathHexInput');
+            if (hexInput) {
+                const current = hexInput.value.replace(/[,\s→]/g, '').trim();
+                const newVal = current + prefix;
+                const chunk = hashSize * 2;
+                const parts = [];
+                for (let i = 0; i < newVal.length; i += chunk) {
+                    parts.push(newVal.substring(i, i + chunk));
+                }
+                hexInput.value = parts.join(',');
+                if (_repeatersCache) {
+                    checkUniquenessWarning(_repeatersCache, hashSize);
+                }
+            }
+            modal.hide();
+        };
+    }
+
+    modalEl.addEventListener('shown.bs.modal', onShown);
+    modal.show();
+}
+
+async function loadRepeaterMapMarkers() {
+    if (!_rptMapMarkers) return;
+    _rptMapMarkers.clearLayers();
+
+    const cachedSwitch = document.getElementById('rptMapCachedSwitch');
+    const showCached = cachedSwitch && cachedSwitch.checked;
+    const countEl = document.getElementById('rptMapCount');
+    const addBtn = document.getElementById('rptMapAddBtn');
+    const selectedLabel = document.getElementById('rptMapSelected');
+
+    // Reset selection
+    _rptMapSelectedRepeater = null;
+    if (addBtn) addBtn.disabled = true;
+    if (selectedLabel) selectedLabel.textContent = 'Click a repeater on the map';
+
+    // Ensure repeaters cache is loaded
+    if (!_repeatersCache) {
+        try {
+            const response = await fetch('/api/contacts/repeaters');
+            const data = await response.json();
+            if (data.success) _repeatersCache = data.repeaters;
+        } catch (e) {
+            if (countEl) countEl.textContent = 'Failed to load';
+            return;
+        }
+    }
+
+    // Filter: only those with GPS
+    let repeaters = (_repeatersCache || []).filter(r =>
+        r.adv_lat && r.adv_lon && (r.adv_lat !== 0 || r.adv_lon !== 0)
+    );
+
+    if (!showCached) {
+        // Non-cached: only repeaters that are on the device (have recent advert)
+        // Use detailed contacts to check which are on device
+        try {
+            const response = await fetch('/api/contacts/detailed');
+            const data = await response.json();
+            if (data.success && data.contacts) {
+                const deviceKeys = new Set(data.contacts
+                    .filter(c => c.type === 2)
+                    .map(c => c.public_key.toLowerCase()));
+                repeaters = repeaters.filter(r => deviceKeys.has(r.public_key.toLowerCase()));
+            }
+        } catch (e) { /* show all on error */ }
+    }
+
+    if (countEl) countEl.textContent = `${repeaters.length} repeaters`;
+
+    const hashSize = parseInt(document.querySelector('input[name="pathHashSize"]:checked')?.value || '1');
+    const bounds = [];
+
+    repeaters.forEach(rpt => {
+        const prefix = rpt.public_key.substring(0, hashSize * 2).toUpperCase();
+        const lastSeen = rpt.last_advert ? formatRelativeTimeDm(rpt.last_advert) : '';
+
+        const marker = L.circleMarker([rpt.adv_lat, rpt.adv_lon], {
+            radius: 10,
+            fillColor: '#4CAF50',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(_rptMapMarkers);
+
+        marker.bindPopup(
+            `<b>${rpt.name}</b><br>` +
+            `<code>${prefix}</code>` +
+            (lastSeen ? `<br><small class="text-muted">Last seen: ${lastSeen}</small>` : '')
+        );
+
+        marker.on('click', () => {
+            _rptMapSelectedRepeater = rpt;
+            if (addBtn) addBtn.disabled = false;
+            if (selectedLabel) {
+                selectedLabel.innerHTML = `<code>${prefix}</code> ${rpt.name}`;
+            }
+        });
+
+        bounds.push([rpt.adv_lat, rpt.adv_lon]);
+    });
+
+    if (bounds.length > 0) {
+        _rptMap.fitBounds(bounds, { padding: [20, 20] });
     }
 }
 
