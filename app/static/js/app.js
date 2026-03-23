@@ -218,7 +218,7 @@ function updateMapMarkers() {
     cachedFiltered.forEach(c => {
         const typeNum = TYPE_LABEL_TO_NUM[c.type_label] || 1;
         const color = CONTACT_TYPE_COLORS[typeNum] || '#2196F3';
-        const lastSeen = c.last_seen ? formatTimeAgo(c.last_seen) : '';
+        const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
 
         L.circleMarker([c.adv_lat, c.adv_lon], {
             radius: 8,
