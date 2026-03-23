@@ -854,7 +854,12 @@ async function loadMessages() {
             url += '&days=7';
         }
 
-        const response = await fetch(url);
+        // Add timeout to prevent hanging spinner
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
         const data = await response.json();
 
         if (data.success) {
@@ -863,11 +868,31 @@ async function loadMessages() {
             updateLastRefresh();
         } else {
             showNotification('Error loading messages: ' + data.error, 'danger');
+            clearLoadingSpinner();
         }
     } catch (error) {
         console.error('Error loading messages:', error);
         updateStatus('disconnected');
-        showNotification('Failed to load messages', 'danger');
+        clearLoadingSpinner();
+        if (error.name === 'AbortError') {
+            showNotification('Loading messages timed out — retrying...', 'warning');
+            setTimeout(loadMessages, 2000);
+        } else {
+            showNotification('Failed to load messages', 'danger');
+        }
+    }
+}
+
+function clearLoadingSpinner() {
+    const container = document.getElementById('messagesList');
+    if (container && container.querySelector('.spinner-border')) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-exclamation-triangle"></i>
+                <p>Could not load messages</p>
+                <small>Will retry automatically</small>
+            </div>
+        `;
     }
 }
 

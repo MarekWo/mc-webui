@@ -371,14 +371,15 @@ def get_messages():
                 )
 
             # Build channel secret lookup for pkt_payload computation
+            # Use DB channels (fast) instead of get_channels_cached() which
+            # can block on device communication when cache is cold
             channel_secrets = {}
-            _, channels_list = get_channels_cached()
-            if channels_list:
-                for ch_info in channels_list:
-                    ch_key = ch_info.get('key', '')
-                    ch_idx = ch_info.get('index')
-                    if ch_key and ch_idx is not None:
-                        channel_secrets[ch_idx] = ch_key
+            db_channels = db.get_channels() if db else []
+            for ch_info in db_channels:
+                ch_key = ch_info.get('secret', ch_info.get('key', ''))
+                ch_idx = ch_info.get('idx', ch_info.get('index'))
+                if ch_key and ch_idx is not None:
+                    channel_secrets[ch_idx] = ch_key
 
             # Convert DB rows to frontend-compatible format
             messages = []
@@ -485,15 +486,15 @@ def get_message_meta(msg_id):
         txt_type = row.get('txt_type', 0)
 
         # Compute pkt_payload if not stored
+        # Use DB channels (fast) to avoid blocking on device communication
         if not pkt_payload and sender_ts:
-            _, channels_list = get_channels_cached()
+            db_channels = db.get_channels() if db else []
             channel_secrets = {}
-            if channels_list:
-                for ch_info in channels_list:
-                    ch_key = ch_info.get('key', '')
-                    ci = ch_info.get('index')
-                    if ch_key and ci is not None:
-                        channel_secrets[ci] = ch_key
+            for ch_info in db_channels:
+                ch_key = ch_info.get('secret', ch_info.get('key', ''))
+                ci = ch_info.get('idx', ch_info.get('index'))
+                if ch_key and ci is not None:
+                    channel_secrets[ci] = ch_key
 
             if ch_idx in channel_secrets:
                 raw_text = None
@@ -1698,17 +1699,17 @@ def get_messages_updates():
         except (json.JSONDecodeError, ValueError):
             last_seen = {}
 
-        # Get list of channels (cached)
-        success_ch, channels = get_channels_cached()
-        if not success_ch:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to get channels'
-            }), 500
+        # Get list of channels from DB (fast) to avoid blocking on device
+        db = _get_db()
+        db_channels = db.get_channels() if db else []
+        # Normalize DB channel format to match expected structure
+        channels = [{'index': ch['idx'], 'name': ch['name']} for ch in db_channels]
+        if not channels:
+            # Fallback: at least include Public channel
+            channels = [{'index': 0, 'name': 'Public'}]
 
         # OPTIMIZATION: Read ALL messages ONCE (no channel filter)
         # Then compute per-channel statistics in memory
-        db = _get_db()
         if db:
             all_messages = db.get_channel_messages(limit=None, days=7)
         else:
