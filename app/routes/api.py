@@ -2313,15 +2313,9 @@ def reorder_contact_paths(pubkey):
 
 @api_bp.route('/contacts/<pubkey>/paths/reset_flood', methods=['POST'])
 def reset_contact_to_flood(pubkey):
-    """Reset to FLOOD: clear all configured paths and reset device path."""
-    db = _get_db()
-    if not db:
-        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    """Reset device path to FLOOD mode (does not delete configured paths)."""
     try:
-        # Clear all saved paths from DB
-        deleted = db.delete_all_contact_paths(pubkey)
-        # Reset path on device
-        result = {'success': True, 'paths_deleted': deleted}
+        result = {'success': True}
         try:
             dm = cli.get_device_manager()
             if dm and dm.is_connected:
@@ -2334,6 +2328,19 @@ def reset_contact_to_flood(pubkey):
             result['device_reset'] = False
             result['warning'] = f'Device reset failed: {e}'
         return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<pubkey>/paths/clear', methods=['POST'])
+def clear_contact_paths(pubkey):
+    """Delete all configured paths for a contact from the database."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        deleted = db.delete_all_contact_paths(pubkey)
+        return jsonify({'success': True, 'paths_deleted': deleted}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

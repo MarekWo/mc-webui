@@ -327,10 +327,14 @@
                         </button>
                     </div>
                     <div id="dmPathList"></div>
-                    <!-- Reset to FLOOD button -->
-                    <div class="text-end mt-1">
+                    <!-- Path action buttons -->
+                    <div class="d-flex justify-content-end gap-2 mt-1">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="dmClearPathsBtn"
+                                title="Delete all configured paths from database">
+                            <i class="bi bi-trash"></i> Clear Paths
+                        </button>
                         <button type="button" class="btn btn-outline-danger btn-sm" id="dmResetFloodBtn"
-                                title="Reset all paths and switch to FLOOD mode">
+                                title="Reset device path to FLOOD mode">
                             <i class="bi bi-broadcast"></i> Reset to FLOOD
                         </button>
                     </div>

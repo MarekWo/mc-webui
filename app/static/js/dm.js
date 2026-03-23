@@ -1811,6 +1811,7 @@ function setupPathFormHandlers(pubkey) {
     const pickBtn = document.getElementById('dmPickRepeaterBtn');
     const picker = document.getElementById('dmRepeaterPicker');
     const resetFloodBtn = document.getElementById('dmResetFloodBtn');
+    const clearPathsBtn = document.getElementById('dmClearPathsBtn');
     const addPathModalEl = document.getElementById('addPathModal');
 
     if (!addBtn || !addPathModalEl) return;
@@ -1923,12 +1924,12 @@ function setupPathFormHandlers(pubkey) {
         });
     }
 
-    // Reset to FLOOD button
+    // Reset to FLOOD button (device only, keeps configured paths)
     if (resetFloodBtn) {
         const newResetBtn = resetFloodBtn.cloneNode(true);
         resetFloodBtn.parentNode.replaceChild(newResetBtn, resetFloodBtn);
         newResetBtn.addEventListener('click', async () => {
-            if (!confirm('Reset to FLOOD?\n\nThis will delete all configured paths and reset the device path to flood mode.')) {
+            if (!confirm('Reset device path to FLOOD?\n\nThis resets the path on the device only. Your configured paths will be kept.')) {
                 return;
             }
             try {
@@ -1937,13 +1938,37 @@ function setupPathFormHandlers(pubkey) {
                 });
                 const data = await response.json();
                 if (data.success) {
-                    await renderPathList(pubkey);
-                    showNotification('Reset to FLOOD mode', 'info');
+                    showNotification('Device path reset to FLOOD', 'info');
                 } else {
                     showNotification(data.error || 'Reset failed', 'danger');
                 }
             } catch (e) {
                 showNotification('Reset failed', 'danger');
+            }
+        });
+    }
+
+    // Clear all configured paths button (DB only)
+    if (clearPathsBtn) {
+        const newClearBtn = clearPathsBtn.cloneNode(true);
+        clearPathsBtn.parentNode.replaceChild(newClearBtn, clearPathsBtn);
+        newClearBtn.addEventListener('click', async () => {
+            if (!confirm('Clear all configured paths?\n\nThis will delete all paths from the database. The device path will not be changed.')) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/clear`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    await renderPathList(pubkey);
+                    showNotification(`${data.paths_deleted || 0} path(s) cleared`, 'info');
+                } else {
+                    showNotification(data.error || 'Clear failed', 'danger');
+                }
+            } catch (e) {
+                showNotification('Clear failed', 'danger');
             }
         });
     }
