@@ -1104,12 +1104,30 @@ def _execute_console_command(args: list) -> str:
             data = result['data']
             if not data:
                 return "No nodes discovered"
+            type_names = ["NONE", "COM", "REP", "ROOM", "SENS"]
             lines = [f"Discovered nodes ({len(data)}):"]
             for node in data:
                 if isinstance(node, dict):
-                    name = node.get('adv_name', node.get('name', '?'))
-                    pk = node.get('public_key', '')[:12]
-                    lines.append(f"  {name} ({pk}...)")
+                    pk = node.get('pubkey', '')
+                    # Try to resolve name from contacts
+                    name = None
+                    if pk and device_manager.mc:
+                        try:
+                            contact = device_manager.mc.get_contact_by_key_prefix(pk)
+                            if contact:
+                                name = contact.get('adv_name', '')
+                        except Exception:
+                            pass
+                    if name:
+                        label = f"{pk[:6]} {name}"
+                    else:
+                        label = pk[:16] or '?'
+                    nt = node.get('node_type', 0)
+                    type_str = type_names[nt] if nt < len(type_names) else f"t:{nt}"
+                    snr_in = node.get('SNR_in', 0)
+                    snr = node.get('SNR', 0)
+                    rssi = node.get('RSSI', 0)
+                    lines.append(f"  {label:28} {type_str:>4} SNR: {snr_in:6.2f}->{snr:6.2f} RSSI: {rssi}")
                 else:
                     lines.append(f"  {node}")
             return "\n".join(lines)

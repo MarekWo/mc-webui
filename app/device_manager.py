@@ -2335,7 +2335,7 @@ class DeviceManager:
             from meshcore.events import EventType
             types = 0xFF  # all types
             if type_filter:
-                type_map = {'cli': 1, 'rep': 2, 'room': 3, 'sensor': 4, 'sens': 4}
+                type_map = {'com': 1, 'rep': 2, 'room': 3, 'sensor': 4, 'sens': 4}
                 t = type_map.get(type_filter.lower())
                 if t:
                     types = t
