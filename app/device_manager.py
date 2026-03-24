@@ -1701,6 +1701,7 @@ class DeviceManager:
                 'flags': 0,
                 'out_path_len': -1,
                 'out_path': '',
+                'out_path_hash_mode': 0,
                 'adv_name': name,
                 'last_advert': 0,
                 'adv_lat': 0.0,
