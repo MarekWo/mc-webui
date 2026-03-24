@@ -2747,6 +2747,8 @@ def push_contact_to_device(public_key):
             return jsonify({'success': False, 'error': 'Device manager unavailable'}), 500
 
         result = dm.push_to_device(public_key.strip().lower())
+        if result['success']:
+            invalidate_contacts_cache()
         status = 200 if result['success'] else 400
         return jsonify(result), status
     except Exception as e:
@@ -2763,6 +2765,8 @@ def move_contact_to_cache(public_key):
             return jsonify({'success': False, 'error': 'Device manager unavailable'}), 500
 
         result = dm.move_to_cache(public_key.strip().lower())
+        if result['success']:
+            invalidate_contacts_cache()
         status = 200 if result['success'] else 400
         return jsonify(result), status
     except Exception as e:
