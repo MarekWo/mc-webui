@@ -2712,7 +2712,7 @@ function onQrCodeSuccess(decodedText) {
 
     // Hex blob format
     if (decodedText.startsWith('meshcore://') && decodedText.length > 20) {
-        resultDiv.innerHTML = '<strong>Scanned:</strong> <span class="font-monospace small">' +
+        resultDiv.innerHTML = '<strong>Scanned:</strong> <span class="font-monospace small" style="word-break: break-all;">' +
             decodedText.substring(0, 60) + '...</span>';
         resultDiv.classList.remove('d-none');
         addBtn.classList.remove('d-none');
