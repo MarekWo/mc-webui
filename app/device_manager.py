@@ -1465,6 +1465,52 @@ class DeviceManager:
             logger.error(f"Failed to delete cached contact: {e}")
             return {'success': False, 'error': str(e)}
 
+    def push_to_device(self, pubkey: str) -> Dict:
+        """Push a cache-only contact to the device."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+
+        # Already on device?
+        if self.mc.contacts and pubkey in self.mc.contacts:
+            return {'success': False, 'error': 'Contact is already on device'}
+
+        db_contact = self.db.get_contact(pubkey)
+        if not db_contact:
+            return {'success': False, 'error': 'Contact not found in cache'}
+
+        name = db_contact.get('name', '')
+        contact_type = db_contact.get('type', 1)
+        if contact_type == 0:
+            contact_type = 1  # NONE → COM
+
+        return self.add_contact_manual(
+            name=name,
+            public_key=pubkey,
+            contact_type=contact_type,
+        )
+
+    def move_to_cache(self, pubkey: str) -> Dict:
+        """Move a device contact to cache (remove from device, keep in DB)."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+
+        if not self.mc.contacts or pubkey not in self.mc.contacts:
+            return {'success': False, 'error': 'Contact not on device'}
+
+        contact = self.mc.contacts[pubkey]
+        name = contact.get('adv_name', contact.get('name', ''))
+
+        try:
+            self.execute(self.mc.commands.remove_contact(pubkey))
+            self.db.delete_contact(pubkey)  # soft-delete: sets source='advert'
+            if self.mc.contacts and pubkey in self.mc.contacts:
+                del self.mc.contacts[pubkey]
+            logger.info(f"Moved to cache: {name} ({pubkey[:12]}...)")
+            return {'success': True, 'message': f'{name} moved to cache'}
+        except Exception as e:
+            logger.error(f"Failed to move contact to cache: {e}")
+            return {'success': False, 'error': str(e)}
+
     def reset_path(self, pubkey: str) -> Dict:
         """Reset path to a contact."""
         if not self.is_connected:

@@ -2290,7 +2290,7 @@ function createExistingContactCard(contact, index) {
         actionsDiv.appendChild(mapBtn);
     }
 
-    // Protect & Delete buttons (only for device contacts)
+    // Protect, Move to cache & Delete buttons (only for device contacts)
     if (contact.on_device !== false) {
         const protectBtn = document.createElement('button');
         protectBtn.className = isProtected ? 'btn btn-sm btn-warning' : 'btn btn-sm btn-outline-warning';
@@ -2299,6 +2299,17 @@ function createExistingContactCard(contact, index) {
             : '<i class="bi bi-shield"></i> <span class="btn-label">Protect</span>';
         protectBtn.onclick = () => toggleContactProtection(contact.public_key, protectBtn);
         actionsDiv.appendChild(protectBtn);
+
+        const moveToCacheBtn = document.createElement('button');
+        moveToCacheBtn.className = 'btn btn-sm btn-outline-info';
+        moveToCacheBtn.innerHTML = '<i class="bi bi-cloud-arrow-down"></i> <span class="btn-label">To cache</span>';
+        moveToCacheBtn.title = 'Remove from device, keep in cache';
+        moveToCacheBtn.onclick = () => moveContactToCache(contact);
+        moveToCacheBtn.disabled = isProtected;
+        if (isProtected) {
+            moveToCacheBtn.title = 'Cannot move protected contact';
+        }
+        actionsDiv.appendChild(moveToCacheBtn);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn btn-sm btn-outline-danger';
@@ -2311,8 +2322,15 @@ function createExistingContactCard(contact, index) {
         actionsDiv.appendChild(deleteBtn);
     }
 
-    // Delete button for cache-only contacts
+    // Push to device & Delete buttons for cache-only contacts
     if (contact.on_device === false) {
+        const pushToDeviceBtn = document.createElement('button');
+        pushToDeviceBtn.className = 'btn btn-sm btn-outline-success';
+        pushToDeviceBtn.innerHTML = '<i class="bi bi-cpu"></i> <span class="btn-label">To device</span>';
+        pushToDeviceBtn.title = 'Add this contact to the device';
+        pushToDeviceBtn.onclick = () => pushContactToDevice(contact);
+        actionsDiv.appendChild(pushToDeviceBtn);
+
         const deleteCacheBtn = document.createElement('button');
         deleteCacheBtn.className = 'btn btn-sm btn-outline-danger';
         deleteCacheBtn.innerHTML = '<i class="bi bi-trash"></i> <span class="btn-label">Delete</span>';
@@ -2491,5 +2509,49 @@ async function confirmDelete() {
             confirmBtn.innerHTML = '<i class="bi bi-trash"></i> Delete Contact';
         }
         contactToDelete = null;
+    }
+}
+
+// =============================================================================
+// Push to Device / Move to Cache
+// =============================================================================
+
+async function pushContactToDevice(contact) {
+    if (!confirm(`Push "${contact.name}" to device?`)) return;
+
+    try {
+        const response = await fetch(`/api/contacts/${contact.public_key}/push-to-device`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message || `${contact.name} pushed to device`, 'success');
+            setTimeout(() => loadExistingContacts(), 500);
+        } else {
+            showToast(data.error || 'Failed to push contact', 'danger');
+        }
+    } catch (error) {
+        showToast('Network error: ' + error.message, 'danger');
+    }
+}
+
+async function moveContactToCache(contact) {
+    if (!confirm(`Move "${contact.name}" from device to cache?`)) return;
+
+    try {
+        const response = await fetch(`/api/contacts/${contact.public_key}/move-to-cache`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message || `${contact.name} moved to cache`, 'success');
+            setTimeout(() => loadExistingContacts(), 500);
+        } else {
+            showToast(data.error || 'Failed to move contact', 'danger');
+        }
+    } catch (error) {
+        showToast('Network error: ' + error.message, 'danger');
     }
 }

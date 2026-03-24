@@ -2738,6 +2738,38 @@ def delete_cached_contact_api():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/contacts/<public_key>/push-to-device', methods=['POST'])
+def push_contact_to_device(public_key):
+    """Push a cache-only contact to the device."""
+    try:
+        dm = _get_dm()
+        if not dm:
+            return jsonify({'success': False, 'error': 'Device manager unavailable'}), 500
+
+        result = dm.push_to_device(public_key.strip().lower())
+        status = 200 if result['success'] else 400
+        return jsonify(result), status
+    except Exception as e:
+        logger.error(f"Error pushing contact to device: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<public_key>/move-to-cache', methods=['POST'])
+def move_contact_to_cache(public_key):
+    """Move a device contact to cache (remove from device, keep in DB)."""
+    try:
+        dm = _get_dm()
+        if not dm:
+            return jsonify({'success': False, 'error': 'Device manager unavailable'}), 500
+
+        result = dm.move_to_cache(public_key.strip().lower())
+        status = 200 if result['success'] else 400
+        return jsonify(result), status
+    except Exception as e:
+        logger.error(f"Error moving contact to cache: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/contacts/protected', methods=['GET'])
 def get_protected_contacts_api():
     """
