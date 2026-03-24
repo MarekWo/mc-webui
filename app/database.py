@@ -969,6 +969,14 @@ class Database:
                 (key, 1 if muted else 0)
             )
 
+    def get_muted_channels(self) -> List[int]:
+        """Get list of muted channel indices."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT key FROM read_status WHERE is_muted = 1 AND key LIKE 'chan_%'"
+            ).fetchall()
+            return [int(r['key'][5:]) for r in rows]
+
     # ================================================================
     # Full-Text Search
     # ================================================================

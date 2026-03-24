@@ -244,6 +244,27 @@ def create_app():
         except Exception as e:
             logger.warning(f"Could not rename settings file: {e}")
 
+    # Migrate .read_status.json to DB (one-time)
+    read_status_file = Path(config.MC_CONFIG_DIR) / '.read_status.json'
+    if read_status_file.exists():
+        try:
+            import json as _json
+            with open(read_status_file, 'r', encoding='utf-8') as f:
+                rs_data = _json.load(f)
+            migrated = 0
+            for ch_idx, ts in rs_data.get('channels', {}).items():
+                db.mark_read(f"chan_{ch_idx}", int(ts))
+                migrated += 1
+            for conv_id, ts in rs_data.get('dm', {}).items():
+                db.mark_read(f"dm_{conv_id}", int(ts))
+                migrated += 1
+            for ch_idx in rs_data.get('muted_channels', []):
+                db.set_channel_muted(int(ch_idx), True)
+            read_status_file.rename(read_status_file.with_suffix('.json.bak'))
+            logger.info(f"Migrated {migrated} read status entries to DB")
+        except Exception as e:
+            logger.warning(f"Failed to migrate .read_status.json: {e}")
+
     # v2: Initialize and start device manager
     device_manager = DeviceManager(config, db, socketio)
     app.device_manager = device_manager
