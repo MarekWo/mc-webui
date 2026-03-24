@@ -1064,7 +1064,8 @@ class Database:
         backup_dir.mkdir(parents=True, exist_ok=True)
 
         date_str = datetime.now().strftime('%Y-%m-%d')
-        backup_path = backup_dir / f"mc-webui.{date_str}.db"
+        prefix = self.db_path.stem  # e.g. "mc_9cebbd27"
+        backup_path = backup_dir / f"{prefix}.{date_str}.db"
 
         source = sqlite3.connect(str(self.db_path))
         dest = sqlite3.connect(str(backup_path))
@@ -1084,7 +1085,7 @@ class Database:
             return []
 
         backups = []
-        for f in sorted(backup_dir.glob("mc-webui.*.db"), reverse=True):
+        for f in sorted(backup_dir.glob("*.db"), reverse=True):
             backups.append({
                 'filename': f.name,
                 'path': str(f),
@@ -1101,7 +1102,7 @@ class Database:
 
         cutoff = datetime.now() - timedelta(days=retention_days)
         removed = 0
-        for f in backup_dir.glob("mc-webui.*.db"):
+        for f in backup_dir.glob("*.db"):
             if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
                 f.unlink()
                 removed += 1

@@ -392,7 +392,7 @@ class TestBackup:
         db.create_backup(backup_dir)
         backups = db.list_backups(backup_dir)
         assert len(backups) == 1
-        assert 'mc-webui.' in backups[0]['filename']
+        assert backups[0]['filename'].endswith('.db')
 
     def test_list_backups_empty_dir(self, db):
         with tempfile.TemporaryDirectory() as tmp:
