@@ -7,14 +7,14 @@ All data is stored in the read_status table of the SQLite database.
 """
 
 import logging
+from flask import current_app
 
 logger = logging.getLogger(__name__)
 
 
 def _get_db():
-    """Get database instance (deferred import to avoid circular imports)."""
-    from app.main import db
-    return db
+    """Get database instance from Flask app context."""
+    return getattr(current_app, 'db', None)
 
 
 def load_read_status():

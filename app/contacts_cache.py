@@ -11,6 +11,7 @@ parse_advert_payload().
 import logging
 import math
 import struct
+from flask import current_app
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +19,8 @@ _TYPE_LABELS = {0: 'COM', 1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}
 
 
 def _get_db():
-    """Get database instance (deferred import to avoid circular imports)."""
-    from app.main import db
-    return db
+    """Get database instance from Flask app context."""
+    return getattr(current_app, 'db', None)
 
 
 def get_all_contacts() -> list:
