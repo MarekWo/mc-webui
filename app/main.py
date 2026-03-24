@@ -196,6 +196,25 @@ def _migrate_db_to_pubkey(db, public_key: str):
         logger.info(f"Database renamed: {current.name} -> {target.name}")
 
 
+def _cleanup_legacy_jsonl(data_dir: Path):
+    """Remove stale JSONL files whose data now lives in the database."""
+    patterns = [
+        '*.contacts_cache.jsonl',
+        '*.adverts.jsonl',
+        '*.acks.jsonl',
+        '*.echoes.jsonl',
+        '*.path.jsonl',
+        '*_dm_sent.jsonl',
+    ]
+    for pattern in patterns:
+        for f in data_dir.glob(pattern):
+            try:
+                f.unlink()
+                logger.info(f"Removed legacy file: {f.name}")
+            except OSError as e:
+                logger.warning(f"Could not remove {f.name}: {e}")
+
+
 def create_app():
     """Create and configure Flask application"""
     global db, device_manager
@@ -306,6 +325,9 @@ def create_app():
                         logger.info(f"v1 migration result: {result}")
                 except Exception as e:
                     logger.error(f"v1 migration failed: {e}")
+
+                # Clean up stale JSONL files (data is now in DB)
+                _cleanup_legacy_jsonl(Path(config.MC_CONFIG_DIR))
 
                 return
         logger.warning("Timeout waiting for device connection")
