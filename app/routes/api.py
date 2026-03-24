@@ -2738,6 +2738,48 @@ def delete_cached_contact_api():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/contacts/manual-add', methods=['POST'])
+def manual_add_contact():
+    """Add a contact manually via URI or raw parameters (name, public_key, type)."""
+    try:
+        dm = _get_dm()
+        if not dm:
+            return jsonify({'success': False, 'error': 'Device manager unavailable'}), 500
+
+        data = request.get_json() or {}
+
+        # Mode 1: URI (meshcore://contact/add?... or hex blob)
+        uri = data.get('uri', '').strip()
+        if uri:
+            result = dm.import_contact_uri(uri)
+            if result['success']:
+                invalidate_contacts_cache()
+            status = 200 if result['success'] else 400
+            return jsonify(result), status
+
+        # Mode 2: Raw parameters
+        name = data.get('name', '').strip()
+        public_key = data.get('public_key', '').strip()
+        contact_type = data.get('type', 1)
+
+        if not name or not public_key:
+            return jsonify({'success': False, 'error': 'Name and public_key are required'}), 400
+
+        try:
+            contact_type = int(contact_type)
+        except (ValueError, TypeError):
+            contact_type = 1
+
+        result = dm.add_contact_manual(name, public_key, contact_type)
+        if result['success']:
+            invalidate_contacts_cache()
+        status = 200 if result['success'] else 400
+        return jsonify(result), status
+    except Exception as e:
+        logger.error(f"Error adding contact manually: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/contacts/<public_key>/push-to-device', methods=['POST'])
 def push_contact_to_device(public_key):
     """Push a cache-only contact to the device."""

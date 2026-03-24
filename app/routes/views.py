@@ -50,6 +50,17 @@ def contact_management():
     )
 
 
+@views_bp.route('/contacts/add')
+def contact_add():
+    """
+    Add Contact page - URI paste, QR scan, manual fields.
+    """
+    return render_template(
+        'contacts-add.html',
+        device_name=runtime_config.get_device_name()
+    )
+
+
 @views_bp.route('/contacts/pending')
 def contact_pending_list():
     """

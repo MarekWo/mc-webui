@@ -140,6 +140,8 @@ function detectCurrentPage() {
         currentPage = 'pending';
     } else if (document.getElementById('existingPageContent')) {
         currentPage = 'existing';
+    } else if (document.getElementById('addPageContent')) {
+        currentPage = 'add';
     }
     console.log('Current page:', currentPage);
 }
@@ -154,6 +156,9 @@ function initializePage() {
             break;
         case 'existing':
             initExistingPage();
+            break;
+        case 'add':
+            initAddPage();
             break;
         default:
             console.warn('Unknown page type');
@@ -2553,5 +2558,255 @@ async function moveContactToCache(contact) {
         }
     } catch (error) {
         showToast('Network error: ' + error.message, 'danger');
+    }
+}
+
+// =============================================================================
+// Add Contact Page
+// =============================================================================
+
+const TYPE_LABELS = {1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'};
+
+let html5QrCode = null;
+let qrScannedUri = null;
+
+function initAddPage() {
+    console.log('Initializing Add Contact page...');
+
+    // URI tab listeners
+    const uriInput = document.getElementById('uriInput');
+    uriInput.addEventListener('input', handleUriInput);
+    document.getElementById('addFromUriBtn').addEventListener('click', () => submitContact('uri'));
+
+    // QR tab listeners
+    document.getElementById('startCameraBtn').addEventListener('click', startQrCamera);
+    document.getElementById('stopCameraBtn').addEventListener('click', stopQrCamera);
+    document.getElementById('qrFileInput').addEventListener('change', handleQrFile);
+    document.getElementById('addFromQrBtn').addEventListener('click', () => submitContact('qr'));
+
+    // Manual tab listeners
+    const manualKey = document.getElementById('manualKey');
+    const manualName = document.getElementById('manualName');
+    manualKey.addEventListener('input', handleManualKeyInput);
+    manualName.addEventListener('input', validateManualForm);
+    document.getElementById('addManualBtn').addEventListener('click', () => submitContact('manual'));
+
+    // Stop camera when switching away from QR tab
+    document.getElementById('tab-qr').addEventListener('hidden.bs.tab', stopQrCamera);
+}
+
+/**
+ * Parse a meshcore:// mobile app URI client-side for preview.
+ * Returns {name, public_key, type} or null.
+ */
+function parseMeshcoreUri(uri) {
+    if (!uri || !uri.startsWith('meshcore://')) return null;
+    try {
+        const url = new URL(uri);
+        if (url.hostname !== 'contact' || url.pathname !== '/add') return null;
+        const name = url.searchParams.get('name');
+        const publicKey = url.searchParams.get('public_key');
+        if (!name || !publicKey) return null;
+        const key = publicKey.trim().toLowerCase();
+        if (key.length !== 64 || !/^[0-9a-f]{64}$/.test(key)) return null;
+        let type = parseInt(url.searchParams.get('type') || '1', 10);
+        if (![1,2,3,4].includes(type)) type = 1;
+        return { name: name.trim(), public_key: key, type };
+    } catch {
+        return null;
+    }
+}
+
+// --- URI Tab ---
+
+function handleUriInput() {
+    const uri = document.getElementById('uriInput').value.trim();
+    const preview = document.getElementById('uriPreview');
+    const btn = document.getElementById('addFromUriBtn');
+
+    // Try mobile app format first
+    const parsed = parseMeshcoreUri(uri);
+    if (parsed) {
+        document.getElementById('uriPreviewName').textContent = parsed.name;
+        document.getElementById('uriPreviewKey').textContent = parsed.public_key;
+        document.getElementById('uriPreviewType').textContent = TYPE_LABELS[parsed.type] || 'COM';
+        preview.classList.remove('d-none');
+        btn.disabled = false;
+        return;
+    }
+
+    // Hex blob format — can't preview but still valid
+    if (uri.startsWith('meshcore://') && uri.length > 20) {
+        preview.classList.add('d-none');
+        btn.disabled = false;
+        return;
+    }
+
+    preview.classList.add('d-none');
+    btn.disabled = true;
+}
+
+// --- QR Tab ---
+
+function startQrCamera() {
+    const readerEl = document.getElementById('qrReader');
+    if (!readerEl) return;
+
+    html5QrCode = new Html5Qrcode('qrReader');
+    html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        onQrCodeSuccess,
+        () => {} // ignore scan failures
+    ).then(() => {
+        document.getElementById('startCameraBtn').classList.add('d-none');
+        document.getElementById('stopCameraBtn').classList.remove('d-none');
+    }).catch(err => {
+        showQrError('Camera access denied or not available. Try uploading an image instead.');
+        console.error('QR camera error:', err);
+    });
+}
+
+function stopQrCamera() {
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {});
+    }
+    document.getElementById('startCameraBtn').classList.remove('d-none');
+    document.getElementById('stopCameraBtn').classList.add('d-none');
+}
+
+function handleQrFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const scanner = new Html5Qrcode('qrReader');
+    scanner.scanFile(file, true)
+        .then(decodedText => {
+            onQrCodeSuccess(decodedText);
+            scanner.clear();
+        })
+        .catch(err => {
+            showQrError('Could not read QR code from image. Make sure the image contains a valid QR code.');
+            console.error('QR file scan error:', err);
+        });
+}
+
+function onQrCodeSuccess(decodedText) {
+    const resultDiv = document.getElementById('qrResult');
+    const errorDiv = document.getElementById('qrError');
+    const addBtn = document.getElementById('addFromQrBtn');
+
+    errorDiv.classList.add('d-none');
+
+    const parsed = parseMeshcoreUri(decodedText);
+    if (parsed) {
+        document.getElementById('qrResultName').textContent = parsed.name;
+        document.getElementById('qrResultKey').textContent = parsed.public_key;
+        document.getElementById('qrResultType').textContent = TYPE_LABELS[parsed.type] || 'COM';
+        resultDiv.classList.remove('d-none');
+        addBtn.classList.remove('d-none');
+        qrScannedUri = decodedText;
+        stopQrCamera();
+        return;
+    }
+
+    // Hex blob format
+    if (decodedText.startsWith('meshcore://') && decodedText.length > 20) {
+        resultDiv.innerHTML = '<strong>Scanned:</strong> <span class="font-monospace small">' +
+            decodedText.substring(0, 60) + '...</span>';
+        resultDiv.classList.remove('d-none');
+        addBtn.classList.remove('d-none');
+        qrScannedUri = decodedText;
+        stopQrCamera();
+        return;
+    }
+
+    showQrError('QR code does not contain a valid meshcore:// URI.');
+}
+
+function showQrError(msg) {
+    const errorDiv = document.getElementById('qrError');
+    errorDiv.textContent = msg;
+    errorDiv.classList.remove('d-none');
+    document.getElementById('qrResult').classList.add('d-none');
+    document.getElementById('addFromQrBtn').classList.add('d-none');
+}
+
+// --- Manual Tab ---
+
+function handleManualKeyInput() {
+    const input = document.getElementById('manualKey');
+    // Allow only hex characters
+    input.value = input.value.replace(/[^0-9a-fA-F]/g, '').toLowerCase();
+    document.getElementById('manualKeyCount').textContent = `${input.value.length} / 64 characters`;
+    validateManualForm();
+}
+
+function validateManualForm() {
+    const name = document.getElementById('manualName').value.trim();
+    const key = document.getElementById('manualKey').value.trim();
+    const btn = document.getElementById('addManualBtn');
+    btn.disabled = !(name.length > 0 && key.length === 64 && /^[0-9a-f]{64}$/.test(key));
+}
+
+// --- Submit ---
+
+async function submitContact(mode) {
+    const statusDiv = document.getElementById('addStatus');
+    let body = {};
+
+    if (mode === 'uri') {
+        body.uri = document.getElementById('uriInput').value.trim();
+    } else if (mode === 'qr') {
+        body.uri = qrScannedUri;
+    } else if (mode === 'manual') {
+        body.name = document.getElementById('manualName').value.trim();
+        body.public_key = document.getElementById('manualKey').value.trim();
+        body.type = parseInt(document.getElementById('manualType').value, 10);
+    }
+
+    // Show loading
+    statusDiv.className = 'mt-3 alert alert-info';
+    statusDiv.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Adding contact...';
+    statusDiv.classList.remove('d-none');
+
+    try {
+        const response = await fetch('/api/contacts/manual-add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            statusDiv.className = 'mt-3 alert alert-success';
+            statusDiv.textContent = data.message || 'Contact added successfully!';
+            // Reset form
+            resetAddForm(mode);
+        } else {
+            statusDiv.className = 'mt-3 alert alert-danger';
+            statusDiv.textContent = data.error || 'Failed to add contact.';
+        }
+    } catch (error) {
+        statusDiv.className = 'mt-3 alert alert-danger';
+        statusDiv.textContent = 'Network error: ' + error.message;
+    }
+}
+
+function resetAddForm(mode) {
+    if (mode === 'uri') {
+        document.getElementById('uriInput').value = '';
+        document.getElementById('uriPreview').classList.add('d-none');
+        document.getElementById('addFromUriBtn').disabled = true;
+    } else if (mode === 'qr') {
+        qrScannedUri = null;
+        document.getElementById('qrResult').classList.add('d-none');
+        document.getElementById('addFromQrBtn').classList.add('d-none');
+        document.getElementById('qrFileInput').value = '';
+    } else if (mode === 'manual') {
+        document.getElementById('manualName').value = '';
+        document.getElementById('manualKey').value = '';
+        document.getElementById('manualKeyCount').textContent = '0 / 64 characters';
+        document.getElementById('addManualBtn').disabled = true;
     }
 }
