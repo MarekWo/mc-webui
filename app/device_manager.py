@@ -12,7 +12,8 @@ import json
 import logging
 import threading
 import time
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Tuple
+from urllib.parse import urlparse, parse_qs
 
 ANALYZER_BASE_URL = 'https://analyzer.letsmesh.net/packets?packet_hash='
 GRP_TXT_TYPE_BYTE = 0x05
@@ -29,6 +30,45 @@ def _to_str(val) -> str:
         return val.hex()
     return str(val)
 
+
+def parse_meshcore_uri(uri: str) -> Optional[Dict]:
+    """Parse meshcore://contact/add?name=...&public_key=...&type=... URI.
+
+    Returns dict with 'name', 'public_key', 'type' keys, or None if not a valid mobile-app URI.
+    """
+    if not uri or not uri.startswith('meshcore://'):
+        return None
+
+    try:
+        # urlparse needs a scheme it recognizes; meshcore:// works fine
+        parsed = urlparse(uri)
+        if parsed.netloc != 'contact' or parsed.path != '/add':
+            return None
+
+        params = parse_qs(parsed.query)
+        public_key = params.get('public_key', [None])[0]
+        name = params.get('name', [None])[0]
+
+        if not public_key or not name:
+            return None
+
+        # Validate public_key: 64 hex characters
+        public_key = public_key.strip().lower()
+        if len(public_key) != 64:
+            return None
+        bytes.fromhex(public_key)  # validate hex
+
+        contact_type = int(params.get('type', ['1'])[0])
+        if contact_type not in (1, 2, 3, 4):
+            contact_type = 1
+
+        return {
+            'name': name.strip(),
+            'public_key': public_key,
+            'type': contact_type,
+        }
+    except (ValueError, IndexError, KeyError):
+        return None
 
 
 class DeviceManager:
@@ -1631,6 +1671,72 @@ class DeviceManager:
             logger.error(f"Failed to approve contact: {e}")
             return {'success': False, 'error': str(e)}
 
+    def add_contact_manual(self, name: str, public_key: str, contact_type: int = 1) -> Dict:
+        """Add a contact manually from name, public_key and type.
+
+        This bypasses the pending/advert mechanism entirely — uses CMD_ADD_UPDATE_CONTACT
+        (same as the MeshCore mobile app's QR code / URI sharing).
+        """
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+
+        # Validate inputs
+        public_key = public_key.strip().lower()
+        name = name.strip()
+        if not name:
+            return {'success': False, 'error': 'Name is required'}
+        if len(public_key) != 64:
+            return {'success': False, 'error': 'Public key must be 64 hex characters'}
+        try:
+            bytes.fromhex(public_key)
+        except ValueError:
+            return {'success': False, 'error': 'Public key must be valid hex'}
+        if contact_type not in (1, 2, 3, 4):
+            return {'success': False, 'error': 'Type must be 1 (COM), 2 (REP), 3 (ROOM), or 4 (SENS)'}
+
+        try:
+            contact = {
+                'public_key': public_key,
+                'type': contact_type,
+                'flags': 0,
+                'out_path_len': -1,
+                'out_path': '',
+                'adv_name': name,
+                'last_advert': 0,
+                'adv_lat': 0.0,
+                'adv_lon': 0.0,
+            }
+
+            self.execute(self.mc.commands.add_contact(contact))
+
+            # Refresh mc.contacts from device
+            self.execute(self.mc.ensure_contacts(follow=True))
+
+            # Fallback: add to in-memory contacts if firmware needs time
+            if public_key not in (self.mc.contacts or {}):
+                if self.mc.contacts is None:
+                    self.mc.contacts = {}
+                self.mc.contacts[public_key] = contact
+                logger.info(f"Manually added {public_key[:12]}... to mc.contacts")
+
+            self.db.upsert_contact(
+                public_key=public_key,
+                name=name,
+                type=contact_type,
+                adv_lat=0.0,
+                adv_lon=0.0,
+                last_advert=str(int(time.time())),
+                source='device',
+            )
+            # Re-link orphaned DMs
+            self.db.relink_orphaned_dms(public_key, name=name)
+
+            logger.info(f"Manual add contact: {name} ({public_key[:12]}...) type={contact_type}")
+            return {'success': True, 'message': f'Contact {name} added to device'}
+        except Exception as e:
+            logger.error(f"Failed to add contact manually: {e}")
+            return {'success': False, 'error': str(e)}
+
     def reject_contact(self, pubkey: str) -> Dict:
         """Reject a pending contact (remove from pending list without adding)."""
         if not self.is_connected:
@@ -2114,9 +2220,21 @@ class DeviceManager:
             return {'success': False, 'error': str(e)}
 
     def import_contact_uri(self, uri: str) -> Dict:
-        """Import a contact from meshcore:// URI."""
+        """Import a contact from meshcore:// URI.
+
+        Supports two formats:
+        - Mobile app URI: meshcore://contact/add?name=...&public_key=...&type=...
+        - Hex blob URI:   meshcore://<hex_data> (signed advert blob)
+        """
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
+
+        # Try mobile app URI format first
+        parsed = parse_meshcore_uri(uri)
+        if parsed:
+            return self.add_contact_manual(parsed['name'], parsed['public_key'], parsed['type'])
+
+        # Fallback: hex blob (signed advert) format
         try:
             if uri.startswith('meshcore://'):
                 hex_data = uri[11:]
@@ -2128,7 +2246,7 @@ class DeviceManager:
             self.execute(self.mc.commands.get_contacts(), timeout=10)
             return {'success': True, 'message': 'Contact imported'}
         except ValueError:
-            return {'success': False, 'error': 'Invalid URI format (expected hex data)'}
+            return {'success': False, 'error': 'Invalid URI format (expected mobile app URI or hex data)'}
         except Exception as e:
             logger.error(f"import_contact failed: {e}")
             return {'success': False, 'error': str(e)}

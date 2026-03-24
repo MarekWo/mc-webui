@@ -17,7 +17,7 @@ from flask import Flask, request as flask_request
 from flask_socketio import SocketIO, emit
 from app.config import config, runtime_config
 from app.database import Database
-from app.device_manager import DeviceManager
+from app.device_manager import DeviceManager, parse_meshcore_uri
 from app.log_handler import MemoryLogHandler
 from app.routes.views import views_bp
 from app.routes.api import api_bp
@@ -940,6 +940,43 @@ def _execute_console_command(args: list) -> str:
             return result.get('message', 'Pending contacts flushed')
         return f"Error: {result.get('error')}"
 
+    elif cmd == 'manual_add' and len(args) >= 2:
+        # Two variants:
+        #   manual_add meshcore://contact/add?name=...&public_key=...&type=...
+        #   manual_add <public_key> <type> <name with spaces>
+        arg1 = args[1]
+        parsed = parse_meshcore_uri(arg1)
+        if parsed:
+            result = device_manager.add_contact_manual(parsed['name'], parsed['public_key'], parsed['type'])
+        elif len(args) >= 4:
+            public_key = args[1]
+            try:
+                contact_type = int(args[2])
+            except ValueError:
+                return "Error: type must be integer (1=COM, 2=REP, 3=ROOM, 4=SENS)"
+            name = ' '.join(args[3:])
+            result = device_manager.add_contact_manual(name, public_key, contact_type)
+        else:
+            return (
+                "Usage:\n"
+                "  manual_add <URI>\n"
+                "  manual_add <public_key> <type> <name>\n\n"
+                "URI format: meshcore://contact/add?name=...&public_key=...&type=...\n"
+                "Types: 1=COM, 2=REP, 3=ROOM, 4=SENS"
+            )
+        if result.get('success'):
+            return result.get('message', 'Contact added')
+        return f"Error: {result.get('error')}"
+
+    elif cmd == 'manual_add':
+        return (
+            "Usage:\n"
+            "  manual_add <URI>\n"
+            "  manual_add <public_key> <type> <name>\n\n"
+            "URI format: meshcore://contact/add?name=...&public_key=...&type=...\n"
+            "Types: 1=COM, 2=REP, 3=ROOM, 4=SENS"
+        )
+
     # ── Device management commands ───────────────────────────────
 
     elif cmd == 'get' and len(args) >= 2:
@@ -1215,7 +1252,8 @@ def _execute_console_command(args: list) -> str:
             "  advert_path <name>      — Get path from advert\n"
             "  share_contact <name>    — Share contact with mesh\n"
             "  export_contact <name>   — Export contact URI\n"
-            "  import_contact <URI>    — Import contact from URI\n"
+            "  import_contact <URI>    — Import contact from hex blob URI\n"
+            "  manual_add <URI|params> — Add contact from mobile app URI or params\n"
             "  remove_contact <name>   — Remove contact from device\n"
             "  change_flags <n> <f>    — Change contact flags\n"
             "  pending_contacts        — Show pending contacts\n"
