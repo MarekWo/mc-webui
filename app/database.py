@@ -80,6 +80,12 @@ class Database:
             row = conn.execute("SELECT * FROM device WHERE id = 1").fetchone()
             return dict(row) if row else None
 
+    def get_public_key(self) -> Optional[str]:
+        """Get device public key (used for DB filename resolution)."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT public_key FROM device WHERE id = 1").fetchone()
+            return row['public_key'] if row and row['public_key'] else None
+
     # ================================================================
     # Contacts
     # ================================================================

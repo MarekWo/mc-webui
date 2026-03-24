@@ -8,9 +8,11 @@ import json
 import logging
 import re
 import shlex
+import sqlite3
 import threading
 import time
 from pathlib import Path
+from typing import Optional
 from flask import Flask, request as flask_request
 from flask_socketio import SocketIO, emit
 from app.config import config, runtime_config
@@ -52,21 +54,53 @@ db = None
 device_manager = None
 
 
-def _sanitize_db_name(name: str) -> str:
-    """Sanitize device name for use as database filename."""
-    sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
-    sanitized = sanitized.strip('. ')
-    return sanitized or 'device'
+def _pubkey_db_name(public_key: str) -> str:
+    """Return stable DB filename based on device public key prefix."""
+    return f"mc_{public_key[:8].lower()}.db"
+
+
+def _read_pubkey_from_db(db_path: Path) -> Optional[str]:
+    """Probe an existing DB file for the device public key.
+
+    Uses a raw sqlite3 connection (not Database class) to avoid
+    WAL creation side effects on a file that may be about to be renamed.
+    """
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            row = conn.execute("SELECT public_key FROM device WHERE id = 1").fetchone()
+            if row and row[0]:
+                return row[0]
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    return None
+
+
+def _rename_db_files(src: Path, dst: Path) -> bool:
+    """Rename DB + WAL + SHM files. Returns True on success."""
+    for suffix in ['', '-wal', '-shm']:
+        s = Path(str(src) + suffix)
+        d = Path(str(dst) + suffix)
+        if s.exists():
+            try:
+                s.rename(d)
+            except OSError as e:
+                logger.error(f"Failed to rename {s.name} -> {d.name}: {e}")
+                return False
+    return True
 
 
 def _resolve_db_path() -> Path:
-    """Resolve database path, preferring existing device-named DB files.
+    """Resolve database path using public-key-based naming.
 
     Priority:
-    1. Explicit MC_DB_PATH that is NOT mc-webui.db -> use as-is
-    2. Existing device-named .db file in config dir (most recently modified)
-    3. Existing mc-webui.db (legacy, will be renamed on device connect)
-    4. New mc-webui.db (will be renamed on device connect)
+    1. Explicit MC_DB_PATH (not mc-webui.db) -> use as-is
+    2. Existing mc_*.db file (new pubkey-based format) -> use most recent
+    3. Existing *.db (old device-name format) -> probe for pubkey, rename if possible
+    4. Existing mc-webui.db (legacy default) -> probe for pubkey, rename if possible
+    5. New install -> create mc-webui.db (will be renamed on first device connect)
     """
     if config.MC_DB_PATH:
         p = Path(config.MC_DB_PATH)
@@ -76,35 +110,69 @@ def _resolve_db_path() -> Path:
     else:
         db_dir = Path(config.MC_CONFIG_DIR)
 
-    # Scan for existing device-named DBs (anything except mc-webui.db)
+    # 1. Scan for new-format DBs (mc_????????.db)
     try:
-        existing = sorted(
-            [f for f in db_dir.glob('*.db')
-             if f.name != 'mc-webui.db' and f.is_file()],
+        new_format = sorted(
+            [f for f in db_dir.glob('mc_????????.db') if f.is_file()],
             key=lambda f: f.stat().st_mtime,
             reverse=True
         )
-        if existing:
-            logger.info(f"Found device-named database: {existing[0].name}")
-            return existing[0]
+        if new_format:
+            logger.info(f"Found database: {new_format[0].name}")
+            return new_format[0]
     except OSError:
         pass
 
-    # Fallback: mc-webui.db (legacy or new install)
-    return db_dir / 'mc-webui.db'
+    # 2. Scan for old device-named DBs (anything except mc-webui.db and mc_*.db)
+    try:
+        old_format = sorted(
+            [f for f in db_dir.glob('*.db')
+             if f.name != 'mc-webui.db'
+             and not re.match(r'^mc_[0-9a-f]{8}\.db$', f.name)
+             and f.is_file()],
+            key=lambda f: f.stat().st_mtime,
+            reverse=True
+        )
+        if old_format:
+            db_file = old_format[0]
+            pubkey = _read_pubkey_from_db(db_file)
+            if pubkey:
+                target = db_dir / _pubkey_db_name(pubkey)
+                if not target.exists() and _rename_db_files(db_file, target):
+                    logger.info(f"Migrated database: {db_file.name} -> {target.name}")
+                    return target
+                elif target.exists():
+                    logger.info(f"Found database: {target.name}")
+                    return target
+            # No pubkey in device table yet — use as-is, rename deferred
+            logger.info(f"Found legacy database: {db_file.name} (rename deferred)")
+            return db_file
+    except OSError:
+        pass
+
+    # 3. Check for mc-webui.db (legacy default)
+    legacy = db_dir / 'mc-webui.db'
+    if legacy.exists():
+        pubkey = _read_pubkey_from_db(legacy)
+        if pubkey:
+            target = db_dir / _pubkey_db_name(pubkey)
+            if not target.exists() and _rename_db_files(legacy, target):
+                logger.info(f"Migrated database: {legacy.name} -> {target.name}")
+                return target
+        return legacy
+
+    # 4. New install — will be renamed on first device connect
+    return legacy
 
 
-def _migrate_db_to_device_name(db, device_name: str):
-    """Rename DB file to match device name if needed.
+def _migrate_db_to_pubkey(db, public_key: str):
+    """Rename DB file to public-key-based name if needed.
 
-    Handles three cases:
-    - Current DB already matches device name -> no-op
-    - Target DB exists (different device was here before) -> switch to it
-    - Target DB doesn't exist -> rename current DB files
+    Called after device connects and provides its public key.
     """
-    safe_name = _sanitize_db_name(device_name)
+    target_name = _pubkey_db_name(public_key)
     current = db.db_path
-    target = current.parent / f"{safe_name}.db"
+    target = current.parent / target_name
 
     if current.resolve() == target.resolve():
         return
@@ -123,19 +191,9 @@ def _migrate_db_to_device_name(db, device_name: str):
     except Exception as e:
         logger.warning(f"WAL checkpoint before rename: {e}")
 
-    # Rename DB + WAL + SHM files
-    for suffix in ['', '-wal', '-shm']:
-        src = Path(str(current) + suffix)
-        dst = Path(str(target) + suffix)
-        if src.exists():
-            try:
-                src.rename(dst)
-            except OSError as e:
-                logger.error(f"Failed to rename {src.name} -> {dst.name}: {e}")
-                return  # abort migration
-
-    db.db_path = target
-    logger.info(f"Database renamed: {current.name} -> {target.name}")
+    if _rename_db_files(current, target):
+        db.db_path = target
+        logger.info(f"Database renamed: {current.name} -> {target.name}")
 
 
 def create_app():
@@ -203,16 +261,19 @@ def create_app():
                 runtime_config.set_device_name(dev_name, "device")
                 logger.info(f"Device name resolved: {dev_name}")
 
-                # Rename DB to match device name (mc-webui.db -> {name}.db)
-                _migrate_db_to_device_name(db, dev_name)
-
                 # Ensure device info is stored in current DB
+                pubkey = ''
                 if device_manager.self_info:
+                    pubkey = device_manager.self_info.get('public_key', '')
                     db.set_device_info(
-                        public_key=device_manager.self_info.get('public_key', ''),
+                        public_key=pubkey,
                         name=dev_name,
                         self_info=json.dumps(device_manager.self_info, default=str)
                     )
+
+                # Rename DB to pubkey-based name (e.g. mc-webui.db -> mc_9cebbd27.db)
+                if pubkey:
+                    _migrate_db_to_pubkey(db, pubkey)
 
                 # Auto-migrate v1 data if .msgs file exists and DB is empty
                 try:
