@@ -324,6 +324,25 @@ function setupEventListeners() {
             scrollToBottomBtn.classList.remove('visible');
         });
     }
+
+    // DM Sidebar search input (lg+ screens)
+    const sidebarSearch = document.getElementById('dmSidebarSearch');
+    if (sidebarSearch) {
+        sidebarSearch.addEventListener('input', () => {
+            populateDmSidebar(sidebarSearch.value);
+        });
+    }
+
+    // Desktop info button (lg+ screens)
+    const desktopInfoBtn = document.getElementById('dmDesktopInfoBtn');
+    if (desktopInfoBtn) {
+        desktopInfoBtn.addEventListener('click', () => {
+            const modal = new bootstrap.Modal(document.getElementById('dmContactInfoModal'));
+            populateContactInfoModal();
+            loadPathSection();
+            modal.show();
+        });
+    }
 }
 
 /**
@@ -423,12 +442,16 @@ function populateConversationSelector() {
     window._dmDropdownItems = { conversations, contacts };
     renderDropdownItems('');
 
+    // Also populate DM sidebar (lg+ screens)
+    populateDmSidebar('');
+
     // Update search input if conversation is selected — re-resolve name in case contacts loaded
     if (currentConversationId) {
         const bestName = resolveConversationName(currentConversationId);
         if (!isPubkey(bestName)) currentRecipient = bestName;
         const input = document.getElementById('dmContactSearchInput');
         if (input) input.value = displayName(currentRecipient);
+        updateDmDesktopHeader();
     }
 }
 
@@ -520,6 +543,149 @@ function createDropdownItem(name, conversationId, isUnread, contact) {
 }
 
 /**
+ * Populate the DM sidebar (visible on lg+ screens).
+ * Mirrors the dropdown data structure but renders as a persistent list.
+ */
+function populateDmSidebar(query) {
+    const list = document.getElementById('dmSidebarList');
+    if (!list) return;
+
+    list.innerHTML = '';
+
+    const q = (query || '').toLowerCase().trim();
+    const { conversations = [], contacts = [] } = window._dmDropdownItems || {};
+
+    const filteredConvs = q
+        ? conversations.filter(item => (item.name || '').toLowerCase().includes(q))
+        : conversations;
+
+    const filteredContacts = q
+        ? contacts.filter(c => (c.name || '').toLowerCase().includes(q))
+        : contacts;
+
+    if (filteredConvs.length > 0) {
+        const sep = document.createElement('div');
+        sep.className = 'dm-sidebar-separator';
+        sep.textContent = 'Recent conversations';
+        list.appendChild(sep);
+
+        filteredConvs.forEach(item => {
+            list.appendChild(createSidebarItem(
+                item.name, item.conversationId, item.isUnread, item.contact));
+        });
+    }
+
+    if (filteredContacts.length > 0) {
+        const sep = document.createElement('div');
+        sep.className = 'dm-sidebar-separator';
+        sep.textContent = 'Contacts';
+        list.appendChild(sep);
+
+        filteredContacts.forEach(contact => {
+            const prefix = contact.public_key_prefix || contact.public_key?.substring(0, 12) || '';
+            const convId = `pk_${prefix}`;
+            list.appendChild(createSidebarItem(
+                contact.name, convId, false, contact));
+        });
+    }
+
+    if (filteredConvs.length === 0 && filteredContacts.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'dm-sidebar-separator text-center';
+        empty.textContent = q ? 'No matches' : 'No contacts available';
+        list.appendChild(empty);
+    }
+}
+
+/**
+ * Create a single sidebar item element for the DM sidebar.
+ */
+function createSidebarItem(name, conversationId, isUnread, contact) {
+    const el = document.createElement('div');
+    el.className = 'dm-sidebar-item';
+    el.dataset.conversationId = conversationId;
+
+    if (conversationId === currentConversationId) {
+        el.classList.add('active');
+    }
+
+    if (isUnread) {
+        const dot = document.createElement('span');
+        dot.className = 'sidebar-unread-dot';
+        el.appendChild(dot);
+    }
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'contact-name';
+    nameSpan.textContent = displayName(name);
+    el.appendChild(nameSpan);
+
+    if (contact && contact.type_label) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        const colors = { COM: 'bg-primary', REP: 'bg-success', ROOM: 'bg-info', SENS: 'bg-warning' };
+        badge.classList.add(colors[contact.type_label] || 'bg-secondary');
+        badge.textContent = contact.type_label;
+        el.appendChild(badge);
+    }
+
+    el.addEventListener('click', () => selectConversationFromSidebar(conversationId, name));
+    return el;
+}
+
+/**
+ * Handle selection from the DM sidebar.
+ */
+async function selectConversationFromSidebar(conversationId, name) {
+    await selectConversation(conversationId);
+    if (name && !isPubkey(name)) currentRecipient = name;
+    updateDmSidebarActive();
+    // Move focus to message input
+    const msgInput = document.getElementById('dmMessageInput');
+    if (msgInput && !msgInput.disabled) msgInput.focus();
+}
+
+/**
+ * Update active state on DM sidebar items.
+ */
+function updateDmSidebarActive() {
+    const list = document.getElementById('dmSidebarList');
+    if (!list) return;
+
+    list.querySelectorAll('.dm-sidebar-item').forEach(item => {
+        const convId = item.dataset.conversationId;
+        // Flexible matching: handle prefix upgrades
+        let isActive = convId === currentConversationId;
+        if (!isActive && currentConversationId && convId) {
+            // Match if one is a prefix of the other (pk_ based)
+            if (convId.startsWith('pk_') && currentConversationId.startsWith('pk_')) {
+                const a = convId.substring(3);
+                const b = currentConversationId.substring(3);
+                isActive = a.startsWith(b) || b.startsWith(a);
+            }
+        }
+        item.classList.toggle('active', isActive);
+    });
+}
+
+/**
+ * Update the desktop contact header (visible on lg+ screens).
+ */
+function updateDmDesktopHeader() {
+    const nameEl = document.getElementById('dmDesktopContactName');
+    const infoBtn = document.getElementById('dmDesktopInfoBtn');
+    if (!nameEl) return;
+
+    if (currentRecipient) {
+        nameEl.textContent = displayName(currentRecipient);
+        if (infoBtn) infoBtn.disabled = false;
+    } else {
+        nameEl.textContent = '';
+        if (infoBtn) infoBtn.disabled = true;
+    }
+}
+
+/**
  * Handle selection from the searchable dropdown.
  */
 async function selectConversationFromDropdown(conversationId, name) {
@@ -582,6 +748,10 @@ async function selectConversation(conversationId) {
         sendBtn.disabled = false;
     }
 
+    // Update desktop header and sidebar (lg+ screens)
+    updateDmDesktopHeader();
+    updateDmSidebarActive();
+
     // Load messages
     await loadMessages();
 }
@@ -623,10 +793,14 @@ function clearConversation() {
             <div class="dm-empty-state">
                 <i class="bi bi-envelope"></i>
                 <p class="mb-1">Select a conversation</p>
-                <small class="text-muted">Choose from the dropdown above or start a new chat from channel messages</small>
+                <small class="text-muted">Choose from the list or start a new chat from channel messages</small>
             </div>
         `;
     }
+
+    // Update desktop header and sidebar
+    updateDmDesktopHeader();
+    updateDmSidebarActive();
 
     updateCharCounter();
 }

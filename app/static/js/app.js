@@ -689,11 +689,12 @@ function setupEventListeners() {
         loadDeviceInfo();
     });
 
-    // Channel selector
+    // Channel selector (dropdown, visible on mobile)
     document.getElementById('channelSelector').addEventListener('change', function(e) {
         currentChannelIdx = parseInt(e.target.value);
         localStorage.setItem('mc_active_channel', currentChannelIdx);
         loadMessages();
+        updateChannelSidebarActive();
 
         // Show notification only if we have a valid selection
         const selectedOption = e.target.options[e.target.selectedIndex];
@@ -2888,6 +2889,9 @@ function updateUnreadBadges() {
 
     // Update app icon badge
     updateAppBadge();
+
+    // Update channel sidebar badges (lg+ screens)
+    updateChannelSidebarBadges();
 }
 
 /**
@@ -3111,6 +3115,9 @@ function populateChannelSelector(channels) {
     }
 
     console.log(`[populateChannelSelector] Loaded ${channels.length} channels, active: ${currentChannelIdx}`);
+
+    // Also populate sidebar (lg+ screens)
+    populateChannelSidebar();
 }
 
 /**
@@ -3176,6 +3183,104 @@ function displayChannelsList(channels) {
         `;
 
         listEl.appendChild(item);
+    });
+}
+
+/**
+ * Populate channel sidebar (visible on lg+ screens)
+ */
+function populateChannelSidebar() {
+    const list = document.getElementById('channelSidebarList');
+    if (!list) return;
+
+    list.innerHTML = '';
+
+    const channels = availableChannels.length > 0
+        ? availableChannels
+        : [{index: 0, name: 'Public', key: ''}];
+
+    channels.forEach(channel => {
+        if (!channel || typeof channel.index === 'undefined' || !channel.name) return;
+
+        const item = document.createElement('div');
+        item.className = 'channel-sidebar-item';
+        item.dataset.channelIdx = channel.index;
+
+        if (channel.index === currentChannelIdx) {
+            item.classList.add('active');
+        }
+        if (mutedChannels.has(channel.index)) {
+            item.classList.add('muted');
+        }
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'channel-name';
+        nameSpan.textContent = channel.name;
+        item.appendChild(nameSpan);
+
+        // Unread badge
+        const unread = unreadCounts[channel.index] || 0;
+        if (unread > 0 && channel.index !== currentChannelIdx && !mutedChannels.has(channel.index)) {
+            const badge = document.createElement('span');
+            badge.className = 'sidebar-unread-badge';
+            badge.textContent = unread;
+            item.appendChild(badge);
+        }
+
+        item.addEventListener('click', () => {
+            currentChannelIdx = channel.index;
+            localStorage.setItem('mc_active_channel', currentChannelIdx);
+            loadMessages();
+            updateChannelSidebarActive();
+            // Also sync dropdown for consistency
+            const selector = document.getElementById('channelSelector');
+            if (selector) selector.value = currentChannelIdx;
+        });
+
+        list.appendChild(item);
+    });
+}
+
+/**
+ * Update active state on channel sidebar items
+ */
+function updateChannelSidebarActive() {
+    const list = document.getElementById('channelSidebarList');
+    if (!list) return;
+
+    list.querySelectorAll('.channel-sidebar-item').forEach(item => {
+        const idx = parseInt(item.dataset.channelIdx);
+        item.classList.toggle('active', idx === currentChannelIdx);
+    });
+}
+
+/**
+ * Update unread badges on channel sidebar
+ */
+function updateChannelSidebarBadges() {
+    const list = document.getElementById('channelSidebarList');
+    if (!list) return;
+
+    list.querySelectorAll('.channel-sidebar-item').forEach(item => {
+        const idx = parseInt(item.dataset.channelIdx);
+        const unread = unreadCounts[idx] || 0;
+        const isMuted = mutedChannels.has(idx);
+
+        // Update muted state
+        item.classList.toggle('muted', isMuted);
+
+        // Update or remove badge
+        let badge = item.querySelector('.sidebar-unread-badge');
+        if (unread > 0 && idx !== currentChannelIdx && !isMuted) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'sidebar-unread-badge';
+                item.appendChild(badge);
+            }
+            badge.textContent = unread;
+        } else if (badge) {
+            badge.remove();
+        }
     });
 }
 

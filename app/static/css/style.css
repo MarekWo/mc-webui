@@ -27,6 +27,183 @@ main {
     min-height: 0; /* Important for flex children */
 }
 
+/* =============================================================================
+   Channel Sidebar (Group Chat) - visible on lg+ screens
+   ============================================================================= */
+
+.channel-sidebar {
+    display: none;
+    width: 250px;
+    flex-shrink: 0;
+    border-right: 1px solid #dee2e6;
+    background: #f8f9fa;
+    flex-direction: column;
+}
+
+.channel-sidebar-header {
+    padding: 0.6rem 0.75rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #dee2e6;
+    color: #495057;
+    background: #f0f0f0;
+}
+
+.channel-sidebar-list {
+    overflow-y: auto;
+    flex: 1;
+}
+
+.channel-sidebar-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.85rem;
+    transition: background-color 0.15s;
+    color: #212529;
+}
+
+.channel-sidebar-item:hover {
+    background-color: #e9ecef;
+}
+
+.channel-sidebar-item.active {
+    background-color: #e7f1ff;
+    border-left: 3px solid #0d6efd;
+    padding-left: calc(0.75rem - 3px);
+    font-weight: 500;
+    color: #0d6efd;
+}
+
+.channel-sidebar-item.muted {
+    opacity: 0.5;
+}
+
+.channel-sidebar-item .channel-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.channel-sidebar-item .sidebar-unread-badge {
+    background-color: #0d6efd;
+    color: white;
+    border-radius: 10px;
+    padding: 1px 6px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    min-width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* Show sidebar and hide dropdown on wide screens */
+@media (min-width: 992px) {
+    .channel-sidebar {
+        display: flex;
+    }
+    #channelSelector {
+        display: none !important;
+    }
+}
+
+/* =============================================================================
+   DM Sidebar (Direct Messages) - visible on lg+ screens
+   ============================================================================= */
+
+.dm-sidebar {
+    display: none;
+    width: 280px;
+    flex-shrink: 0;
+    border-right: 1px solid #dee2e6;
+    background: #f8f9fa;
+    flex-direction: column;
+}
+
+.dm-sidebar-header {
+    padding: 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+    background: #f0f0f0;
+}
+
+.dm-sidebar-list {
+    overflow-y: auto;
+    flex: 1;
+}
+
+.dm-sidebar-separator {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.7rem;
+    color: #6c757d;
+    background: #f0f0f0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.dm-sidebar-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.85rem;
+    transition: background-color 0.15s;
+}
+
+.dm-sidebar-item:hover {
+    background-color: #e9ecef;
+}
+
+.dm-sidebar-item.active {
+    background-color: #e7f5ee;
+    border-left: 3px solid #198754;
+    padding-left: calc(0.75rem - 3px);
+    font-weight: 500;
+}
+
+.dm-sidebar-item .contact-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dm-sidebar-item .sidebar-unread-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #0d6efd;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dm-sidebar-item .badge {
+    font-size: 0.65rem;
+    flex-shrink: 0;
+}
+
+/* Show DM sidebar and hide mobile selector on wide screens */
+@media (min-width: 992px) {
+    .dm-sidebar {
+        display: flex;
+    }
+    .dm-mobile-selector {
+        display: none !important;
+    }
+    .dm-desktop-header {
+        display: block !important;
+    }
+}
+
+.dm-desktop-header {
+    display: none;
+}
+
 /* Messages Container */
 .messages-container {
     background-color: #ffffff;
