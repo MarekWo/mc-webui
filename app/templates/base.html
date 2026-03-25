@@ -312,6 +312,9 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDeviceStats" type="button" id="statsTabBtn">Stats</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDeviceShare" type="button" id="shareTabBtn">Share</button>
+                        </li>
                     </ul>
                     <div class="tab-content">
                         <div class="tab-pane fade show active" id="tabDeviceInfo">
@@ -325,6 +328,13 @@
                             <div id="deviceStatsContent">
                                 <div class="text-center py-3 text-muted">
                                     Click to load stats
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="tabDeviceShare">
+                            <div id="deviceShareContent">
+                                <div class="text-center py-3 text-muted">
+                                    Click to generate share code
                                 </div>
                             </div>
                         </div>
@@ -610,6 +620,9 @@
     <script src="{{ url_for('static', filename='vendor/socket.io/socket.io.min.js') }}"></script>
 
     <!-- Custom JS -->
+    <!-- QR Code generator (for Device Share) -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 
     <!-- PWA Viewport Fix for Android -->

@@ -1702,7 +1702,73 @@ async function loadDeviceStats() {
 // Load stats when Stats tab is clicked
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('statsTabBtn')?.addEventListener('shown.bs.tab', loadDeviceStats);
+    document.getElementById('shareTabBtn')?.addEventListener('shown.bs.tab', loadDeviceShare);
 });
+
+/**
+ * Load device share tab - generate QR code and URI for sharing own contact
+ */
+async function loadDeviceShare() {
+    const container = document.getElementById('deviceShareContent');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+
+    try {
+        const response = await fetch('/api/device/info');
+        const data = await response.json();
+
+        if (!data.success) {
+            container.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(data.error)}</div>`;
+            return;
+        }
+
+        const info = data.info;
+        if (!info || !info.public_key || !info.name) {
+            container.innerHTML = '<div class="alert alert-warning mb-0">Device info not available</div>';
+            return;
+        }
+
+        const contactType = info.adv_type || 1;
+        const uri = `meshcore://contact/add?name=${encodeURIComponent(info.name)}&public_key=${info.public_key}&type=${contactType}`;
+
+        const typeNames = { 1: 'Companion', 2: 'Repeater', 3: 'Room Server', 4: 'Sensor' };
+
+        let html = '<div class="text-center">';
+        html += '<p class="text-muted small mb-3">Share this QR code or URI so others can add your device as a contact.</p>';
+        html += '<div id="shareQrCode" class="d-inline-block mb-3"></div>';
+        html += '<div class="mb-2"><strong>' + escapeHtml(info.name) + '</strong></div>';
+        html += '<div class="text-muted small mb-3">' + escapeHtml(typeNames[contactType] || 'Unknown') + '</div>';
+        html += '</div>';
+
+        html += '<div class="mb-3">';
+        html += '<label class="form-label text-muted small">Contact URI:</label>';
+        html += '<div class="input-group">';
+        html += '<input type="text" class="form-control form-control-sm font-monospace" value="' + escapeHtml(uri) + '" readonly id="shareUriInput">';
+        html += '<button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard(document.getElementById(\'shareUriInput\').value, this)" title="Copy URI"><i class="bi bi-clipboard"></i></button>';
+        html += '</div>';
+        html += '</div>';
+
+        container.innerHTML = html;
+
+        // Generate QR code
+        const qrContainer = document.getElementById('shareQrCode');
+        if (qrContainer && typeof QRCode !== 'undefined') {
+            new QRCode(qrContainer, {
+                text: uri,
+                width: 200,
+                height: 200,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+
+    } catch (error) {
+        console.error('Error loading device share:', error);
+        container.innerHTML = '<div class="alert alert-danger mb-0">Failed to load device info</div>';
+    }
+}
 
 // =============================================================================
 // Settings Modal
