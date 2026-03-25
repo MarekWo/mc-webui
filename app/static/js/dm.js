@@ -442,8 +442,9 @@ function populateConversationSelector() {
     window._dmDropdownItems = { conversations, contacts };
     renderDropdownItems('');
 
-    // Also populate DM sidebar (lg+ screens)
-    populateDmSidebar('');
+    // Also populate DM sidebar (lg+ screens), preserving current search filter
+    const sidebarSearch = document.getElementById('dmSidebarSearch');
+    populateDmSidebar(sidebarSearch ? sidebarSearch.value : '');
 
     // Update search input if conversation is selected — re-resolve name in case contacts loaded
     if (currentConversationId) {
