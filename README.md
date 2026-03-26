@@ -13,25 +13,26 @@ A lightweight web interface providing browser-based access to MeshCore mesh netw
 
 ## Key Features
 
-- **Mobile-first design** - Responsive UI optimized for small screens
+- **Mobile-first design** - Responsive UI optimized for small screens, with desktop sidebar for wide screens
 - **Channel management** - Create, join, share (QR code), and switch between encrypted channels
-- **Direct Messages (DM)** - Private messaging with searchable contact selector, delivery tracking, and configurable retry strategy
+- **Direct Messages (DM)** - Private messaging with searchable contact selector, delivery tracking, configurable retry strategy, and multi-path routing
 - **Smart notifications** - Unread message counters per channel with cross-device sync
-- **Contact management** - Manual approval mode, filtering, protection, ignoring, blocking, batch operations, and cleanup tools
+- **Contact management** - Manual approval, add via URI/QR, filtering, protection, ignoring, blocking, batch operations, and cleanup tools
 - **Global search** - Full-text search across all messages (channels and DMs) with FTS5 backend
 - **Database** - Fast and reliable SQLite storage for messages, contacts, and configurations
 - **Contact map** - View contacts and own device on OpenStreetMap (Leaflet) with last seen info
 - **Message archives** - Automatic daily archiving with browse-by-date selector
 - **Interactive Console** - Full MeshCore command suite via WebSocket — repeater, contact, device, and channel management
-- **Device dashboard** - Device info and statistics with firmware details
-- **Settings** - Configurable DM retry parameters, message retention, and quote length
+- **Device dashboard** - Device info, statistics, and contact sharing (QR code / URI)
+- **Dark/Light theme** - Toggle between dark and light UI themes
+- **Settings** - Configurable DM retry parameters, message retention, quote length, and theme
 - **System Log** - Real-time log viewer with streaming
 - **Database backup** - Create, list, and download database backups from the UI
 - **@Mentions autocomplete** - Type @ to see contact suggestions with fuzzy search
 - **Echo tracking** - "Heard X repeats" with repeater IDs for sent messages, all route paths for incoming messages with deterministic payload matching (persisted across restarts)
 - **MeshCore Analyzer** - View packet details on analyzer.letsmesh.net directly from channel messages
 - **DM delivery tracking** - ACK-based delivery confirmation with SNR and route info
-- **Multi-device support** - Database file named after device for easy multi-device setups
+- **Multi-device support** - Database file named after device public key for easy multi-device setups
 - **PWA support** - Browser notifications and installable app (experimental)
 - **Full offline support** - Works without internet (local Bootstrap, icons, emoji picker)
 
@@ -311,12 +312,12 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 - [x] Frontend Chat View (Bootstrap UI, message display, quote/reply)
 - [x] Message Sending (Send form, reply, quote with configurable length)
 - [x] Intelligent Auto-refresh (10s checks, UI updates only when needed)
-- [x] Contact Management (Approval, filtering, protection, ignore/block, batch operations, cleanup)
+- [x] Contact Management (Approval, add via URI/QR, filtering, protection, ignore/block, batch operations, cleanup)
 - [x] Channel Management (Create, join, share via QR, delete with auto-cleanup)
 - [x] Public Channels (# prefix support, auto-key generation)
 - [x] Message Archiving (Daily archiving with browse-by-date selector)
 - [x] Smart Notifications (Unread counters per channel and total)
-- [x] Direct Messages (DM) - Searchable contact selector, delivery tracking, configurable retry
+- [x] Direct Messages (DM) - Searchable contact selector, delivery tracking, configurable retry, multi-path routing
 - [x] Global Message Search - Full-text search across channels and DMs (FTS5)
 - [x] Message Content Enhancements - Mention badges, clickable URLs, image previews
 - [x] @Mentions Autocomplete - Type @ to get contact suggestions with fuzzy search
@@ -327,11 +328,13 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 - [x] Echo Tracking - "Heard X repeats" badge for sent channel messages
 - [x] MeshCore Analyzer - Packet analysis links on channel messages (analyzer.letsmesh.net)
 - [x] DM Delivery Tracking - ACK-based delivery checkmarks with SNR/route details
-- [x] Device Dashboard - Device info and statistics with firmware details
-- [x] Settings Modal - Configurable DM retry parameters and message retention
+- [x] Device Dashboard - Device info, statistics, and contact sharing (QR/URI)
+- [x] Settings Modal - DM retry parameters, message retention, and dark/light theme
 - [x] System Log - Real-time log viewer with streaming
 - [x] Database Backup - Create, list, and download backups from the UI
-- [x] Multi-device Support - Database file named after device name
+- [x] Desktop Sidebar - Channel/contact sidebar for wide screens (tablet/desktop)
+- [x] Dark/Light Theme - Toggle between dark and light UI themes
+- [x] Multi-device Support - Database file named after device public key
 
 ### Next Steps
 
@@ -365,7 +368,7 @@ This is an open-source project. Contributions are welcome!
 ## References
 
 - [MeshCore Documentation](https://meshcore.org)
-- [meshcore-cli GitHub](https://github.com/meshcore-dev/meshcore-cli)
+- [meshcore Python library](https://pypi.org/project/meshcore/)
 
 ---
 

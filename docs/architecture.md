@@ -21,7 +21,7 @@ Technical documentation for mc-webui, covering system architecture, project stru
 - **Frontend:** HTML5, Bootstrap 5, vanilla JavaScript, Socket.IO client
 - **Deployment:** Docker / Docker Compose (Single-container architecture)
 - **Communication:** Direct hardware access (USB, BLE, or TCP) via `meshcore` library
-- **Data source:** SQLite Database (`./data/meshcore/<device_name>.db`)
+- **Data source:** SQLite Database (`./data/meshcore/<pubkey_prefix>.db`)
 
 ---
 
@@ -80,8 +80,8 @@ mc-webui/
 │   ├── config.py                   # Configuration from env vars
 │   ├── database.py                 # SQLite database models and CRUD operations
 │   ├── device_manager.py           # Core logic for meshcore communication
-│   ├── contacts_cache.py           # Persistent contacts cache
-│   ├── read_status.py              # Server-side read status manager
+│   ├── contacts_cache.py           # Persistent contacts cache (DB-backed)
+│   ├── read_status.py              # Server-side read status manager (DB-backed)
 │   ├── version.py                  # Git-based version management
 │   ├── migrate_v1.py               # Migration script from v1 flat files to v2 SQLite
 │   ├── meshcore/
@@ -107,7 +107,7 @@ mc-webui/
 
 mc-webui v2 uses a robust **SQLite Database** with WAL (Write-Ahead Logging) enabled.
 
-Location: `./data/meshcore/<device_name>.db`
+Location: `./data/meshcore/<pubkey_prefix>.db`
 
 Key tables:
 - `messages` - All channel and direct messages (with FTS5 index for full-text search)
@@ -157,6 +157,19 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 | POST | `/api/contacts/pending/approve` | Approve pending contact |
 | POST | `/api/contacts/pending/reject` | Reject pending contact |
 | POST | `/api/contacts/pending/clear` | Clear all pending contacts |
+| POST | `/api/contacts/manual-add` | Add contact from URI or params |
+| POST | `/api/contacts/<key>/push-to-device` | Push cached contact to device |
+| POST | `/api/contacts/<key>/move-to-cache` | Move device contact to cache |
+| GET | `/api/contacts/repeaters` | List repeater contacts (for path picker) |
+| GET | `/api/contacts/<key>/paths` | Get contact paths |
+| POST | `/api/contacts/<key>/paths` | Add path to contact |
+| PUT | `/api/contacts/<key>/paths/<id>` | Update path (star, label) |
+| DELETE | `/api/contacts/<key>/paths/<id>` | Delete path |
+| POST | `/api/contacts/<key>/paths/reorder` | Reorder paths |
+| POST | `/api/contacts/<key>/paths/reset_flood` | Reset to FLOOD routing |
+| POST | `/api/contacts/<key>/paths/clear` | Clear all paths |
+| GET | `/api/contacts/<key>/no_auto_flood` | Get "Keep path" flag |
+| PUT | `/api/contacts/<key>/no_auto_flood` | Set "Keep path" flag |
 
 ### Channels
 

@@ -12,6 +12,8 @@ This guide covers all features and functionality of mc-webui. For installation i
 - [Direct Messages (DM)](#direct-messages-dm)
 - [Global Search](#global-search)
 - [Contact Management](#contact-management)
+- [Adding Contacts](#adding-contacts)
+- [DM Path Management](#dm-path-management)
 - [Interactive Console](#interactive-console)
 - [Device Dashboard](#device-dashboard)
 - [Settings](#settings)
@@ -34,6 +36,8 @@ The main page displays chat history from the currently selected channel. The app
 - Read status persists across browser sessions and syncs across devices
 
 By default, the live view shows messages from the last 7 days. Older messages are automatically archived and can be accessed via the date selector.
+
+On wide screens (tablets/desktops), a sidebar shows the channel list on the left side for quick switching.
 
 ---
 
@@ -182,6 +186,10 @@ Access the Direct Messages feature:
 - The bell icon shows a secondary green badge for unread DMs
 - Each conversation shows unread indicator (*) in the dropdown
 - DM badge in the menu shows total unread DM count
+
+### Desktop Sidebar
+
+On wide screens (tablets/desktops), the DM page shows a sidebar with the contact list on the left side, making it easy to switch between conversations without using the dropdown selector.
 
 ---
 
@@ -345,6 +353,72 @@ You can schedule automatic cleanup to run daily at a specified hour:
 
 ---
 
+## Adding Contacts
+
+Add new contacts to your device from the Contact Management page:
+
+1. Click the "Add Contact" button at the top of the Contact Management page
+2. Opens a dedicated page with three methods:
+
+### Paste URI
+
+1. Paste a MeshCore contact URI (`meshcore://...`) into the text field
+2. The contact details (name, public key, type) are automatically parsed and previewed
+3. Click "Add to Device" to add the contact
+
+### Scan QR Code
+
+1. Click "Scan QR" to open the camera
+2. Point at a MeshCore QR code (from another user's Share tab)
+3. The URI is decoded and contact details are previewed
+4. Click "Add to Device" to add the contact
+
+### Manual Entry
+
+1. Enter the contact's public key (64 hex characters)
+2. Optionally enter name, type (COM/REP/ROOM/SENS), and location
+3. Click "Add to Device"
+
+### Cache vs Device Contacts
+
+- **Device contacts** are stored on the MeshCore hardware (limit: 350)
+- **Cache contacts** are stored only in the database (unlimited)
+- Use "Push to Device" to promote a cache contact to the device
+- Use "Move to Cache" to free a device slot while keeping the contact in the database
+
+---
+
+## DM Path Management
+
+Configure message routing paths for individual contacts:
+
+1. Open a DM conversation
+2. Click the contact info icon next to the contact name
+3. In the Contact Info modal, navigate to the "Paths" section
+
+### Path Configuration
+
+- **Add Path** - Add a repeater to the routing path using:
+  - **Repeater picker** - Browse available repeaters by name or ID
+  - **Map picker** - Select repeaters from a map view showing their GPS locations
+  - **Import current path** - Import the path currently stored on the device
+- **Reorder** - Drag paths to change priority (starred path is used first)
+- **Star** - Mark a preferred primary path (used first in retry rotation)
+- **Delete** - Remove individual paths
+
+### Keep Path Toggle
+
+- Enable "Keep path" to prevent the device from automatically switching to FLOOD routing
+- When enabled, the device will always use the configured DIRECT path(s)
+- Useful when you know the optimal route and don't want the device to override it
+
+### Path Operations
+
+- **Reset to FLOOD** - Clear all paths and switch to FLOOD routing
+- **Clear Paths** - Remove all configured paths without changing routing mode
+
+---
+
 ## Interactive Console
 
 Access the interactive console for direct MeshCore command execution:
@@ -414,6 +488,12 @@ Shows live device statistics:
 - Message counters (sent, received, forwarded)
 - Current airtime usage
 
+### Share Tab
+
+Share your device contact with others:
+- **QR Code** - Scannable QR code containing your contact URI
+- **URI** - Copyable `meshcore://` URI that others can paste into their Add Contact page
+
 ---
 
 ## Settings
@@ -438,6 +518,10 @@ Configure how direct messages are retried when delivery is not confirmed:
 ### Message Retention
 
 - **Live view days** - Number of days of messages shown in the live view (older messages are archived)
+
+### Theme
+
+- **Dark / Light** - Toggle between dark and light UI themes. The preference is saved in local browser storage
 
 ---
 
