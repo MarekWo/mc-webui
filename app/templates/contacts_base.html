@@ -1,9 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}Contact Management - mc-webui{% endblock %}</title>
+
+    <!-- Theme: apply saved preference before CSS loads to prevent flash -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('mc-webui-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-bs-theme', t);
+        })();
+    </script>
 
     <!-- Favicon -->
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
@@ -24,126 +33,11 @@
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Theme CSS (light/dark mode) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
 
     <style>
-        /* Mobile-first custom styles for Contact Management */
-        /* Compact manual approval section */
-        .compact-setting {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem;
-            background-color: #f8f9fa;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .info-icon {
-            color: #6c757d;
-            cursor: help;
-            font-size: 1.1rem;
-        }
-
-        .info-icon:hover {
-            color: #0d6efd;
-        }
-
-        .pending-contact-card {
-            background-color: white;
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .contact-name {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #212529;
-            margin-bottom: 0.1rem;
-            word-wrap: break-word;
-        }
-
-        .contact-key {
-            font-family: 'Courier New', monospace;
-            font-size: 0.85rem;
-            color: #6c757d;
-            word-break: break-all;
-            margin-bottom: 0.15rem;
-        }
-
-        .contact-key.clickable-key {
-            cursor: pointer;
-            transition: color 0.15s, background-color 0.15s;
-            padding: 0.15rem 0.3rem;
-            margin-left: -0.3rem;
-            border-radius: 0.25rem;
-        }
-
-        .contact-key.clickable-key:hover {
-            color: #0d6efd;
-            background-color: #e7f1ff;
-        }
-
-        .contact-key.clickable-key.copied {
-            color: #198754;
-            background-color: #d1e7dd;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 1.5rem 1rem;
-            color: #6c757d;
-        }
-
-        .empty-state i {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-            opacity: 0.5;
-        }
-
-        .empty-state.compact {
-            padding: 1rem;
-        }
-
-        .empty-state.compact i {
-            font-size: 1.5rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .info-badge {
-            display: inline-block;
-            background-color: #e7f3ff;
-            color: #0c5460;
-            padding: 0.5rem 1rem;
-            border-radius: 0.375rem;
-            font-size: 0.9rem;
-            margin-top: 0.5rem;
-        }
-
-        /* Existing Contacts Styles */
-        .existing-contact-card {
-            background-color: white;
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            transition: box-shadow 0.2s;
-        }
-
-        .existing-contact-card:hover {
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        }
-
-        .type-badge {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            font-weight: 600;
-        }
-
-        /* Protected contact styling */
+        /* Contact Management page layout overrides */
         .protection-indicator {
             font-size: 0.85rem;
         }
@@ -167,7 +61,7 @@
 
         .type-filter-badge[data-type="COM"] {
             color: #0d6efd;
-            background-color: white;
+            background-color: var(--map-badge-inactive-bg);
             border: 2px solid #0d6efd;
         }
         .type-filter-badge[data-type="COM"].active {
@@ -177,7 +71,7 @@
 
         .type-filter-badge[data-type="REP"] {
             color: #198754;
-            background-color: white;
+            background-color: var(--map-badge-inactive-bg);
             border: 2px solid #198754;
         }
         .type-filter-badge[data-type="REP"].active {
@@ -187,7 +81,7 @@
 
         .type-filter-badge[data-type="ROOM"] {
             color: #0dcaf0;
-            background-color: white;
+            background-color: var(--map-badge-inactive-bg);
             border: 2px solid #0dcaf0;
         }
         .type-filter-badge[data-type="ROOM"].active {
@@ -197,7 +91,7 @@
 
         .type-filter-badge[data-type="SENS"] {
             color: #ffc107;
-            background-color: white;
+            background-color: var(--map-badge-inactive-bg);
             border: 2px solid #ffc107;
         }
         .type-filter-badge[data-type="SENS"].active {
@@ -205,52 +99,7 @@
             background-color: #ffc107;
         }
 
-        .contact-info-row {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.5rem;
-            flex-wrap: wrap;
-        }
-
-        .counter-badge {
-            font-size: 1rem;
-            padding: 0.35rem 0.75rem;
-        }
-
-        .counter-ok {
-            background-color: #28a745;
-        }
-
-        .counter-warning {
-            background-color: #ffc107;
-            color: #212529;
-        }
-
-        .counter-alarm {
-            background-color: #dc3545;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-
-        .search-toolbar {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .search-toolbar input,
-        .search-toolbar select {
-            flex: 1;
-            min-width: 150px;
-        }
-
-        /* Scrollable contacts lists */
+        /* Scrollable contacts lists (overrides for standalone page) */
         #pendingList {
             height: calc(100vh - 280px);
             overflow-y: auto;
@@ -267,35 +116,7 @@
             min-height: 300px;
         }
 
-        /* Custom scrollbar styling */
-        #existingList::-webkit-scrollbar,
-        #pendingList::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        #existingList::-webkit-scrollbar-track,
-        #pendingList::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-
-        #existingList::-webkit-scrollbar-thumb,
-        #pendingList::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 4px;
-        }
-
-        #existingList::-webkit-scrollbar-thumb:hover,
-        #pendingList::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
-        /* Compact section headers */
-        .section-compact {
-            margin-bottom: 0.75rem;
-        }
-
-        /* NEW: Full-screen lists for dedicated pages - fill remaining space */
+        /* Full-screen lists for dedicated pages */
         .contacts-list-fullscreen {
             flex: 1 1 0;
             min-height: 0;
@@ -304,10 +125,10 @@
             padding: 0;
         }
 
-        /* NEW: Navigation cards on manage page */
+        /* Navigation cards on manage page */
         .nav-card {
-            background: white;
-            border: 1px solid #dee2e6;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 0.5rem;
             padding: 1.25rem;
             margin-bottom: 1rem;
@@ -319,7 +140,7 @@
         }
 
         .nav-card:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            box-shadow: var(--card-shadow-hover);
         }
 
         .nav-card h6 {
@@ -341,8 +162,7 @@
             font-size: 0.85rem;
         }
 
-
-        /* NEW: Back buttons */
+        /* Back buttons */
         .back-buttons {
             display: flex;
             gap: 0.5rem;
@@ -355,7 +175,7 @@
             min-height: 44px;
         }
 
-        /* NEW: Cleanup section on manage page */
+        /* Cleanup section on manage page */
         .cleanup-section {
             background-color: #fff3cd;
             border: 1px solid #ffc107;
@@ -364,12 +184,21 @@
             margin-bottom: 1.5rem;
         }
 
+        [data-theme="dark"] .cleanup-section {
+            background-color: rgba(255, 193, 7, 0.1);
+            border-color: rgba(255, 193, 7, 0.3);
+        }
+
         .cleanup-section h6 {
             color: #856404;
             margin-bottom: 0.75rem;
             display: flex;
             align-items: center;
             gap: 0.5rem;
+        }
+
+        [data-theme="dark"] .cleanup-section h6 {
+            color: #ffc107;
         }
 
         /* Override global overflow: hidden from style.css for Contact Management pages */
@@ -381,6 +210,8 @@
         body {
             display: flex;
             flex-direction: column;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
         }
 
         main {
@@ -400,17 +231,12 @@
             flex-direction: column;
         }
 
-        /* Page content containers should fill available space */
         #pendingPageContent,
         #existingPageContent {
             flex: 1 1 0;
             min-height: 0;
             display: flex;
             flex-direction: column;
-        }
-
-        /* Mobile responsiveness */
-        @media (max-width: 768px) {
         }
     </style>
 

@@ -1,9 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Direct Messages - mc-webui</title>
+
+    <!-- Theme: apply saved preference before CSS loads to prevent flash -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('mc-webui-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-bs-theme', t);
+        })();
+    </script>
 
     <!-- Favicon -->
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
@@ -24,166 +33,12 @@
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Theme CSS (light/dark mode) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
 
     <!-- Emoji Picker (local) -->
     <script type="module" src="{{ url_for('static', filename='vendor/emoji-picker-element/index.js') }}"></script>
-    <style>
-        emoji-picker {
-            --emoji-size: 1.5rem;
-            --num-columns: 8;
-        }
-        .emoji-picker-container {
-            position: relative;
-        }
-        .emoji-picker-popup {
-            position: absolute;
-            bottom: 100%;
-            right: 0;
-            z-index: 1000;
-            margin-bottom: 0.5rem;
-            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-            border-radius: 0.5rem;
-            overflow: hidden;
-        }
-        .emoji-picker-popup.hidden {
-            display: none;
-        }
-
-        /* Mobile responsive adjustments */
-        @media (max-width: 576px) {
-            emoji-picker {
-                --emoji-size: 1.25rem;
-                --num-columns: 6;
-            }
-            .emoji-picker-popup {
-                right: auto;
-                left: 0;
-                width: 100%;
-                max-width: 100%;
-            }
-        }
-
-        /* Searchable contact dropdown */
-        .dm-contact-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            z-index: 1050;
-            max-height: 300px;
-            overflow-y: auto;
-            background: #fff;
-            border: 1px solid #dee2e6;
-            border-top: none;
-            border-radius: 0 0 0.375rem 0.375rem;
-            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-        }
-        .dm-contact-item {
-            padding: 0.5rem 0.75rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .dm-contact-item:hover,
-        .dm-contact-item.active {
-            background-color: #e9ecef;
-        }
-        .dm-contact-item .contact-name {
-            flex-grow: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .dm-contact-item .badge {
-            font-size: 0.7rem;
-        }
-        .dm-dropdown-separator {
-            padding: 0.25rem 0.75rem;
-            font-size: 0.75rem;
-            color: #6c757d;
-            background: #f8f9fa;
-            font-weight: 600;
-        }
-
-        /* Path management styles */
-        .path-list-item {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            padding: 0.35rem 0.5rem;
-            border: 1px solid #dee2e6;
-            border-radius: 0.25rem;
-            margin-bottom: 0.25rem;
-            font-size: 0.8rem;
-            background: #fff;
-        }
-        .path-list-item.primary {
-            border-color: #0d6efd;
-            background: #f0f7ff;
-        }
-        .path-list-item .path-hex {
-            font-family: monospace;
-            font-size: 0.75rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .path-list-item .path-label {
-            color: #6c757d;
-            font-size: 0.7rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .path-list-item .path-actions {
-            margin-left: auto;
-            display: flex;
-            gap: 0.15rem;
-            flex-shrink: 0;
-        }
-        .path-list-item .path-actions .btn {
-            padding: 0 0.25rem;
-            font-size: 0.7rem;
-            line-height: 1.2;
-        }
-        .path-section-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-        }
-        .path-section-header h6 {
-            font-size: 0.85rem;
-            margin: 0;
-        }
-        .repeater-picker-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.4rem 0.5rem;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 0.8rem;
-        }
-        .repeater-picker-item:hover {
-            background-color: #e9ecef;
-        }
-        .repeater-picker-item .badge {
-            font-family: monospace;
-            font-size: 0.7rem;
-        }
-        .path-uniqueness-warning {
-            color: #dc3545;
-            font-size: 0.75rem;
-        }
-        /* Leaflet z-index fix for Bootstrap modal */
-        #rptLeafletMap { z-index: 1; }
-        #rptLeafletMap .leaflet-top,
-        #rptLeafletMap .leaflet-bottom { z-index: 1000; }
-        /* Map modal backdrop stacks above Contact Info modal */
-    </style>
+    <!-- Inline styles removed - now in style.css -->
 </head>
 <body>
     <!-- Main Content -->

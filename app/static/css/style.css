@@ -1,10 +1,5 @@
 /* mc-webui Custom Styles */
-
-:root {
-    --msg-own-bg: #e7f1ff;
-    --msg-other-bg: #f8f9fa;
-    --msg-border: #dee2e6;
-}
+/* Colors are defined as CSS custom properties in theme.css */
 
 /* Page Layout */
 html, body {
@@ -17,6 +12,8 @@ html, body {
 body {
     display: flex;
     flex-direction: column;
+    background-color: var(--bg-body);
+    color: var(--text-primary);
 }
 
 main {
@@ -35,8 +32,8 @@ main {
     display: none;
     width: 250px;
     flex-shrink: 0;
-    border-right: 1px solid #dee2e6;
-    background: #f8f9fa;
+    border-right: 1px solid var(--border-color);
+    background: var(--bg-surface);
     flex-direction: column;
 }
 
@@ -44,9 +41,9 @@ main {
     padding: 0.6rem 0.75rem;
     font-weight: 600;
     font-size: 0.85rem;
-    border-bottom: 1px solid #dee2e6;
-    color: #495057;
-    background: #f0f0f0;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    background: var(--bg-surface-alt);
 }
 
 .channel-sidebar-list {
@@ -60,22 +57,22 @@ main {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-light);
     font-size: 0.85rem;
     transition: background-color 0.15s;
-    color: #212529;
+    color: var(--text-primary);
 }
 
 .channel-sidebar-item:hover {
-    background-color: #e9ecef;
+    background-color: var(--bg-hover);
 }
 
 .channel-sidebar-item.active {
-    background-color: #e7f1ff;
-    border-left: 3px solid #0d6efd;
+    background-color: var(--bg-active);
+    border-left: 3px solid var(--sender-color);
     padding-left: calc(0.75rem - 3px);
     font-weight: 500;
-    color: #0d6efd;
+    color: var(--sender-color);
 }
 
 .channel-sidebar-item.muted {
@@ -90,7 +87,7 @@ main {
 }
 
 .channel-sidebar-item .sidebar-unread-badge {
-    background-color: #0d6efd;
+    background-color: var(--sender-color);
     color: white;
     border-radius: 10px;
     padding: 1px 6px;
@@ -119,15 +116,15 @@ main {
     display: none;
     width: 280px;
     flex-shrink: 0;
-    border-right: 1px solid #dee2e6;
-    background: #f8f9fa;
+    border-right: 1px solid var(--border-color);
+    background: var(--bg-surface);
     flex-direction: column;
 }
 
 .dm-sidebar-header {
     padding: 0.5rem;
-    border-bottom: 1px solid #dee2e6;
-    background: #f0f0f0;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-surface-alt);
 }
 
 .dm-sidebar-list {
@@ -138,8 +135,8 @@ main {
 .dm-sidebar-separator {
     padding: 0.25rem 0.75rem;
     font-size: 0.7rem;
-    color: #6c757d;
-    background: #f0f0f0;
+    color: var(--text-muted);
+    background: var(--bg-surface-alt);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -151,13 +148,13 @@ main {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-light);
     font-size: 0.85rem;
     transition: background-color 0.15s;
 }
 
 .dm-sidebar-item:hover {
-    background-color: #e9ecef;
+    background-color: var(--bg-hover);
 }
 
 .dm-sidebar-item.active {
@@ -165,6 +162,11 @@ main {
     border-left: 3px solid #198754;
     padding-left: calc(0.75rem - 3px);
     font-weight: 500;
+}
+
+[data-theme="dark"] .dm-sidebar-item.active {
+    background-color: rgba(16, 185, 129, 0.15);
+    border-left-color: #10b981;
 }
 
 .dm-sidebar-item .contact-name {
@@ -177,7 +179,7 @@ main {
 .dm-sidebar-item .sidebar-unread-dot {
     width: 8px;
     height: 8px;
-    background-color: #0d6efd;
+    background-color: var(--sender-color);
     border-radius: 50%;
     flex-shrink: 0;
 }
@@ -206,7 +208,7 @@ main {
 
 /* Messages Container */
 .messages-container {
-    background-color: #ffffff;
+    background-color: var(--bg-messages);
     padding-left: 0.25rem !important;
     padding-right: 0.25rem !important;
 }
@@ -282,12 +284,12 @@ main {
 .message-sender {
     font-weight: 600;
     font-size: 0.875rem;
-    color: #0d6efd;
+    color: var(--sender-color);
 }
 
 .message-sender-row .message-time {
     font-size: 0.7rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 /* Message footer for own messages (name + time above bubble) */
@@ -304,13 +306,13 @@ main {
 
 .message-footer .message-time {
     font-size: 0.7rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .message-footer .message-sender.own {
     font-weight: 600;
     font-size: 0.875rem;
-    color: #084298;
+    color: var(--sender-own-color);
     margin-right: 0.5rem;
 }
 
@@ -320,7 +322,7 @@ main {
     gap: 0.25rem;
     margin-top: 0.5rem;
     padding-top: 0.5rem;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: 1px solid var(--actions-border);
 }
 
 /* Message Bubbles */
@@ -339,7 +341,7 @@ main {
 /* Own Messages (right-aligned) */
 .message.own {
     background-color: var(--msg-own-bg);
-    border-color: #b8daff;
+    border-color: var(--msg-own-border);
 }
 
 /* Other Messages (left-aligned) */
@@ -349,7 +351,7 @@ main {
 
 .message-time {
     font-size: 0.75rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 /* Message Content */
@@ -362,7 +364,7 @@ main {
 /* Message Metadata */
 .message-meta {
     font-size: 0.7rem;
-    color: #adb5bd;
+    color: var(--text-meta);
     margin-top: 0.25rem;
 }
 
@@ -404,16 +406,16 @@ main {
 }
 
 .messages-container::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--scrollbar-track);
 }
 
 .messages-container::-webkit-scrollbar-thumb {
-    background: #888;
+    background: var(--scrollbar-thumb);
     border-radius: 4px;
 }
 
 .messages-container::-webkit-scrollbar-thumb:hover {
-    background: #555;
+    background: var(--scrollbar-thumb-hover);
 }
 
 /* Channel selector and date selector - larger font size */
@@ -447,16 +449,16 @@ main {
 .offcanvas-body .list-group-item {
     padding: 1rem 0.75rem;
     border: none;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid var(--offcanvas-item-border);
     font-size: 1rem;
 }
 
 .offcanvas-body .list-group-item:hover {
-    background-color: #f8f9fa;
+    background-color: var(--offcanvas-item-hover);
 }
 
 .offcanvas-body .list-group-item i {
-    color: #0d6efd;
+    color: var(--offcanvas-icon-color);
     min-width: 1.5rem;
 }
 
@@ -577,7 +579,7 @@ main {
 .empty-state {
     text-align: center;
     padding: 3rem 1rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .empty-state i {
@@ -663,7 +665,7 @@ main {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    background-color: #fafafa;
+    background-color: var(--bg-dm-messages);
 }
 
 /* DM Messages List (flex container for message alignment) */
@@ -691,7 +693,7 @@ main {
 .dm-message.own {
     align-self: flex-end;
     background-color: var(--msg-own-bg);
-    border: 1px solid #b8daff;
+    border: 1px solid var(--msg-own-border);
 }
 
 .dm-message.other {
@@ -703,7 +705,7 @@ main {
 /* DM Message Metadata */
 .dm-meta {
     font-size: 0.65rem;
-    color: #adb5bd;
+    color: var(--text-meta);
     margin-top: 0.25rem;
 }
 
@@ -726,7 +728,7 @@ main {
 }
 
 .dm-status.unknown {
-    color: #adb5bd;
+    color: var(--text-meta);
 }
 
 .dm-status-unknown {
@@ -765,17 +767,17 @@ main {
 /* DM Conversation List Item */
 .dm-conversation-item {
     padding: 0.75rem;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid var(--conversation-border);
     cursor: pointer;
     transition: background-color 0.15s ease;
 }
 
 .dm-conversation-item:hover {
-    background-color: #f8f9fa;
+    background-color: var(--conversation-hover);
 }
 
 .dm-conversation-item.unread {
-    background-color: #e7f1ff;
+    background-color: var(--conversation-unread);
 }
 
 .dm-conversation-item:last-child {
@@ -785,7 +787,7 @@ main {
 /* DM Preview Text */
 .dm-preview {
     font-size: 0.85rem;
-    color: #6c757d;
+    color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -798,7 +800,7 @@ main {
 .dm-empty-state {
     text-align: center;
     padding: 2rem 1rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .dm-empty-state i {
@@ -813,16 +815,16 @@ main {
 }
 
 .dm-messages-container::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--scrollbar-track);
 }
 
 .dm-messages-container::-webkit-scrollbar-thumb {
-    background: #ccc;
+    background: var(--scrollbar-thumb-light);
     border-radius: 3px;
 }
 
 .dm-messages-container::-webkit-scrollbar-thumb:hover {
-    background: #aaa;
+    background: var(--scrollbar-thumb-light-hover);
 }
 
 /* =============================================================================
@@ -832,7 +834,7 @@ main {
 /* Mention Badge (similar to Android Meshcore app) */
 .mention-badge {
     display: inline-block;
-    background-color: #0d6efd;
+    background-color: var(--mention-bg);
     color: white;
     padding: 0.15rem 0.5rem;
     border-radius: 0.75rem;
@@ -843,13 +845,13 @@ main {
 }
 
 .message.own .mention-badge {
-    background-color: #084298;
+    background-color: var(--mention-own-bg);
 }
 
 /* Channel Links (#channelname) */
 .channel-link {
     display: inline-block;
-    background-color: #198754;
+    background-color: var(--channel-link-bg);
     color: white;
     padding: 0.15rem 0.5rem;
     border-radius: 0.75rem;
@@ -863,17 +865,17 @@ main {
 }
 
 .channel-link:hover {
-    background-color: #157347;
+    background-color: var(--channel-link-hover);
     color: white;
     text-decoration: none;
 }
 
 .message.own .channel-link {
-    background-color: #0f5132;
+    background-color: var(--channel-link-own-bg);
 }
 
 .message.own .channel-link:hover {
-    background-color: #0d4429;
+    background-color: var(--channel-link-own-hover);
 }
 
 .channel-link.loading {
@@ -885,20 +887,20 @@ main {
     content: '...';
 }
 
-/* Quoted Text (»text«) */
+/* Quoted Text */
 .quote-text {
     font-style: italic;
-    color: #6c757d;
-    background-color: rgba(108, 117, 125, 0.1);
+    color: var(--quote-color);
+    background-color: var(--quote-bg);
     padding: 0.1rem 0.3rem;
     border-radius: 0.25rem;
-    border-left: 2px solid #6c757d;
+    border-left: 2px solid var(--quote-border);
 }
 
 .message.own .quote-text {
-    color: #495057;
-    background-color: rgba(8, 66, 152, 0.1);
-    border-left-color: #084298;
+    color: var(--quote-own-color);
+    background-color: var(--quote-own-bg);
+    border-left-color: var(--quote-own-border);
 }
 
 /* Large Emoji for emoji-only messages */
@@ -909,22 +911,22 @@ main {
 
 /* Clickable Links in Messages */
 .message-link {
-    color: #0d6efd;
+    color: var(--link-color);
     text-decoration: underline;
     word-break: break-all;
 }
 
 .message-link:hover {
-    color: #0a58ca;
+    color: var(--link-hover);
     text-decoration: underline;
 }
 
 .message.own .message-link {
-    color: #084298;
+    color: var(--link-own-color);
 }
 
 .message.own .message-link:hover {
-    color: #052c65;
+    color: var(--link-own-hover);
 }
 
 /* Image Thumbnails in Messages */
@@ -941,7 +943,7 @@ main {
     border-radius: 0.5rem;
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--image-border);
 }
 
 .message-image-thumbnail:hover {
@@ -977,7 +979,7 @@ main {
 }
 
 /* =============================================================================
-   TEST: Floating Action Buttons (FAB)
+   Floating Action Buttons (FAB)
    ============================================================================= */
 
 .fab-container {
@@ -1001,13 +1003,13 @@ main {
     justify-content: center;
     font-size: 1.5rem;
     cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--fab-shadow);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .fab:hover {
     transform: scale(1.1);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--fab-shadow-hover);
 }
 
 .fab:active {
@@ -1045,12 +1047,12 @@ main {
 
 /* FAB Badge for Pending Contacts (red for consistency and contrast) */
 .fab-badge-pending {
-    background-color: #dc3545;  /* Bootstrap danger red - same as notification bell */
+    background-color: #dc3545;
 }
 
 /* FAB Badge for Direct Messages (red for consistency and contrast) */
 .fab-badge-dm {
-    background-color: #dc3545;  /* Bootstrap danger red - same as notification bell */
+    background-color: #dc3545;
 }
 
 /* Animation on hover */
@@ -1194,7 +1196,7 @@ main {
 
 .map-filter-badge[data-type="1"] {
     color: #2196F3;
-    background-color: white;
+    background-color: var(--map-badge-inactive-bg);
     border: 2px solid #2196F3;
 }
 .map-filter-badge[data-type="1"].active {
@@ -1204,7 +1206,7 @@ main {
 
 .map-filter-badge[data-type="2"] {
     color: #4CAF50;
-    background-color: white;
+    background-color: var(--map-badge-inactive-bg);
     border: 2px solid #4CAF50;
 }
 .map-filter-badge[data-type="2"].active {
@@ -1214,7 +1216,7 @@ main {
 
 .map-filter-badge[data-type="3"] {
     color: #9C27B0;
-    background-color: white;
+    background-color: var(--map-badge-inactive-bg);
     border: 2px solid #9C27B0;
 }
 .map-filter-badge[data-type="3"].active {
@@ -1224,7 +1226,7 @@ main {
 
 .map-filter-badge[data-type="4"] {
     color: #FF9800;
-    background-color: white;
+    background-color: var(--map-badge-inactive-bg);
     border: 2px solid #FF9800;
 }
 .map-filter-badge[data-type="4"].active {
@@ -1245,10 +1247,10 @@ main {
     max-height: 200px;
     width: 280px;
     overflow-y: auto;
-    background-color: white;
-    border: 1px solid #dee2e6;
+    background-color: var(--popup-bg);
+    border: 1px solid var(--border-color);
     border-radius: 0.5rem;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    box-shadow: var(--popup-shadow);
 }
 
 .mentions-popup.hidden {
@@ -1264,7 +1266,7 @@ main {
 .mention-item {
     padding: 0.5rem 0.75rem;
     cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--mention-item-border);
     font-size: 0.9rem;
     transition: background-color 0.1s ease;
 }
@@ -1275,7 +1277,7 @@ main {
 
 .mention-item:hover,
 .mention-item.highlighted {
-    background-color: #e7f1ff;
+    background-color: var(--mention-item-highlight);
 }
 
 .mention-item-name {
@@ -1285,7 +1287,7 @@ main {
 .mentions-empty {
     padding: 0.75rem;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-muted);
     font-size: 0.85rem;
 }
 
@@ -1305,16 +1307,16 @@ main {
 }
 
 .mentions-popup::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--scrollbar-track);
 }
 
 .mentions-popup::-webkit-scrollbar-thumb {
-    background: #ccc;
+    background: var(--scrollbar-thumb-light);
     border-radius: 3px;
 }
 
 .mentions-popup::-webkit-scrollbar-thumb:hover {
-    background: #aaa;
+    background: var(--scrollbar-thumb-light-hover);
 }
 
 /* =============================================================================
@@ -1365,21 +1367,15 @@ main {
     align-items: center;
     gap: 0.25rem;
     font-size: 0.7rem;
-    color: #198754;
+    color: var(--echo-color);
     padding: 0.2rem 0.4rem;
     margin-right: 0.25rem;
     border-radius: 0.25rem;
-    background-color: rgba(25, 135, 84, 0.1);
+    background-color: var(--echo-bg);
 }
 
 .echo-badge i {
     font-size: 0.65rem;
-}
-
-/* Dark mode support */
-[data-bs-theme="dark"] .echo-badge {
-    color: #75b798;
-    background-color: rgba(117, 183, 152, 0.15);
 }
 
 /* Path info in message meta (incoming messages) */
@@ -1447,8 +1443,8 @@ main {
     left: 0;
     right: 0;
     z-index: 1002;  /* Above mentions popup (1001) */
-    background-color: #ffffff;
-    border-bottom: 1px solid #dee2e6;
+    background-color: var(--filter-bg);
+    border-bottom: 1px solid var(--border-color);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     padding: 0.75rem;
     transform: translateY(-100%);
@@ -1469,7 +1465,7 @@ main {
 }
 
 .filter-bar.visible ~ .messages-container {
-    padding-top: calc(1rem + 52px) !important; /* 52px ≈ filter bar height (0.75rem*2 padding + 36px input + border) */
+    padding-top: calc(1rem + 52px) !important; /* 52px ~ filter bar height */
 }
 
 /* Filter bar inner layout */
@@ -1481,15 +1477,22 @@ main {
 
 .filter-bar-input {
     border-radius: 0.375rem;
-    border: 1px solid #ced4da;
+    border: 1px solid var(--filter-input-border);
     padding: 0.5rem 0.75rem;
     font-size: 0.9rem;
+    background-color: var(--bg-body);
+    color: var(--text-primary);
 }
 
 .filter-bar-input:focus {
     outline: none;
     border-color: #86b7fe;
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+[data-theme="dark"] .filter-bar-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
 }
 
 /* Filter bar buttons */
@@ -1507,21 +1510,21 @@ main {
 }
 
 .filter-bar-btn-me {
-    background-color: #e7f1ff;
-    color: #0d6efd;
+    background-color: var(--filter-btn-me-bg);
+    color: var(--filter-btn-me-color);
 }
 
 .filter-bar-btn-me:hover {
-    background-color: #cfe2ff;
+    background-color: var(--filter-btn-me-hover);
 }
 
 .filter-bar-btn-clear {
-    background-color: #f8f9fa;
-    color: #6c757d;
+    background-color: var(--filter-btn-clear-bg);
+    color: var(--filter-btn-clear-color);
 }
 
 .filter-bar-btn-clear:hover {
-    background-color: #e9ecef;
+    background-color: var(--filter-btn-clear-hover);
 }
 
 .filter-bar-btn-close {
@@ -1536,14 +1539,14 @@ main {
 /* Filter match count indicator */
 .filter-match-count {
     font-size: 0.75rem;
-    color: #6c757d;
+    color: var(--text-muted);
     white-space: nowrap;
     padding: 0 0.5rem;
 }
 
 /* Highlighted text in filtered messages */
 .filter-highlight {
-    background-color: #fff3cd;
+    background-color: var(--filter-highlight);
     border-radius: 0.2rem;
     padding: 0 0.1rem;
 }
@@ -1558,7 +1561,7 @@ main {
 .filter-no-matches {
     text-align: center;
     padding: 2rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .filter-no-matches i {
@@ -1621,7 +1624,7 @@ main {
 }
 
 #searchResults mark {
-    background-color: #fff3cd;
+    background-color: var(--search-mark-bg);
     padding: 0 2px;
     border-radius: 2px;
 }
@@ -1630,4 +1633,417 @@ main {
 .own-device-marker {
     background: transparent;
     border: none;
+}
+
+/* =============================================================================
+   Emoji Picker (shared between index.html and dm.html)
+   ============================================================================= */
+
+emoji-picker {
+    --emoji-size: 1.5rem;
+    --num-columns: 8;
+}
+
+.emoji-picker-container {
+    position: relative;
+}
+
+.emoji-picker-popup {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    z-index: 1000;
+    margin-bottom: 0.5rem;
+    box-shadow: var(--popup-shadow);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.emoji-picker-popup.hidden {
+    display: none;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 576px) {
+    emoji-picker {
+        --emoji-size: 1.25rem;
+        --num-columns: 6;
+    }
+    .emoji-picker-popup {
+        right: auto;
+        left: 0;
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+/* Modal fullscreen - remove all margins and padding */
+#dmModal .modal-dialog.modal-fullscreen,
+#contactsModal .modal-dialog.modal-fullscreen,
+#logsModal .modal-dialog.modal-fullscreen,
+#consoleModal .modal-dialog.modal-fullscreen {
+    margin: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+}
+
+#dmModal .modal-content,
+#contactsModal .modal-content,
+#logsModal .modal-content,
+#consoleModal .modal-content {
+    border: none !important;
+    border-radius: 0 !important;
+    height: 100vh !important;
+}
+
+#dmModal .modal-body,
+#contactsModal .modal-body,
+#logsModal .modal-body,
+#consoleModal .modal-body {
+    overflow: hidden !important;
+}
+
+/* =============================================================================
+   Contact Management Styles (shared between contacts.html and contacts_base.html)
+   ============================================================================= */
+
+.compact-setting {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.info-icon {
+    color: var(--text-muted);
+    cursor: help;
+    font-size: 1.1rem;
+}
+
+.info-icon:hover {
+    color: var(--sender-color);
+}
+
+.pending-contact-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: var(--card-shadow);
+}
+
+.contact-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.1rem;
+    word-wrap: break-word;
+}
+
+.contact-key {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    word-break: break-all;
+    margin-bottom: 0.15rem;
+}
+
+.contact-key.clickable-key {
+    cursor: pointer;
+    transition: color 0.15s, background-color 0.15s;
+    padding: 0.15rem 0.3rem;
+    margin-left: -0.3rem;
+    border-radius: 0.25rem;
+}
+
+.contact-key.clickable-key:hover {
+    color: var(--key-hover-color);
+    background-color: var(--key-hover-bg);
+}
+
+.contact-key.clickable-key.copied {
+    color: var(--key-copied-color);
+    background-color: var(--key-copied-bg);
+}
+
+.btn-action {
+    min-height: 44px; /* Touch-friendly size */
+    font-size: 1rem;
+}
+
+.info-badge {
+    display: inline-block;
+    background-color: var(--info-badge-bg);
+    color: var(--info-badge-color);
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+/* Existing Contacts Styles */
+.existing-contact-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: var(--card-shadow);
+    transition: box-shadow 0.2s;
+}
+
+.existing-contact-card:hover {
+    box-shadow: var(--card-shadow-hover);
+}
+
+.type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    font-weight: 600;
+}
+
+/* =============================================================================
+   DM Contact Dropdown (dm.html)
+   ============================================================================= */
+
+.dm-contact-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--dropdown-bg);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    box-shadow: var(--popup-shadow);
+}
+
+.dm-contact-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.dm-contact-item:hover,
+.dm-contact-item.active {
+    background-color: var(--dropdown-item-hover);
+}
+
+.dm-contact-item .contact-name {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dm-contact-item .badge {
+    font-size: 0.7rem;
+}
+
+.dm-dropdown-separator {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--dropdown-separator-bg);
+    font-weight: 600;
+}
+
+/* =============================================================================
+   Path Management (dm.html)
+   ============================================================================= */
+
+.path-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--path-item-border);
+    border-radius: 0.25rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.8rem;
+    background: var(--path-item-bg);
+}
+
+.path-list-item.primary {
+    border-color: var(--path-item-primary-border);
+    background: var(--path-item-primary-bg);
+}
+
+.path-list-item .path-hex {
+    font-family: monospace;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.path-list-item .path-label {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.path-list-item .path-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 0.15rem;
+    flex-shrink: 0;
+}
+
+.path-list-item .path-actions .btn {
+    padding: 0 0.25rem;
+    font-size: 0.7rem;
+    line-height: 1.2;
+}
+
+.path-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.path-section-header h6 {
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.repeater-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.8rem;
+}
+
+.repeater-picker-item:hover {
+    background-color: var(--bg-hover);
+}
+
+.repeater-picker-item .badge {
+    font-family: monospace;
+    font-size: 0.7rem;
+}
+
+.path-uniqueness-warning {
+    color: #dc3545;
+    font-size: 0.75rem;
+}
+
+/* Leaflet z-index fix for Bootstrap modal (DM repeater map) */
+#rptLeafletMap { z-index: 1; }
+#rptLeafletMap .leaflet-top,
+#rptLeafletMap .leaflet-bottom { z-index: 1000; }
+
+/* =============================================================================
+   Contact Management - Page-specific Styles (contacts.html)
+   ============================================================================= */
+
+.contact-info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.counter-badge {
+    font-size: 1rem;
+    padding: 0.35rem 0.75rem;
+}
+
+.counter-ok {
+    background-color: #28a745;
+}
+
+.counter-warning {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.counter-alarm {
+    background-color: #dc3545;
+    animation: counterPulse 1.5s infinite;
+}
+
+@keyframes counterPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.search-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.search-toolbar input,
+.search-toolbar select {
+    flex: 1;
+    min-width: 150px;
+}
+
+/* Scrollable contacts lists */
+#pendingList {
+    max-height: 200px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+#existingList {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    max-height: calc(100vh - 400px);
+    min-height: 300px;
+}
+
+@media (max-width: 768px) {
+    #existingList {
+        max-height: calc(100vh - 450px);
+    }
+}
+
+#existingList::-webkit-scrollbar,
+#pendingList::-webkit-scrollbar {
+    width: 8px;
+}
+
+#existingList::-webkit-scrollbar-track,
+#pendingList::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+}
+
+#existingList::-webkit-scrollbar-thumb,
+#pendingList::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+#existingList::-webkit-scrollbar-thumb:hover,
+#pendingList::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+.section-compact {
+    margin-bottom: 0.75rem;
 }

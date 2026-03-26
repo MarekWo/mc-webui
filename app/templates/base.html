@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -11,6 +11,15 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/favicon-16x16.png') }}">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <!-- Theme: apply saved preference before CSS loads to prevent flash -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('mc-webui-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-bs-theme', t);
+        })();
+    </script>
 
     <!-- Bootstrap 5 CSS (local) -->
     <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
@@ -24,6 +33,8 @@
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Theme CSS (light/dark mode) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
 
     {% block extra_head %}{% endblock %}
 </head>
@@ -360,6 +371,9 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsChat" type="button">Group Chat</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsAppearance" type="button">Appearance</button>
+                        </li>
                     </ul>
                     <div class="tab-content">
                         <div class="tab-pane fade show active" id="tabSettingsMessages">
@@ -431,6 +445,29 @@
                                     <button type="button" class="btn btn-outline-secondary btn-sm" id="chatSettingsResetBtn">Reset to defaults</button>
                                 </div>
                             </form>
+                        </div>
+                        <div class="tab-pane fade" id="tabSettingsAppearance">
+                            <h6 class="text-muted mb-3">Theme</h6>
+                            <div class="d-flex flex-column gap-2">
+                                <div class="theme-option active" data-theme-value="light" onclick="setTheme('light')">
+                                    <div class="theme-option-preview light">
+                                        <i class="bi bi-sun"></i>
+                                    </div>
+                                    <div>
+                                        <div class="theme-option-label">Light</div>
+                                        <div class="theme-option-desc">Classic bright interface</div>
+                                    </div>
+                                </div>
+                                <div class="theme-option" data-theme-value="dark" onclick="setTheme('dark')">
+                                    <div class="theme-option-preview dark">
+                                        <i class="bi bi-moon-stars" style="color: #60a5fa;"></i>
+                                    </div>
+                                    <div>
+                                        <div class="theme-option-label">Dark</div>
+                                        <div class="theme-option-desc">Easy on the eyes, deep navy palette</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -654,6 +691,27 @@
                     });
             });
         }
+    </script>
+
+    <!-- Theme Switching -->
+    <script>
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem('mc-webui-theme', theme);
+            // Update theme selector UI
+            document.querySelectorAll('.theme-option').forEach(function(el) {
+                el.classList.toggle('active', el.getAttribute('data-theme-value') === theme);
+            });
+        }
+
+        // Initialize theme selector UI on settings modal open
+        document.addEventListener('DOMContentLoaded', function() {
+            var current = localStorage.getItem('mc-webui-theme') || 'light';
+            document.querySelectorAll('.theme-option').forEach(function(el) {
+                el.classList.toggle('active', el.getAttribute('data-theme-value') === current);
+            });
+        });
     </script>
 
     {% block extra_scripts %}{% endblock %}

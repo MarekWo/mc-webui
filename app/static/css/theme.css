@@ -1,0 +1,613 @@
+/* =============================================================================
+   mc-webui Theme System
+   Defines CSS custom properties for light/dark themes.
+   Bootstrap 5.3 data-bs-theme handles most component styling;
+   these variables cover custom app-specific elements.
+   ============================================================================= */
+
+/* =============================================================================
+   Light Theme (default)
+   ============================================================================= */
+:root {
+    /* Backgrounds */
+    --bg-body: #ffffff;
+    --bg-surface: #f8f9fa;
+    --bg-surface-alt: #f0f0f0;
+    --bg-hover: #e9ecef;
+    --bg-active: #e7f1ff;
+    --bg-messages: #ffffff;
+    --bg-dm-messages: #fafafa;
+
+    /* Text */
+    --text-primary: #212529;
+    --text-secondary: #495057;
+    --text-muted: #6c757d;
+    --text-meta: #adb5bd;
+
+    /* Borders */
+    --border-color: #dee2e6;
+    --border-light: #f0f0f0;
+
+    /* Messages */
+    --msg-own-bg: #e7f1ff;
+    --msg-other-bg: #f8f9fa;
+    --msg-border: #dee2e6;
+    --msg-own-border: #b8daff;
+
+    /* Sender */
+    --sender-color: #0d6efd;
+    --sender-own-color: #084298;
+
+    /* Navbar */
+    --navbar-bg: #0d6efd;
+    --navbar-border: transparent;
+
+    /* Scrollbar */
+    --scrollbar-track: #f1f1f1;
+    --scrollbar-thumb: #888;
+    --scrollbar-thumb-hover: #555;
+    --scrollbar-thumb-light: #ccc;
+    --scrollbar-thumb-light-hover: #aaa;
+
+    /* Filter */
+    --filter-bg: #ffffff;
+    --filter-highlight: #fff3cd;
+    --filter-input-border: #ced4da;
+    --filter-btn-me-bg: #e7f1ff;
+    --filter-btn-me-color: #0d6efd;
+    --filter-btn-me-hover: #cfe2ff;
+    --filter-btn-clear-bg: #f8f9fa;
+    --filter-btn-clear-color: #6c757d;
+    --filter-btn-clear-hover: #e9ecef;
+
+    /* Popup / Dropdown */
+    --popup-bg: #ffffff;
+    --popup-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+
+    /* Quote */
+    --quote-color: #6c757d;
+    --quote-bg: rgba(108, 117, 125, 0.1);
+    --quote-border: #6c757d;
+    --quote-own-color: #495057;
+    --quote-own-bg: rgba(8, 66, 152, 0.1);
+    --quote-own-border: #084298;
+
+    /* Mention badge */
+    --mention-bg: #0d6efd;
+    --mention-own-bg: #084298;
+
+    /* Links */
+    --link-color: #0d6efd;
+    --link-hover: #0a58ca;
+    --link-own-color: #084298;
+    --link-own-hover: #052c65;
+
+    /* Channel link */
+    --channel-link-bg: #198754;
+    --channel-link-hover: #157347;
+    --channel-link-own-bg: #0f5132;
+    --channel-link-own-hover: #0d4429;
+
+    /* Echo badge */
+    --echo-color: #198754;
+    --echo-bg: rgba(25, 135, 84, 0.1);
+
+    /* Search */
+    --search-mark-bg: #fff3cd;
+
+    /* Offcanvas menu */
+    --offcanvas-item-border: #dee2e6;
+    --offcanvas-item-hover: #f8f9fa;
+    --offcanvas-icon-color: #0d6efd;
+
+    /* FAB */
+    --fab-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    --fab-shadow-hover: 0 6px 12px rgba(0, 0, 0, 0.4);
+
+    /* Conversation list */
+    --conversation-border: #dee2e6;
+    --conversation-hover: #f8f9fa;
+    --conversation-unread: #e7f1ff;
+
+    /* Map filter badges */
+    --map-badge-inactive-bg: white;
+
+    /* Mention autocomplete */
+    --mention-item-highlight: #e7f1ff;
+    --mention-item-border: #f0f0f0;
+
+    /* Image border */
+    --image-border: #dee2e6;
+
+    /* Actions border */
+    --actions-border: rgba(0, 0, 0, 0.1);
+
+    /* Cards */
+    --card-bg: #ffffff;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --card-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+    /* Info badge */
+    --info-badge-bg: #e7f3ff;
+    --info-badge-color: #0c5460;
+
+    /* Contact key clickable */
+    --key-hover-color: #0d6efd;
+    --key-hover-bg: #e7f1ff;
+    --key-copied-color: #198754;
+    --key-copied-bg: #d1e7dd;
+
+    /* Path items (DM) */
+    --path-item-bg: #ffffff;
+    --path-item-border: #dee2e6;
+    --path-item-primary-bg: #f0f7ff;
+    --path-item-primary-border: #0d6efd;
+
+    /* DM contact dropdown */
+    --dropdown-bg: #ffffff;
+    --dropdown-separator-bg: #f8f9fa;
+    --dropdown-item-hover: #e9ecef;
+}
+
+/* =============================================================================
+   Dark Theme
+   Inspired by mc-webui demo landing page (https://mc-webui.marwoj.net/)
+   Color palette: deep navy backgrounds, slate surfaces, soft blue accents
+   ============================================================================= */
+[data-theme="dark"] {
+    /* Override Bootstrap 5.3 dark mode variables for our custom palette */
+    --bs-body-bg: #0f172a;
+    --bs-body-color: #f8fafc;
+    --bs-border-color: #334155;
+    --bs-tertiary-bg: #1e293b;
+    --bs-secondary-bg: #162032;
+
+    /* Backgrounds */
+    --bg-body: #0f172a;
+    --bg-surface: #1e293b;
+    --bg-surface-alt: #162032;
+    --bg-hover: #2d3a4e;
+    --bg-active: #1e3a5f;
+    --bg-messages: #0f172a;
+    --bg-dm-messages: #131c2e;
+
+    /* Text */
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-meta: #475569;
+
+    /* Borders */
+    --border-color: #334155;
+    --border-light: #1e293b;
+
+    /* Messages */
+    --msg-own-bg: #1e3a5f;
+    --msg-other-bg: #1e293b;
+    --msg-border: #334155;
+    --msg-own-border: #2563eb;
+
+    /* Sender */
+    --sender-color: #60a5fa;
+    --sender-own-color: #93c5fd;
+
+    /* Navbar */
+    --navbar-bg: #1e293b;
+    --navbar-border: #334155;
+
+    /* Scrollbar */
+    --scrollbar-track: #1e293b;
+    --scrollbar-thumb: #475569;
+    --scrollbar-thumb-hover: #64748b;
+    --scrollbar-thumb-light: #334155;
+    --scrollbar-thumb-light-hover: #475569;
+
+    /* Filter */
+    --filter-bg: #1e293b;
+    --filter-highlight: rgba(251, 191, 36, 0.2);
+    --filter-input-border: #334155;
+    --filter-btn-me-bg: #1e3a5f;
+    --filter-btn-me-color: #60a5fa;
+    --filter-btn-me-hover: #264a6f;
+    --filter-btn-clear-bg: #1e293b;
+    --filter-btn-clear-color: #94a3b8;
+    --filter-btn-clear-hover: #2d3a4e;
+
+    /* Popup / Dropdown */
+    --popup-bg: #1e293b;
+    --popup-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
+
+    /* Quote */
+    --quote-color: #94a3b8;
+    --quote-bg: rgba(148, 163, 184, 0.1);
+    --quote-border: #64748b;
+    --quote-own-color: #94a3b8;
+    --quote-own-bg: rgba(37, 99, 235, 0.15);
+    --quote-own-border: #2563eb;
+
+    /* Mention badge */
+    --mention-bg: #2563eb;
+    --mention-own-bg: #1d4ed8;
+
+    /* Links */
+    --link-color: #60a5fa;
+    --link-hover: #93c5fd;
+    --link-own-color: #93c5fd;
+    --link-own-hover: #bfdbfe;
+
+    /* Channel link */
+    --channel-link-bg: #059669;
+    --channel-link-hover: #10b981;
+    --channel-link-own-bg: #047857;
+    --channel-link-own-hover: #059669;
+
+    /* Echo badge */
+    --echo-color: #10b981;
+    --echo-bg: rgba(16, 185, 129, 0.15);
+
+    /* Search */
+    --search-mark-bg: rgba(251, 191, 36, 0.3);
+
+    /* Offcanvas menu */
+    --offcanvas-item-border: #334155;
+    --offcanvas-item-hover: #253347;
+    --offcanvas-icon-color: #60a5fa;
+
+    /* FAB */
+    --fab-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    --fab-shadow-hover: 0 6px 12px rgba(0, 0, 0, 0.6);
+
+    /* Conversation list */
+    --conversation-border: #334155;
+    --conversation-hover: #253347;
+    --conversation-unread: #1e3a5f;
+
+    /* Map filter badges */
+    --map-badge-inactive-bg: #1e293b;
+
+    /* Mention autocomplete */
+    --mention-item-highlight: #1e3a5f;
+    --mention-item-border: #334155;
+
+    /* Image border */
+    --image-border: #334155;
+
+    /* Actions border */
+    --actions-border: rgba(255, 255, 255, 0.1);
+
+    /* Cards */
+    --card-bg: #1e293b;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --card-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.4);
+
+    /* Info badge */
+    --info-badge-bg: rgba(37, 99, 235, 0.15);
+    --info-badge-color: #60a5fa;
+
+    /* Contact key clickable */
+    --key-hover-color: #60a5fa;
+    --key-hover-bg: #1e3a5f;
+    --key-copied-color: #10b981;
+    --key-copied-bg: rgba(16, 185, 129, 0.15);
+
+    /* Path items (DM) */
+    --path-item-bg: #1e293b;
+    --path-item-border: #334155;
+    --path-item-primary-bg: #1e3a5f;
+    --path-item-primary-border: #2563eb;
+
+    /* DM contact dropdown */
+    --dropdown-bg: #1e293b;
+    --dropdown-separator-bg: #162032;
+    --dropdown-item-hover: #2d3a4e;
+}
+
+/* =============================================================================
+   Dark Theme - Bootstrap Component Overrides
+   Bootstrap 5.3 data-bs-theme="dark" handles most defaults; these overrides
+   customize colors to match our deep navy palette.
+   ============================================================================= */
+
+/* Navbar */
+[data-theme="dark"] .navbar.bg-primary {
+    background-color: var(--navbar-bg) !important;
+    border-bottom: 1px solid var(--navbar-border);
+}
+
+[data-theme="dark"] .navbar .btn-outline-light {
+    border-color: #475569;
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .navbar .btn-outline-light:hover {
+    background-color: #334155;
+    border-color: #64748b;
+    color: #f8fafc;
+}
+
+/* Form controls */
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+    background-color: var(--bg-body);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .form-control:focus,
+[data-theme="dark"] .form-select:focus {
+    background-color: var(--bg-body);
+    color: var(--text-primary);
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+}
+
+[data-theme="dark"] .form-control::placeholder {
+    color: var(--text-muted);
+}
+
+/* Modal */
+[data-theme="dark"] .modal-content {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .modal-header {
+    border-bottom-color: var(--border-color);
+}
+
+[data-theme="dark"] .modal-footer {
+    border-top-color: var(--border-color);
+}
+
+[data-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* Offcanvas */
+[data-theme="dark"] .offcanvas {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .offcanvas-header {
+    border-bottom-color: var(--border-color);
+}
+
+/* List group */
+[data-theme="dark"] .list-group-item {
+    background-color: transparent;
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .list-group-item-action:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Nav tabs */
+[data-theme="dark"] .nav-tabs {
+    border-bottom-color: var(--border-color);
+}
+
+[data-theme="dark"] .nav-tabs .nav-link {
+    color: var(--text-muted);
+}
+
+[data-theme="dark"] .nav-tabs .nav-link:hover {
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .nav-tabs .nav-link.active {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    border-color: var(--border-color) var(--border-color) var(--bg-surface);
+}
+
+/* Tables */
+[data-theme="dark"] .table {
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+/* Alerts */
+[data-theme="dark"] .alert-info {
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .alert-light {
+    background-color: var(--bg-surface-alt);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+
+/* Card (Bootstrap) */
+[data-theme="dark"] .card {
+    background-color: var(--bg-surface);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Badge overrides for better dark mode contrast */
+[data-theme="dark"] .badge.bg-secondary {
+    background-color: #475569 !important;
+}
+
+/* Text utilities */
+[data-theme="dark"] .text-muted {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .text-dark {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .border-bottom {
+    border-bottom-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .border-top {
+    border-top-color: var(--border-color) !important;
+}
+
+/* bg-light override */
+[data-theme="dark"] .bg-light {
+    background-color: var(--bg-surface-alt) !important;
+}
+
+/* Toast */
+[data-theme="dark"] .toast {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .toast-header {
+    background-color: var(--bg-surface-alt);
+    color: var(--text-primary);
+    border-bottom-color: var(--border-color);
+}
+
+/* Progress bar */
+[data-theme="dark"] .progress {
+    background-color: var(--bg-surface-alt);
+}
+
+/* Tooltip-like popups */
+[data-theme="dark"] .dm-delivery-popup,
+[data-theme="dark"] .path-popup {
+    background-color: #475569;
+    color: #f8fafc;
+}
+
+/* Form check / switch */
+[data-theme="dark"] .form-check-input {
+    background-color: var(--bg-surface-alt);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .form-check-input:checked {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+/* Input group */
+[data-theme="dark"] .input-group-text {
+    background-color: var(--bg-surface-alt);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+
+/* Accordion (if used) */
+[data-theme="dark"] .accordion-item {
+    background-color: var(--bg-surface);
+    border-color: var(--border-color);
+}
+
+/* Dropdown menu (Bootstrap) */
+[data-theme="dark"] .dropdown-menu {
+    background-color: var(--bg-surface);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .dropdown-item {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Spinner */
+[data-theme="dark"] .spinner-border {
+    color: #3b82f6;
+}
+
+/* Status bar (bottom) */
+[data-theme="dark"] .border-top {
+    border-color: var(--border-color) !important;
+}
+
+/* QR code container - keep white bg for readability */
+[data-theme="dark"] .qr-code-container,
+[data-theme="dark"] #shareChannelQR,
+[data-theme="dark"] #deviceShareContent .text-center img,
+[data-theme="dark"] #deviceShareContent canvas {
+    background-color: #ffffff;
+    padding: 8px;
+    border-radius: 0.5rem;
+}
+
+/* Emoji picker dark mode */
+[data-theme="dark"] emoji-picker {
+    --background: #1e293b;
+    --border-color: #334155;
+    --indicator-color: #3b82f6;
+    --input-border-color: #334155;
+    --input-font-color: #f8fafc;
+    --input-placeholder-color: #64748b;
+    --outline-color: #3b82f6;
+    --category-font-color: #94a3b8;
+    --button-active-background: #334155;
+    --button-hover-background: #2d3a4e;
+}
+
+/* =============================================================================
+   Theme Switcher UI
+   ============================================================================= */
+
+.theme-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: var(--card-bg);
+}
+
+.theme-option:hover {
+    border-color: #3b82f6;
+}
+
+.theme-option.active {
+    border-color: #3b82f6;
+    background-color: var(--bg-active);
+}
+
+.theme-option-preview {
+    width: 40px;
+    height: 40px;
+    border-radius: 0.5rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.theme-option-preview.light {
+    background: linear-gradient(135deg, #ffffff 50%, #e9ecef 50%);
+    border: 1px solid #dee2e6;
+}
+
+.theme-option-preview.dark {
+    background: linear-gradient(135deg, #1e293b 50%, #0f172a 50%);
+    border: 1px solid #334155;
+}
+
+.theme-option-label {
+    font-weight: 500;
+}
+
+.theme-option-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
