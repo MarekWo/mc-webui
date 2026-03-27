@@ -2002,26 +2002,12 @@ emoji-picker {
     min-width: 150px;
 }
 
-/* Scrollable contacts lists */
-#pendingList {
-    max-height: 200px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-}
-
+/* Scrollable contacts lists - height managed by flexbox in contacts_base */
+#pendingList,
 #existingList {
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    max-height: calc(100vh - 400px);
-    min-height: 300px;
-}
-
-@media (max-width: 768px) {
-    #existingList {
-        max-height: calc(100vh - 450px);
-    }
 }
 
 #existingList::-webkit-scrollbar,
