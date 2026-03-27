@@ -120,6 +120,18 @@ function connectChatSocket() {
     chatSocket.on('device_status', (data) => {
         updateStatus(data.connected ? 'connected' : 'disconnected');
     });
+
+    // Real-time path change — refresh Contact Info if open for this contact
+    chatSocket.on('path_changed', async (data) => {
+        const modalEl = document.getElementById('dmContactInfoModal');
+        if (!modalEl || !modalEl.classList.contains('show')) return;
+        const currentPubkey = getCurrentContactPubkey();
+        if (!currentPubkey) return;
+        const changedKey = (data.public_key || '').toLowerCase();
+        if (changedKey && changedKey.startsWith(currentPubkey.toLowerCase())) {
+            await refreshContactInfoPath();
+        }
+    });
 }
 
 // Initialize on page load
@@ -972,6 +984,34 @@ function populateContactInfoModal() {
         div.className = 'small mb-2';
         div.innerHTML = `<i class="bi bi-geo-alt"></i> ${contact.adv_lat.toFixed(4)}, ${contact.adv_lon.toFixed(4)}`;
         body.appendChild(div);
+    }
+}
+
+/**
+ * Refresh contact data from device and re-render Contact Info modal if open.
+ * Uses ?refresh=true to bypass server-side cache.
+ */
+async function refreshContactInfoPath() {
+    try {
+        const response = await fetch('/api/contacts/detailed?refresh=true');
+        const data = await response.json();
+        if (data.success) {
+            contactsList = (data.contacts || []).sort((a, b) =>
+                (a.name || '').localeCompare(b.name || ''));
+            contactsMap = {};
+            contactsList.forEach(c => {
+                if (c.public_key) contactsMap[c.public_key] = c;
+            });
+        }
+    } catch (e) {
+        console.error('[DM] refreshContactInfoPath fetch error:', e);
+        return;
+    }
+    // Re-populate modal if still open
+    const modalEl = document.getElementById('dmContactInfoModal');
+    if (modalEl && modalEl.classList.contains('show')) {
+        populateContactInfoModal();
+        loadPathSection();
     }
 }
 
@@ -2114,6 +2154,7 @@ function setupPathFormHandlers(pubkey) {
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Device path reset to FLOOD', 'info');
+                    await refreshContactInfoPath();
                 } else {
                     showNotification(data.error || 'Reset failed', 'danger');
                 }

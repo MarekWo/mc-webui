@@ -740,6 +740,19 @@ class DeviceManager:
             )
             logger.debug(f"Path update for {pubkey[:8]}...")
 
+            # Invalidate contacts cache so UI gets fresh path data
+            try:
+                from app.routes.api import invalidate_contacts_cache
+                invalidate_contacts_cache()
+            except ImportError:
+                pass
+
+            # Notify UI about path change
+            if self.socketio:
+                self.socketio.emit('path_changed', {
+                    'public_key': pubkey,
+                }, namespace='/chat')
+
             # Backup: check for pending DM to this contact
             for ack_code, dm_id in list(self._pending_acks.items()):
                 dm = self.db.get_dm_by_id(dm_id)
@@ -1161,6 +1174,12 @@ class DeviceManager:
         """Change contact path on device with proper hash_size encoding."""
         path_hash_mode = hash_size - 1  # 0=1B, 1=2B, 2=3B
         await self.mc.commands.change_contact_path(contact, path_hex, path_hash_mode=path_hash_mode)
+        # Invalidate contacts cache so UI gets fresh path data
+        try:
+            from app.routes.api import invalidate_contacts_cache
+            invalidate_contacts_cache()
+        except ImportError:
+            pass
 
     async def _restore_primary_path(self, contact, contact_pubkey: str):
         """Restore the primary configured path on the device after retry exhaustion."""

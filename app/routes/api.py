@@ -2322,6 +2322,7 @@ def reset_contact_to_flood(pubkey):
         dev_result = dm.reset_path(pubkey)
         logger.info(f"reset_path({pubkey[:12]}...) result: {dev_result}")
         if dev_result.get('success'):
+            invalidate_contacts_cache()
             return jsonify({'success': True}), 200
         return jsonify({'success': False, 'error': dev_result.get('error', 'Device reset failed')}), 500
     except Exception as e:
