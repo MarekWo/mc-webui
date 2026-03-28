@@ -1355,8 +1355,17 @@ class DeviceManager:
             if not no_auto_flood:
                 max_attempts += cfg['flood_max_retries']
 
-        # Track current path description for delivery info
-        path_desc = "FLOOD" if not has_path else "DIRECT"
+        # Track current path hex for delivery info (actual route, not label)
+        def _extract_path_hex(out_path, out_path_len):
+            """Extract meaningful hex portion from device path."""
+            if out_path_len <= 0 or not out_path:
+                return ''
+            hop_count = out_path_len & 0x3F
+            hash_size = (out_path_len >> 6) + 1
+            meaningful_len = hop_count * hash_size * 2
+            return out_path[:meaningful_len].lower() if meaningful_len > 0 else ''
+
+        path_desc = _extract_path_hex(original_out_path, original_out_path_len) if has_path else ''
 
         logger.info(f"DM retry task started: dm_id={dm_id}, scenario={scenario}, "
                      f"configured_paths={len(configured_paths)}, no_auto_flood={no_auto_flood}, "
@@ -1373,6 +1382,13 @@ class DeviceManager:
             if delivered:
                 self.db.update_dm_delivery_info(
                     dm_id, display, max_attempts, path_desc)
+                if self.socketio:
+                    self.socketio.emit('dm_delivered_info', {
+                        'dm_id': dm_id,
+                        'attempt': display,
+                        'max_attempts': max_attempts,
+                        'path': path_desc,
+                    }, namespace='/chat')
             return delivered
 
         # ── Emit status for initial send (attempt 1) and wait for ACK ──
@@ -1387,6 +1403,11 @@ class DeviceManager:
             if ack_event:
                 self._confirm_delivery(dm_id, initial_ack, ack_event)
                 self.db.update_dm_delivery_info(dm_id, 1, max_attempts, path_desc)
+                if self.socketio:
+                    self.socketio.emit('dm_delivered_info', {
+                        'dm_id': dm_id, 'attempt': 1,
+                        'max_attempts': max_attempts, 'path': path_desc,
+                    }, namespace='/chat')
                 return
             logger.debug(f"DM retry: initial ACK not received (timeout)")
 
@@ -1418,7 +1439,7 @@ class DeviceManager:
                     logger.info("DM retry: direct exhausted, resetting to FLOOD")
                 except Exception:
                     pass
-                path_desc = "FLOOD"
+                path_desc = ''
                 for _ in range(cfg['direct_flood_retries']):
                     attempt += 1
                     if await _retry(attempt, float(cfg['flood_interval'])):
@@ -1443,7 +1464,7 @@ class DeviceManager:
                 try:
                     await self._change_path_async(contact, path_info['path_hex'], path_info['hash_size'])
                     label = path_info.get('label', '')
-                    path_desc = f"{label} ({path_info['path_hex']})" if label else path_info['path_hex']
+                    path_desc = path_info['path_hex']
                     logger.info(f"DM retry: switched to path '{label}' ({path_info['path_hex']})")
                 except Exception as e:
                     logger.warning(f"DM retry: failed to switch path: {e}")
@@ -1482,7 +1503,7 @@ class DeviceManager:
                 try:
                     await self._change_path_async(contact, path_info['path_hex'], path_info['hash_size'])
                     label = path_info.get('label', '')
-                    path_desc = f"{label} ({path_info['path_hex']})" if label else path_info['path_hex']
+                    path_desc = path_info['path_hex']
                     logger.info(f"DM retry: switched to path '{label}' ({path_info['path_hex']})")
                 except Exception as e:
                     logger.warning(f"DM retry: failed to switch path: {e}")
@@ -1501,7 +1522,7 @@ class DeviceManager:
                     logger.info("DM retry: all paths exhausted, falling back to FLOOD")
                 except Exception:
                     pass
-                path_desc = "FLOOD"
+                path_desc = ''
                 for _ in range(cfg['flood_max_retries']):
                     attempt += 1
                     if await _retry(attempt, float(cfg['flood_interval'])):
@@ -1512,7 +1533,7 @@ class DeviceManager:
             await self._restore_primary_path(contact, contact_pubkey)
 
         # ── Common epilogue: mark failed, grace period for late ACKs ──
-        self.db.update_dm_delivery_info(dm_id, attempt + 1, max_attempts, path_desc)
+        self.db.update_dm_delivery_info(dm_id, attempt + 1, max_attempts, '')
         self.db.update_dm_delivery_status(dm_id, 'failed')
         self._emit_retry_failed(dm_id, initial_ack)
         logger.warning(f"DM retry exhausted ({attempt + 1} total attempts, scenario={scenario}) "

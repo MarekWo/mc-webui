@@ -150,6 +150,31 @@ function connectChatSocket() {
         if (info) info.textContent = '';
     });
 
+    // Real-time delivery info — show attempt count + route after successful delivery
+    chatSocket.on('dm_delivered_info', (data) => {
+        if (!data.dm_id) return;
+        // Find the message element containing this dm_id
+        const retryEl = document.querySelector(`.dm-retry-info[data-dm-id="${data.dm_id}"]`);
+        if (!retryEl) return;
+        retryEl.textContent = '';
+        const msgDiv = retryEl.closest('.dm-message');
+        if (!msgDiv) return;
+        // Build delivery meta text
+        const parts = [];
+        if (data.attempt && data.max_attempts) parts.push(`Attempt ${data.attempt}/${data.max_attempts}`);
+        if (data.path) parts.push(`Route: ${formatDmRoute(data.path)}`);
+        if (parts.length > 0) {
+            let metaEl = msgDiv.querySelector('.dm-delivery-meta');
+            if (!metaEl) {
+                metaEl = document.createElement('div');
+                metaEl.className = 'dm-delivery-meta';
+                const contentDiv = msgDiv.querySelector('div:nth-child(2)');
+                if (contentDiv) contentDiv.after(metaEl);
+            }
+            metaEl.textContent = parts.join(', ');
+        }
+    });
+
     // Real-time device status
     chatSocket.on('device_status', (data) => {
         updateStatus(data.connected ? 'connected' : 'disconnected');
@@ -1129,7 +1154,7 @@ function displayMessages(messages) {
                 if (msg.delivery_attempt && msg.delivery_max_attempts) {
                     title += ` (${msg.delivery_attempt}/${msg.delivery_max_attempts})`;
                 }
-                if (msg.delivery_path) title += `, Path: ${msg.delivery_path}`;
+                if (msg.delivery_path) title += `, Route: ${formatDmRoute(msg.delivery_path)}`;
                 if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
                     title += `, SNR: ${msg.delivery_snr.toFixed(1)} dB`;
                 }
@@ -1157,15 +1182,18 @@ function displayMessages(messages) {
             }
         }
 
-        // Delivery info for delivered/failed messages (attempt count + path)
+        // Delivery info for delivered/failed messages (attempt count + route)
         let deliveryMeta = '';
         if (msg.is_own && (msg.status === 'delivered' || msg.status === 'failed')
-            && (msg.delivery_attempt || msg.delivery_path)) {
+            && msg.delivery_attempt) {
             const parts = [];
             if (msg.delivery_attempt && msg.delivery_max_attempts) {
                 parts.push(`Attempt ${msg.delivery_attempt}/${msg.delivery_max_attempts}`);
             }
-            if (msg.delivery_path) parts.push(`Path: ${msg.delivery_path}`);
+            // Show route only for delivered messages (not failed)
+            if (msg.status === 'delivered' && msg.delivery_path) {
+                parts.push(`Route: ${formatDmRoute(msg.delivery_path)}`);
+            }
             deliveryMeta = `<div class="dm-delivery-meta">${parts.join(', ')}</div>`;
         }
 
@@ -1333,6 +1361,20 @@ function resendMessage(content) {
     input.value = content;
     updateCharCounter();
     input.focus();
+}
+
+/**
+ * Format a hex path as route string (e.g. "5e34e761" → "5e→34→e7→61")
+ * Truncates if more than 4 segments.
+ */
+function formatDmRoute(hexPath) {
+    if (!hexPath) return '';
+    const segments = hexPath.match(/.{1,2}/g) || [];
+    if (segments.length === 0) return '';
+    if (segments.length > 4) {
+        return `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`;
+    }
+    return segments.join('\u2192');
 }
 
 /**
