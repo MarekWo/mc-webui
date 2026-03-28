@@ -750,6 +750,13 @@ main {
     margin-top: 0.1rem;
 }
 
+.dm-route-link {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    position: relative;
+}
+
 .dm-delivery-popup {
     position: absolute;
     bottom: 100%;

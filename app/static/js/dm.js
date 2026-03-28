@@ -1195,11 +1195,10 @@ function displayMessages(messages) {
             }
             // Show route only for delivered messages (not failed)
             if (msg.status === 'delivered') {
-                const hexRoute = formatDmRoute(msg.delivery_path);
-                if (hexRoute) {
-                    parts.push(`Route: ${hexRoute}`);
+                const routeHtml = buildDmRouteHtml(msg.delivery_path);
+                if (routeHtml) {
+                    parts.push(routeHtml);
                 } else if (msg.delivery_route) {
-                    // Fallback: show ACK route type (e.g. FLOOD, direct)
                     parts.push(msg.delivery_route.replace('PATH_', ''));
                 }
             }
@@ -1384,6 +1383,48 @@ function formatDmRoute(hexPath) {
         return `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`;
     }
     return segments.join('\u2192');
+}
+
+/**
+ * Build a clickable route span for DM delivery meta.
+ * Short routes are plain text; long routes (>4 hops) are clickable to show full path.
+ */
+function buildDmRouteHtml(hexPath) {
+    if (!hexPath || !/^[0-9a-f]+$/i.test(hexPath)) return '';
+    const segments = hexPath.match(/.{1,2}/g) || [];
+    if (segments.length === 0) return '';
+    const short = segments.length > 4
+        ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
+        : segments.join('\u2192');
+    if (segments.length <= 4) return `Route: ${short}`;
+    const escaped = hexPath.replace(/'/g, "\\'");
+    return `<span class="dm-route-link" onclick="showDmRoutePopup(this, '${escaped}')">Route: ${short}</span>`;
+}
+
+/**
+ * Show full route popup for DM delivery path (same style as channel path popup)
+ */
+function showDmRoutePopup(element, hexPath) {
+    const existing = document.querySelector('.path-popup');
+    if (existing) existing.remove();
+
+    const segments = hexPath.match(/.{1,2}/g) || [];
+    const fullRoute = segments.join(' \u2192 ');
+
+    const popup = document.createElement('div');
+    popup.className = 'path-popup';
+    popup.innerHTML = `<div class="path-entry">${fullRoute}<span class="path-detail">Hops: ${segments.length}</span></div>`;
+    element.style.position = 'relative';
+    element.appendChild(popup);
+
+    const dismiss = () => popup.remove();
+    setTimeout(dismiss, 8000);
+    document.addEventListener('click', function handler(e) {
+        if (!element.contains(e.target)) {
+            dismiss();
+            document.removeEventListener('click', handler);
+        }
+    });
 }
 
 /**
