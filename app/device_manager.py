@@ -761,6 +761,14 @@ class DeviceManager:
             )
             logger.debug(f"Path update for {pubkey[:8]}...")
 
+            # Refresh mc.contacts from device so API returns fresh path data.
+            # PATH_UPDATE events are rare (only on path discovery), so the
+            # serial I/O cost is acceptable (unlike advertisements).
+            try:
+                await self.mc.ensure_contacts(follow=True)
+            except Exception as e:
+                logger.warning(f"Failed to refresh contacts after path update: {e}")
+
             # Invalidate contacts cache so UI gets fresh path data
             try:
                 from app.routes.api import invalidate_contacts_cache
