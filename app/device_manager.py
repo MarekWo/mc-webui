@@ -785,17 +785,18 @@ class DeviceManager:
                                 'dm_id': dm_id,
                                 'route_type': 'PATH_FLOOD',
                             }, namespace='/chat')
-                        # Store delivery info from retry context
+                        # Store delivery info — use path from PATH event (actual discovered route)
                         ctx = self._retry_context.pop(dm_id, None)
+                        discovered_path = data.get('path', '')
                         if ctx:
                             self.db.update_dm_delivery_info(
-                                dm_id, ctx['attempt'], ctx['max_attempts'], ctx['path'])
+                                dm_id, ctx['attempt'], ctx['max_attempts'], discovered_path)
                             if self.socketio:
                                 self.socketio.emit('dm_delivered_info', {
                                     'dm_id': dm_id,
                                     'attempt': ctx['attempt'],
                                     'max_attempts': ctx['max_attempts'],
-                                    'path': ctx['path'],
+                                    'path': discovered_path,
                                 }, namespace='/chat')
                         # Cancel retry task — delivery already confirmed
                         task = self._retry_tasks.get(dm_id)
