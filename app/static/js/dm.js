@@ -1205,10 +1205,12 @@ function displayMessages(messages) {
             deliveryMeta = `<div class="dm-delivery-meta">${parts.join(', ')}</div>`;
         }
 
-        // Resend button for own messages (with retry counter placeholder)
+        // Retry counter placeholder (same line as delivery meta)
+        const retryInfo = msg.is_own ? `<div class="dm-delivery-meta dm-retry-info" data-dm-id="${msg.id || ''}"></div>` : '';
+
+        // Resend button for own messages
         const resendBtn = msg.is_own ? `
             <div class="dm-actions">
-                <span class="dm-retry-info" data-dm-id="${msg.id || ''}"></span>
                 <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Resend">
                     <i class="bi bi-arrow-repeat"></i>
                 </button>
@@ -1222,6 +1224,7 @@ function displayMessages(messages) {
             </div>
             <div>${processMessageContent(msg.content)}</div>
             ${deliveryMeta}
+            ${retryInfo}
             ${meta}
             ${resendBtn}
         `;

@@ -738,10 +738,8 @@ main {
     position: relative;
 }
 
-.dm-retry-info {
-    font-size: 0.65rem;
-    color: var(--text-meta);
-    margin-right: auto;
+.dm-retry-info:empty {
+    display: none;
 }
 
 .dm-delivery-meta {
@@ -781,7 +779,6 @@ main {
 .dm-actions {
     display: flex;
     justify-content: flex-end;
-    align-items: center;
     margin-top: 0.25rem;
 }
 
