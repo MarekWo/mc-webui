@@ -757,6 +757,11 @@ main {
     position: relative;
 }
 
+.dm-route-link > .path-popup {
+    left: auto;
+    right: 0;
+}
+
 .dm-delivery-popup {
     position: absolute;
     bottom: 100%;
