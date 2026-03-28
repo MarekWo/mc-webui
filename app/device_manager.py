@@ -1275,8 +1275,8 @@ class DeviceManager:
         4-scenario matrix based on (has_path × has_configured_paths):
         - Scenario 1: No path, no configured paths → FLOOD only
         - Scenario 2: Has path, no configured paths → DIRECT + optional FLOOD
-        - Scenario 3: No path, has configured paths → FLOOD first, then ŚD rotation
-        - Scenario 4: Has path, has configured paths → DIRECT on ŚK, ŚD rotation, optional FLOOD
+        - Scenario 3: No path, has configured paths → FLOOD first, then configured path rotation
+        - Scenario 4: Has path, has configured paths → DIRECT on current path, configured path rotation, optional FLOOD
 
         The no_auto_flood per-contact flag prevents automatic DIRECT→FLOOD reset
         in Scenarios 2 and 4.  Ignored in Scenarios 1 and 3.
@@ -1405,7 +1405,7 @@ class DeviceManager:
         # Scenario 2: Has path, no configured paths → DIRECT + optional FLOOD
         # ════════════════════════════════════════════════════════════
         elif has_path and not has_configured_paths:
-            # Phase 1: Direct retries on current ŚK
+            # Phase 1: Direct retries on current path
             for _ in range(cfg['direct_max_retries']):
                 attempt += 1
                 if await _retry(attempt, float(cfg['direct_interval'])):
@@ -1425,7 +1425,7 @@ class DeviceManager:
                         return
 
         # ════════════════════════════════════════════════════════════
-        # Scenario 3: No path, has configured paths → FLOOD first, then ŚD rotation
+        # Scenario 3: No path, has configured paths → FLOOD first, then configured path rotation
         # ════════════════════════════════════════════════════════════
         elif not has_path and has_configured_paths:
             # Phase 1: FLOOD retries per NoPath settings (discover new path)
@@ -1433,9 +1433,9 @@ class DeviceManager:
             for _ in range(cfg['flood_max_retries']):
                 attempt += 1
                 if await _retry(attempt, float(cfg['flood_interval'])):
-                    return  # Firmware sets discovered path as ŚK
+                    return  # Firmware sets discovered path automatically
 
-            # Phase 2: ŚD rotation (primary first, then others by sort_order)
+            # Phase 2: Configured path rotation (primary first, then others by sort_order)
             logger.info("DM retry: FLOOD exhausted, rotating through configured paths")
             direct_interval = float(cfg['direct_interval'])
 
@@ -1455,28 +1455,28 @@ class DeviceManager:
                         await self._restore_primary_path(contact, contact_pubkey)
                         return
 
-            # Restore ŚG regardless of outcome
+            # Restore primary path regardless of outcome
             await self._restore_primary_path(contact, contact_pubkey)
 
         # ════════════════════════════════════════════════════════════
-        # Scenario 4: Has path + has configured paths → DIRECT on ŚK, ŚD rotation, optional FLOOD
+        # Scenario 4: Has path + has configured paths → DIRECT on current path, configured path rotation, optional FLOOD
         # ════════════════════════════════════════════════════════════
         else:  # has_path and has_configured_paths
-            # Phase 1: Direct retries on current ŚK
+            # Phase 1: Direct retries on current path
             for _ in range(cfg['direct_max_retries']):
                 attempt += 1
                 if await _retry(attempt, float(cfg['direct_interval'])):
-                    return  # Delivered on ŚK, no path change needed
+                    return  # Delivered on current path, no change needed
 
-            # Phase 2: ŚD rotation with dedup
-            logger.info("DM retry: direct on ŚK exhausted, rotating through configured paths")
+            # Phase 2: Configured path rotation with dedup
+            logger.info("DM retry: direct retries exhausted, rotating through configured paths")
             direct_interval = float(cfg['direct_interval'])
 
             for path_info in rotation_order:
-                # Dedup: skip if this configured path matches original ŚK
+                # Dedup: skip if this configured path matches original device path
                 if self._paths_match(original_out_path, original_out_path_len, path_info):
                     logger.debug(f"DM retry: skipping path '{path_info.get('label', '')}' "
-                                 f"({path_info['path_hex']}) — matches current ŚK")
+                                 f"({path_info['path_hex']}) — matches current device path")
                     continue
 
                 try:
@@ -1508,10 +1508,11 @@ class DeviceManager:
                         await self._restore_primary_path(contact, contact_pubkey)
                         return
 
-            # Restore ŚG regardless of outcome
+            # Restore primary path regardless of outcome
             await self._restore_primary_path(contact, contact_pubkey)
 
         # ── Common epilogue: mark failed, grace period for late ACKs ──
+        self.db.update_dm_delivery_info(dm_id, attempt + 1, max_attempts, path_desc)
         self.db.update_dm_delivery_status(dm_id, 'failed')
         self._emit_retry_failed(dm_id, initial_ack)
         logger.warning(f"DM retry exhausted ({attempt + 1} total attempts, scenario={scenario}) "

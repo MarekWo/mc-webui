@@ -739,9 +739,15 @@ main {
 }
 
 .dm-retry-info {
-    font-size: 0.6rem;
+    font-size: 0.65rem;
     color: var(--text-meta);
-    margin-left: 0.15rem;
+    margin-right: auto;
+}
+
+.dm-delivery-meta {
+    font-size: 0.65rem;
+    color: var(--text-meta);
+    margin-top: 0.1rem;
 }
 
 .dm-delivery-popup {
@@ -763,6 +769,7 @@ main {
 .dm-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     margin-top: 0.25rem;
 }
 

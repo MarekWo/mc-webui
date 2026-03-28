@@ -112,14 +112,14 @@ function connectChatSocket() {
                 if (data.snr != null) tooltip.push(`SNR: ${data.snr}`);
                 if (data.route_type) tooltip.push(`Route: ${data.route_type}`);
                 statusEl.title = tooltip.length > 0 ? tooltip.join(', ') : 'Delivered';
-                // Remove retry counter if present
+                // Unwrap status icon from wrapper span
                 const wrapper = statusEl.closest('[data-dm-id]');
                 if (wrapper) {
-                    const info = wrapper.querySelector('.dm-retry-info');
-                    if (info) info.remove();
-                    // Unwrap: replace wrapper span with just the icon
                     wrapper.replaceWith(statusEl);
                 }
+                // Clear retry counter in actions area
+                const retryInfo = el.querySelector('.dm-retry-info');
+                if (retryInfo) retryInfo.textContent = '';
             }
         });
     });
@@ -127,27 +127,27 @@ function connectChatSocket() {
     // Real-time DM retry progress
     chatSocket.on('dm_retry_status', (data) => {
         if (!data.dm_id) return;
-        const wrapper = document.querySelector(`[data-dm-id="${data.dm_id}"]`);
-        if (!wrapper) return;
-        const info = wrapper.querySelector('.dm-retry-info');
-        if (info) info.textContent = `${data.attempt}/${data.max_attempts}`;
+        const info = document.querySelector(`.dm-retry-info[data-dm-id="${data.dm_id}"]`);
+        if (info) info.textContent = `Attempt ${data.attempt}/${data.max_attempts}`;
     });
 
     // DM retry exhausted — mark as failed
     chatSocket.on('dm_retry_failed', (data) => {
         if (!data.dm_id) return;
-        const wrapper = document.querySelector(`[data-dm-id="${data.dm_id}"]`);
-        if (!wrapper) return;
-        const icon = wrapper.querySelector('.dm-status');
-        if (icon) {
-            icon.className = 'bi bi-x-circle dm-status timeout';
-            icon.title = 'Delivery failed — all retries exhausted';
+        // Update status icon
+        const wrapper = document.querySelector(`.dm-status-unknown[data-dm-id="${data.dm_id}"]`);
+        if (wrapper) {
+            const icon = wrapper.querySelector('.dm-status');
+            if (icon) {
+                icon.className = 'bi bi-x-circle dm-status timeout';
+                icon.title = 'Delivery failed — all retries exhausted';
+            }
+            wrapper.removeAttribute('onclick');
+            wrapper.classList.remove('dm-status-unknown');
         }
-        const info = wrapper.querySelector('.dm-retry-info');
-        if (info) info.remove();
-        // Remove onclick
-        wrapper.removeAttribute('onclick');
-        wrapper.classList.remove('dm-status-unknown');
+        // Clear retry counter
+        const info = document.querySelector(`.dm-retry-info[data-dm-id="${data.dm_id}"]`);
+        if (info) info.textContent = '';
     });
 
     // Real-time device status
@@ -1141,7 +1141,7 @@ function displayMessages(messages) {
                 statusIcon = `<i class="bi bi-clock dm-status pending"${ackAttr} title="Sending..."></i>`;
             } else {
                 // No ACK received — show clickable "?" with retry counter
-                statusIcon = `<span class="dm-status-unknown"${dmIdAttr} onclick="showDeliveryInfo(this)"><i class="bi bi-question-circle dm-status unknown"${ackAttr}></i><span class="dm-retry-info"></span></span>`;
+                statusIcon = `<span class="dm-status-unknown"${dmIdAttr} onclick="showDeliveryInfo(this)"><i class="bi bi-question-circle dm-status unknown"${ackAttr}></i></span>`;
             }
         }
 
@@ -1157,9 +1157,22 @@ function displayMessages(messages) {
             }
         }
 
-        // Resend button for own messages
+        // Delivery info for delivered/failed messages (attempt count + path)
+        let deliveryMeta = '';
+        if (msg.is_own && (msg.status === 'delivered' || msg.status === 'failed')
+            && (msg.delivery_attempt || msg.delivery_path)) {
+            const parts = [];
+            if (msg.delivery_attempt && msg.delivery_max_attempts) {
+                parts.push(`Attempt ${msg.delivery_attempt}/${msg.delivery_max_attempts}`);
+            }
+            if (msg.delivery_path) parts.push(`Path: ${msg.delivery_path}`);
+            deliveryMeta = `<div class="dm-delivery-meta">${parts.join(', ')}</div>`;
+        }
+
+        // Resend button for own messages (with retry counter placeholder)
         const resendBtn = msg.is_own ? `
             <div class="dm-actions">
+                <span class="dm-retry-info" data-dm-id="${msg.id || ''}"></span>
                 <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Resend">
                     <i class="bi bi-arrow-repeat"></i>
                 </button>
@@ -1172,6 +1185,7 @@ function displayMessages(messages) {
                 ${statusIcon}
             </div>
             <div>${processMessageContent(msg.content)}</div>
+            ${deliveryMeta}
             ${meta}
             ${resendBtn}
         `;
