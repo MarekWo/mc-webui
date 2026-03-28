@@ -162,7 +162,8 @@ function connectChatSocket() {
         // Build delivery meta text
         const parts = [];
         if (data.attempt && data.max_attempts) parts.push(`Attempt ${data.attempt}/${data.max_attempts}`);
-        if (data.path) parts.push(`Route: ${formatDmRoute(data.path)}`);
+        const hexRoute = formatDmRoute(data.path);
+        if (hexRoute) parts.push(`Route: ${hexRoute}`);
         if (parts.length > 0) {
             let metaEl = msgDiv.querySelector('.dm-delivery-meta');
             if (!metaEl) {
@@ -1154,7 +1155,9 @@ function displayMessages(messages) {
                 if (msg.delivery_attempt && msg.delivery_max_attempts) {
                     title += ` (${msg.delivery_attempt}/${msg.delivery_max_attempts})`;
                 }
-                if (msg.delivery_path) title += `, Route: ${formatDmRoute(msg.delivery_path)}`;
+                const route = formatDmRoute(msg.delivery_path);
+                if (route) title += `, Route: ${route}`;
+                else if (msg.delivery_route) title += `, ${msg.delivery_route.replace('PATH_', '')}`;
                 if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
                     title += `, SNR: ${msg.delivery_snr.toFixed(1)} dB`;
                 }
@@ -1191,8 +1194,14 @@ function displayMessages(messages) {
                 parts.push(`Attempt ${msg.delivery_attempt}/${msg.delivery_max_attempts}`);
             }
             // Show route only for delivered messages (not failed)
-            if (msg.status === 'delivered' && msg.delivery_path) {
-                parts.push(`Route: ${formatDmRoute(msg.delivery_path)}`);
+            if (msg.status === 'delivered') {
+                const hexRoute = formatDmRoute(msg.delivery_path);
+                if (hexRoute) {
+                    parts.push(`Route: ${hexRoute}`);
+                } else if (msg.delivery_route) {
+                    // Fallback: show ACK route type (e.g. FLOOD, direct)
+                    parts.push(msg.delivery_route.replace('PATH_', ''));
+                }
             }
             deliveryMeta = `<div class="dm-delivery-meta">${parts.join(', ')}</div>`;
         }
@@ -1365,10 +1374,10 @@ function resendMessage(content) {
 
 /**
  * Format a hex path as route string (e.g. "5e34e761" → "5e→34→e7→61")
- * Truncates if more than 4 segments.
+ * Truncates if more than 4 segments. Returns '' for non-hex strings.
  */
 function formatDmRoute(hexPath) {
-    if (!hexPath) return '';
+    if (!hexPath || !/^[0-9a-f]+$/i.test(hexPath)) return '';
     const segments = hexPath.match(/.{1,2}/g) || [];
     if (segments.length === 0) return '';
     if (segments.length > 4) {
