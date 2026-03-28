@@ -44,6 +44,18 @@ class Database:
             conn.execute("ALTER TABLE contacts ADD COLUMN no_auto_flood INTEGER DEFAULT 0")
             logger.info("Migration: added contacts.no_auto_flood column")
 
+        # Add delivery tracking columns to direct_messages
+        dm_columns = {r[1] for r in conn.execute("PRAGMA table_info(direct_messages)").fetchall()}
+        for col, typedef in [
+            ('delivery_status', 'TEXT'),
+            ('delivery_attempt', 'INTEGER'),
+            ('delivery_max_attempts', 'INTEGER'),
+            ('delivery_path', 'TEXT'),
+        ]:
+            if col not in dm_columns:
+                conn.execute(f"ALTER TABLE direct_messages ADD COLUMN {col} {typedef}")
+                logger.info(f"Migration: added direct_messages.{col} column")
+
     @contextmanager
     def _connect(self):
         """Yield a connection with auto-commit/rollback."""
@@ -659,6 +671,22 @@ class Database:
                 "SELECT * FROM direct_messages WHERE id = ?", (dm_id,)
             ).fetchone()
             return dict(row) if row else None
+
+    def update_dm_delivery_info(self, dm_id: int, attempt: int,
+                                max_attempts: int, path: str):
+        """Store successful delivery details (attempt number, path used)."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE direct_messages SET delivery_attempt=?, "
+                "delivery_max_attempts=?, delivery_path=? WHERE id=?",
+                (attempt, max_attempts, path, dm_id))
+
+    def update_dm_delivery_status(self, dm_id: int, status: str):
+        """Mark message delivery as failed."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE direct_messages SET delivery_status=? WHERE id=?",
+                (status, dm_id))
 
     def relink_orphaned_dms(self, public_key: str, name: str = '') -> int:
         """Re-link DMs with NULL contact_pubkey back to this contact.

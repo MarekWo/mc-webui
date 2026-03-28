@@ -1980,6 +1980,7 @@ def get_dm_messages():
             for row in db_msgs:
                 messages.append({
                     'type': 'dm',
+                    'id': row['id'],
                     'direction': 'incoming' if row['direction'] == 'in' else 'outgoing',
                     'sender': row.get('contact_pubkey', ''),
                     'content': row.get('content', ''),
@@ -1989,6 +1990,10 @@ def get_dm_messages():
                     'snr': row.get('snr'),
                     'path_len': row.get('path_len'),
                     'expected_ack': row.get('expected_ack'),
+                    'delivery_status': row.get('delivery_status'),
+                    'delivery_attempt': row.get('delivery_attempt'),
+                    'delivery_max_attempts': row.get('delivery_max_attempts'),
+                    'delivery_path': row.get('delivery_path'),
                     'conversation_id': conversation_id,
                 })
         else:
@@ -2039,6 +2044,12 @@ def get_dm_messages():
                             msg['delivery_route'] = ack_info.get('route_type', ack_info.get('route'))
             except Exception as e:
                 logger.debug(f"ACK status fetch failed (non-critical): {e}")
+
+        # Set failed status for messages without ACK but marked failed in DB
+        for msg in messages:
+            if msg.get('direction') == 'outgoing' and msg.get('status') != 'delivered':
+                if msg.get('delivery_status') == 'failed':
+                    msg['status'] = 'failed'
 
         return jsonify({
             'success': True,

@@ -112,8 +112,42 @@ function connectChatSocket() {
                 if (data.snr != null) tooltip.push(`SNR: ${data.snr}`);
                 if (data.route_type) tooltip.push(`Route: ${data.route_type}`);
                 statusEl.title = tooltip.length > 0 ? tooltip.join(', ') : 'Delivered';
+                // Remove retry counter if present
+                const wrapper = statusEl.closest('[data-dm-id]');
+                if (wrapper) {
+                    const info = wrapper.querySelector('.dm-retry-info');
+                    if (info) info.remove();
+                    // Unwrap: replace wrapper span with just the icon
+                    wrapper.replaceWith(statusEl);
+                }
             }
         });
+    });
+
+    // Real-time DM retry progress
+    chatSocket.on('dm_retry_status', (data) => {
+        if (!data.dm_id) return;
+        const wrapper = document.querySelector(`[data-dm-id="${data.dm_id}"]`);
+        if (!wrapper) return;
+        const info = wrapper.querySelector('.dm-retry-info');
+        if (info) info.textContent = `${data.attempt}/${data.max_attempts}`;
+    });
+
+    // DM retry exhausted — mark as failed
+    chatSocket.on('dm_retry_failed', (data) => {
+        if (!data.dm_id) return;
+        const wrapper = document.querySelector(`[data-dm-id="${data.dm_id}"]`);
+        if (!wrapper) return;
+        const icon = wrapper.querySelector('.dm-status');
+        if (icon) {
+            icon.className = 'bi bi-x-circle dm-status timeout';
+            icon.title = 'Delivery failed — all retries exhausted';
+        }
+        const info = wrapper.querySelector('.dm-retry-info');
+        if (info) info.remove();
+        // Remove onclick
+        wrapper.removeAttribute('onclick');
+        wrapper.classList.remove('dm-status-unknown');
     });
 
     // Real-time device status
@@ -1089,18 +1123,25 @@ function displayMessages(messages) {
         let statusIcon = '';
         if (msg.is_own) {
             const ackAttr = msg.expected_ack ? ` data-ack="${msg.expected_ack}"` : '';
+            const dmIdAttr = msg.id ? ` data-dm-id="${msg.id}"` : '';
             if (msg.status === 'delivered') {
                 let title = 'Delivered';
+                if (msg.delivery_attempt && msg.delivery_max_attempts) {
+                    title += ` (${msg.delivery_attempt}/${msg.delivery_max_attempts})`;
+                }
+                if (msg.delivery_path) title += `, Path: ${msg.delivery_path}`;
                 if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
                     title += `, SNR: ${msg.delivery_snr.toFixed(1)} dB`;
                 }
                 if (msg.delivery_route) title += ` (${msg.delivery_route})`;
                 statusIcon = `<i class="bi bi-check2 dm-status delivered"${ackAttr} title="${title}"></i>`;
+            } else if (msg.status === 'failed') {
+                statusIcon = `<span${dmIdAttr}><i class="bi bi-x-circle dm-status timeout"${ackAttr} title="Delivery failed — all retries exhausted"></i></span>`;
             } else if (msg.status === 'pending') {
                 statusIcon = `<i class="bi bi-clock dm-status pending"${ackAttr} title="Sending..."></i>`;
             } else {
-                // No ACK received — show clickable "?" with explanation
-                statusIcon = `<span class="dm-status-unknown" onclick="showDeliveryInfo(this)"><i class="bi bi-question-circle dm-status unknown"${ackAttr}></i></span>`;
+                // No ACK received — show clickable "?" with retry counter
+                statusIcon = `<span class="dm-status-unknown"${dmIdAttr} onclick="showDeliveryInfo(this)"><i class="bi bi-question-circle dm-status unknown"${ackAttr}></i><span class="dm-retry-info"></span></span>`;
             }
         }
 

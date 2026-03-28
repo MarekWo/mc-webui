@@ -738,6 +738,12 @@ main {
     position: relative;
 }
 
+.dm-retry-info {
+    font-size: 0.6rem;
+    color: var(--text-meta);
+    margin-left: 0.15rem;
+}
+
 .dm-delivery-popup {
     position: absolute;
     bottom: 100%;

@@ -1233,6 +1233,25 @@ class DeviceManager:
 
         return False
 
+    def _emit_retry_status(self, dm_id: int, expected_ack: str,
+                            attempt: int, max_attempts: int):
+        """Notify frontend about retry progress."""
+        if self.socketio:
+            self.socketio.emit('dm_retry_status', {
+                'dm_id': dm_id,
+                'expected_ack': expected_ack,
+                'attempt': attempt,
+                'max_attempts': max_attempts,
+            }, namespace='/chat')
+
+    def _emit_retry_failed(self, dm_id: int, expected_ack: str):
+        """Notify frontend that all retry attempts were exhausted."""
+        if self.socketio:
+            self.socketio.emit('dm_retry_failed', {
+                'dm_id': dm_id,
+                'expected_ack': expected_ack,
+            }, namespace='/chat')
+
     @staticmethod
     def _paths_match(contact_out_path: str, contact_out_path_len: int,
                      configured_path: dict) -> bool:
@@ -1299,27 +1318,8 @@ class DeviceManager:
         else:
             scenario = "S1_FLOOD"
 
-        logger.info(f"DM retry task started: dm_id={dm_id}, scenario={scenario}, "
-                     f"configured_paths={len(configured_paths)}, no_auto_flood={no_auto_flood}, "
-                     f"wait={wait_s:.0f}s")
-
-        # ── Wait for ACK on initial send ──
-        if initial_ack:
-            logger.debug(f"DM retry: waiting {wait_s:.0f}s for initial ACK {initial_ack[:8]}...")
-            ack_event = await self.mc.dispatcher.wait_for_event(
-                EventType.ACK,
-                attribute_filters={"code": initial_ack},
-                timeout=wait_s
-            )
-            if ack_event:
-                self._confirm_delivery(dm_id, initial_ack, ack_event)
-                return
-            logger.debug(f"DM retry: initial ACK not received (timeout)")
-
-        attempt = 0  # Global attempt counter (0 = initial send already done)
-
+        # ── Pre-compute path split and max_attempts ──
         def _split_primary_and_others(paths):
-            """Separate primary (starred) path from the rest."""
             primary = None
             others = []
             for p in paths:
@@ -1329,16 +1329,76 @@ class DeviceManager:
                     others.append(p)
             return primary, others
 
+        primary_path = None
+        other_paths = []
+        rotation_order = []
+        if has_configured_paths:
+            primary_path, other_paths = _split_primary_and_others(configured_paths)
+            rotation_order = ([primary_path] if primary_path else []) + other_paths
+
+        retries_per_path = max(1, cfg['direct_max_retries'])
+
+        if scenario == "S1_FLOOD":
+            max_attempts = 1 + cfg['flood_max_retries']
+        elif scenario == "S2_DIRECT_FLOOD":
+            max_attempts = 1 + cfg['direct_max_retries']
+            if not no_auto_flood:
+                max_attempts += cfg['direct_flood_retries']
+        elif scenario == "S3_FLOOD_SD":
+            max_attempts = (1 + cfg['flood_max_retries']
+                            + len(rotation_order) * retries_per_path)
+        else:  # S4
+            deduped = sum(1 for p in rotation_order
+                          if self._paths_match(original_out_path, original_out_path_len, p))
+            effective_sd = len(rotation_order) - deduped
+            max_attempts = 1 + cfg['direct_max_retries'] + effective_sd * retries_per_path
+            if not no_auto_flood:
+                max_attempts += cfg['flood_max_retries']
+
+        # Track current path description for delivery info
+        path_desc = "FLOOD" if not has_path else "DIRECT"
+
+        logger.info(f"DM retry task started: dm_id={dm_id}, scenario={scenario}, "
+                     f"configured_paths={len(configured_paths)}, no_auto_flood={no_auto_flood}, "
+                     f"max_attempts={max_attempts}, wait={wait_s:.0f}s")
+
+        # ── Local helper: emit status, send, store delivery info on success ──
+        async def _retry(attempt_num, min_wait_s):
+            display = attempt_num + 1  # attempt 0 = initial send = display 1
+            self._emit_retry_status(dm_id, initial_ack, display, max_attempts)
+            delivered = await self._dm_retry_send_and_wait(
+                contact, text, timestamp, attempt_num, dm_id,
+                suggested_timeout, min_wait_s
+            )
+            if delivered:
+                self.db.update_dm_delivery_info(
+                    dm_id, display, max_attempts, path_desc)
+            return delivered
+
+        # ── Emit status for initial send (attempt 1) and wait for ACK ──
+        self._emit_retry_status(dm_id, initial_ack, 1, max_attempts)
+        if initial_ack:
+            logger.debug(f"DM retry: waiting {wait_s:.0f}s for initial ACK {initial_ack[:8]}...")
+            ack_event = await self.mc.dispatcher.wait_for_event(
+                EventType.ACK,
+                attribute_filters={"code": initial_ack},
+                timeout=wait_s
+            )
+            if ack_event:
+                self._confirm_delivery(dm_id, initial_ack, ack_event)
+                self.db.update_dm_delivery_info(dm_id, 1, max_attempts, path_desc)
+                return
+            logger.debug(f"DM retry: initial ACK not received (timeout)")
+
+        attempt = 0  # Global attempt counter (0 = initial send already done)
+
         # ════════════════════════════════════════════════════════════
         # Scenario 1: No path, no configured paths → FLOOD only
         # ════════════════════════════════════════════════════════════
         if not has_path and not has_configured_paths:
             for _ in range(cfg['flood_max_retries']):
                 attempt += 1
-                if await self._dm_retry_send_and_wait(
-                    contact, text, timestamp, attempt, dm_id,
-                    suggested_timeout, float(cfg['flood_interval'])
-                ):
+                if await _retry(attempt, float(cfg['flood_interval'])):
                     return
 
         # ════════════════════════════════════════════════════════════
@@ -1348,10 +1408,7 @@ class DeviceManager:
             # Phase 1: Direct retries on current ŚK
             for _ in range(cfg['direct_max_retries']):
                 attempt += 1
-                if await self._dm_retry_send_and_wait(
-                    contact, text, timestamp, attempt, dm_id,
-                    suggested_timeout, float(cfg['direct_interval'])
-                ):
+                if await _retry(attempt, float(cfg['direct_interval'])):
                     return
 
             # Phase 2: Optional FLOOD fallback (controlled by no_auto_flood)
@@ -1361,51 +1418,40 @@ class DeviceManager:
                     logger.info("DM retry: direct exhausted, resetting to FLOOD")
                 except Exception:
                     pass
+                path_desc = "FLOOD"
                 for _ in range(cfg['direct_flood_retries']):
                     attempt += 1
-                    if await self._dm_retry_send_and_wait(
-                        contact, text, timestamp, attempt, dm_id,
-                        suggested_timeout, float(cfg['flood_interval'])
-                    ):
+                    if await _retry(attempt, float(cfg['flood_interval'])):
                         return
 
         # ════════════════════════════════════════════════════════════
         # Scenario 3: No path, has configured paths → FLOOD first, then ŚD rotation
         # ════════════════════════════════════════════════════════════
         elif not has_path and has_configured_paths:
-            primary_path, other_paths = _split_primary_and_others(configured_paths)
-
             # Phase 1: FLOOD retries per NoPath settings (discover new path)
             logger.info("DM retry: FLOOD first to discover new path")
             for _ in range(cfg['flood_max_retries']):
                 attempt += 1
-                if await self._dm_retry_send_and_wait(
-                    contact, text, timestamp, attempt, dm_id,
-                    suggested_timeout, float(cfg['flood_interval'])
-                ):
+                if await _retry(attempt, float(cfg['flood_interval'])):
                     return  # Firmware sets discovered path as ŚK
 
             # Phase 2: ŚD rotation (primary first, then others by sort_order)
             logger.info("DM retry: FLOOD exhausted, rotating through configured paths")
-            rotation_order = ([primary_path] if primary_path else []) + other_paths
-            retries_per_path = max(1, cfg['direct_max_retries'])
             direct_interval = float(cfg['direct_interval'])
 
             for path_info in rotation_order:
                 try:
                     await self._change_path_async(contact, path_info['path_hex'], path_info['hash_size'])
-                    logger.info(f"DM retry: switched to path '{path_info.get('label', '')}' "
-                                f"({path_info['path_hex']})")
+                    label = path_info.get('label', '')
+                    path_desc = f"{label} ({path_info['path_hex']})" if label else path_info['path_hex']
+                    logger.info(f"DM retry: switched to path '{label}' ({path_info['path_hex']})")
                 except Exception as e:
                     logger.warning(f"DM retry: failed to switch path: {e}")
                     continue
 
                 for _ in range(retries_per_path):
                     attempt += 1
-                    if await self._dm_retry_send_and_wait(
-                        contact, text, timestamp, attempt, dm_id,
-                        suggested_timeout, direct_interval
-                    ):
+                    if await _retry(attempt, direct_interval):
                         await self._restore_primary_path(contact, contact_pubkey)
                         return
 
@@ -1416,21 +1462,14 @@ class DeviceManager:
         # Scenario 4: Has path + has configured paths → DIRECT on ŚK, ŚD rotation, optional FLOOD
         # ════════════════════════════════════════════════════════════
         else:  # has_path and has_configured_paths
-            primary_path, other_paths = _split_primary_and_others(configured_paths)
-
             # Phase 1: Direct retries on current ŚK
             for _ in range(cfg['direct_max_retries']):
                 attempt += 1
-                if await self._dm_retry_send_and_wait(
-                    contact, text, timestamp, attempt, dm_id,
-                    suggested_timeout, float(cfg['direct_interval'])
-                ):
+                if await _retry(attempt, float(cfg['direct_interval'])):
                     return  # Delivered on ŚK, no path change needed
 
             # Phase 2: ŚD rotation with dedup
             logger.info("DM retry: direct on ŚK exhausted, rotating through configured paths")
-            rotation_order = ([primary_path] if primary_path else []) + other_paths
-            retries_per_path = max(1, cfg['direct_max_retries'])
             direct_interval = float(cfg['direct_interval'])
 
             for path_info in rotation_order:
@@ -1442,18 +1481,16 @@ class DeviceManager:
 
                 try:
                     await self._change_path_async(contact, path_info['path_hex'], path_info['hash_size'])
-                    logger.info(f"DM retry: switched to path '{path_info.get('label', '')}' "
-                                f"({path_info['path_hex']})")
+                    label = path_info.get('label', '')
+                    path_desc = f"{label} ({path_info['path_hex']})" if label else path_info['path_hex']
+                    logger.info(f"DM retry: switched to path '{label}' ({path_info['path_hex']})")
                 except Exception as e:
                     logger.warning(f"DM retry: failed to switch path: {e}")
                     continue
 
                 for _ in range(retries_per_path):
                     attempt += 1
-                    if await self._dm_retry_send_and_wait(
-                        contact, text, timestamp, attempt, dm_id,
-                        suggested_timeout, direct_interval
-                    ):
+                    if await _retry(attempt, direct_interval):
                         await self._restore_primary_path(contact, contact_pubkey)
                         return
 
@@ -1464,19 +1501,19 @@ class DeviceManager:
                     logger.info("DM retry: all paths exhausted, falling back to FLOOD")
                 except Exception:
                     pass
+                path_desc = "FLOOD"
                 for _ in range(cfg['flood_max_retries']):
                     attempt += 1
-                    if await self._dm_retry_send_and_wait(
-                        contact, text, timestamp, attempt, dm_id,
-                        suggested_timeout, float(cfg['flood_interval'])
-                    ):
+                    if await _retry(attempt, float(cfg['flood_interval'])):
                         await self._restore_primary_path(contact, contact_pubkey)
                         return
 
             # Restore ŚG regardless of outcome
             await self._restore_primary_path(contact, contact_pubkey)
 
-        # ── Common epilogue: grace period for late ACKs ──
+        # ── Common epilogue: mark failed, grace period for late ACKs ──
+        self.db.update_dm_delivery_status(dm_id, 'failed')
+        self._emit_retry_failed(dm_id, initial_ack)
         logger.warning(f"DM retry exhausted ({attempt + 1} total attempts, scenario={scenario}) "
                        f"for dm_id={dm_id}")
         self._retry_tasks.pop(dm_id, None)
