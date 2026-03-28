@@ -121,16 +121,9 @@ function connectChatSocket() {
         updateStatus(data.connected ? 'connected' : 'disconnected');
     });
 
-    // Real-time path change — refresh Contact Info if open for this contact
+    // Real-time path change — always refresh contactsList, re-render modal if open
     chatSocket.on('path_changed', async (data) => {
-        const modalEl = document.getElementById('dmContactInfoModal');
-        if (!modalEl || !modalEl.classList.contains('show')) return;
-        const currentPubkey = getCurrentContactPubkey();
-        if (!currentPubkey) return;
-        const changedKey = (data.public_key || '').toLowerCase();
-        if (changedKey && changedKey.startsWith(currentPubkey.toLowerCase())) {
-            await refreshContactInfoPath();
-        }
+        await refreshContactInfoPath();
     });
 }
 
