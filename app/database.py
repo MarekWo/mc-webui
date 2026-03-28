@@ -688,6 +688,21 @@ class Database:
                 "UPDATE direct_messages SET delivery_status=? WHERE id=?",
                 (status, dm_id))
 
+    def get_recent_delivered_dm_with_empty_path(self, contact_pubkey: str) -> Optional[Dict]:
+        """Find most recent delivered outgoing DM with empty delivery_path."""
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT id, delivery_attempt, delivery_max_attempts
+                   FROM direct_messages
+                   WHERE contact_pubkey=? AND direction='out'
+                   AND (delivery_path IS NULL OR delivery_path='')
+                   AND delivery_status IS NULL
+                   AND delivery_attempt IS NOT NULL
+                   ORDER BY id DESC LIMIT 1""",
+                (contact_pubkey,)
+            ).fetchone()
+            return dict(row) if row else None
+
     def relink_orphaned_dms(self, public_key: str, name: str = '') -> int:
         """Re-link DMs with NULL contact_pubkey back to this contact.
 

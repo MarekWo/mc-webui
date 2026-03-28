@@ -809,6 +809,25 @@ class DeviceManager:
                         self._retry_tasks.pop(dm_id, None)
                     break  # Only confirm the most recent pending DM to this contact
 
+            # Update delivery_path for recently-delivered DMs where _on_ack
+            # stored empty path (FLOOD mode) before PATH_UPDATE could provide it
+            discovered_path = data.get('path', '')
+            if discovered_path and pubkey:
+                recent = self.db.get_recent_delivered_dm_with_empty_path(pubkey)
+                if recent:
+                    self.db.update_dm_delivery_info(
+                        recent['id'], recent['delivery_attempt'],
+                        recent['delivery_max_attempts'], discovered_path)
+                    if self.socketio:
+                        self.socketio.emit('dm_delivered_info', {
+                            'dm_id': recent['id'],
+                            'attempt': recent['delivery_attempt'],
+                            'max_attempts': recent['delivery_max_attempts'],
+                            'path': discovered_path,
+                        }, namespace='/chat')
+                    logger.debug(f"Updated delivery path for dm_id={recent['id']} "
+                                 f"with discovered path {discovered_path[:16]}")
+
         except Exception as e:
             logger.error(f"Error handling path update: {e}")
 
