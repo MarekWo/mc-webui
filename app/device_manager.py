@@ -189,7 +189,6 @@ class DeviceManager:
                 logger.info(f"Connecting via BLE: {self.config.MC_BLE_ADDRESS}")
                 self.mc = await MeshCore.create_ble(
                     address=self.config.MC_BLE_ADDRESS,
-                    pin=self.config.MC_BLE_PIN or None,
                     auto_reconnect=False,
                 )
             elif self.config.use_tcp:

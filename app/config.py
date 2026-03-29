@@ -33,8 +33,8 @@ class Config:
     MC_TCP_PORT = int(os.getenv('MC_TCP_PORT', '5555'))
 
     # v2: BLE connection (alternative to serial/TCP, for BLE companion devices)
+    # Device must be paired and trusted on host before starting (see docs/meshcore_bluetooth_pairing.md)
     MC_BLE_ADDRESS = os.getenv('MC_BLE_ADDRESS', '')  # BLE MAC address or device name filter
-    MC_BLE_PIN = os.getenv('MC_BLE_PIN', '')           # PIN for BLE pairing
 
     # v2: Backup
     MC_BACKUP_ENABLED = os.getenv('MC_BACKUP_ENABLED', 'true').lower() == 'true'
