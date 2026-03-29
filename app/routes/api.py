@@ -632,15 +632,19 @@ def get_status():
             latest = parser.get_latest_message()
             latest_timestamp = latest['timestamp'] if latest else None
 
-        return jsonify({
+        status_data = {
             'success': True,
             'connected': connected,
             'device_name': runtime_config.get_device_name(),
             'device_name_source': runtime_config.get_device_name_source(),
+            'transport_type': config.transport_type,
             'serial_port': config.MC_SERIAL_PORT,
             'message_count': message_count,
             'latest_message_timestamp': latest_timestamp
-        }), 200
+        }
+        if config.use_ble:
+            status_data['ble_address'] = config.MC_BLE_ADDRESS
+        return jsonify(status_data), 200
 
     except Exception as e:
         logger.error(f"Error getting status: {e}")

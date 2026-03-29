@@ -181,11 +181,18 @@ class DeviceManager:
         raise RuntimeError("No serial port detected. Set MC_SERIAL_PORT explicitly.")
 
     async def _connect(self):
-        """Connect to device via serial or TCP and subscribe to events."""
+        """Connect to device via BLE, TCP, or serial and subscribe to events."""
         from meshcore import MeshCore
 
         try:
-            if self.config.use_tcp:
+            if self.config.use_ble:
+                logger.info(f"Connecting via BLE: {self.config.MC_BLE_ADDRESS}")
+                self.mc = await MeshCore.create_ble(
+                    address=self.config.MC_BLE_ADDRESS,
+                    pin=self.config.MC_BLE_PIN or None,
+                    auto_reconnect=False,
+                )
+            elif self.config.use_tcp:
                 logger.info(f"Connecting via TCP: {self.config.MC_TCP_HOST}:{self.config.MC_TCP_PORT}")
                 self.mc = await MeshCore.create_tcp(
                     host=self.config.MC_TCP_HOST,

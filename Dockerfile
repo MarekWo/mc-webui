@@ -3,10 +3,12 @@
 
 FROM python:3.11-slim
 
-# Install system deps: curl (healthcheck), udev (serial device support)
+# Install system deps: curl (healthcheck), udev (serial), bluez+dbus (BLE)
 RUN apt-get update && apt-get install -y \
     curl \
     udev \
+    bluez \
+    dbus \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

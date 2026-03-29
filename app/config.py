@@ -32,6 +32,10 @@ class Config:
     MC_TCP_HOST = os.getenv('MC_TCP_HOST', '')  # empty = use serial
     MC_TCP_PORT = int(os.getenv('MC_TCP_PORT', '5555'))
 
+    # v2: BLE connection (alternative to serial/TCP, for BLE companion devices)
+    MC_BLE_ADDRESS = os.getenv('MC_BLE_ADDRESS', '')  # BLE MAC address or device name filter
+    MC_BLE_PIN = os.getenv('MC_BLE_PIN', '')           # PIN for BLE pairing
+
     # v2: Backup
     MC_BACKUP_ENABLED = os.getenv('MC_BACKUP_ENABLED', 'true').lower() == 'true'
     MC_BACKUP_HOUR = int(os.getenv('MC_BACKUP_HOUR', '2'))
@@ -65,12 +69,31 @@ class Config:
         return Path(self.MC_CONFIG_DIR) / 'mc-webui.db'
 
     @property
+    def use_ble(self) -> bool:
+        """True if BLE transport should be used (highest priority)"""
+        return bool(self.MC_BLE_ADDRESS)
+
+    @property
     def use_tcp(self) -> bool:
         """True if TCP transport should be used instead of serial"""
         return bool(self.MC_TCP_HOST)
 
+    @property
+    def transport_type(self) -> str:
+        """Return active transport type: 'ble', 'tcp', or 'serial'"""
+        if self.use_ble:
+            return 'ble'
+        if self.use_tcp:
+            return 'tcp'
+        return 'serial'
+
     def __repr__(self):
-        transport = f"tcp={self.MC_TCP_HOST}:{self.MC_TCP_PORT}" if self.use_tcp else f"serial={self.MC_SERIAL_PORT}"
+        if self.use_ble:
+            transport = f"ble={self.MC_BLE_ADDRESS}"
+        elif self.use_tcp:
+            transport = f"tcp={self.MC_TCP_HOST}:{self.MC_TCP_PORT}"
+        else:
+            transport = f"serial={self.MC_SERIAL_PORT}"
         return (
             f"Config(device={self.MC_DEVICE_NAME}, "
             f"{transport}, "

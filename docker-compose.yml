@@ -11,15 +11,22 @@ services:
     device_cgroup_rules:
       - 'c 188:* rmw'
       - 'c 166:* rmw'
+    # NET_ADMIN + NET_RAW for BLE scanning (no overhead when BLE unused)
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     volumes:
       - "${MC_CONFIG_DIR:-./data}:/data:rw"
       - "/dev:/dev"
+      - "/var/run/dbus:/var/run/dbus"  # BlueZ D-Bus (for BLE)
     environment:
       - MC_SERIAL_PORT=${MC_SERIAL_PORT:-auto}
       - MC_DEVICE_NAME=${MC_DEVICE_NAME:-MeshCore}
       - MC_CONFIG_DIR=/data
       - MC_TCP_HOST=${MC_TCP_HOST:-}
       - MC_TCP_PORT=${MC_TCP_PORT:-5555}
+      - MC_BLE_ADDRESS=${MC_BLE_ADDRESS:-}
+      - MC_BLE_PIN=${MC_BLE_PIN:-}
       - MC_BACKUP_ENABLED=${MC_BACKUP_ENABLED:-true}
       - MC_BACKUP_HOUR=${MC_BACKUP_HOUR:-2}
       - MC_BACKUP_RETENTION_DAYS=${MC_BACKUP_RETENTION_DAYS:-7}

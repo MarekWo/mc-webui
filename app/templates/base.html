@@ -47,6 +47,11 @@
                 {% if device_name %}
                 <small class="text-white-50 d-none d-sm-inline">- {{ device_name }}</small>
                 {% endif %}
+                {% if transport_type == 'ble' %}
+                <span class="badge bg-info ms-1 d-none d-sm-inline" title="Bluetooth Low Energy">BLE</span>
+                {% elif transport_type == 'tcp' %}
+                <span class="badge bg-warning text-dark ms-1 d-none d-sm-inline" title="TCP connection">TCP</span>
+                {% endif %}
             </span>
             <div class="d-flex align-items-center gap-2">
                 <div id="notificationBell" class="btn btn-outline-light position-relative navbar-touch-btn" style="cursor: pointer;" onclick="markAllChannelsRead()" title="Mark all as read">

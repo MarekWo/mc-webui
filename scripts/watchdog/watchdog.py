@@ -136,22 +136,26 @@ def auto_detect_usb_device() -> str:
         log(f"Error during USB device auto-detection: {e}", "ERROR")
         return None
 
-def is_tcp_connection() -> bool:
-    """Check if the application is configured to use a TCP connection instead of a serial port."""
+def _read_env_value(key: str) -> str:
+    """Read a value from the .env file. Returns empty string if not found."""
     env_file = os.path.join(MCWEBUI_DIR, '.env')
-    
     if os.path.exists(env_file):
         try:
             with open(env_file, 'r') as f:
                 for line in f:
-                    if line.startswith('MC_TCP_HOST='):
-                        val = line.split('=', 1)[1].strip().strip('"\'')
-                        if val:
-                            return True
+                    if line.startswith(f'{key}='):
+                        return line.split('=', 1)[1].strip().strip('"\'')
         except Exception as e:
-            log(f"Failed to read .env file for TCP host: {e}", "WARN")
+            log(f"Failed to read .env file for {key}: {e}", "WARN")
+    return ''
 
-    return False
+def is_tcp_connection() -> bool:
+    """Check if the application is configured to use a TCP connection instead of a serial port."""
+    return bool(_read_env_value('MC_TCP_HOST'))
+
+def is_ble_connection() -> bool:
+    """Check if the application is configured to use a BLE connection."""
+    return bool(_read_env_value('MC_BLE_ADDRESS'))
 
 def reset_esp32_device():
     """Perform a hardware reset on ESP32/LoRa device using DTR/RTS lines via ioctl."""
@@ -433,7 +437,8 @@ def handle_unhealthy_container(container_name: str, status: dict):
     restart_success = False
     if container_name == 'mc-webui':
         recent_restarts = count_recent_restarts(container_name, minutes=8)
-        if recent_restarts >= 3 and not is_tcp_connection():
+        uses_serial = not is_tcp_connection() and not is_ble_connection()
+        if recent_restarts >= 3 and uses_serial:
             log(f"{container_name} has been restarted {recent_restarts} times in the last 8 minutes. Attempting hardware USB reset.", "WARN")
             # Stop the container first so it releases the serial port
             run_compose_command(['stop', container_name])
@@ -442,8 +447,8 @@ def handle_unhealthy_container(container_name: str, status: dict):
                 time.sleep(5)  # Give OS time to re-enumerate the device
             restart_success = start_container(container_name)
         else:
-            if recent_restarts >= 3 and is_tcp_connection():
-                log(f"{container_name} has been restarted {recent_restarts} times in the last 8 minutes. TCP connection used, skipping hardware USB reset.", "WARN")
+            if recent_restarts >= 3 and not uses_serial:
+                log(f"{container_name} has been restarted {recent_restarts} times in the last 8 minutes. Non-serial connection, skipping hardware USB reset.", "WARN")
             restart_success = restart_container(container_name)
     else:
         # Restart the container
@@ -512,7 +517,8 @@ def handle_unresponsive_device(container_name: str, status: dict):
     restart_success = False
     if container_name == 'mc-webui':
         recent_restarts = count_recent_restarts(container_name, minutes=8)
-        if recent_restarts >= 3 and not is_tcp_connection():
+        uses_serial = not is_tcp_connection() and not is_ble_connection()
+        if recent_restarts >= 3 and uses_serial:
             log(f"{container_name} has been restarted {recent_restarts} times in the last 8 minutes. Attempting hardware USB reset.", "WARN")
             # Stop the container first so it releases the serial port
             run_compose_command(['stop', container_name])
@@ -521,8 +527,8 @@ def handle_unresponsive_device(container_name: str, status: dict):
                 time.sleep(5)  # Give OS time to re-enumerate the device
             restart_success = start_container(container_name)
         else:
-            if recent_restarts >= 3 and is_tcp_connection():
-                log(f"{container_name} has been restarted {recent_restarts} times in the last 8 minutes. TCP connection used, skipping hardware USB reset.", "WARN")
+            if recent_restarts >= 3 and not uses_serial:
+                log(f"{container_name} has been restarted {recent_restarts} times in the last 8 minutes. Non-serial connection, skipping hardware USB reset.", "WARN")
             restart_success = restart_container(container_name)
     else:
         # Restart the container

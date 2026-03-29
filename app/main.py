@@ -225,10 +225,14 @@ def create_app():
     app.config['DEBUG'] = config.FLASK_DEBUG
     app.config['SECRET_KEY'] = 'mc-webui-secret-key-change-in-production'
 
-    # Inject version and branch into all templates
+    # Inject version, branch, and transport type into all templates
     @app.context_processor
-    def inject_version():
-        return {'version': VERSION_STRING, 'git_branch': GIT_BRANCH}
+    def inject_globals():
+        return {
+            'version': VERSION_STRING,
+            'git_branch': GIT_BRANCH,
+            'transport_type': config.transport_type,
+        }
 
     # Register blueprints
     app.register_blueprint(views_bp)
@@ -339,7 +343,7 @@ def create_app():
     schedule_daily_archiving()
     init_retention_schedule(db=db)
 
-    logger.info(f"mc-webui v2 started — transport: {'TCP' if config.use_tcp else 'serial'}")
+    logger.info(f"mc-webui v2 started — transport: {config.transport_type}")
     logger.info(f"Database: {db.db_path}")
 
     return app
