@@ -180,6 +180,35 @@ class DeviceManager:
 
         raise RuntimeError("No serial port detected. Set MC_SERIAL_PORT explicitly.")
 
+    @staticmethod
+    async def _ble_force_disconnect(address: str):
+        """Force-disconnect a BLE device via D-Bus if BlueZ still holds a stale connection.
+
+        BlueZ auto-reconnects trusted devices, which prevents bleak from
+        establishing a new GATT session after a container restart.
+        """
+        try:
+            import subprocess
+            dbus_path = '/org/bluez/hci0/dev_' + address.replace(':', '_')
+            # Check if device is currently connected
+            result = subprocess.run(
+                ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
+                 dbus_path, 'org.freedesktop.DBus.Properties.Get',
+                 'string:org.bluez.Device1', 'string:Connected'],
+                capture_output=True, text=True, timeout=5
+            )
+            if 'boolean true' in result.stdout:
+                logger.info(f"BLE device {address} has stale BlueZ connection, disconnecting...")
+                subprocess.run(
+                    ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
+                     dbus_path, 'org.bluez.Device1.Disconnect'],
+                    capture_output=True, text=True, timeout=5
+                )
+                await asyncio.sleep(1)  # Let BlueZ settle
+                logger.info("Stale BLE connection cleared")
+        except Exception as e:
+            logger.debug(f"BLE force-disconnect check skipped: {e}")
+
     async def _connect(self):
         """Connect to device via BLE, TCP, or serial and subscribe to events."""
         from meshcore import MeshCore
@@ -187,6 +216,10 @@ class DeviceManager:
         try:
             if self.config.use_ble:
                 logger.info(f"Connecting via BLE: {self.config.MC_BLE_ADDRESS}")
+                # Force-disconnect any stale BlueZ connection before connecting.
+                # BlueZ auto-reconnects trusted devices, which blocks bleak from
+                # establishing a fresh GATT session after a container restart.
+                await self._ble_force_disconnect(self.config.MC_BLE_ADDRESS)
                 self.mc = await MeshCore.create_ble(
                     address=self.config.MC_BLE_ADDRESS,
                     auto_reconnect=False,
