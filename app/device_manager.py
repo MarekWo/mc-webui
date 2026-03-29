@@ -220,6 +220,11 @@ class DeviceManager:
             self._device_name = self._self_info.get('name', self.config.MC_DEVICE_NAME)
             self._connected = True
 
+            # Update runtime config so navbar/templates show correct device name
+            # (even if connection took longer than the startup wait timeout)
+            from app.config import runtime_config
+            runtime_config.set_device_name(self._device_name, "device")
+
             # Store device info in database
             self.db.set_device_info(
                 public_key=self._self_info.get('public_key', ''),
