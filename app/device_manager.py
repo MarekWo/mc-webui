@@ -1669,6 +1669,9 @@ class DeviceManager:
                 dm_id=dm_id,
             )
 
+        # Mark delivery_status so reloading messages from DB shows delivered
+        self.db.update_dm_delivery_status(dm_id, 'delivered')
+
         logger.info(f"DM delivery confirmed: dm_id={dm_id}, ack={ack_code}")
 
         if self.socketio:

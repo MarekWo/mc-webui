@@ -2032,7 +2032,16 @@ def get_dm_messages():
             elif msg['direction'] == 'outgoing' and msg.get('recipient'):
                 display_name = msg['recipient']
 
-        # Merge delivery status from ACK tracking
+        # Set delivery status from DB field (covers both delivered and failed)
+        for msg in messages:
+            if msg.get('direction') == 'outgoing':
+                ds = msg.get('delivery_status')
+                if ds == 'delivered':
+                    msg['status'] = 'delivered'
+                elif ds == 'failed':
+                    msg['status'] = 'failed'
+
+        # Merge additional delivery info from ACK tracking
         ack_codes = [msg['expected_ack'] for msg in messages
                      if msg.get('direction') == 'outgoing' and msg.get('expected_ack')]
         if ack_codes:
@@ -2048,12 +2057,6 @@ def get_dm_messages():
                             msg['delivery_route'] = ack_info.get('route_type', ack_info.get('route'))
             except Exception as e:
                 logger.debug(f"ACK status fetch failed (non-critical): {e}")
-
-        # Set failed status for messages without ACK but marked failed in DB
-        for msg in messages:
-            if msg.get('direction') == 'outgoing' and msg.get('status') != 'delivered':
-                if msg.get('delivery_status') == 'failed':
-                    msg['status'] = 'failed'
 
         return jsonify({
             'success': True,
