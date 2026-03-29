@@ -81,3 +81,47 @@ This is the most crucial step. You must "trust" the device so that `mc-webui` ca
    ```
 
 Your MeshCore device is now permanently paired, trusted, and ready to communicate with the `mc-webui` server!
+
+---
+
+## Troubleshooting
+
+### Checking BLE Connection Status
+
+**Do NOT use `bluetoothctl info <MAC>` to check connection state** — it auto-connects to trusted devices, which steals the connection from the `mc-webui` container.
+
+Instead, use `hcitool` which only reads status without triggering a connection:
+```bash
+hcitool con
+```
+Expected output when connected:
+```
+Connections:
+	< LE AC:A7:04:08:66:A1 handle 65 state 1 lm CENTRAL AUTH ENCRYPT
+```
+
+### Container Can't Connect (connection loop)
+
+If `mc-webui` is stuck in a "Failed to connect to device / Retrying..." loop:
+
+1. Check if something else holds the connection:
+   ```bash
+   hcitool con
+   ```
+2. If a connection exists, disconnect it:
+   ```bash
+   bluetoothctl disconnect AC:A7:04:08:66:A1
+   ```
+3. Restart the container:
+   ```bash
+   cd ~/mc-webui && docker compose restart mc-webui
+   ```
+4. Verify (wait ~15s for retry):
+   ```bash
+   hcitool con
+   curl -s http://localhost:5000/api/status | python3 -m json.tool
+   ```
+
+### Only One BLE Client at a Time
+
+A BLE peripheral can only be connected to one central at a time. If `bluetoothctl`, another app, or a mobile phone is connected, the container will fail. Always disconnect other clients before starting `mc-webui`.
