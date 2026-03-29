@@ -23,6 +23,7 @@
     --text-secondary: #495057;
     --text-muted: #6c757d;
     --text-meta: #adb5bd;
+    --dm-meta-color: #8b939b;
 
     /* Borders */
     --border-color: #dee2e6;
@@ -176,6 +177,7 @@
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
     --text-meta: #475569;
+    --dm-meta-color: #5c6d82;
 
     /* Borders */
     --border-color: #334155;

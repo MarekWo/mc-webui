@@ -103,7 +103,7 @@ function connectChatSocket() {
         if (!data.expected_ack) return;
 
         // Find message with matching expected_ack in DOM and update status
-        const msgElements = document.querySelectorAll('#dmMessagesList .dm-message.own');
+        const msgElements = document.querySelectorAll('#dmMessagesList .dm-message-wrapper.own');
         msgElements.forEach(el => {
             const statusEl = el.querySelector(`.dm-status[data-ack="${data.expected_ack}"]`);
             if (statusEl) {
@@ -1142,8 +1142,11 @@ function displayMessages(messages) {
     container.innerHTML = '';
 
     messages.forEach(msg => {
-        const div = document.createElement('div');
-        div.className = `dm-message ${msg.is_own ? 'own' : 'other'}`;
+        const side = msg.is_own ? 'own' : 'other';
+
+        // Wrapper: time row + bubble
+        const wrapper = document.createElement('div');
+        wrapper.className = `dm-message-wrapper ${side}`;
 
         // Status icon for own messages
         let statusIcon = '';
@@ -1217,19 +1220,25 @@ function displayMessages(messages) {
             </div>
         ` : '';
 
-        div.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center" style="font-size: 0.7rem;">
-                <span class="text-muted">${formatTime(msg.timestamp)}</span>
-                ${statusIcon}
-            </div>
-            <div>${processMessageContent(msg.content)}</div>
+        // Time row above bubble
+        const timeRow = document.createElement('div');
+        timeRow.className = 'dm-time-row';
+        timeRow.innerHTML = `<span>${formatTime(msg.timestamp)}</span>${statusIcon}`;
+        wrapper.appendChild(timeRow);
+
+        // Message bubble
+        const bubble = document.createElement('div');
+        bubble.className = `dm-message ${side}`;
+        bubble.innerHTML = `
+            <div class="dm-content">${processMessageContent(msg.content)}</div>
             ${deliveryMeta}
             ${retryInfo}
             ${meta}
             ${resendBtn}
         `;
+        wrapper.appendChild(bubble);
 
-        container.appendChild(div);
+        container.appendChild(wrapper);
     });
 
     // Scroll to bottom
@@ -1838,7 +1847,7 @@ function closeDmFilterBar() {
 function applyDmFilter(query) {
     currentDmFilterQuery = query.trim();
     const container = document.getElementById('dmMessagesList');
-    const messages = container.querySelectorAll('.dm-message');
+    const messages = container.querySelectorAll('.dm-message-wrapper');
     const matchCountEl = document.getElementById('dmFilterMatchCount');
 
     // Remove any existing no-matches message
@@ -1886,72 +1895,48 @@ function applyDmFilter(query) {
 }
 
 /**
- * Get text content from a DM message
- * DM structure: timestamp div, then content div, then meta/actions
- * @param {HTMLElement} msgEl - DM message element
+ * Get text content from a DM message wrapper
+ * @param {HTMLElement} wrapperEl - DM message wrapper element
  * @returns {string} - Text content
  */
-function getDmMessageText(msgEl) {
-    // The message content is in a div that is not the timestamp row, meta, or actions
-    const children = msgEl.children;
-    for (let i = 0; i < children.length; i++) {
-        const child = children[i];
-        // Skip timestamp row (has d-flex class), meta, and actions
-        if (!child.classList.contains('d-flex') &&
-            !child.classList.contains('dm-meta') &&
-            !child.classList.contains('dm-actions')) {
-            return child.textContent || '';
-        }
-    }
-    return '';
+function getDmMessageText(wrapperEl) {
+    const content = wrapperEl.querySelector('.dm-content');
+    return content ? content.textContent || '' : '';
 }
 
 /**
  * Highlight matching text in a DM message
- * @param {HTMLElement} msgEl - DM message element
+ * @param {HTMLElement} wrapperEl - DM message wrapper element
  * @param {number} index - Message index for tracking
  */
-function highlightDmMessageContent(msgEl, index) {
+function highlightDmMessageContent(wrapperEl, index) {
     const msgId = 'dm_msg_' + index;
+    const content = wrapperEl.querySelector('.dm-content');
+    if (!content) return;
 
-    // Find content div (not timestamp, not meta, not actions)
-    const children = Array.from(msgEl.children);
-    for (const child of children) {
-        if (!child.classList.contains('d-flex') &&
-            !child.classList.contains('dm-meta') &&
-            !child.classList.contains('dm-actions')) {
-
-            if (!originalDmMessageContents.has(msgId)) {
-                originalDmMessageContents.set(msgId, child.innerHTML);
-            }
-
-            const originalHtml = originalDmMessageContents.get(msgId);
-            child.innerHTML = FilterUtils.highlightMatches(originalHtml, currentDmFilterQuery);
-            break;
-        }
+    if (!originalDmMessageContents.has(msgId)) {
+        originalDmMessageContents.set(msgId, content.innerHTML);
     }
+
+    const originalHtml = originalDmMessageContents.get(msgId);
+    content.innerHTML = FilterUtils.highlightMatches(originalHtml, currentDmFilterQuery);
 }
 
 /**
  * Restore original DM message content
- * @param {HTMLElement} msgEl - DM message element
+ * @param {HTMLElement} wrapperEl - DM message wrapper element
  */
-function restoreDmOriginalContent(msgEl) {
+function restoreDmOriginalContent(wrapperEl) {
     const container = document.getElementById('dmMessagesList');
-    const messages = Array.from(container.querySelectorAll('.dm-message'));
-    const index = messages.indexOf(msgEl);
+    const wrappers = Array.from(container.querySelectorAll('.dm-message-wrapper'));
+    const index = wrappers.indexOf(wrapperEl);
     const msgId = 'dm_msg_' + index;
 
     if (!originalDmMessageContents.has(msgId)) return;
 
-    const children = Array.from(msgEl.children);
-    for (const child of children) {
-        if (!child.classList.contains('d-flex') &&
-            !child.classList.contains('dm-meta') &&
-            !child.classList.contains('dm-actions')) {
-            child.innerHTML = originalDmMessageContents.get(msgId);
-            break;
-        }
+    const content = wrapperEl.querySelector('.dm-content');
+    if (content) {
+        content.innerHTML = originalDmMessageContents.get(msgId);
     }
 }
 

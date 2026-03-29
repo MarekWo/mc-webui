@@ -492,7 +492,7 @@ main {
         font-size: 0.8rem;
     }
 
-    .dm-message {
+    .dm-message-wrapper {
         max-width: 85%;
     }
 
@@ -683,31 +683,58 @@ main {
     }
 }
 
-/* DM Message Bubbles */
-.dm-message {
+/* DM Message Wrapper - timestamp + bubble */
+.dm-message-wrapper {
     max-width: 70%;
-    padding: 0.75rem 1rem;
-    border-radius: 1rem;
-    word-wrap: break-word;
+    display: flex;
+    flex-direction: column;
     animation: fadeIn 0.3s ease-in;
 }
 
-.dm-message.own {
+.dm-message-wrapper.own {
     align-self: flex-end;
+}
+
+.dm-message-wrapper.other {
+    align-self: flex-start;
+}
+
+/* DM Time Row - above bubble */
+.dm-time-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+    padding: 0 0.25rem;
+}
+
+.dm-message-wrapper.own .dm-time-row {
+    justify-content: flex-end;
+}
+
+/* DM Message Bubbles */
+.dm-message {
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    word-wrap: break-word;
+}
+
+.dm-message.own {
     background-color: var(--msg-own-bg);
     border: 1px solid var(--msg-own-border);
 }
 
 .dm-message.other {
-    align-self: flex-start;
     background-color: var(--msg-other-bg);
     border: 1px solid var(--msg-border);
 }
 
 /* DM Message Metadata */
 .dm-meta {
-    font-size: 0.65rem;
-    color: var(--text-meta);
+    font-size: 0.75rem;
+    color: var(--dm-meta-color);
     margin-top: 0.25rem;
 }
 
@@ -743,8 +770,8 @@ main {
 }
 
 .dm-delivery-meta {
-    font-size: 0.65rem;
-    color: var(--text-meta);
+    font-size: 0.75rem;
+    color: var(--dm-meta-color);
     margin-top: 0.1rem;
 }
 
@@ -1577,7 +1604,7 @@ main {
 
 /* Hidden messages when filtering */
 .message-wrapper.filter-hidden,
-.dm-message.filter-hidden {
+.dm-message-wrapper.filter-hidden {
     display: none !important;
 }
 
