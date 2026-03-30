@@ -963,8 +963,11 @@ function appendMessageFromSocket(data) {
         channel_idx: data.channel_idx,
         snr: data.snr ?? null,
         path_len: data.path_len ?? null,
+        hop_count: data.hop_count ?? null,
+        path_hash_size: data.path_hash_size ?? 1,
         echo_paths: [],
         echo_snrs: [],
+        echo_hash_sizes: [],
         analyzer_url: data.analyzer_url || null,
         pkt_payload: data.pkt_payload || null,
         txt_type: data.txt_type || 0,
@@ -1029,8 +1032,9 @@ function updateMessageMetaDOM(wrapper, meta) {
     if (displaySnr !== null) {
         metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
     }
-    if (meta.path_len !== undefined && meta.path_len !== null) {
-        metaParts.push(`Hops: ${meta.path_len}`);
+    const hopCount = meta.hop_count ?? (meta.path_len !== null && meta.path_len !== undefined ? (meta.path_len & 0x3F) : null);
+    if (hopCount !== null) {
+        metaParts.push(`Hops: ${hopCount}`);
     }
 
     // Build paths from echo data
@@ -1039,11 +1043,18 @@ function updateMessageMetaDOM(wrapper, meta) {
         paths = meta.echo_paths.map((p, i) => ({
             path: p,
             snr: meta.echo_snrs ? meta.echo_snrs[i] : null,
+            hash_size: meta.echo_hash_sizes ? meta.echo_hash_sizes[i] : (meta.path_hash_size || 1),
         }));
     }
     if (paths && paths.length > 0) {
         const firstPath = paths[0];
-        const segments = firstPath.path ? firstPath.path.match(/.{1,2}/g) || [] : [];
+        const chunkLen = (firstPath.hash_size || 1) * 2;
+        const segments = [];
+        if (firstPath.path) {
+            for (let i = 0; i < firstPath.path.length; i += chunkLen) {
+                segments.push(firstPath.path.substring(i, i + chunkLen).toUpperCase());
+            }
+        }
         const shortPath = segments.length > 4
             ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
             : segments.join('\u2192');
@@ -1088,7 +1099,8 @@ function updateMessageMetaDOM(wrapper, meta) {
 
         // Update echo badge
         if (meta.echo_paths && meta.echo_paths.length > 0) {
-            const echoPaths = [...new Set(meta.echo_paths.map(p => p.substring(0, 2)))];
+            const echoPrefixLen = (meta.path_hash_size || 1) * 2;
+            const echoPaths = [...new Set(meta.echo_paths.map(p => p.substring(0, echoPrefixLen).toUpperCase()))];
             const echoCount = echoPaths.length;
             const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
             const actionsEl = msgDiv.querySelector('.message-actions');
@@ -1135,6 +1147,7 @@ function createMessageElement(msg) {
         msg.paths = msg.echo_paths.map((p, i) => ({
             path: p,
             snr: msg.echo_snrs ? msg.echo_snrs[i] : null,
+            hash_size: msg.echo_hash_sizes ? msg.echo_hash_sizes[i] : (msg.path_hash_size || 1),
         }));
     }
 
@@ -1145,13 +1158,20 @@ function createMessageElement(msg) {
     if (displaySnr !== null) {
         metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
     }
-    if (msg.path_len !== undefined && msg.path_len !== null) {
-        metaParts.push(`Hops: ${msg.path_len}`);
+    const msgHopCount = msg.hop_count ?? (msg.path_len !== null && msg.path_len !== undefined ? (msg.path_len & 0x3F) : null);
+    if (msgHopCount !== null) {
+        metaParts.push(`Hops: ${msgHopCount}`);
     }
     if (msg.paths && msg.paths.length > 0) {
         // Show first path inline (shortest/first arrival)
         const firstPath = msg.paths[0];
-        const segments = firstPath.path ? firstPath.path.match(/.{1,2}/g) || [] : [];
+        const chunkLen = (firstPath.hash_size || 1) * 2;
+        const segments = [];
+        if (firstPath.path) {
+            for (let i = 0; i < firstPath.path.length; i += chunkLen) {
+                segments.push(firstPath.path.substring(i, i + chunkLen).toUpperCase());
+            }
+        }
         const shortPath = segments.length > 4
             ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
             : segments.join('\u2192');
@@ -1164,7 +1184,8 @@ function createMessageElement(msg) {
     if (msg.is_own) {
         // Own messages: right-aligned, no avatar
         // Echo badge shows unique repeaters that heard the message + their path codes
-        const echoPaths = [...new Set((msg.echo_paths || []).map(p => p.substring(0, 2)))];
+        const echoPrefixLen2 = (msg.path_hash_size || 1) * 2;
+        const echoPaths = [...new Set((msg.echo_paths || []).map(p => p.substring(0, echoPrefixLen2).toUpperCase()))];
         const echoCount = echoPaths.length;
         const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
         const echoDisplay = echoCount > 0
@@ -1471,10 +1492,16 @@ function showPathsPopup(element, encodedPaths) {
 
     let html = '';
     paths.forEach((p, i) => {
-        const segments = p.path ? p.path.match(/.{1,2}/g) || [] : [];
+        const pChunkLen = (p.hash_size || 1) * 2;
+        const segments = [];
+        if (p.path) {
+            for (let j = 0; j < p.path.length; j += pChunkLen) {
+                segments.push(p.path.substring(j, j + pChunkLen).toUpperCase());
+            }
+        }
         const fullRoute = segments.join(' \u2192 ');
         const snr = p.snr !== null && p.snr !== undefined ? `${p.snr.toFixed(1)} dB` : '?';
-        const hops = p.path_len !== null && p.path_len !== undefined ? p.path_len : segments.length;
+        const hops = segments.length;
         html += `<div class="path-entry">${fullRoute}<span class="path-detail">SNR: ${snr} | Hops: ${hops}</span></div>`;
     });
 
