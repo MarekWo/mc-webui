@@ -130,6 +130,16 @@ This can happen after a power failure during OTA update, flash memory corruption
 
 ---
 
+### BLE Connection Issues
+
+If using Bluetooth Low Energy (BLE) transport, see the dedicated [Bluetooth Pairing Guide](meshcore_bluetooth_pairing.md) for setup and troubleshooting, including:
+- Host preparation (BlueZ configuration, `ControllerMode = le`)
+- Pairing with fixed PIN
+- Trusting the device for automatic reconnection
+- Diagnosing connection loops and stale BlueZ connections
+
+---
+
 ### Contact Management Issues
 
 **Check logs:**

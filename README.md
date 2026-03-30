@@ -31,7 +31,7 @@ A lightweight web interface providing browser-based access to MeshCore mesh netw
 - **@Mentions autocomplete** - Type @ to see contact suggestions with fuzzy search
 - **Echo tracking** - "Heard X repeats" with repeater IDs for sent messages, all route paths for incoming messages with deterministic payload matching (persisted across restarts)
 - **MeshCore Analyzer** - View packet details on analyzer.letsmesh.net directly from channel messages
-- **DM delivery tracking** - ACK-based delivery confirmation with SNR and route info
+- **DM delivery tracking** - ACK-based delivery confirmation with SNR, route, and hop count details
 - **Multi-device support** - Database file named after device public key for easy multi-device setups
 - **PWA support** - Browser notifications and installable app (experimental)
 - **Full offline support** - Works without internet (local Bootstrap, icons, emoji picker)
@@ -300,6 +300,8 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 | [Docker Installation](docs/docker-install.md) | How to install Docker on Debian/Ubuntu |
 | [Container Watchdog](docs/watchdog.md) | Auto-restart for unhealthy containers |
+| [DM Delivery & Retry Logic](docs/dm-retry-logic.md) | How DM delivery confirmation and retry strategies work |
+| [Bluetooth Pairing Guide](docs/meshcore_bluetooth_pairing.md) | How to pair MeshCore devices via BLE on Linux |
 
 ---
 

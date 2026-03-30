@@ -37,7 +37,7 @@ mc-webui uses a **single-container architecture** for simplified deployment and 
 │  │                       mc-webui                        │   │
 │  │                                                       │   │
 │  │  - Flask web app (Port 5000)                          │   │
-│  │  - DeviceManager (Direct USB/TCP access)              │   │
+│  │  - DeviceManager (Direct USB/BLE/TCP access)          │   │
 │  │  - Database (SQLite)                                  │   │
 │  │                                                       │   │
 │  └─────────┬─────────────────────────────────────────────┘   │
@@ -46,10 +46,12 @@ mc-webui uses a **single-container architecture** for simplified deployment and 
              │
              ▼
       ┌──────────────┐
-      │  USB/TCP     │
-      │  Device      │
+      │ USB/BLE/TCP  │
+      │    Device    │
       └──────────────┘
 ```
+
+Three transport options are supported with the following priority: **BLE > TCP > Serial (USB)**. Set the `MC_BLE_ADDRESS` or `MC_TCP_HOST` environment variable to activate BLE or TCP transport respectively; otherwise, USB serial is used by default.
 
 This v2 architecture eliminates the need for a separate bridge container and relies on the native `meshcore` Python library for direct communication, ensuring lower latency and greater stability.
 
@@ -111,9 +113,10 @@ Location: `./data/meshcore/<pubkey_prefix>.db`
 
 Key tables:
 - `messages` - All channel and direct messages (with FTS5 index for full-text search)
-- `contacts` - Contact list with sync status, types, block/ignore flags
+- `contacts` - Contact list with sync status, types, block/ignore flags, `no_auto_flood` flag
 - `channels` - Channel configuration and keys
-- `echoes` - Sent message tracking and repeater paths
+- `echoes` - Sent message tracking and repeater paths, `hash_size` for path_hash_mode
+- `direct_messages` - DM messages with delivery tracking (`delivery_status`, `delivery_attempt`, `delivery_max_attempts`, `delivery_path`)
 - `acks` - DM delivery status
 - `settings` - Application settings (migrated from .webui_settings.json)
 
@@ -198,7 +201,7 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/status` | Connection status (device name, serial port) |
+| GET | `/api/status` | Connection status (device name, transport type, serial port / BLE address) |
 | GET | `/api/device/info` | Device information |
 | GET | `/api/device/stats` | Device statistics |
 | GET | `/api/device/settings` | Get device settings |
@@ -259,8 +262,12 @@ Real-time message delivery via Socket.IO.
 **Server → Client:**
 - `new_channel_message` - New channel message received
 - `new_dm_message` - New DM received
-- `message_echo` - Echo/ACK update for sent message
+- `message_echo` - Echo/ACK update for sent message (includes `hash_size`)
 - `dm_ack` - DM delivery confirmation
+- `dm_retry_status` - Real-time retry progress (`dm_id`, `attempt`, `max_attempts`)
+- `dm_retry_failed` - All retry attempts exhausted (`dm_id`)
+- `dm_delivered_info` - Delivery details after ACK (`dm_id`, `attempt`, `max_attempts`, `path`, `hash_size`)
+- `path_changed` - Contact path discovered/updated (`public_key`)
 
 ### Logs Namespace (`/logs`)
 

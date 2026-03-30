@@ -177,9 +177,14 @@ Access the Direct Messages feature:
 
 ### Message Status Indicators
 
-- ✓ **Delivered** (green checkmark) - Recipient confirmed receipt (ACK). Tap/hover for SNR and route details
+- ✓ **Delivered** (green checkmark) - Recipient confirmed receipt (ACK). Tap/hover for SNR, route, and hop count details
+- ✗ **Failed** (red X) - All retry attempts exhausted with no ACK
 - ? **Unknown** (gray question mark) - No ACK received. Message may still have been delivered — ACK packets are often lost over multi-hop routes. Tap the icon for details
 - ⏳ **Pending** (clock icon, yellow) - Message sent, awaiting delivery confirmation
+
+### Real-time Delivery Progress
+
+While a message is being retried, the UI shows a live counter below the message bubble (e.g., "Attempt 3/11"). When delivery is confirmed, the route used is displayed (e.g., `5E->05->58->D1`) and can be clicked to show a popup with full path details.
 
 ### DM Notifications
 
@@ -505,11 +510,21 @@ Access the Settings modal to configure application behavior:
 
 ### DM Retry Settings
 
-Configure how direct messages are retried when delivery is not confirmed:
-- **Retry count** - Number of retry attempts (includes initial send)
-- **Retry interval** - Seconds between retries
-- **Flood fallback attempt** - After which attempt to switch from DIRECT to FLOOD routing
-- **Grace period** - Seconds to wait for late ACKs after all retries complete
+Configure how direct messages are retried when delivery is not confirmed. Settings are organized into two groups based on whether the contact has a known route:
+
+**When path is known:**
+- **Direct retries** - How many times to resend via the current route before trying alternatives (default: 3)
+- **Flood retries** - How many flood attempts after direct retries when no extra paths are configured (default: 1)
+- **Interval (s)** - Minimum seconds between direct retry attempts (default: 30)
+
+**When no path:**
+- **Max retries** - How many flood retry attempts (default: 3)
+- **Interval (s)** - Minimum seconds between flood retry attempts (default: 60)
+
+**Other:**
+- **Grace period (s)** - After all retries fail, keep listening for a late ACK this long before giving up (default: 60)
+
+The app automatically picks one of four retry strategies depending on the contact's route status and configured paths. For full details, see [DM Delivery & Retry Logic](dm-retry-logic.md).
 
 ### Quote Settings
 
@@ -666,6 +681,8 @@ To get the full PWA experience with app badge counters:
 
 - **Full README:** [README.md](../README.md)
 - **Repeater Management:** [rpt-mgmt.md](rpt-mgmt.md)
+- **DM Delivery & Retry Logic:** [dm-retry-logic.md](dm-retry-logic.md)
+- **Bluetooth Pairing Guide:** [meshcore_bluetooth_pairing.md](meshcore_bluetooth_pairing.md)
 - **Troubleshooting:** [troubleshooting.md](troubleshooting.md)
 - **Architecture:** [architecture.md](architecture.md)
 - **Container Watchdog:** [watchdog.md](watchdog.md)
