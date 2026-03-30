@@ -694,6 +694,7 @@ class DeviceManager:
                             'attempt': ctx['attempt'],
                             'max_attempts': ctx['max_attempts'],
                             'path': ctx['path'],
+                            'hash_size': ctx.get('hash_size', 1),
                         }, namespace='/chat')
                     # If path is empty (FLOOD delivery), schedule delayed read from device
                     if not ctx['path']:
@@ -873,6 +874,11 @@ class DeviceManager:
                         # Store delivery info — use path from PATH event (actual discovered route)
                         ctx = self._retry_context.pop(dm_id, None)
                         discovered_path = data.get('path', '')
+                        # Derive hash_size from PATH event's path_len, fallback to ctx
+                        path_len_val = data.get('path_len')
+                        disc_hash_size = ctx.get('hash_size', 1) if ctx else 1
+                        if path_len_val is not None and path_len_val != 0xFF:
+                            disc_hash_size = (path_len_val >> 6) + 1
                         if ctx:
                             self.db.update_dm_delivery_info(
                                 dm_id, ctx['attempt'], ctx['max_attempts'], discovered_path)
@@ -882,6 +888,7 @@ class DeviceManager:
                                     'attempt': ctx['attempt'],
                                     'max_attempts': ctx['max_attempts'],
                                     'path': discovered_path,
+                                    'hash_size': disc_hash_size,
                                 }, namespace='/chat')
                             # If path still empty, schedule delayed read from device contacts
                             if not discovered_path and pubkey:
@@ -901,6 +908,11 @@ class DeviceManager:
             # Update delivery_path for recently-delivered DMs where _on_ack
             # stored empty path (FLOOD mode) before PATH_UPDATE could provide it
             discovered_path = data.get('path', '')
+            # Derive hash_size from PATH event's path_len
+            backfill_hash_size = 1
+            backfill_path_len = data.get('path_len')
+            if backfill_path_len is not None and backfill_path_len != 0xFF:
+                backfill_hash_size = (backfill_path_len >> 6) + 1
             if pubkey:
                 if discovered_path:
                     recent = self.db.get_recent_delivered_dm_with_empty_path(pubkey)
@@ -914,6 +926,7 @@ class DeviceManager:
                                 'attempt': recent['delivery_attempt'],
                                 'max_attempts': recent['delivery_max_attempts'],
                                 'path': discovered_path,
+                                'hash_size': backfill_hash_size,
                             }, namespace='/chat')
                         logger.debug(f"Updated delivery path for dm_id={recent['id']} "
                                      f"with discovered path {discovered_path[:16]}")
@@ -1435,6 +1448,7 @@ class DeviceManager:
             out_path = contact.get('out_path', '')
             out_path_len = contact.get('out_path_len', -1)
             path_hex = self._extract_path_hex(out_path, out_path_len)
+            bf_hash_size = ((out_path_len >> 6) + 1) if out_path_len > 0 else 1
             if not path_hex:
                 logger.debug(f"Delayed path backfill: still no path for dm_id={dm_id}")
                 return
@@ -1453,6 +1467,7 @@ class DeviceManager:
                     'attempt': dm.get('delivery_attempt') or 1,
                     'max_attempts': dm.get('delivery_max_attempts') or 1,
                     'path': path_hex,
+                    'hash_size': bf_hash_size,
                 }, namespace='/chat')
             logger.info(f"Delayed path backfill: updated dm_id={dm_id} with path {path_hex[:16]}")
         except asyncio.CancelledError:
@@ -1548,8 +1563,9 @@ class DeviceManager:
             if not no_auto_flood:
                 max_attempts += cfg['flood_max_retries']
 
-        # Track current path hex for delivery info (actual route, not label)
+        # Track current path hex and hash_size for delivery info
         path_desc = self._extract_path_hex(original_out_path, original_out_path_len) if has_path else ''
+        path_hash_size = ((original_out_path_len >> 6) + 1) if has_path and original_out_path_len > 0 else 1
 
         logger.info(f"DM retry task started: dm_id={dm_id}, scenario={scenario}, "
                      f"configured_paths={len(configured_paths)}, no_auto_flood={no_auto_flood}, "
@@ -1560,7 +1576,8 @@ class DeviceManager:
         async def _retry(attempt_num, min_wait_s):
             display = attempt_num + 1  # attempt 0 = initial send = display 1
             self._retry_context[dm_id] = {
-                'attempt': display, 'max_attempts': max_attempts, 'path': path_desc,
+                'attempt': display, 'max_attempts': max_attempts,
+                'path': path_desc, 'hash_size': path_hash_size,
             }
             self._emit_retry_status(dm_id, initial_ack, display, max_attempts)
             return await self._dm_retry_send_and_wait(
@@ -1571,7 +1588,8 @@ class DeviceManager:
         # ── Wait for initial ACK (attempt 1) ──
         # Delivery info stored by _on_ack() via _retry_context (avoids cancel race)
         self._retry_context[dm_id] = {
-            'attempt': 1, 'max_attempts': max_attempts, 'path': path_desc,
+            'attempt': 1, 'max_attempts': max_attempts,
+            'path': path_desc, 'hash_size': path_hash_size,
         }
         self._emit_retry_status(dm_id, initial_ack, 1, max_attempts)
         if initial_ack:
@@ -1615,6 +1633,7 @@ class DeviceManager:
                 except Exception:
                     pass
                 path_desc = ''
+                path_hash_size = 1
                 for _ in range(cfg['direct_flood_retries']):
                     attempt += 1
                     if await _retry(attempt, float(cfg['flood_interval'])):
@@ -1640,6 +1659,7 @@ class DeviceManager:
                     await self._change_path_async(contact, path_info['path_hex'], path_info['hash_size'])
                     label = path_info.get('label', '')
                     path_desc = path_info['path_hex']
+                    path_hash_size = path_info['hash_size']
                     logger.info(f"DM retry: switched to path '{label}' ({path_info['path_hex']})")
                 except Exception as e:
                     logger.warning(f"DM retry: failed to switch path: {e}")
@@ -1679,6 +1699,7 @@ class DeviceManager:
                     await self._change_path_async(contact, path_info['path_hex'], path_info['hash_size'])
                     label = path_info.get('label', '')
                     path_desc = path_info['path_hex']
+                    path_hash_size = path_info['hash_size']
                     logger.info(f"DM retry: switched to path '{label}' ({path_info['path_hex']})")
                 except Exception as e:
                     logger.warning(f"DM retry: failed to switch path: {e}")
@@ -1698,6 +1719,7 @@ class DeviceManager:
                 except Exception:
                     pass
                 path_desc = ''
+                path_hash_size = 1
                 for _ in range(cfg['flood_max_retries']):
                     attempt += 1
                     if await _retry(attempt, float(cfg['flood_interval'])):

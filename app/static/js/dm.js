@@ -162,7 +162,7 @@ function connectChatSocket() {
         // Build delivery meta text
         const parts = [];
         if (data.attempt && data.max_attempts) parts.push(`Attempt ${data.attempt}/${data.max_attempts}`);
-        const hexRoute = formatDmRoute(data.path);
+        const hexRoute = formatDmRoute(data.path, data.hash_size);
         if (hexRoute) parts.push(`Route: ${hexRoute}`);
         if (parts.length > 0) {
             let metaEl = msgDiv.querySelector('.dm-delivery-meta');
@@ -1158,7 +1158,7 @@ function displayMessages(messages) {
                 if (msg.delivery_attempt && msg.delivery_max_attempts) {
                     title += ` (${msg.delivery_attempt}/${msg.delivery_max_attempts})`;
                 }
-                const route = formatDmRoute(msg.delivery_path);
+                const route = formatDmRoute(msg.delivery_path, msg.path_hash_size);
                 if (route) title += `, Route: ${route}`;
                 else if (msg.delivery_route) title += `, ${msg.delivery_route.replace('PATH_', '')}`;
                 if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
@@ -1198,7 +1198,7 @@ function displayMessages(messages) {
             }
             // Show route only for delivered messages (not failed)
             if (msg.status === 'delivered') {
-                const routeHtml = buildDmRouteHtml(msg.delivery_path);
+                const routeHtml = buildDmRouteHtml(msg.delivery_path, msg.path_hash_size);
                 if (routeHtml) {
                     parts.push(routeHtml);
                 } else if (msg.delivery_route) {
@@ -1384,12 +1384,27 @@ function resendMessage(content) {
 }
 
 /**
- * Format a hex path as route string (e.g. "5e34e761" → "5e→34→e7→61")
+ * Segment a hex path into hop-sized chunks based on hash_size.
+ * @param {string} hexPath - raw hex string (e.g. "5e0558d1")
+ * @param {number} hashSize - bytes per hop hash (1, 2, or 3)
+ * @returns {string[]} array of uppercase hex segments
+ */
+function segmentHexPath(hexPath, hashSize) {
+    if (!hexPath || !/^[0-9a-f]+$/i.test(hexPath)) return [];
+    const chunkLen = (hashSize || 1) * 2;
+    const segments = [];
+    for (let i = 0; i < hexPath.length; i += chunkLen) {
+        segments.push(hexPath.substring(i, i + chunkLen).toUpperCase());
+    }
+    return segments;
+}
+
+/**
+ * Format a hex path as route string (e.g. "5e34e761" → "5E→34→E7→61")
  * Truncates if more than 4 segments. Returns '' for non-hex strings.
  */
-function formatDmRoute(hexPath) {
-    if (!hexPath || !/^[0-9a-f]+$/i.test(hexPath)) return '';
-    const segments = hexPath.match(/.{1,2}/g) || [];
+function formatDmRoute(hexPath, hashSize) {
+    const segments = segmentHexPath(hexPath, hashSize || 1);
     if (segments.length === 0) return '';
     if (segments.length > 4) {
         return `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`;
@@ -1401,26 +1416,26 @@ function formatDmRoute(hexPath) {
  * Build a clickable route span for DM delivery meta.
  * Short routes are plain text; long routes (>4 hops) are clickable to show full path.
  */
-function buildDmRouteHtml(hexPath) {
-    if (!hexPath || !/^[0-9a-f]+$/i.test(hexPath)) return '';
-    const segments = hexPath.match(/.{1,2}/g) || [];
+function buildDmRouteHtml(hexPath, hashSize) {
+    const segments = segmentHexPath(hexPath, hashSize || 1);
     if (segments.length === 0) return '';
     const short = segments.length > 4
         ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
         : segments.join('\u2192');
     if (segments.length <= 4) return `Route: ${short}`;
+    const hs = hashSize || 1;
     const escaped = hexPath.replace(/'/g, "\\'");
-    return `<span class="dm-route-link" onclick="showDmRoutePopup(this, '${escaped}')">Route: ${short}</span>`;
+    return `<span class="dm-route-link" onclick="showDmRoutePopup(this, '${escaped}', ${hs})">Route: ${short}</span>`;
 }
 
 /**
  * Show full route popup for DM delivery path (same style as channel path popup)
  */
-function showDmRoutePopup(element, hexPath) {
+function showDmRoutePopup(element, hexPath, hashSize) {
     const existing = document.querySelector('.path-popup');
     if (existing) existing.remove();
 
-    const segments = hexPath.match(/.{1,2}/g) || [];
+    const segments = segmentHexPath(hexPath, hashSize || 1);
     const fullRoute = segments.join(' \u2192 ');
 
     const popup = document.createElement('div');
