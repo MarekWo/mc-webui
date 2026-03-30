@@ -1099,7 +1099,10 @@ function updateMessageMetaDOM(wrapper, meta) {
 
         // Update echo badge
         if (meta.echo_paths && meta.echo_paths.length > 0) {
-            const echoPrefixLen = (meta.path_hash_size || 1) * 2;
+            // For own messages path_hash_size is null — use hash_size from echoes
+            const echoHashSize = (meta.echo_hash_sizes && meta.echo_hash_sizes.length > 0)
+                ? meta.echo_hash_sizes[0] : (meta.path_hash_size || 1);
+            const echoPrefixLen = echoHashSize * 2;
             const echoPaths = [...new Set(meta.echo_paths.map(p => p.substring(0, echoPrefixLen).toUpperCase()))];
             const echoCount = echoPaths.length;
             const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
@@ -1184,7 +1187,10 @@ function createMessageElement(msg) {
     if (msg.is_own) {
         // Own messages: right-aligned, no avatar
         // Echo badge shows unique repeaters that heard the message + their path codes
-        const echoPrefixLen2 = (msg.path_hash_size || 1) * 2;
+        // For own messages path_hash_size is null — use hash_size from echoes
+        const echoHS = (msg.echo_hash_sizes && msg.echo_hash_sizes.length > 0)
+            ? msg.echo_hash_sizes[0] : (msg.path_hash_size || 1);
+        const echoPrefixLen2 = echoHS * 2;
         const echoPaths = [...new Set((msg.echo_paths || []).map(p => p.substring(0, echoPrefixLen2).toUpperCase()))];
         const echoCount = echoPaths.length;
         const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
