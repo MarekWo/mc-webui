@@ -696,6 +696,7 @@ def get_cached_contacts():
     Query params:
         ?format=names  - Return just name strings for @mentions (default)
         ?format=full   - Return full cache entries with public_key, timestamps, etc.
+        ?format=count  - Return only the count (lightweight)
     """
     try:
         fmt = request.args.get('format', 'names')
@@ -704,7 +705,12 @@ def get_cached_contacts():
         db = _get_db()
         if db:
             db_contacts = db.get_contacts()
-            if fmt == 'full':
+            if fmt == 'count':
+                return jsonify({
+                    'success': True,
+                    'count': len(db_contacts)
+                }), 200
+            elif fmt == 'full':
                 ignored_keys = db.get_ignored_keys()
                 blocked_keys = db.get_blocked_keys()
                 contacts = []
@@ -745,7 +751,13 @@ def get_cached_contacts():
                 }), 200
         else:
             # Fallback to contacts_cache
-            if fmt == 'full':
+            if fmt == 'count':
+                contacts = get_all_contacts()
+                return jsonify({
+                    'success': True,
+                    'count': len(contacts)
+                }), 200
+            elif fmt == 'full':
                 contacts = get_all_contacts()
                 for c in contacts:
                     c['public_key_prefix'] = c.get('public_key', '')[:12]

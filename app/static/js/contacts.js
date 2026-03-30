@@ -263,15 +263,20 @@ async function loadContactCounts() {
             pendingBadge.classList.remove('spinner-border', 'spinner-border-sm');
         }
 
-        // Fetch existing count
-        const existingResp = await fetch('/api/contacts/detailed');
+        // Fetch existing count (device + cached in parallel)
+        const [existingResp, cachedResp] = await Promise.all([
+            fetch('/api/contacts/detailed'),
+            fetch('/api/contacts/cached?format=count')
+        ]);
         const existingData = await existingResp.json();
+        const cachedData = await cachedResp.json();
 
         const existingBadge = document.getElementById('existingBadge');
         if (existingBadge && existingData.success) {
             const count = existingData.count || 0;
             const limit = existingData.limit || 350;
-            existingBadge.textContent = `${count} / ${limit}`;
+            const totalKnown = cachedData.success ? (cachedData.count || 0) : count;
+            existingBadge.innerHTML = `${totalKnown} (<i class="bi bi-cpu"></i> ${count}/${limit})`;
             existingBadge.classList.remove('spinner-border', 'spinner-border-sm');
 
             // Apply counter color coding
@@ -1872,11 +1877,8 @@ function updateCounter(count, limit, totalKnown) {
     const counterEl = document.getElementById('contactsCounter');
     if (!counterEl) return;
 
-    let text = `${count} / ${limit}`;
-    if (totalKnown && totalKnown > count) {
-        text += ` (${totalKnown} cached)`;
-    }
-    counterEl.textContent = text;
+    const total = totalKnown || count;
+    counterEl.innerHTML = `${total} (<i class="bi bi-cpu"></i> ${count}/${limit})`;
     counterEl.style.display = 'inline-block';
 
     // Remove all counter classes
