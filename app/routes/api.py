@@ -18,6 +18,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file, current_app
 from app.meshcore import cli, parser
 from app.config import config, runtime_config
+from app.device_manager import decode_path_len
 from app.archiver import manager as archive_manager
 from app.contacts_cache import get_all_names, get_all_contacts
 
@@ -412,6 +413,13 @@ def get_messages():
                         channel_secrets[ch_idx], sender_ts, txt_type, raw_text
                     )
 
+                # Decode path_len into hop_count and path_hash_size
+                path_len_raw = row.get('path_len')
+                hop_count = None
+                path_hash_size = 1
+                if path_len_raw is not None:
+                    hop_count, path_hash_size, _ = decode_path_len(path_len_raw)
+
                 msg = {
                     'sender': row.get('sender', ''),
                     'content': row.get('content', ''),
@@ -419,7 +427,9 @@ def get_messages():
                     'datetime': datetime.fromtimestamp(row['timestamp']).isoformat() if row.get('timestamp') else None,
                     'is_own': bool(row.get('is_own', 0)),
                     'snr': row.get('snr'),
-                    'path_len': row.get('path_len'),
+                    'path_len': path_len_raw,
+                    'hop_count': hop_count,
+                    'path_hash_size': path_hash_size,
                     'channel_idx': ch_idx,
                     'sender_timestamp': sender_ts,
                     'txt_type': txt_type,
@@ -435,6 +445,7 @@ def get_messages():
                         msg['echo_count'] = len(echoes)
                         msg['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
                         msg['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
+                        msg['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
 
                 messages.append(msg)
 
@@ -516,10 +527,19 @@ def get_message_meta(msg_id):
                     channel_secrets[ch_idx], sender_ts, txt_type, raw_text
                 )
 
+        # Decode path_len
+        path_len_raw = row.get('path_len')
+        hop_count = None
+        path_hash_size = 1
+        if path_len_raw is not None:
+            hop_count, path_hash_size, _ = decode_path_len(path_len_raw)
+
         meta = {
             'success': True,
             'snr': row.get('snr'),
-            'path_len': row.get('path_len'),
+            'path_len': path_len_raw,
+            'hop_count': hop_count,
+            'path_hash_size': path_hash_size,
             'pkt_payload': pkt_payload,
         }
 
@@ -530,6 +550,7 @@ def get_message_meta(msg_id):
                 meta['echo_count'] = len(echoes)
                 meta['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
                 meta['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
+                meta['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
 
         return jsonify(meta)
 
@@ -1994,6 +2015,13 @@ def get_dm_messages():
             db_msgs = db.get_dm_messages(contact_pubkey, limit=limit)
             messages = []
             for row in db_msgs:
+                # Decode path_len
+                dm_path_len_raw = row.get('path_len')
+                dm_hop_count = None
+                dm_path_hash_size = 1
+                if dm_path_len_raw is not None:
+                    dm_hop_count, dm_path_hash_size, _ = decode_path_len(dm_path_len_raw)
+
                 messages.append({
                     'type': 'dm',
                     'id': row['id'],
@@ -2004,7 +2032,9 @@ def get_dm_messages():
                     'datetime': datetime.fromtimestamp(row['timestamp']).isoformat() if row.get('timestamp') else None,
                     'is_own': row['direction'] == 'out',
                     'snr': row.get('snr'),
-                    'path_len': row.get('path_len'),
+                    'path_len': dm_path_len_raw,
+                    'hop_count': dm_hop_count,
+                    'path_hash_size': dm_path_hash_size,
                     'expected_ack': row.get('expected_ack'),
                     'delivery_status': row.get('delivery_status'),
                     'delivery_attempt': row.get('delivery_attempt'),

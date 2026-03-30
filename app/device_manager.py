@@ -503,8 +503,14 @@ class DeviceManager:
 
             if self.socketio:
                 snr = data.get('SNR', data.get('snr'))
-                path_len = data.get('path_len')
+                path_len_raw = data.get('path_len')
                 pkt_payload = data.get('pkt_payload')
+
+                # Decode path_len into hop_count and path_hash_size
+                hop_count = None
+                path_hash_size = 1
+                if path_len_raw is not None:
+                    hop_count, path_hash_size, _ = decode_path_len(path_len_raw)
 
                 # Compute analyzer URL from pkt_payload
                 analyzer_url = None
@@ -524,7 +530,9 @@ class DeviceManager:
                     'timestamp': ts,
                     'id': msg_id,
                     'snr': snr,
-                    'path_len': path_len,
+                    'path_len': path_len_raw,
+                    'hop_count': hop_count,
+                    'path_hash_size': path_hash_size,
                     'pkt_payload': pkt_payload,
                     'analyzer_url': analyzer_url,
                 }, namespace='/chat')
