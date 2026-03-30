@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS echoes (
     received_at     TEXT NOT NULL DEFAULT (datetime('now')),
     direction       TEXT DEFAULT 'incoming', -- 'sent' or 'incoming'
     cm_id           INTEGER,                -- FK to channel_messages (nullable)
+    hash_size       INTEGER NOT NULL DEFAULT 1,  -- bytes per hop hash: 1, 2, or 3
     FOREIGN KEY (cm_id) REFERENCES channel_messages(id) ON DELETE SET NULL
 );
 

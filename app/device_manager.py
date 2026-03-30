@@ -22,6 +22,24 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+def decode_path_len(path_len_raw: int) -> tuple:
+    """Decode the path_len byte (MeshCore v1.14+ encoding).
+
+    Bits 7-6: hash_size - 1  (00=1B, 01=2B, 10=3B, 11=reserved/direct)
+    Bits 5-0: hop_count       (0-63)
+
+    Special case: 0xFF = direct routing (not flood) — returns (0, 1, 0).
+
+    Returns:
+        (hop_count, hash_size, path_byte_len)
+    """
+    if path_len_raw == 0xFF:
+        return 0, 1, 0
+    hash_size = (path_len_raw >> 6) + 1
+    hop_count = path_len_raw & 0x3F
+    return hop_count, hash_size, hop_count * hash_size
+
+
 def _to_str(val) -> str:
     """Convert bytes or other types to string. Used for expected_ack, pkt_payload, etc."""
     if val is None:
@@ -927,8 +945,9 @@ class DeviceManager:
             if route_type == 0x00 or route_type == 0x03:
                 pbuf.read(4)  # discard transport code
 
-            path_len = pbuf.read(1)[0]
-            path = pbuf.read(path_len).hex()
+            path_len_raw = pbuf.read(1)[0]
+            hop_count, hash_size, path_byte_len = decode_path_len(path_len_raw)
+            path = pbuf.read(path_byte_len).hex()
             pkt_payload = pbuf.read().hex()
 
             # Only process GRP_TXT channel message echoes
@@ -939,7 +958,7 @@ class DeviceManager:
                 return
 
             snr = data.get('snr')
-            self._process_echo(pkt_payload, path, snr)
+            self._process_echo(pkt_payload, path, snr, hash_size=hash_size)
 
         except Exception as e:
             logger.error(f"Error handling RX_LOG_DATA: {e}")
@@ -952,7 +971,8 @@ class DeviceManager:
             return None
         return hashlib.sha256(bytes.fromhex(secret_hex)).digest()[0:1].hex()
 
-    def _process_echo(self, pkt_payload: str, path: str, snr: float = None):
+    def _process_echo(self, pkt_payload: str, path: str, snr: float = None,
+                       hash_size: int = 1):
         """Classify and store an echo: sent echo or incoming echo.
 
         For sent messages: correlate with pending echo to get pkt_payload.
@@ -994,9 +1014,10 @@ class DeviceManager:
                 path=path,
                 snr=snr,
                 direction=direction,
+                hash_size=hash_size,
             )
 
-            logger.debug(f"Echo ({direction}): path={path} snr={snr} pkt={pkt_payload[:16]}...")
+            logger.debug(f"Echo ({direction}): path={path} snr={snr} hash_size={hash_size} pkt={pkt_payload[:16]}...")
 
             # Emit SocketIO event for real-time UI update
             if self.socketio:
@@ -1005,6 +1026,7 @@ class DeviceManager:
                     'path': path,
                     'snr': snr,
                     'direction': direction,
+                    'hash_size': hash_size,
                 }, namespace='/chat')
 
     def _is_manual_approval_enabled(self) -> bool:

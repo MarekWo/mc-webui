@@ -56,6 +56,12 @@ class Database:
                 conn.execute(f"ALTER TABLE direct_messages ADD COLUMN {col} {typedef}")
                 logger.info(f"Migration: added direct_messages.{col} column")
 
+        # Add hash_size column to echoes (path_hash_mode support)
+        echo_columns = {r[1] for r in conn.execute("PRAGMA table_info(echoes)").fetchall()}
+        if 'hash_size' not in echo_columns:
+            conn.execute("ALTER TABLE echoes ADD COLUMN hash_size INTEGER NOT NULL DEFAULT 1")
+            logger.info("Migration: added echoes.hash_size column")
+
     @contextmanager
     def _connect(self):
         """Yield a connection with auto-commit/rollback."""
@@ -768,13 +774,14 @@ class Database:
     def insert_echo(self, pkt_payload: str, **kwargs) -> None:
         with self._connect() as conn:
             conn.execute(
-                """INSERT INTO echoes (pkt_payload, path, snr, direction, cm_id)
-                   VALUES (?, ?, ?, ?, ?)""",
+                """INSERT INTO echoes (pkt_payload, path, snr, direction, cm_id, hash_size)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
                 (pkt_payload,
                  kwargs.get('path'),
                  kwargs.get('snr'),
                  kwargs.get('direction', 'incoming'),
-                 kwargs.get('cm_id'))
+                 kwargs.get('cm_id'),
+                 kwargs.get('hash_size', 1))
             )
 
     def get_echoes_for_message(self, pkt_payload: str) -> List[Dict]:
