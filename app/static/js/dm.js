@@ -1208,8 +1208,13 @@ function displayMessages(messages) {
             deliveryMeta = `<div class="dm-delivery-meta">${parts.join(', ')}</div>`;
         }
 
-        // Retry counter placeholder (same line as delivery meta)
-        const retryInfo = msg.is_own ? `<div class="dm-delivery-meta dm-retry-info" data-dm-id="${msg.id || ''}"></div>` : '';
+        // Retry counter placeholder — pre-populate for in-progress sends
+        let retryInfo = '';
+        if (msg.is_own) {
+            const isPending = !msg.status || (msg.status !== 'delivered' && msg.status !== 'failed');
+            const initialText = isPending && msg.expected_ack ? 'Attempt 1/...' : '';
+            retryInfo = `<div class="dm-delivery-meta dm-retry-info" data-dm-id="${msg.id || ''}">${initialText}</div>`;
+        }
 
         // Resend button for own messages
         const resendBtn = msg.is_own ? `
