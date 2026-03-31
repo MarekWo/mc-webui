@@ -4,7 +4,6 @@
 
 // Global state
 let lastMessageCount = 0;
-let autoRefreshInterval = null;
 let isUserScrolling = false;
 let currentArchiveDate = null;  // Current selected archive date (null = live)
 let currentChannelIdx = 0;  // Current active channel (0 = Public)
@@ -452,6 +451,11 @@ function connectChatSocket() {
         }, 2000);
     });
 
+    // Real-time pending contact — update badge
+    chatSocket.on('pending_contact', () => {
+        updatePendingContactsBadge();
+    });
+
     // Real-time device status
     chatSocket.on('device_status', (data) => {
         const statusEl = document.getElementById('connectionStatus');
@@ -540,9 +544,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Connect SocketIO for real-time updates
     connectChatSocket();
-
-    // Setup auto-refresh as fallback (SocketIO handles primary updates)
-    setupAutoRefresh();
 
     console.log(`[init] UI ready in ${(performance.now() - initStart).toFixed(0)}ms`);
 
@@ -2069,28 +2070,6 @@ async function executeSpecialCommand(command) {
     }
 }
 
-/**
- * Setup intelligent auto-refresh
- * Checks for updates regularly but only refreshes UI when new messages arrive
- */
-function setupAutoRefresh() {
-    // Fallback polling interval (SocketIO handles real-time updates)
-    const checkInterval = 60000;
-
-    autoRefreshInterval = setInterval(async () => {
-        // Don't check for updates when viewing archives
-        if (currentArchiveDate) {
-            return;
-        }
-
-        await checkForUpdates();
-        await checkDmUpdates();  // Also check for DM updates
-        await updatePendingContactsBadge();  // Also check for pending contacts
-    }, checkInterval);
-
-    console.log(`Intelligent auto-refresh enabled: checking every ${checkInterval / 1000}s`);
-}
-
 // ============================================================================
 // PWA Notifications
 // ============================================================================
@@ -2944,13 +2923,6 @@ async function checkForUpdates() {
 
             // Check if we should send browser notification
             checkAndNotify();
-
-            // If current channel has updates, refresh the view
-            const currentChannelUpdate = data.channels.find(ch => ch.index === currentChannelIdx);
-            if (currentChannelUpdate && currentChannelUpdate.has_updates) {
-                console.log(`New messages detected on channel ${currentChannelIdx}, refreshing...`);
-                await loadMessages();
-            }
         }
     } catch (error) {
         if (error.name === 'AbortError') {
