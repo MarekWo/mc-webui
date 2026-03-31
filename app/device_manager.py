@@ -1252,7 +1252,7 @@ class DeviceManager:
                     'id': msg_id,
                 }, namespace='/chat')
 
-            return {'success': True, 'message': 'Message sent', 'id': msg_id}
+            return {'success': True, 'message': 'Message sent', 'id': msg_id, 'timestamp': ts}
 
         except Exception as e:
             logger.error(f"Failed to send channel message: {e}")

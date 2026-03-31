@@ -601,21 +601,22 @@ def send_message():
         channel_idx = data.get('channel_idx', 0)
 
         # Send message via meshcli
-        success, message, msg_id = cli.send_message(text, reply_to=reply_to, channel_index=channel_idx)
+        result = cli.send_message(text, reply_to=reply_to, channel_index=channel_idx)
 
-        if success:
+        if result['success']:
             # v2: Echo tracking is handled automatically by DeviceManager events
 
             return jsonify({
                 'success': True,
                 'message': 'Message sent successfully',
                 'channel_idx': channel_idx,
-                'id': msg_id,
+                'id': result.get('id'),
+                'timestamp': result.get('timestamp'),
             }), 200
         else:
             return jsonify({
                 'success': False,
-                'error': message
+                'error': result.get('error', 'Failed to send message')
             }), 500
 
     except Exception as e:

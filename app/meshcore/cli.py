@@ -60,20 +60,17 @@ def recv_messages() -> Tuple[bool, str]:
     return True, "Messages are received automatically via events"
 
 
-def send_message(text: str, reply_to: Optional[str] = None, channel_index: int = 0) -> Tuple[bool, str, Optional[int]]:
-    """Send a message to a channel. Returns (success, message, msg_id)."""
+def send_message(text: str, reply_to: Optional[str] = None, channel_index: int = 0) -> Dict:
+    """Send a message to a channel. Returns result dict with id and timestamp."""
     if reply_to:
         text = f"@[{reply_to}] {text}"
 
     try:
         dm = _get_dm()
-        result = dm.send_channel_message(channel_index, text)
-        if result['success']:
-            return True, result.get('message', 'Message sent'), result.get('id')
-        return False, result.get('error', 'Failed to send message'), None
+        return dm.send_channel_message(channel_index, text)
     except Exception as e:
         logger.error(f"send_message error: {e}")
-        return False, str(e), None
+        return {'success': False, 'error': str(e)}
 
 
 # =============================================================================

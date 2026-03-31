@@ -1325,6 +1325,10 @@ async function sendMessage() {
                 const wrapper = document.querySelector(`.message-wrapper[data-msg-id="${optimisticId}"]`);
                 if (wrapper) wrapper.dataset.msgId = data.id;
             }
+            // Use server timestamp to prevent poll-triggered reload due to clock skew
+            if (data.timestamp) {
+                markChannelAsRead(currentChannelIdx, data.timestamp);
+            }
         } else {
             showNotification('Failed to send: ' + data.error, 'danger');
         }
