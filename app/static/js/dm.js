@@ -117,9 +117,6 @@ function connectChatSocket() {
                 if (wrapper) {
                     wrapper.replaceWith(statusEl);
                 }
-                // Clear retry counter in actions area
-                const retryInfo = el.querySelector('.dm-retry-info');
-                if (retryInfo) retryInfo.textContent = '';
             }
         });
     });
@@ -131,7 +128,7 @@ function connectChatSocket() {
         if (info) info.textContent = `Attempt ${data.attempt}/${data.max_attempts}`;
     });
 
-    // DM retry exhausted — mark as failed
+    // DM retry exhausted — mark as failed, show final attempt count
     chatSocket.on('dm_retry_failed', (data) => {
         if (!data.dm_id) return;
         // Update status icon
@@ -145,9 +142,15 @@ function connectChatSocket() {
             wrapper.removeAttribute('onclick');
             wrapper.classList.remove('dm-status-unknown');
         }
-        // Clear retry counter
+        // Show final attempt count
         const info = document.querySelector(`.dm-retry-info[data-dm-id="${data.dm_id}"]`);
-        if (info) info.textContent = '';
+        if (info) {
+            if (data.attempt && data.max_attempts) {
+                info.textContent = `Attempt ${data.attempt}/${data.max_attempts}`;
+            } else {
+                info.textContent = '';
+            }
+        }
     });
 
     // Real-time delivery info — show attempt count + route after successful delivery

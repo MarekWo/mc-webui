@@ -1403,12 +1403,15 @@ class DeviceManager:
                 'max_attempts': max_attempts,
             }, namespace='/chat')
 
-    def _emit_retry_failed(self, dm_id: int, expected_ack: str):
+    def _emit_retry_failed(self, dm_id: int, expected_ack: str,
+                            attempt: int = 0, max_attempts: int = 0):
         """Notify frontend that all retry attempts were exhausted."""
         if self.socketio:
             self.socketio.emit('dm_retry_failed', {
                 'dm_id': dm_id,
                 'expected_ack': expected_ack,
+                'attempt': attempt,
+                'max_attempts': max_attempts,
             }, namespace='/chat')
 
     @staticmethod
@@ -1732,7 +1735,7 @@ class DeviceManager:
         # ── Common epilogue: mark failed, grace period for late ACKs ──
         self.db.update_dm_delivery_info(dm_id, attempt + 1, max_attempts, '')
         self.db.update_dm_delivery_status(dm_id, 'failed')
-        self._emit_retry_failed(dm_id, initial_ack)
+        self._emit_retry_failed(dm_id, initial_ack, attempt + 1, max_attempts)
         logger.warning(f"DM retry exhausted ({attempt + 1} total attempts, scenario={scenario}) "
                        f"for dm_id={dm_id}")
         self._retry_tasks.pop(dm_id, None)
@@ -1759,6 +1762,12 @@ class DeviceManager:
                 dm_id=dm_id,
             )
 
+        # Save delivery info from retry context (attempt count + path)
+        ctx = self._retry_context.pop(dm_id, None)
+        if ctx:
+            self.db.update_dm_delivery_info(
+                dm_id, ctx['attempt'], ctx['max_attempts'], ctx['path'])
+
         # Mark delivery_status so reloading messages from DB shows delivered
         self.db.update_dm_delivery_status(dm_id, 'delivered')
 
@@ -1775,6 +1784,16 @@ class DeviceManager:
                 'dm_id': dm_id,
                 'snr': data.get('snr'),
             }, namespace='/chat')
+
+            # Emit delivery info so frontend shows attempt count + route immediately
+            if ctx:
+                self.socketio.emit('dm_delivered_info', {
+                    'dm_id': dm_id,
+                    'attempt': ctx['attempt'],
+                    'max_attempts': ctx['max_attempts'],
+                    'path': ctx['path'],
+                    'hash_size': ctx.get('hash_size', 1),
+                }, namespace='/chat')
 
         # Cleanup pending acks for this DM
         stale = [k for k, v in self._pending_acks.items() if v == dm_id]
