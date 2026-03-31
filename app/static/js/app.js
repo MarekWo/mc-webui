@@ -1320,8 +1320,11 @@ async function sendMessage() {
         if (data.success) {
             showNotification('Message sent', 'success');
 
-            // Schedule deferred reload to pick up echo data + replace optimistic msg with real one
-            setTimeout(() => loadMessages(), 15000);
+            // Replace optimistic ID with real DB id so echo WebSocket updates work
+            if (data.id) {
+                const wrapper = document.querySelector(`.message-wrapper[data-msg-id="${optimisticId}"]`);
+                if (wrapper) wrapper.dataset.msgId = data.id;
+            }
         } else {
             showNotification('Failed to send: ' + data.error, 'danger');
         }
