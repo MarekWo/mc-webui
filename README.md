@@ -47,8 +47,8 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
 - Configure the device with the Meshcore mobile app (from Google Play Store / App Store): Name, Location (optional), Preset
 
 **2. Linux Server**
-- Git installed
 - Docker and Docker Compose installed ([installation guide](docs/docker-install.md))
+- Git installed (only needed for Option B: From Source)
 
 **Important Notes:**
 - Powered by direct meshcore library integration (v2 architecture)
@@ -57,7 +57,136 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
 
 ---
 
-### Installation
+### Option A: Docker Hub (recommended)
+
+The quickest way to get started — no git clone, no building required.
+
+Available image tags:
+- `mawoj/mc-webui:latest` — stable release (from `main` branch)
+- `mawoj/mc-webui:dev` — latest development version (from `dev` branch)
+
+Images are also mirrored to GitHub Container Registry: `ghcr.io/marekwo/mc-webui`
+
+1. **Create a project directory**
+    ```bash
+    mkdir ~/mc-webui && cd ~/mc-webui
+    ```
+
+2. **Create `docker-compose.yml`**
+    ```bash
+    cat > docker-compose.yml << 'EOF'
+    services:
+      mc-webui:
+        image: mawoj/mc-webui:latest
+        container_name: mc-webui
+        restart: unless-stopped
+        ports:
+          - "${FLASK_PORT:-5000}:${FLASK_PORT:-5000}"
+        device_cgroup_rules:
+          - 'c 188:* rmw'
+          - 'c 166:* rmw'
+        cap_add:
+          - NET_ADMIN
+          - NET_RAW
+        volumes:
+          - "${MC_CONFIG_DIR:-./data}:/data:rw"
+          - "/dev:/dev"
+          - "/var/run/dbus:/var/run/dbus"
+        environment:
+          - MC_SERIAL_PORT=${MC_SERIAL_PORT:-auto}
+          - MC_DEVICE_NAME=${MC_DEVICE_NAME:-MeshCore}
+          - MC_CONFIG_DIR=/data
+          - MC_TCP_HOST=${MC_TCP_HOST:-}
+          - MC_TCP_PORT=${MC_TCP_PORT:-5555}
+          - MC_BLE_ADDRESS=${MC_BLE_ADDRESS:-}
+          - MC_BACKUP_ENABLED=${MC_BACKUP_ENABLED:-true}
+          - MC_BACKUP_HOUR=${MC_BACKUP_HOUR:-2}
+          - MC_BACKUP_RETENTION_DAYS=${MC_BACKUP_RETENTION_DAYS:-7}
+          - FLASK_HOST=${FLASK_HOST:-0.0.0.0}
+          - FLASK_PORT=${FLASK_PORT:-5000}
+          - FLASK_DEBUG=${FLASK_DEBUG:-false}
+          - TZ=${TZ:-UTC}
+        env_file:
+          - path: .env
+            required: false
+        healthcheck:
+          test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          start_period: 15s
+    EOF
+    ```
+
+3. **Create `.env` file (optional)**
+
+    **In most cases, no `.env` file is needed!** The defaults work automatically:
+    - `MC_SERIAL_PORT=auto` — auto-detects your USB device
+    - `MC_DEVICE_NAME=auto` — auto-detects device name
+
+    If you want to set your timezone or override defaults:
+    ```bash
+    echo "TZ=Europe/Warsaw" > .env
+    ```
+
+    <details>
+    <summary><b>Troubleshooting: Multiple USB devices or detection fails</b></summary>
+
+    Check available serial devices:
+    ```bash
+    ls /dev/serial/by-id/
+    ```
+
+    If you see multiple devices, add to your `.env`:
+    ```bash
+    MC_SERIAL_PORT=/dev/serial/by-id/usb-Espressif_Systems_heltec_...
+    ```
+
+    </details>
+
+4. **Verify Serial Device Permissions** (if needed)
+    ```bash
+    sudo usermod -aG dialout $USER
+    # Log out and log back in for changes to take effect
+    ```
+
+5. **Start mc-webui**
+    ```bash
+    docker compose up -d
+    ```
+
+    This will:
+    - Pull the pre-built mc-webui image from Docker Hub
+    - Create `./data/` directory structure automatically
+    - Start the mc-webui container
+
+6. **Verify installation**
+    ```bash
+    docker compose ps
+    ```
+
+    The container should show `Up` status. Check logs if needed:
+    ```bash
+    docker compose logs -f
+    ```
+
+7. **Access the web interface**
+
+   Open your browser and navigate to:
+   ```
+   http://<your-server-ip>:5000
+   ```
+
+   To find your server IP: `hostname -I | awk '{print $1}'`
+
+8. **Initial Configuration (In Web UI)**
+    - Main page loads with chat interface on "Public" channel
+    - Wait for initial sync (1-2 minutes)
+    - Optional: Enable manual contact approval in Contact Management
+
+### Option B: From Source (Git Clone)
+
+Choose this option if you want to modify the code, contribute, or run the `dev` branch.
 
 1. **Clone the repository**
     ```bash
@@ -153,7 +282,21 @@ For complete usage instructions, see the [User Guide](docs/user-guide.md).
 
 ## Updating
 
-### Using the update script (recommended)
+### Docker Hub installation
+
+Pull the latest image and restart:
+
+```bash
+cd ~/mc-webui
+docker compose pull
+docker compose up -d
+```
+
+To switch between stable and dev, change the image tag in `docker-compose.yml`:
+- Stable: `image: mawoj/mc-webui:latest`
+- Development: `image: mawoj/mc-webui:dev`
+
+### From Source: Using the update script (recommended)
 
 The easiest way to update mc-webui:
 

@@ -2,12 +2,18 @@ name: Build and Push mc-webui image
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch: # Manual trigger
+
+env:
+  IMAGE_NAME: mc-webui
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -30,11 +36,37 @@ jobs:
           echo "Extracted Tag: $TAG_VALUE"
           echo "tag=$TAG_VALUE" >> $GITHUB_OUTPUT
 
+      - name: Determine image tags
+        id: tags
+        run: |
+          BRANCH="${GITHUB_REF##*/}"
+          DH_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}"
+          GH_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}"
+          TAG="${{ steps.get_tag.outputs.tag }}"
+
+          if [ "$BRANCH" = "main" ]; then
+            TAGS="${DH_IMAGE}:latest,${DH_IMAGE}:${TAG}"
+            TAGS="${TAGS},${GH_IMAGE}:latest,${GH_IMAGE}:${TAG}"
+          else
+            TAGS="${DH_IMAGE}:${BRANCH},${DH_IMAGE}:${BRANCH}-${TAG}"
+            TAGS="${TAGS},${GH_IMAGE}:${BRANCH},${GH_IMAGE}:${BRANCH}-${TAG}"
+          fi
+
+          echo "Generated tags: $TAGS"
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -42,6 +74,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/mc-webui:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/mc-webui:${{ steps.get_tag.outputs.tag }}
+          tags: ${{ steps.tags.outputs.tags }}
