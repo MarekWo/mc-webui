@@ -1215,7 +1215,7 @@ function displayMessages(messages) {
         let retryInfo = '';
         if (msg.is_own) {
             const isPending = !msg.status || (msg.status !== 'delivered' && msg.status !== 'failed');
-            const initialText = isPending && msg.expected_ack ? 'Attempt 1/...' : '';
+            const initialText = isPending && msg.expected_ack ? 'Sending...' : '';
             retryInfo = `<div class="dm-delivery-meta dm-retry-info" data-dm-id="${msg.id || ''}">${initialText}</div>`;
         }
 
