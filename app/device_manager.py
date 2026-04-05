@@ -358,10 +358,26 @@ class DeviceManager:
                 # to prevent BlueZ auto-reconnect during bleak's connect phase.
                 await self._ble_force_disconnect(self.config.MC_BLE_ADDRESS)
                 try:
-                    self.mc = await MeshCore.create_ble(
-                        address=self.config.MC_BLE_ADDRESS,
-                        auto_reconnect=False,
+                    # bleak 3.x: BleakClient(address_string) can't find paired
+                    # devices that aren't advertising.  Pre-scan via
+                    # BleakScanner.find_device_by_address which queries BlueZ's
+                    # D-Bus object tree directly, then pass the BLEDevice to
+                    # MeshCore.create_ble(device=...).
+                    from bleak import BleakScanner
+                    ble_device = await BleakScanner.find_device_by_address(
+                        self.config.MC_BLE_ADDRESS, timeout=10
                     )
+                    if ble_device:
+                        logger.info(f"BLE device found: {ble_device.name}")
+                        self.mc = await MeshCore.create_ble(
+                            device=ble_device,
+                            auto_reconnect=False,
+                        )
+                    else:
+                        raise RuntimeError(
+                            f"BLE device {self.config.MC_BLE_ADDRESS} not found "
+                            "in BlueZ — check pairing"
+                        )
                 finally:
                     # Always re-trust the device (even on failure) so BlueZ
                     # maintains the bond for future connections
