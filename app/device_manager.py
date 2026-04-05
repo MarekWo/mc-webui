@@ -118,6 +118,9 @@ class DeviceManager:
         self._pending_acks = {}     # {ack_code_hex: dm_id} — maps retry acks to DM
         self._retry_tasks = {}      # {dm_id: asyncio.Task} — active retry coroutines
         self._retry_context = {}    # {dm_id: {attempt, max_attempts, path}} — for _on_ack
+        self._ble_keepalive_task = None   # asyncio.Task for BLE keepalive
+        self._ble_permanently_failed = False  # True when all reconnect attempts exhausted
+        self._ble_reconnecting = False        # Guard against concurrent reconnect attempts
 
     @property
     def is_connected(self) -> bool:
@@ -227,6 +230,88 @@ class DeviceManager:
         except Exception as e:
             logger.debug(f"BLE force-disconnect check skipped: {e}")
 
+    @staticmethod
+    async def _ble_power_cycle_adapter():
+        """Power-cycle the Bluetooth adapter via D-Bus to clear all stale state.
+
+        This clears stale GATT notification handles ('Notify acquired' error)
+        that persist after an abnormal bleak disconnect.  A simple
+        Device1.Disconnect is not enough — the notification subscriptions are
+        per-adapter, not per-device.
+        """
+        import subprocess
+        adapter_path = '/org/bluez/hci0'
+        try:
+            logger.info("Power-cycling Bluetooth adapter to clear stale GATT state...")
+            # Power OFF
+            subprocess.run(
+                ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
+                 adapter_path, 'org.freedesktop.DBus.Properties.Set',
+                 'string:org.bluez.Adapter1', 'string:Powered',
+                 'variant:boolean:false'],
+                capture_output=True, text=True, timeout=5
+            )
+            await asyncio.sleep(2)
+            # Power ON
+            subprocess.run(
+                ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
+                 adapter_path, 'org.freedesktop.DBus.Properties.Set',
+                 'string:org.bluez.Adapter1', 'string:Powered',
+                 'variant:boolean:true'],
+                capture_output=True, text=True, timeout=5
+            )
+            await asyncio.sleep(3)  # BlueZ needs time to re-init the adapter
+            logger.info("Bluetooth adapter power-cycled successfully")
+        except Exception as e:
+            logger.warning(f"Bluetooth adapter power-cycle failed: {e}")
+
+    async def _ble_reconnect(self):
+        """Reconnect BLE with adapter power-cycle to clear stale GATT state.
+
+        Uses aggressive cleanup (adapter power-cycle) between attempts to
+        avoid the 'Notify acquired' error that blocks reconnection after
+        an abnormal disconnect.
+        """
+        if self._ble_reconnecting:
+            logger.debug("BLE reconnect already in progress, skipping")
+            return
+        self._ble_reconnecting = True
+
+        MAX_ATTEMPTS = 5
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            delay = 5 * attempt
+            logger.info(f"BLE reconnecting in {delay}s (attempt {attempt}/{MAX_ATTEMPTS})...")
+            await asyncio.sleep(delay)
+
+            try:
+                # Clean up old mc instance
+                if self.mc:
+                    try:
+                        await self.mc.disconnect()
+                    except Exception:
+                        pass
+                    self.mc = None
+
+                # Power-cycle adapter to clear stale notification handles
+                await self._ble_power_cycle_adapter()
+
+                await self._connect()
+                if self._connected:
+                    logger.info("BLE reconnected successfully")
+                    self._ble_reconnecting = False
+                    if self.socketio:
+                        self.socketio.emit('device_status', {
+                            'connected': True,
+                        }, namespace='/chat')
+                    return
+            except Exception as e:
+                logger.error(f"BLE reconnect attempt {attempt} failed: {e}")
+
+        self._ble_reconnecting = False
+        logger.error(f"BLE reconnection failed after {MAX_ATTEMPTS} attempts — "
+                     "marking permanently failed (healthcheck will trigger restart)")
+        self._ble_permanently_failed = True
+
     async def _connect(self):
         """Connect to device via BLE, TCP, or serial and subscribe to events."""
         from meshcore import MeshCore
@@ -325,6 +410,13 @@ class DeviceManager:
             # Start auto message fetching (events fire on new messages)
             await self.mc.start_auto_message_fetching()
 
+            # Start BLE keepalive to detect zombie connections
+            if self.config.use_ble:
+                if self._ble_keepalive_task and not self._ble_keepalive_task.done():
+                    self._ble_keepalive_task.cancel()
+                self._ble_keepalive_task = asyncio.ensure_future(self._ble_keepalive_loop())
+                self._ble_permanently_failed = False
+
         except Exception as e:
             logger.error(f"Device connection failed: {e}")
             self._connected = False
@@ -389,6 +481,35 @@ class DeviceManager:
             self._subscriptions.append(sub)
             logger.debug(f"Subscribed to {event_type.value}")
 
+    async def _ble_keepalive_loop(self):
+        """Periodically send a lightweight command to detect BLE zombie connections.
+
+        BLE connections can enter a state where notifications (reads) still
+        arrive but writes silently fail.  A periodic write detects this early
+        and triggers reconnection before the user encounters the problem.
+        """
+        BLE_KEEPALIVE_INTERVAL = 60  # seconds
+        while True:
+            await asyncio.sleep(BLE_KEEPALIVE_INTERVAL)
+            if not self._connected or not self.mc:
+                return  # stop if disconnected by other means
+            try:
+                await asyncio.wait_for(
+                    self.mc.commands.get_bat(),
+                    timeout=10,
+                )
+                logger.debug("BLE keepalive OK")
+            except Exception as e:
+                logger.warning(f"BLE keepalive failed: {e} — triggering reconnect")
+                # Synthesize a disconnect event to reuse existing reconnection logic
+                self._connected = False
+                if self.socketio:
+                    self.socketio.emit('device_status', {
+                        'connected': False,
+                    }, namespace='/chat')
+                await self._ble_reconnect()
+                return  # reconnect loop takes over
+
     def _sync_contacts_to_db(self):
         """Sync device contacts to database (bidirectional).
 
@@ -437,6 +558,11 @@ class DeviceManager:
     def stop(self):
         """Disconnect from device and stop the background thread."""
         logger.info("Stopping DeviceManager...")
+
+        # Cancel BLE keepalive
+        if self._ble_keepalive_task and not self._ble_keepalive_task.done():
+            self._ble_keepalive_task.cancel()
+            self._ble_keepalive_task = None
 
         if self.mc and self._loop and self._loop.is_running():
             try:
@@ -1183,12 +1309,22 @@ class DeviceManager:
         logger.warning("Device disconnected")
         self._connected = False
 
+        # Cancel BLE keepalive task
+        if self._ble_keepalive_task and not self._ble_keepalive_task.done():
+            self._ble_keepalive_task.cancel()
+            self._ble_keepalive_task = None
+
         if self.socketio:
             self.socketio.emit('device_status', {
                 'connected': False,
             }, namespace='/chat')
 
-        # Auto-reconnect with backoff
+        # BLE needs adapter power-cycle to clear stale GATT state
+        if self.config.use_ble:
+            await self._ble_reconnect()
+            return
+
+        # Serial/TCP: simple reconnect with backoff
         for attempt in range(1, 4):
             delay = 5 * attempt
             logger.info(f"Reconnecting in {delay}s (attempt {attempt}/3)...")

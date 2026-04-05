@@ -104,7 +104,13 @@ def logs():
 
 @views_bp.route('/health')
 def health():
+    """Health check endpoint for monitoring.
+
+    Returns 503 when BLE reconnection has permanently failed so Docker's
+    healthcheck triggers a container restart (which clears all BLE state).
     """
-    Health check endpoint for monitoring.
-    """
+    from flask import current_app
+    dm = getattr(current_app, 'device_manager', None)
+    if dm and getattr(dm, '_ble_permanently_failed', False):
+        return 'BLE connection permanently failed', 503
     return 'OK', 200
