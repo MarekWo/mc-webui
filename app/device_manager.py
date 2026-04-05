@@ -208,28 +208,18 @@ class DeviceManager:
         raise RuntimeError("No serial port detected. Set MC_SERIAL_PORT explicitly.")
 
     @staticmethod
-    async def _ble_force_disconnect(address: str):
-        """Force-disconnect a BLE device and prevent BlueZ auto-reconnect.
+    async def _ble_ensure_connected(address: str):
+        """Ensure the BLE device is connected via BlueZ before bleak takes over.
 
-        BlueZ auto-reconnects trusted devices, which prevents bleak from
-        establishing a new GATT session.  We untrust the device first to
-        stop auto-reconnect, then disconnect, then re-trust after bleak
-        has had time to take over the connection.
+        bleak inside Docker cannot initiate new BLE connections via
+        Device1.Connect() — it can only take over connections that BlueZ
+        has already established.  We use D-Bus to trigger the connection
+        from BlueZ directly, then bleak takes over the GATT session.
         """
         import subprocess
         dbus_path = '/org/bluez/hci0/dev_' + address.replace(':', '_')
         try:
-            # Untrust device to prevent BlueZ auto-reconnect during handoff
-            subprocess.run(
-                ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
-                 dbus_path, 'org.freedesktop.DBus.Properties.Set',
-                 'string:org.bluez.Device1', 'string:Trusted',
-                 'variant:boolean:false'],
-                capture_output=True, text=True, timeout=5
-            )
-            logger.debug(f"BLE device {address} untrusted (prevents auto-reconnect)")
-
-            # Check if device is currently connected
+            # Check if device is already connected
             result = subprocess.run(
                 ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
                  dbus_path, 'org.freedesktop.DBus.Properties.Get',
@@ -237,33 +227,26 @@ class DeviceManager:
                 capture_output=True, text=True, timeout=5
             )
             if 'boolean true' in result.stdout:
-                logger.info(f"BLE device {address} has stale BlueZ connection, disconnecting...")
-                subprocess.run(
-                    ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
-                     dbus_path, 'org.bluez.Device1.Disconnect'],
-                    capture_output=True, text=True, timeout=5
-                )
-                await asyncio.sleep(2)  # Let BlueZ settle
-                logger.info("Stale BLE connection cleared")
-        except Exception as e:
-            logger.debug(f"BLE force-disconnect check skipped: {e}")
+                logger.info(f"BLE device {address} already connected via BlueZ")
+                return True
 
-    @staticmethod
-    def _ble_retrust(address: str):
-        """Re-trust the BLE device after bleak has established its connection."""
-        import subprocess
-        dbus_path = '/org/bluez/hci0/dev_' + address.replace(':', '_')
-        try:
-            subprocess.run(
+            # Device not connected — trigger connection via BlueZ D-Bus
+            logger.info(f"Connecting BLE device {address} via BlueZ D-Bus...")
+            result = subprocess.run(
                 ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
-                 dbus_path, 'org.freedesktop.DBus.Properties.Set',
-                 'string:org.bluez.Device1', 'string:Trusted',
-                 'variant:boolean:true'],
-                capture_output=True, text=True, timeout=5
+                 dbus_path, 'org.bluez.Device1.Connect'],
+                capture_output=True, text=True, timeout=30
             )
-            logger.debug(f"BLE device {address} re-trusted")
+            if result.returncode == 0:
+                await asyncio.sleep(1)  # Let GATT services resolve
+                logger.info(f"BLE device {address} connected via BlueZ")
+                return True
+            else:
+                logger.warning(f"BlueZ connect failed: {result.stderr.strip()}")
+                return False
         except Exception as e:
-            logger.debug(f"BLE re-trust skipped: {e}")
+            logger.warning(f"BLE ensure-connected failed: {e}")
+            return False
 
     @staticmethod
     async def _ble_power_cycle_adapter():
@@ -295,7 +278,7 @@ class DeviceManager:
                  'variant:boolean:true'],
                 capture_output=True, text=True, timeout=5
             )
-            await asyncio.sleep(3)  # BlueZ needs time to re-init the adapter
+            await asyncio.sleep(5)  # BlueZ needs time to re-init and auto-connect trusted devices
             logger.info("Bluetooth adapter power-cycled successfully")
         except Exception as e:
             logger.warning(f"Bluetooth adapter power-cycle failed: {e}")
@@ -354,34 +337,27 @@ class DeviceManager:
         try:
             if self.config.use_ble:
                 logger.info(f"Connecting via BLE: {self.config.MC_BLE_ADDRESS}")
-                # Force-disconnect any stale BlueZ connection and untrust device
-                # to prevent BlueZ auto-reconnect during bleak's connect phase.
-                await self._ble_force_disconnect(self.config.MC_BLE_ADDRESS)
-                try:
-                    # bleak 3.x: BleakClient(address_string) can't find paired
-                    # devices that aren't advertising.  Pre-scan via
-                    # BleakScanner.find_device_by_address which queries BlueZ's
-                    # D-Bus object tree directly, then pass the BLEDevice to
-                    # MeshCore.create_ble(device=...).
-                    from bleak import BleakScanner
-                    ble_device = await BleakScanner.find_device_by_address(
-                        self.config.MC_BLE_ADDRESS, timeout=10
+                # bleak inside Docker cannot initiate new BLE connections —
+                # it can only take over connections already established by
+                # BlueZ.  Ensure the device is connected via BlueZ first.
+                await self._ble_ensure_connected(self.config.MC_BLE_ADDRESS)
+
+                # bleak 3.x: BleakClient(address_string) can't find paired
+                # devices.  Use BleakScanner to get a BLEDevice object.
+                from bleak import BleakScanner
+                ble_device = await BleakScanner.find_device_by_address(
+                    self.config.MC_BLE_ADDRESS, timeout=10
+                )
+                if not ble_device:
+                    raise RuntimeError(
+                        f"BLE device {self.config.MC_BLE_ADDRESS} not found "
+                        "in BlueZ — check pairing"
                     )
-                    if ble_device:
-                        logger.info(f"BLE device found: {ble_device.name}")
-                        self.mc = await MeshCore.create_ble(
-                            device=ble_device,
-                            auto_reconnect=False,
-                        )
-                    else:
-                        raise RuntimeError(
-                            f"BLE device {self.config.MC_BLE_ADDRESS} not found "
-                            "in BlueZ — check pairing"
-                        )
-                finally:
-                    # Always re-trust the device (even on failure) so BlueZ
-                    # maintains the bond for future connections
-                    self._ble_retrust(self.config.MC_BLE_ADDRESS)
+                logger.info(f"BLE device found: {ble_device.name}")
+                self.mc = await MeshCore.create_ble(
+                    device=ble_device,
+                    auto_reconnect=False,
+                )
             elif self.config.use_tcp:
                 logger.info(f"Connecting via TCP: {self.config.MC_TCP_HOST}:{self.config.MC_TCP_PORT}")
                 self.mc = await MeshCore.create_tcp(
