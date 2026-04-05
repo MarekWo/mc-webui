@@ -32,5 +32,11 @@ ENV FLASK_HOST=0.0.0.0
 ENV FLASK_PORT=5000
 ENV FLASK_DEBUG=false
 
-# Run the application
+# Entrypoint: disconnect stale BLE connections before starting the app.
+# BlueZ auto-reconnects trusted devices, leaving stale GATT notification
+# handles that block bleak from establishing a new session.
+COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["python", "-m", "app.main"]

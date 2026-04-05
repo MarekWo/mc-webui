@@ -120,7 +120,6 @@ class DeviceManager:
         self._retry_context = {}    # {dm_id: {attempt, max_attempts, path}} — for _on_ack
         self._ble_keepalive_task = None   # asyncio.Task for BLE keepalive
         self._ble_permanently_failed = False  # True when all reconnect attempts exhausted
-        self._ble_reconnecting = False        # Guard against concurrent reconnect attempts
 
     @property
     def is_connected(self) -> bool:
@@ -168,10 +167,6 @@ class DeviceManager:
                 logger.error(f"Connection attempt {attempt}/{max_retries} failed: {e}")
 
             if attempt < max_retries:
-                # BLE: power-cycle adapter every 3rd failed attempt to clear
-                # stale GATT notification handles from previous sessions
-                if self.config.use_ble and attempt % 3 == 0:
-                    await self._ble_power_cycle_adapter()
                 delay = min(base_delay * attempt, 30.0)
                 logger.info(f"Retrying in {delay:.0f}s...")
                 await asyncio.sleep(delay)
@@ -208,18 +203,15 @@ class DeviceManager:
         raise RuntimeError("No serial port detected. Set MC_SERIAL_PORT explicitly.")
 
     @staticmethod
-    async def _ble_ensure_connected(address: str):
-        """Ensure the BLE device is connected via BlueZ before bleak takes over.
+    async def _ble_force_disconnect(address: str):
+        """Force-disconnect a BLE device via D-Bus if BlueZ still holds a stale connection.
 
-        bleak inside Docker cannot initiate new BLE connections via
-        Device1.Connect() — it can only take over connections that BlueZ
-        has already established.  We use D-Bus to trigger the connection
-        from BlueZ directly, then bleak takes over the GATT session.
+        BlueZ auto-reconnects trusted devices, which prevents bleak from
+        establishing a new GATT session after a container restart.
         """
-        import subprocess
-        dbus_path = '/org/bluez/hci0/dev_' + address.replace(':', '_')
         try:
-            # Check if device is already connected
+            import subprocess
+            dbus_path = '/org/bluez/hci0/dev_' + address.replace(':', '_')
             result = subprocess.run(
                 ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
                  dbus_path, 'org.freedesktop.DBus.Properties.Get',
@@ -227,108 +219,16 @@ class DeviceManager:
                 capture_output=True, text=True, timeout=5
             )
             if 'boolean true' in result.stdout:
-                logger.info(f"BLE device {address} already connected via BlueZ")
-                return True
-
-            # Device not connected — trigger connection via BlueZ D-Bus
-            logger.info(f"Connecting BLE device {address} via BlueZ D-Bus...")
-            result = subprocess.run(
-                ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
-                 dbus_path, 'org.bluez.Device1.Connect'],
-                capture_output=True, text=True, timeout=30
-            )
-            if result.returncode == 0:
-                await asyncio.sleep(1)  # Let GATT services resolve
-                logger.info(f"BLE device {address} connected via BlueZ")
-                return True
-            else:
-                logger.warning(f"BlueZ connect failed: {result.stderr.strip()}")
-                return False
+                logger.info(f"BLE device {address} has stale BlueZ connection, disconnecting...")
+                subprocess.run(
+                    ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
+                     dbus_path, 'org.bluez.Device1.Disconnect'],
+                    capture_output=True, text=True, timeout=5
+                )
+                await asyncio.sleep(2)  # Let BlueZ settle
+                logger.info("Stale BLE connection cleared")
         except Exception as e:
-            logger.warning(f"BLE ensure-connected failed: {e}")
-            return False
-
-    @staticmethod
-    async def _ble_power_cycle_adapter():
-        """Power-cycle the Bluetooth adapter via D-Bus to clear all stale state.
-
-        This clears stale GATT notification handles ('Notify acquired' error)
-        that persist after an abnormal bleak disconnect.  A simple
-        Device1.Disconnect is not enough — the notification subscriptions are
-        per-adapter, not per-device.
-        """
-        import subprocess
-        adapter_path = '/org/bluez/hci0'
-        try:
-            logger.info("Power-cycling Bluetooth adapter to clear stale GATT state...")
-            # Power OFF
-            subprocess.run(
-                ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
-                 adapter_path, 'org.freedesktop.DBus.Properties.Set',
-                 'string:org.bluez.Adapter1', 'string:Powered',
-                 'variant:boolean:false'],
-                capture_output=True, text=True, timeout=5
-            )
-            await asyncio.sleep(2)
-            # Power ON
-            subprocess.run(
-                ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
-                 adapter_path, 'org.freedesktop.DBus.Properties.Set',
-                 'string:org.bluez.Adapter1', 'string:Powered',
-                 'variant:boolean:true'],
-                capture_output=True, text=True, timeout=5
-            )
-            await asyncio.sleep(5)  # BlueZ needs time to re-init and auto-connect trusted devices
-            logger.info("Bluetooth adapter power-cycled successfully")
-        except Exception as e:
-            logger.warning(f"Bluetooth adapter power-cycle failed: {e}")
-
-    async def _ble_reconnect(self):
-        """Reconnect BLE with adapter power-cycle to clear stale GATT state.
-
-        Uses aggressive cleanup (adapter power-cycle) between attempts to
-        avoid the 'Notify acquired' error that blocks reconnection after
-        an abnormal disconnect.
-        """
-        if self._ble_reconnecting:
-            logger.debug("BLE reconnect already in progress, skipping")
-            return
-        self._ble_reconnecting = True
-
-        MAX_ATTEMPTS = 5
-        for attempt in range(1, MAX_ATTEMPTS + 1):
-            delay = 5 * attempt
-            logger.info(f"BLE reconnecting in {delay}s (attempt {attempt}/{MAX_ATTEMPTS})...")
-            await asyncio.sleep(delay)
-
-            try:
-                # Clean up old mc instance
-                if self.mc:
-                    try:
-                        await self.mc.disconnect()
-                    except Exception:
-                        pass
-                    self.mc = None
-
-                # Power-cycle adapter to clear stale notification handles
-                await self._ble_power_cycle_adapter()
-
-                await self._connect()
-                if self._connected:
-                    logger.info("BLE reconnected successfully")
-                    self._ble_reconnecting = False
-                    if self.socketio:
-                        self.socketio.emit('device_status', {
-                            'connected': True,
-                        }, namespace='/chat')
-                    return
-            except Exception as e:
-                logger.error(f"BLE reconnect attempt {attempt} failed: {e}")
-
-        self._ble_reconnecting = False
-        logger.error(f"BLE reconnection failed after {MAX_ATTEMPTS} attempts — "
-                     "marking permanently failed (healthcheck will trigger restart)")
-        self._ble_permanently_failed = True
+            logger.debug(f"BLE force-disconnect check skipped: {e}")
 
     async def _connect(self):
         """Connect to device via BLE, TCP, or serial and subscribe to events."""
@@ -337,25 +237,12 @@ class DeviceManager:
         try:
             if self.config.use_ble:
                 logger.info(f"Connecting via BLE: {self.config.MC_BLE_ADDRESS}")
-                # bleak inside Docker cannot initiate new BLE connections —
-                # it can only take over connections already established by
-                # BlueZ.  Ensure the device is connected via BlueZ first.
-                await self._ble_ensure_connected(self.config.MC_BLE_ADDRESS)
-
-                # bleak 3.x: BleakClient(address_string) can't find paired
-                # devices.  Use BleakScanner to get a BLEDevice object.
-                from bleak import BleakScanner
-                ble_device = await BleakScanner.find_device_by_address(
-                    self.config.MC_BLE_ADDRESS, timeout=10
-                )
-                if not ble_device:
-                    raise RuntimeError(
-                        f"BLE device {self.config.MC_BLE_ADDRESS} not found "
-                        "in BlueZ — check pairing"
-                    )
-                logger.info(f"BLE device found: {ble_device.name}")
+                # Force-disconnect any stale BlueZ connection before connecting.
+                # BlueZ auto-reconnects trusted devices, which blocks bleak from
+                # establishing a fresh GATT session after a container restart.
+                await self._ble_force_disconnect(self.config.MC_BLE_ADDRESS)
                 self.mc = await MeshCore.create_ble(
-                    device=ble_device,
+                    address=self.config.MC_BLE_ADDRESS,
                     auto_reconnect=False,
                 )
             elif self.config.use_tcp:
@@ -531,15 +418,14 @@ class DeviceManager:
                 )
                 logger.debug("BLE keepalive OK")
             except Exception as e:
-                logger.warning(f"BLE keepalive failed: {e} — triggering reconnect")
-                # Synthesize a disconnect event to reuse existing reconnection logic
+                logger.warning(f"BLE keepalive failed: {e} — marking for restart")
                 self._connected = False
+                self._ble_permanently_failed = True
                 if self.socketio:
                     self.socketio.emit('device_status', {
                         'connected': False,
                     }, namespace='/chat')
-                await self._ble_reconnect()
-                return  # reconnect loop takes over
+                return
 
     def _sync_contacts_to_db(self):
         """Sync device contacts to database (bidirectional).
@@ -1350,9 +1236,15 @@ class DeviceManager:
                 'connected': False,
             }, namespace='/chat')
 
-        # BLE needs adapter power-cycle to clear stale GATT state
+        # BLE: reconnection from inside a running container is unreliable
+        # because bleak leaves stale GATT notification handles that block
+        # new connections ('Notify acquired' error).  Mark as permanently
+        # failed so the health check returns 503 and Docker restarts the
+        # container, which gives us a clean BLE state.
         if self.config.use_ble:
-            await self._ble_reconnect()
+            logger.error("BLE disconnected — marking permanently failed "
+                         "(container restart required for clean BLE state)")
+            self._ble_permanently_failed = True
             return
 
         # Serial/TCP: simple reconnect with backoff
