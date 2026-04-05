@@ -209,14 +209,26 @@ class DeviceManager:
 
     @staticmethod
     async def _ble_force_disconnect(address: str):
-        """Force-disconnect a BLE device via D-Bus if BlueZ still holds a stale connection.
+        """Force-disconnect a BLE device and prevent BlueZ auto-reconnect.
 
         BlueZ auto-reconnects trusted devices, which prevents bleak from
-        establishing a new GATT session after a container restart.
+        establishing a new GATT session.  We untrust the device first to
+        stop auto-reconnect, then disconnect, then re-trust after bleak
+        has had time to take over the connection.
         """
+        import subprocess
+        dbus_path = '/org/bluez/hci0/dev_' + address.replace(':', '_')
         try:
-            import subprocess
-            dbus_path = '/org/bluez/hci0/dev_' + address.replace(':', '_')
+            # Untrust device to prevent BlueZ auto-reconnect during handoff
+            subprocess.run(
+                ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
+                 dbus_path, 'org.freedesktop.DBus.Properties.Set',
+                 'string:org.bluez.Device1', 'string:Trusted',
+                 'variant:boolean:false'],
+                capture_output=True, text=True, timeout=5
+            )
+            logger.debug(f"BLE device {address} untrusted (prevents auto-reconnect)")
+
             # Check if device is currently connected
             result = subprocess.run(
                 ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
@@ -231,10 +243,27 @@ class DeviceManager:
                      dbus_path, 'org.bluez.Device1.Disconnect'],
                     capture_output=True, text=True, timeout=5
                 )
-                await asyncio.sleep(1)  # Let BlueZ settle
+                await asyncio.sleep(2)  # Let BlueZ settle
                 logger.info("Stale BLE connection cleared")
         except Exception as e:
             logger.debug(f"BLE force-disconnect check skipped: {e}")
+
+    @staticmethod
+    def _ble_retrust(address: str):
+        """Re-trust the BLE device after bleak has established its connection."""
+        import subprocess
+        dbus_path = '/org/bluez/hci0/dev_' + address.replace(':', '_')
+        try:
+            subprocess.run(
+                ['dbus-send', '--system', '--print-reply', '--dest=org.bluez',
+                 dbus_path, 'org.freedesktop.DBus.Properties.Set',
+                 'string:org.bluez.Device1', 'string:Trusted',
+                 'variant:boolean:true'],
+                capture_output=True, text=True, timeout=5
+            )
+            logger.debug(f"BLE device {address} re-trusted")
+        except Exception as e:
+            logger.debug(f"BLE re-trust skipped: {e}")
 
     @staticmethod
     async def _ble_power_cycle_adapter():
@@ -325,14 +354,18 @@ class DeviceManager:
         try:
             if self.config.use_ble:
                 logger.info(f"Connecting via BLE: {self.config.MC_BLE_ADDRESS}")
-                # Force-disconnect any stale BlueZ connection before connecting.
-                # BlueZ auto-reconnects trusted devices, which blocks bleak from
-                # establishing a fresh GATT session after a container restart.
+                # Force-disconnect any stale BlueZ connection and untrust device
+                # to prevent BlueZ auto-reconnect during bleak's connect phase.
                 await self._ble_force_disconnect(self.config.MC_BLE_ADDRESS)
-                self.mc = await MeshCore.create_ble(
-                    address=self.config.MC_BLE_ADDRESS,
-                    auto_reconnect=False,
-                )
+                try:
+                    self.mc = await MeshCore.create_ble(
+                        address=self.config.MC_BLE_ADDRESS,
+                        auto_reconnect=False,
+                    )
+                finally:
+                    # Always re-trust the device (even on failure) so BlueZ
+                    # maintains the bond for future connections
+                    self._ble_retrust(self.config.MC_BLE_ADDRESS)
             elif self.config.use_tcp:
                 logger.info(f"Connecting via TCP: {self.config.MC_TCP_HOST}:{self.config.MC_TCP_PORT}")
                 self.mc = await MeshCore.create_tcp(
