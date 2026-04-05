@@ -168,11 +168,17 @@ class DeviceManager:
                 logger.error(f"Connection attempt {attempt}/{max_retries} failed: {e}")
 
             if attempt < max_retries:
+                # BLE: power-cycle adapter every 3rd failed attempt to clear
+                # stale GATT notification handles from previous sessions
+                if self.config.use_ble and attempt % 3 == 0:
+                    await self._ble_power_cycle_adapter()
                 delay = min(base_delay * attempt, 30.0)
                 logger.info(f"Retrying in {delay:.0f}s...")
                 await asyncio.sleep(delay)
 
         logger.error(f"Failed to connect after {max_retries} attempts")
+        if self.config.use_ble:
+            self._ble_permanently_failed = True
 
     def _detect_serial_port(self) -> str:
         """Auto-detect serial port when configured as 'auto'."""
