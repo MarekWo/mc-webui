@@ -3931,6 +3931,20 @@ function initializeFabToggle() {
         const isCollapsed = container.classList.contains('collapsed');
         toggle.title = isCollapsed ? 'Show buttons' : 'Hide buttons';
     });
+
+    // Drag-and-drop support
+    initFabDrag('fabContainer', 'fabToggle', 'mc-webui-fab-pos');
+
+    // Listen for settings open request from DM iframe
+    window.addEventListener('message', (e) => {
+        if (e.data && e.data.type === 'openSettings') {
+            const modal = document.getElementById('settingsModal');
+            if (modal) {
+                const bsModal = bootstrap.Modal.getOrCreateInstance(modal);
+                bsModal.show();
+            }
+        }
+    });
 }
 
 // =============================================================================

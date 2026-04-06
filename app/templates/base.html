@@ -473,6 +473,33 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <hr>
+                            <h6 class="text-muted mb-3">Quick Access Buttons</h6>
+                            <table class="table table-sm table-borderless mb-3 align-middle">
+                                <tbody>
+                                    <tr>
+                                        <td class="ps-0">Button size (px)</td>
+                                        <td class="pe-0 d-flex align-items-center gap-2" style="width:12rem">
+                                            <input type="range" class="form-range flex-grow-1" id="settFabSize" min="28" max="72" step="2" value="56">
+                                            <span class="text-muted small" id="settFabSizeVal" style="min-width:2.5rem;text-align:right">56</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-0">Spacing (px)</td>
+                                        <td class="pe-0 d-flex align-items-center gap-2">
+                                            <input type="range" class="form-range flex-grow-1" id="settFabGap" min="2" max="24" step="1" value="12">
+                                            <span class="text-muted small" id="settFabGapVal" style="min-width:2.5rem;text-align:right">12</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-0">Position</td>
+                                        <td class="pe-0">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="settFabResetPos">Reset to default</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -661,6 +688,9 @@
     <!-- SocketIO for real-time updates -->
     <script src="{{ url_for('static', filename='vendor/socket.io/socket.io.min.js') }}"></script>
 
+    <!-- FAB Utilities (drag, sizing — must load before app.js) -->
+    <script src="{{ url_for('static', filename='js/fab-utils.js') }}"></script>
+
     <!-- Custom JS -->
     <!-- QR Code generator (for Device Share) -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -716,6 +746,51 @@
             document.querySelectorAll('.theme-option').forEach(function(el) {
                 el.classList.toggle('active', el.getAttribute('data-theme-value') === current);
             });
+
+            // --- FAB appearance controls ---
+            var fabSizeSlider = document.getElementById('settFabSize');
+            var fabSizeVal = document.getElementById('settFabSizeVal');
+            var fabGapSlider = document.getElementById('settFabGap');
+            var fabGapVal = document.getElementById('settFabGapVal');
+            var fabResetPos = document.getElementById('settFabResetPos');
+
+            // Load saved values
+            var savedSize = localStorage.getItem('mc-webui-fab-size');
+            var savedGap = localStorage.getItem('mc-webui-fab-gap');
+            if (savedSize && fabSizeSlider) { fabSizeSlider.value = savedSize; fabSizeVal.textContent = savedSize; }
+            if (savedGap && fabGapSlider) { fabGapSlider.value = savedGap; fabGapVal.textContent = savedGap; }
+
+            // Live preview on slider change
+            if (fabSizeSlider) {
+                fabSizeSlider.addEventListener('input', function() {
+                    var v = this.value;
+                    fabSizeVal.textContent = v;
+                    document.documentElement.style.setProperty('--fab-custom-size', v + 'px');
+                    localStorage.setItem('mc-webui-fab-size', v);
+                });
+            }
+            if (fabGapSlider) {
+                fabGapSlider.addEventListener('input', function() {
+                    var v = this.value;
+                    fabGapVal.textContent = v;
+                    document.documentElement.style.setProperty('--fab-custom-gap', v + 'px');
+                    localStorage.setItem('mc-webui-fab-gap', v);
+                });
+            }
+
+            // Reset position button
+            if (fabResetPos) {
+                fabResetPos.addEventListener('click', function() {
+                    localStorage.removeItem('mc-webui-fab-pos');
+                    localStorage.removeItem('mc-webui-fab-pos-dm');
+                    var container = document.getElementById('fabContainer');
+                    if (container) {
+                        container.style.left = '';
+                        container.style.right = '16px';
+                        container.style.top = '80px';
+                    }
+                });
+            }
         });
     </script>
 

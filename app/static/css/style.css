@@ -1038,19 +1038,20 @@ main {
     z-index: 900; /* Lower than offcanvas (1045) but higher than content */
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--fab-custom-gap, 12px);
+    touch-action: none; /* Prevent scroll during drag */
 }
 
 .fab {
     position: relative;  /* For badge positioning */
-    width: 56px;
-    height: 56px;
+    width: var(--fab-custom-size, 56px);
+    height: var(--fab-custom-size, 56px);
     border-radius: 50%;
     border: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: calc(var(--fab-custom-size, 56px) * 0.43);
     cursor: pointer;
     box-shadow: var(--fab-shadow);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -1110,14 +1111,19 @@ main {
     transition: transform 0.2s ease;
 }
 
-/* FAB toggle button (smaller, semi-transparent) */
+/* FAB toggle button (smaller, semi-transparent) — not affected by custom size */
 .fab-toggle {
-    width: 32px;
-    height: 32px;
+    width: 32px !important;
+    height: 32px !important;
     background: rgba(108, 117, 125, 0.6);
     color: white;
-    font-size: 0.85rem;
+    font-size: 0.85rem !important;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    cursor: grab;
+}
+
+.fab-toggle:active {
+    cursor: grabbing;
 }
 
 .fab-toggle:hover {
@@ -1157,19 +1163,19 @@ main {
     .fab-container {
         right: 12px;
         top: 70px;
-        gap: 10px;
+        gap: var(--fab-custom-gap, 10px);
     }
 
     .fab {
-        width: 48px;
-        height: 48px;
-        font-size: 1.25rem;
+        width: var(--fab-custom-size, 48px);
+        height: var(--fab-custom-size, 48px);
+        font-size: calc(var(--fab-custom-size, 48px) * 0.43);
     }
 
     .fab-toggle {
-        width: 28px;
-        height: 28px;
-        font-size: 0.75rem;
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 0.75rem !important;
     }
 }
 
@@ -1482,6 +1488,12 @@ main {
 /* Search FAB button (muted teal) */
 .fab-search {
     background: linear-gradient(135deg, #5fa8a0 0%, #4a8f88 100%);
+    color: white;
+}
+
+/* Settings FAB button (warm orange) */
+.fab-settings {
+    background: linear-gradient(135deg, #fd7e14 0%, #e06b0a 100%);
     color: white;
 }
 

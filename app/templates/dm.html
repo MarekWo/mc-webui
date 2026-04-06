@@ -185,6 +185,9 @@
             <button class="fab fab-filter" id="dmFilterFab" title="Filter Messages">
                 <i class="bi bi-funnel-fill"></i>
             </button>
+            <button class="fab fab-settings" id="dmSettingsFab" title="Settings">
+                <i class="bi bi-gear-fill"></i>
+            </button>
         </div>
     </main>
 
@@ -355,6 +358,9 @@
 
     <!-- SocketIO for real-time updates -->
     <script src="{{ url_for('static', filename='vendor/socket.io/socket.io.min.js') }}"></script>
+
+    <!-- FAB Utilities (drag, sizing) -->
+    <script src="{{ url_for('static', filename='js/fab-utils.js') }}"></script>
 
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/dm.js') }}"></script>

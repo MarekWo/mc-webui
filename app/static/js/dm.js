@@ -236,6 +236,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize FAB toggle
     initializeDmFabToggle();
 
+    // Settings FAB - open parent's settings modal
+    const dmSettingsFab = document.getElementById('dmSettingsFab');
+    if (dmSettingsFab) {
+        dmSettingsFab.addEventListener('click', () => {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({type: 'openSettings'}, '*');
+            }
+        });
+    }
+
     // Load auto-retry config
     loadAutoRetryConfig();
 
@@ -1778,6 +1788,9 @@ function initializeDmFabToggle() {
         const isCollapsed = container.classList.contains('collapsed');
         toggle.title = isCollapsed ? 'Show buttons' : 'Hide buttons';
     });
+
+    // Drag-and-drop support
+    initFabDrag('dmFabContainer', 'dmFabToggle', 'mc-webui-fab-pos-dm');
 }
 
 /**
