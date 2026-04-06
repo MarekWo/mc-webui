@@ -3926,10 +3926,17 @@ function initializeFabToggle() {
     const container = document.getElementById('fabContainer');
     if (!toggle || !container) return;
 
+    // Restore collapsed state
+    if (localStorage.getItem('mc-webui-fab-collapsed') === '1') {
+        container.classList.add('collapsed');
+        toggle.title = 'Show buttons';
+    }
+
     toggle.addEventListener('click', () => {
         container.classList.toggle('collapsed');
         const isCollapsed = container.classList.contains('collapsed');
         toggle.title = isCollapsed ? 'Show buttons' : 'Hide buttons';
+        localStorage.setItem('mc-webui-fab-collapsed', isCollapsed ? '1' : '0');
     });
 
     // Drag-and-drop support
