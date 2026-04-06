@@ -341,7 +341,9 @@ class DeviceManager:
 
     async def _load_channel_secrets(self):
         """Load channel secrets from device for pkt_payload computation and persist to DB."""
+        EMPTY_SECRET = '0' * 32  # all-zero secret means empty channel slot
         consecutive_empty = 0
+        valid_channel_indices = set()
         try:
             for idx in range(self._max_channels):
                 try:
@@ -359,14 +361,16 @@ class DeviceManager:
                     name = data.get('channel_name', data.get('name', ''))
                     if isinstance(name, str):
                         name = name.strip('\x00').strip()
-                    if secret and len(secret) == 32:
+                    if secret and len(secret) == 32 and secret != EMPTY_SECRET:
                         self._channel_secrets[idx] = secret
                         # Persist to DB so API endpoints can read without device calls
                         self.db.upsert_channel(idx, name or f'Channel {idx}', secret)
+                        valid_channel_indices.add(idx)
                         consecutive_empty = 0
                     elif name:
                         # Channel exists but has no secret (e.g. Public)
                         self.db.upsert_channel(idx, name, None)
+                        valid_channel_indices.add(idx)
                         consecutive_empty = 0
                     else:
                         consecutive_empty += 1
@@ -374,6 +378,15 @@ class DeviceManager:
                     consecutive_empty += 1
                 if consecutive_empty >= 3:
                     break  # stop after 3 consecutive empty channels
+
+            # Remove stale channels from DB that no longer exist on the device
+            if valid_channel_indices:
+                db_channels = self.db.get_channels()
+                for ch in db_channels:
+                    if ch['idx'] not in valid_channel_indices:
+                        self.db.delete_channel(ch['idx'])
+                        logger.debug(f"Removed stale channel {ch['idx']} ({ch['name']}) from DB")
+
             logger.info(f"Cached {len(self._channel_secrets)} channel secrets")
         except Exception as e:
             logger.error(f"Failed to load channel secrets: {e}")
