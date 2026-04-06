@@ -120,6 +120,21 @@ function restoreFabPosition(container, storageKey) {
 
     try {
         const pos = JSON.parse(saved);
+
+        // If viewport is too small (iframe in hidden modal), defer until visible
+        if (window.innerWidth < 50 || window.innerHeight < 50) {
+            const poll = setInterval(() => {
+                if (window.innerWidth >= 50 && window.innerHeight >= 50) {
+                    clearInterval(poll);
+                    container.style.right = 'auto';
+                    container.style.left = pos.left + 'px';
+                    container.style.top = pos.top + 'px';
+                    clampFabPosition(container);
+                }
+            }, 100);
+            return;
+        }
+
         container.style.right = 'auto';
         container.style.left = pos.left + 'px';
         container.style.top = pos.top + 'px';
