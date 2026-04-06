@@ -2910,6 +2910,8 @@ class DeviceManager:
         """Set a device parameter."""
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
+        # Invalidate cached self_info so next get_param reads fresh data
+        self._self_info = None
         try:
             if param == 'name':
                 self.execute(self.mc.commands.set_name(value), timeout=5)
