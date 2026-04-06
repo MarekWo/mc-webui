@@ -1986,8 +1986,8 @@ class DeviceManager:
 
         try:
             event = self.execute(self.mc.commands.send_appstart())
-            if event and hasattr(event, 'data'):
-                self._self_info = getattr(event, 'payload', {})
+            if event and hasattr(event, 'payload'):
+                self._self_info = event.payload
                 return dict(self._self_info)
         except Exception as e:
             logger.error(f"Failed to get device info: {e}")
