@@ -2892,6 +2892,8 @@ class DeviceManager:
                 if event and hasattr(event, 'payload'):
                     return {'success': True, 'data': event.payload}
                 return {'success': False, 'error': 'No custom vars response'}
+            elif param == 'advert_loc_policy':
+                return {'success': True, 'data': {'advert_loc_policy': info.get('adv_loc_policy', '?')}}
             elif param == 'path_hash_mode':
                 # get_path_hash_mode() returns int, not Event
                 value = self.execute(self.mc.commands.get_path_hash_mode(), timeout=5)

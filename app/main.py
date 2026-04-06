@@ -998,6 +998,7 @@ def _execute_console_command(args: list) -> str:
                 "  radio            — radio parameters (freq, bw, sf, cr)\n"
                 "  stats            — device status/statistics\n"
                 "  custom           — all custom variables (JSON)\n"
+                "  advert_loc_policy — location in adverts\n"
                 "  path_hash_mode   — path hash mode"
             )
         if result.get('success'):
