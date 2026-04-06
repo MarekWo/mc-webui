@@ -998,8 +998,8 @@ def _execute_console_command(args: list) -> str:
                 "  radio            — radio parameters (freq, bw, sf, cr)\n"
                 "  stats            — device status/statistics\n"
                 "  custom           — all custom variables (JSON)\n"
-                "  advert_loc_policy — location in adverts\n"
-                "  path_hash_mode   — path hash mode"
+                "  advert_loc_policy — location in adverts (0=none/1=share/2=prefs)\n"
+                "  path_hash_mode   — path hash mode (0/1/2)"
             )
         if result.get('success'):
             data = result.get('data', {})
@@ -1045,11 +1045,11 @@ def _execute_console_command(args: list) -> str:
             "  radio <freq,bw,sf,cr>          — radio params\n"
             "  multi_acks <on/off>            — multi-acks feature\n"
             "  manual_add_contacts <on/off>   — manual contact approval\n"
-            "  telemetry_mode_base <mode>     — basic telemetry (all/selected/off)\n"
-            "  telemetry_mode_loc <mode>      — location telemetry\n"
-            "  telemetry_mode_env <mode>      — environment telemetry\n"
-            "  advert_loc_policy <policy>     — location in adverts\n"
-            "  path_hash_mode <value>         — path hash mode\n"
+            "  telemetry_mode_base <0-2>      — basic telemetry (0=off/1=selected/2=all)\n"
+            "  telemetry_mode_loc <0-2>       — location telemetry (0=off/1=selected/2=all)\n"
+            "  telemetry_mode_env <0-2>       — environment telemetry (0=off/1=selected/2=all)\n"
+            "  advert_loc_policy <0-2>        — location in adverts (0=none/1=share/2=prefs)\n"
+            "  path_hash_mode <0-2>           — path hash mode (0/1/2)\n"
             "  <custom_var> <value>           — set custom variable"
         )
 
