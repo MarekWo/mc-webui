@@ -1812,6 +1812,247 @@ async function loadDeviceShare() {
 }
 
 // =============================================================================
+// Device Settings (Settings Modal - Device Tab)
+// =============================================================================
+
+const RADIO_PRESETS = [
+    { label: 'Australia',               freq: 915.800, bw: 250,  sf: 10, cr: 5 },
+    { label: 'Australia (Narrow)',      freq: 916.575, bw: 62.5, sf: 7,  cr: 8 },
+    { label: 'Australia: SA, WA',       freq: 923.125, bw: 62.5, sf: 8,  cr: 8 },
+    { label: 'Australia: QLD',          freq: 923.125, bw: 62.5, sf: 8,  cr: 5 },
+    { label: 'EU/UK (Narrow)',          freq: 869.618, bw: 62.5, sf: 8,  cr: 8 },
+    { label: 'EU/UK (Deprecated)',      freq: 869.525, bw: 250,  sf: 11, cr: 5 },
+    { label: 'Czech Republic (Narrow)', freq: 869.432, bw: 62.5, sf: 7,  cr: 8 },
+    { label: 'EU 433MHz (Long Range)',  freq: 433.650, bw: 250,  sf: 11, cr: 5 },
+    { label: 'New Zealand',             freq: 917.375, bw: 250,  sf: 11, cr: 5 },
+    { label: 'New Zealand (Narrow)',    freq: 917.375, bw: 62.5, sf: 7,  cr: 5 },
+    { label: 'Portugal 433',            freq: 433.375, bw: 62.5, sf: 9,  cr: 6 },
+    { label: 'Portugal 868',            freq: 869.618, bw: 62.5, sf: 7,  cr: 6 },
+    { label: 'Switzerland',             freq: 869.618, bw: 62.5, sf: 8,  cr: 8 },
+    { label: 'USA/Canada (Recommended)', freq: 910.525, bw: 62.5, sf: 7, cr: 5 },
+    { label: 'Vietnam (Narrow)',        freq: 920.250, bw: 62.5, sf: 8,  cr: 5 },
+    { label: 'Vietnam (Deprecated)',    freq: 920.250, bw: 250,  sf: 11, cr: 5 },
+];
+
+async function loadDeviceConfig() {
+    try {
+        const resp = await fetch('/api/device/config');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.success) return;
+        const c = data.config;
+
+        // Public Info
+        document.getElementById('settDeviceName').value = c.name || '';
+        document.getElementById('settDeviceLat').value = c.lat || '';
+        document.getElementById('settDeviceLon').value = c.lon || '';
+        document.getElementById('settDeviceAdvertLoc').checked = !!c.advert_loc_policy;
+
+        // Radio
+        document.getElementById('settRadioFreq').value = c.radio_freq || '';
+        // Match bandwidth to closest option
+        const bwSelect = document.getElementById('settRadioBw');
+        if (bwSelect && c.radio_bw) {
+            const bwVal = parseFloat(c.radio_bw);
+            let bestOpt = bwSelect.options[0];
+            let bestDiff = Infinity;
+            for (const opt of bwSelect.options) {
+                const diff = Math.abs(parseFloat(opt.value) - bwVal);
+                if (diff < bestDiff) { bestDiff = diff; bestOpt = opt; }
+            }
+            bwSelect.value = bestOpt.value;
+        }
+        document.getElementById('settRadioSf').value = c.radio_sf || '';
+        document.getElementById('settRadioCr').value = c.radio_cr || '';
+        document.getElementById('settRadioTxPower').value = c.tx_power || '';
+
+        // Reset preset dropdown
+        document.getElementById('settRadioPreset').value = '';
+    } catch (e) {
+        console.error('Failed to load device config:', e);
+    }
+}
+
+async function saveDevicePublicInfo() {
+    const name = document.getElementById('settDeviceName').value.trim();
+    if (!name) {
+        showNotification('Device name cannot be empty', 'danger');
+        document.getElementById('settDeviceName').focus();
+        return;
+    }
+
+    const lat = parseFloat(document.getElementById('settDeviceLat').value) || 0;
+    const lon = parseFloat(document.getElementById('settDeviceLon').value) || 0;
+    const advertLoc = document.getElementById('settDeviceAdvertLoc').checked;
+
+    try {
+        const resp = await fetch('/api/device/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                lat: lat,
+                lon: lon,
+                advert_loc_policy: advertLoc
+            })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showNotification('Public info saved', 'success');
+            _selfInfo = null;
+        } else {
+            showNotification(data.error || 'Failed to save', 'danger');
+        }
+    } catch (e) {
+        showNotification('Failed to save public info', 'danger');
+    }
+}
+
+async function saveDeviceRadioSettings() {
+    const freq = parseFloat(document.getElementById('settRadioFreq').value);
+    const bw = parseFloat(document.getElementById('settRadioBw').value);
+    const sf = parseInt(document.getElementById('settRadioSf').value, 10);
+    const cr = parseInt(document.getElementById('settRadioCr').value, 10);
+    const txPower = parseInt(document.getElementById('settRadioTxPower').value, 10);
+
+    if (isNaN(freq) || freq < 100 || freq > 1000) {
+        showNotification('Invalid frequency', 'danger');
+        return;
+    }
+    if (isNaN(sf) || sf < 5 || sf > 12) {
+        showNotification('Spreading factor must be 5-12', 'danger');
+        return;
+    }
+    if (isNaN(cr) || cr < 5 || cr > 8) {
+        showNotification('Coding rate must be 5-8', 'danger');
+        return;
+    }
+    if (isNaN(txPower) || txPower < 0 || txPower > 30) {
+        showNotification('TX power must be 0-30 dBm', 'danger');
+        return;
+    }
+
+    if (!confirm('Changing radio settings will disconnect from the mesh network. Continue?')) return;
+
+    try {
+        const resp = await fetch('/api/device/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                radio_freq: freq,
+                radio_bw: bw,
+                radio_sf: sf,
+                radio_cr: cr,
+                tx_power: txPower
+            })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showNotification('Radio settings saved', 'success');
+        } else {
+            showNotification(data.error || 'Failed to save', 'danger');
+        }
+    } catch (e) {
+        showNotification('Failed to save radio settings', 'danger');
+    }
+}
+
+function populateRadioPresets() {
+    const select = document.getElementById('settRadioPreset');
+    if (!select) return;
+    select.innerHTML = '<option value="">Load preset...</option>';
+    RADIO_PRESETS.forEach((preset, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = `${preset.label} — ${preset.freq} / SF${preset.sf} / BW${preset.bw} / CR${preset.cr}`;
+        select.appendChild(opt);
+    });
+}
+
+function applyRadioPreset(idx) {
+    const preset = RADIO_PRESETS[idx];
+    if (!preset) return;
+    document.getElementById('settRadioFreq').value = preset.freq;
+    document.getElementById('settRadioBw').value = preset.bw;
+    document.getElementById('settRadioSf').value = preset.sf;
+    document.getElementById('settRadioCr').value = preset.cr;
+}
+
+// --- Coordinate Map Picker ---
+
+let _coordPickerMap = null;
+let _coordPickerMarker = null;
+let _coordPickerLatLng = null;
+
+function openCoordPicker() {
+    _coordPickerLatLng = null;
+
+    const modalEl = document.getElementById('coordPickerModal');
+    if (!modalEl) return;
+
+    const confirmBtn = document.getElementById('coordPickerConfirmBtn');
+    const label = document.getElementById('coordPickerLabel');
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (label) label.textContent = 'Click on the map to select coordinates';
+
+    const modal = new bootstrap.Modal(modalEl);
+
+    const onShown = function () {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        if (backdrops.length > 0) {
+            backdrops[backdrops.length - 1].style.zIndex = '1075';
+        }
+
+        if (!_coordPickerMap) {
+            _coordPickerMap = L.map('coordPickerMap').setView([52.0, 19.0], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
+            }).addTo(_coordPickerMap);
+
+            _coordPickerMap.on('click', function (e) {
+                _coordPickerLatLng = e.latlng;
+                if (_coordPickerMarker) {
+                    _coordPickerMarker.setLatLng(e.latlng);
+                } else {
+                    _coordPickerMarker = L.marker(e.latlng).addTo(_coordPickerMap);
+                }
+                if (label) label.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                if (confirmBtn) confirmBtn.disabled = false;
+            });
+        }
+
+        _coordPickerMap.invalidateSize();
+
+        // Center on current lat/lon if set
+        const curLat = parseFloat(document.getElementById('settDeviceLat').value);
+        const curLon = parseFloat(document.getElementById('settDeviceLon').value);
+        if (!isNaN(curLat) && !isNaN(curLon) && (curLat !== 0 || curLon !== 0)) {
+            _coordPickerMap.setView([curLat, curLon], 13);
+            if (_coordPickerMarker) {
+                _coordPickerMarker.setLatLng([curLat, curLon]);
+            } else {
+                _coordPickerMarker = L.marker([curLat, curLon]).addTo(_coordPickerMap);
+            }
+            _coordPickerLatLng = { lat: curLat, lng: curLon };
+            if (label) label.textContent = `${curLat.toFixed(6)}, ${curLon.toFixed(6)}`;
+            if (confirmBtn) confirmBtn.disabled = false;
+        } else {
+            // Remove old marker if coords are empty
+            if (_coordPickerMarker) {
+                _coordPickerMap.removeLayer(_coordPickerMarker);
+                _coordPickerMarker = null;
+            }
+            _coordPickerMap.setView([52.0, 19.0], 6);
+        }
+
+        modalEl.removeEventListener('shown.bs.modal', onShown);
+    };
+
+    modalEl.addEventListener('shown.bs.modal', onShown);
+    modal.show();
+}
+
+// =============================================================================
 // Settings Modal
 // =============================================================================
 
@@ -1950,6 +2191,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsModal = document.getElementById('settingsModal');
     if (settingsModal) {
         settingsModal.addEventListener('show.bs.modal', () => {
+            loadDeviceConfig();
             loadDmRetrySettings();
             loadChatSettings();
         });
@@ -1982,6 +2224,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('chatSettingsResetBtn')?.addEventListener('click', () => {
         populateChatSettingsForm(CHAT_SETTINGS_DEFAULTS);
+    });
+
+    // --- Device Settings ---
+    const devicePublicInfoForm = document.getElementById('devicePublicInfoForm');
+    if (devicePublicInfoForm) {
+        devicePublicInfoForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveDevicePublicInfo();
+        });
+    }
+
+    const deviceRadioForm = document.getElementById('deviceRadioForm');
+    if (deviceRadioForm) {
+        deviceRadioForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveDeviceRadioSettings();
+        });
+    }
+
+    populateRadioPresets();
+    document.getElementById('settRadioPreset')?.addEventListener('change', (e) => {
+        const idx = parseInt(e.target.value, 10);
+        if (!isNaN(idx)) applyRadioPreset(idx);
+    });
+
+    document.getElementById('settDevicePickMapBtn')?.addEventListener('click', () => {
+        openCoordPicker();
+    });
+
+    document.getElementById('coordPickerConfirmBtn')?.addEventListener('click', () => {
+        if (_coordPickerLatLng) {
+            document.getElementById('settDeviceLat').value = _coordPickerLatLng.lat.toFixed(6);
+            document.getElementById('settDeviceLon').value = _coordPickerLatLng.lng.toFixed(6);
+        }
+        bootstrap.Modal.getInstance(document.getElementById('coordPickerModal'))?.hide();
     });
 
     // Load chat settings cache on startup (for quote dialog)

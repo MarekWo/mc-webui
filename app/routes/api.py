@@ -1119,6 +1119,97 @@ def get_device_info():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/device/config', methods=['GET'])
+def get_device_config():
+    """Get device configuration for settings modal."""
+    try:
+        dm = _get_dm()
+        if not dm or not dm.is_connected:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
+
+        info = dm.get_device_info()
+        if not info:
+            return jsonify({'success': False, 'error': 'No device info available'}), 503
+
+        return jsonify({
+            'success': True,
+            'config': {
+                'name': info.get('name', info.get('adv_name', '')),
+                'lat': info.get('lat', 0),
+                'lon': info.get('lon', 0),
+                'advert_loc_policy': info.get('adv_loc_policy', 0),
+                'radio_freq': info.get('radio_freq', 0),
+                'radio_bw': info.get('radio_bw', 0),
+                'radio_sf': info.get('radio_sf', 0),
+                'radio_cr': info.get('radio_cr', 0),
+                'tx_power': info.get('tx_power', 0),
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting device config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/device/config', methods=['POST'])
+def update_device_config():
+    """Update device configuration from settings modal."""
+    try:
+        dm = _get_dm()
+        if not dm or not dm.is_connected:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+        errors = []
+
+        # Name
+        if 'name' in data:
+            result = dm.set_param('name', str(data['name']))
+            if not result.get('success'):
+                errors.append(f"name: {result.get('error')}")
+
+        # Coordinates
+        if 'lat' in data or 'lon' in data:
+            lat = float(data.get('lat', 0))
+            lon = float(data.get('lon', 0))
+            result = dm.set_param('coords', f"{lat},{lon}")
+            if not result.get('success'):
+                errors.append(f"coords: {result.get('error')}")
+
+        # Advert location policy
+        if 'advert_loc_policy' in data:
+            val = '1' if data['advert_loc_policy'] else '0'
+            result = dm.set_param('advert_loc_policy', val)
+            if not result.get('success'):
+                errors.append(f"advert_loc_policy: {result.get('error')}")
+
+        # Radio params (all 4 together)
+        if 'radio_freq' in data:
+            freq = float(data['radio_freq'])
+            bw = float(data.get('radio_bw', 0))
+            sf = int(data.get('radio_sf', 0))
+            cr = int(data.get('radio_cr', 0))
+            result = dm.set_param('radio', f"{freq},{bw},{sf},{cr}")
+            if not result.get('success'):
+                errors.append(f"radio: {result.get('error')}")
+
+        # TX Power (separate from radio)
+        if 'tx_power' in data:
+            result = dm.set_param('tx', str(int(data['tx_power'])))
+            if not result.get('success'):
+                errors.append(f"tx_power: {result.get('error')}")
+
+        if errors:
+            return jsonify({'success': False, 'error': '; '.join(errors)}), 500
+
+        return jsonify({'success': True, 'message': 'Device config updated'}), 200
+    except Exception as e:
+        logger.error(f"Error updating device config: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/device/stats', methods=['GET'])
 def get_device_stats():
     """

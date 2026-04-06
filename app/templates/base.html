@@ -371,7 +371,10 @@
                 <div class="modal-body">
                     <ul class="nav nav-tabs mb-3" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabSettingsMessages" type="button">Messages</button>
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabSettingsDevice" type="button">Device</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsMessages" type="button">Messages</button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsChat" type="button">Group Chat</button>
@@ -381,7 +384,122 @@
                         </li>
                     </ul>
                     <div class="tab-content">
-                        <div class="tab-pane fade show active" id="tabSettingsMessages">
+                        <!-- Device Settings Tab -->
+                        <div class="tab-pane fade show active" id="tabSettingsDevice">
+                            <ul class="nav nav-pills nav-fill mb-3" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active py-1 px-2" data-bs-toggle="pill"
+                                            data-bs-target="#tabDevicePublicInfo" type="button">Public Info</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link py-1 px-2" data-bs-toggle="pill"
+                                            data-bs-target="#tabDeviceRadio" type="button">Radio Settings</button>
+                                </li>
+                            </ul>
+                            <div class="tab-content">
+                                <!-- Public Info sub-tab -->
+                                <div class="tab-pane fade show active" id="tabDevicePublicInfo">
+                                    <form id="devicePublicInfoForm">
+                                        <table class="table table-sm table-borderless mb-3 align-middle">
+                                            <tbody>
+                                                <tr>
+                                                    <td class="ps-0">Name</td>
+                                                    <td class="pe-0"><input type="text" class="form-control form-control-sm"
+                                                        id="settDeviceName" maxlength="32" placeholder="Device name"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="ps-0">Latitude</td>
+                                                    <td class="pe-0">
+                                                        <div class="input-group input-group-sm">
+                                                            <input type="number" class="form-control form-control-sm"
+                                                                id="settDeviceLat" step="0.000001" min="-90" max="90" placeholder="0.000000">
+                                                            <button type="button" class="btn btn-outline-secondary" id="settDevicePickMapBtn"
+                                                                title="Pick from map"><i class="bi bi-geo-alt"></i></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="ps-0">Longitude</td>
+                                                    <td class="pe-0"><input type="number" class="form-control form-control-sm"
+                                                        id="settDeviceLon" step="0.000001" min="-180" max="180" placeholder="0.000000"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="ps-0">Share position in advert
+                                                        <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip"
+                                                            title="Include GPS coordinates in device advertisement"><i class="bi bi-info-circle"></i></span>
+                                                    </td>
+                                                    <td class="pe-0">
+                                                        <div class="form-check form-switch mb-0">
+                                                            <input class="form-check-input" type="checkbox" id="settDeviceAdvertLoc">
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                        <div class="d-flex gap-2">
+                                            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                        </div>
+                                    </form>
+                                </div>
+                                <!-- Radio Settings sub-tab -->
+                                <div class="tab-pane fade" id="tabDeviceRadio">
+                                    <form id="deviceRadioForm">
+                                        <table class="table table-sm table-borderless mb-3 align-middle">
+                                            <tbody>
+                                                <tr>
+                                                    <td class="ps-0" colspan="2">
+                                                        <select class="form-select form-select-sm" id="settRadioPreset">
+                                                            <option value="">Load preset...</option>
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="ps-0">Frequency (MHz)</td>
+                                                    <td class="pe-0" style="width:7rem"><input type="number" class="form-control form-control-sm"
+                                                        id="settRadioFreq" step="0.001" min="100" max="1000"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="ps-0">Bandwidth (kHz)</td>
+                                                    <td class="pe-0">
+                                                        <select class="form-select form-select-sm" id="settRadioBw" style="width:7rem">
+                                                            <option value="7.8">7.8</option>
+                                                            <option value="10.4">10.4</option>
+                                                            <option value="15.6">15.6</option>
+                                                            <option value="20.8">20.8</option>
+                                                            <option value="31.25">31.25</option>
+                                                            <option value="41.7">41.7</option>
+                                                            <option value="62.5">62.5</option>
+                                                            <option value="125">125</option>
+                                                            <option value="250">250</option>
+                                                            <option value="500">500</option>
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="ps-0">Spreading Factor</td>
+                                                    <td class="pe-0" style="width:7rem"><input type="number" class="form-control form-control-sm"
+                                                        id="settRadioSf" min="5" max="12"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="ps-0">Coding Rate</td>
+                                                    <td class="pe-0" style="width:7rem"><input type="number" class="form-control form-control-sm"
+                                                        id="settRadioCr" min="5" max="8"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="ps-0">TX Power (dBm)</td>
+                                                    <td class="pe-0" style="width:7rem"><input type="number" class="form-control form-control-sm"
+                                                        id="settRadioTxPower" min="0" max="30"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                        <div class="d-flex gap-2">
+                                            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="tabSettingsMessages">
                             <div id="settingsMessagesContent">
                                 <form id="dmRetrySettingsForm">
                                     <p class="text-muted small mb-3">Retries are counted after the initial send, e.g. 3 retries = 4 total attempts.</p>
@@ -502,6 +620,26 @@
                             </table>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coordinate Picker Map Modal -->
+    <div class="modal fade" id="coordPickerModal" tabindex="-1" style="z-index: 1080;">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title"><i class="bi bi-geo-alt"></i> Pick Coordinates</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div id="coordPickerMap" style="height: 400px; width: 100%;"></div>
+                </div>
+                <div class="modal-footer py-2">
+                    <span class="me-auto small text-muted" id="coordPickerLabel">Click on the map to select coordinates</span>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="coordPickerConfirmBtn" disabled>Confirm</button>
                 </div>
             </div>
         </div>

@@ -2094,3 +2094,9 @@ emoji-picker {
 .section-compact {
     margin-bottom: 0.75rem;
 }
+
+/* Device settings sub-tabs */
+#tabSettingsDevice .nav-pills .nav-link {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.75rem;
+}
