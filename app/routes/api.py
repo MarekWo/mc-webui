@@ -1135,8 +1135,8 @@ def get_device_config():
             'success': True,
             'config': {
                 'name': info.get('name', info.get('adv_name', '')),
-                'lat': info.get('lat', 0),
-                'lon': info.get('lon', 0),
+                'lat': info.get('adv_lat', 0),
+                'lon': info.get('adv_lon', 0),
                 'advert_loc_policy': info.get('adv_loc_policy', 0),
                 'radio_freq': info.get('radio_freq', 0),
                 'radio_bw': info.get('radio_bw', 0),

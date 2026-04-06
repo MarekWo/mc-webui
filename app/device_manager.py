@@ -2873,7 +2873,7 @@ class DeviceManager:
             elif param == 'tx':
                 return {'success': True, 'data': {'tx': info.get('tx_power', '?')}}
             elif param in ('coords', 'lat', 'lon'):
-                return {'success': True, 'data': {'lat': info.get('lat', 0), 'lon': info.get('lon', 0)}}
+                return {'success': True, 'data': {'lat': info.get('adv_lat', 0), 'lon': info.get('adv_lon', 0)}}
             elif param == 'bat':
                 bat = self.get_battery()
                 return {'success': True, 'data': bat or {}}
@@ -2928,12 +2928,12 @@ class DeviceManager:
                 return {'success': True, 'message': f'Coords set to: {lat}, {lon}'}
             elif param == 'lat':
                 info = self.get_device_info()
-                lon = info.get('lon', 0)
+                lon = info.get('adv_lon', 0)
                 self.execute(self.mc.commands.set_coords(float(value), lon), timeout=5)
                 return {'success': True, 'message': f'Lat set to: {value}'}
             elif param == 'lon':
                 info = self.get_device_info()
-                lat = info.get('lat', 0)
+                lat = info.get('adv_lat', 0)
                 self.execute(self.mc.commands.set_coords(lat, float(value)), timeout=5)
                 return {'success': True, 'message': f'Lon set to: {value}'}
             elif param == 'radio':
