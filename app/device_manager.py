@@ -2879,10 +2879,10 @@ class DeviceManager:
                 return {'success': True, 'data': bat or {}}
             elif param == 'radio':
                 return {'success': True, 'data': {
-                    'freq': info.get('freq', '?'),
-                    'bw': info.get('bw', '?'),
-                    'sf': info.get('sf', '?'),
-                    'cr': info.get('cr', '?'),
+                    'freq': info.get('radio_freq', '?'),
+                    'bw': info.get('radio_bw', '?'),
+                    'sf': info.get('radio_sf', '?'),
+                    'cr': info.get('radio_cr', '?'),
                 }}
             elif param == 'stats':
                 stats = self.get_device_stats()
@@ -2934,6 +2934,14 @@ class DeviceManager:
                 lat = info.get('lat', 0)
                 self.execute(self.mc.commands.set_coords(lat, float(value)), timeout=5)
                 return {'success': True, 'message': f'Lon set to: {value}'}
+            elif param == 'radio':
+                parts = value.split(',')
+                if len(parts) != 4:
+                    return {'success': False, 'error': 'Format: set radio <freq>,<bw>,<sf>,<cr>'}
+                freq, bw = float(parts[0].strip()), float(parts[1].strip())
+                sf, cr = int(parts[2].strip()), int(parts[3].strip())
+                self.execute(self.mc.commands.set_radio(freq, bw, sf, cr), timeout=5)
+                return {'success': True, 'message': f'Radio set to: freq={freq}, bw={bw}, sf={sf}, cr={cr}'}
             elif param == 'pin':
                 self.execute(self.mc.commands.set_devicepin(value), timeout=5)
                 return {'success': True, 'message': 'PIN set'}
