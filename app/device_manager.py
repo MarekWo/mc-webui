@@ -778,7 +778,7 @@ class DeviceManager:
 
         ADVERTISEMENT payload only contains {'public_key': '...'}.
         Full contact details (name, type, lat/lon) must be looked up
-        from mc.contacts which is synced at startup.
+        from mc.contacts which is refreshed from device when dirty.
         If the contact is unknown (new auto-add by firmware), refresh contacts.
         """
         try:
@@ -787,6 +787,13 @@ class DeviceManager:
 
             if not pubkey:
                 return
+
+            # Refresh contacts from device if dirty (e.g., contact renamed).
+            # The meshcore library sets contacts_dirty=True on every advert,
+            # but with auto_update_contacts=False we must refresh manually.
+            # Uses incremental fetch (lastmod) so only changed contacts are read.
+            if self.mc.contacts_dirty:
+                await self.mc.ensure_contacts(follow=True)
 
             # Look up full contact details from meshcore's contact list
             contact = (self.mc.contacts or {}).get(pubkey, {})

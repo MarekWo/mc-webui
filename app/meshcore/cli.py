@@ -158,10 +158,22 @@ def _parse_last_advert(value) -> int:
 
 
 def get_contacts_with_last_seen() -> Tuple[bool, Dict[str, Dict], str]:
-    """Get contacts actually on the device firmware (from mc.contacts)."""
+    """Get contacts actually on the device firmware (from mc.contacts).
+
+    Refreshes from device if contacts_dirty flag is set (e.g., after
+    receiving adverts that may carry updated names/paths).
+    """
     try:
         dm = _get_dm()
-        if not dm.mc or not dm.mc.contacts:
+        if not dm.mc:
+            return True, {}, ""
+
+        # Refresh contacts from device if dirty (name changes, path updates, etc.)
+        if dm.mc.contacts_dirty:
+            dm.execute(dm.mc.ensure_contacts(follow=True))
+            dm._sync_contacts_to_db()
+
+        if not dm.mc.contacts:
             return True, {}, ""
         contacts_dict = {}
         for pk, contact in dm.mc.contacts.items():
