@@ -2865,14 +2865,15 @@ function formatTime(timestamp) {
         return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    // When viewing live messages, use relative time
+    // When viewing live messages, compare calendar dates
     const now = new Date();
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
 
-    if (diffDays === 0) {
+    if (date.toDateString() === now.toDateString()) {
         // Today - show time only
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffDays === 1) {
+    } else if (date.toDateString() === yesterday.toDateString()) {
         // Yesterday
         return 'Yesterday ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else {
