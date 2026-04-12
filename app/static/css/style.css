@@ -780,11 +780,6 @@ main {
     position: relative;
 }
 
-.dm-route-link > .path-popup {
-    left: auto;
-    right: 0;
-}
-
 .dm-delivery-popup {
     position: absolute;
     bottom: 100%;
@@ -1444,7 +1439,8 @@ main {
 .path-popup {
     position: absolute;
     bottom: 100%;
-    left: 0;
+    right: 0;
+    left: auto;
     background-color: #333;
     color: #fff;
     padding: 0.4rem 0.6rem;
@@ -1456,13 +1452,18 @@ main {
     margin-bottom: 4px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     min-width: 180px;
-    max-width: 320px;
+    max-width: min(320px, calc(100vw - 1.5rem));
 }
 
 .path-popup .path-entry {
     padding: 0.15rem 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
     word-break: break-all;
+    cursor: pointer;
+}
+
+.path-popup .path-entry:active {
+    opacity: 0.6;
 }
 
 .path-popup .path-entry:last-child {

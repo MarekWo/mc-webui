@@ -1455,10 +1455,25 @@ function showDmRoutePopup(element, hexPath, hashSize) {
 
     const segments = segmentHexPath(hexPath, hashSize || 1);
     const fullRoute = segments.join(' \u2192 ');
+    const commaRoute = segments.join(',');
 
     const popup = document.createElement('div');
     popup.className = 'path-popup';
-    popup.innerHTML = `<div class="path-entry">${fullRoute}<span class="path-detail">Hops: ${segments.length}</span></div>`;
+
+    const entry = document.createElement('div');
+    entry.className = 'path-entry';
+    entry.innerHTML = `${fullRoute}<span class="path-detail">Hops: ${segments.length}</span>`;
+    entry.title = 'Tap to copy route';
+    entry.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(commaRoute).then(() => {
+            const orig = entry.innerHTML;
+            entry.innerHTML = '<span style="opacity:0.8">Copied!</span>';
+            setTimeout(() => { entry.innerHTML = orig; }, 1000);
+        });
+    });
+    popup.appendChild(entry);
+
     element.style.position = 'relative';
     element.appendChild(popup);
 

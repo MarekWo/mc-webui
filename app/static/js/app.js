@@ -1504,7 +1504,6 @@ function showPathsPopup(element, encodedPaths) {
     const popup = document.createElement('div');
     popup.className = 'path-popup';
 
-    let html = '';
     paths.forEach((p, i) => {
         const pChunkLen = (p.hash_size || 1) * 2;
         const segments = [];
@@ -1514,14 +1513,33 @@ function showPathsPopup(element, encodedPaths) {
             }
         }
         const fullRoute = segments.join(' \u2192 ');
+        const commaRoute = segments.join(',');
         const snr = p.snr !== null && p.snr !== undefined ? `${p.snr.toFixed(1)} dB` : '?';
         const hops = segments.length;
-        html += `<div class="path-entry">${fullRoute}<span class="path-detail">SNR: ${snr} | Hops: ${hops}</span></div>`;
+        const entry = document.createElement('div');
+        entry.className = 'path-entry';
+        entry.innerHTML = `${fullRoute}<span class="path-detail">SNR: ${snr} | Hops: ${hops}</span>`;
+        entry.title = 'Tap to copy route';
+        entry.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(commaRoute).then(() => {
+                const orig = entry.innerHTML;
+                entry.innerHTML = '<span style="opacity:0.8">Copied!</span>';
+                setTimeout(() => { entry.innerHTML = orig; }, 1000);
+            });
+        });
+        popup.appendChild(entry);
     });
 
-    popup.innerHTML = html;
     element.style.position = 'relative';
     element.appendChild(popup);
+
+    // Adjust if popup overflows viewport
+    const rect = popup.getBoundingClientRect();
+    if (rect.left < 4) {
+        popup.style.right = 'auto';
+        popup.style.left = '0';
+    }
 
     // Auto-dismiss after 8 seconds or on outside tap
     const dismiss = () => popup.remove();
