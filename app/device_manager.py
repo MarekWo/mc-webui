@@ -8,12 +8,16 @@ Event handlers capture incoming data and write to Database + emit SocketIO.
 
 import asyncio
 import hashlib
+import hmac as hmac_mod
 import json
 import logging
+import struct
 import threading
 import time
 from typing import Optional, Any, Dict, List, Tuple
 from urllib.parse import urlparse, parse_qs
+
+from Crypto.Cipher import AES
 
 ANALYZER_BASE_URL = 'https://analyzer.letsmesh.net/packets?packet_hash='
 GRP_TXT_TYPE_BYTE = 0x05
@@ -47,6 +51,29 @@ def _to_str(val) -> str:
     if isinstance(val, bytes):
         return val.hex()
     return str(val)
+
+
+def _compute_pkt_payload(channel_secret_hex, sender_timestamp, txt_type, text, attempt=0):
+    """Compute pkt_payload from message data + channel secret.
+
+    Reconstructs the encrypted GRP_TXT payload:
+      channel_hash(1) + HMAC-MAC(2) + AES-128-ECB(plaintext)
+    where plaintext = timestamp(4 LE) + flags(1) + text(UTF-8) [+ null + zero-pad].
+    """
+    secret = bytes.fromhex(channel_secret_hex)
+    flags = ((txt_type & 0x3F) << 2) | (attempt & 0x03)
+    core = struct.pack('<I', sender_timestamp) + bytes([flags]) + text.encode('utf-8')
+    if len(core) % 16 == 0:
+        plaintext = core
+    else:
+        plaintext = core + b'\x00'
+        pad_len = (16 - len(plaintext) % 16) % 16
+        plaintext += b'\x00' * pad_len
+    cipher = AES.new(secret[:16], AES.MODE_ECB)
+    ciphertext = cipher.encrypt(plaintext)
+    mac = hmac_mod.new(secret, ciphertext, hashlib.sha256).digest()[:2]
+    chan_hash = hashlib.sha256(secret).digest()[0:1]
+    return (chan_hash + mac + ciphertext).hex()
 
 
 def parse_meshcore_uri(uri: str) -> Optional[Dict]:
@@ -1075,19 +1102,27 @@ class DeviceManager:
                 if age > 60:
                     self._pending_echo = None
                 elif pe['pkt_payload'] is None:
-                    # Validate channel hash before correlating — the first byte
-                    # of pkt_payload is sha256(channel_secret)[0], must match
-                    # the channel we sent on to avoid cross-channel mismatches
-                    expected_hash = self._get_channel_hash(pe['channel_idx'])
-                    echo_hash = pkt_payload[:2] if pkt_payload else None
-                    if expected_hash and echo_hash and expected_hash == echo_hash:
-                        # First echo after send — correlate pkt_payload with sent message
-                        pe['pkt_payload'] = pkt_payload
-                        direction = 'sent'
-                        self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
-                        logger.info(f"Echo: correlated pkt_payload with sent msg #{pe['msg_id']}, path={path}")
-                    elif expected_hash and echo_hash and expected_hash != echo_hash:
-                        logger.debug(f"Echo: channel hash mismatch (expected {expected_hash}, got {echo_hash}) — not our sent msg")
+                    expected_payloads = pe.get('expected_payloads')
+                    if expected_payloads:
+                        # Exact matching: compare echo against pre-computed payloads
+                        if pkt_payload in expected_payloads:
+                            pe['pkt_payload'] = pkt_payload
+                            direction = 'sent'
+                            self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
+                            logger.info(f"Echo: matched pkt_payload with sent msg #{pe['msg_id']}, path={path}")
+                        else:
+                            logger.debug(f"Echo: pkt_payload doesn't match expected candidates — not our sent msg")
+                    else:
+                        # Fallback: channel hash matching (no secret available)
+                        expected_hash = self._get_channel_hash(pe['channel_idx'])
+                        echo_hash = pkt_payload[:2] if pkt_payload else None
+                        if expected_hash and echo_hash and expected_hash == echo_hash:
+                            pe['pkt_payload'] = pkt_payload
+                            direction = 'sent'
+                            self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
+                            logger.info(f"Echo: correlated pkt_payload with sent msg #{pe['msg_id']} (channel hash fallback), path={path}")
+                        elif expected_hash and echo_hash and expected_hash != echo_hash:
+                            logger.debug(f"Echo: channel hash mismatch (expected {expected_hash}, got {echo_hash}) — not our sent msg")
                 elif pe['pkt_payload'] == pkt_payload:
                     # Additional echo for same sent message
                     direction = 'sent'
@@ -1309,14 +1344,28 @@ class DeviceManager:
                 pkt_payload=getattr(event, 'data', {}).get('pkt_payload') if event else None,
             )
 
-            # Register for echo correlation — first RX_LOG_DATA echo will
-            # provide the actual pkt_payload for this sent message
+            # Pre-compute expected pkt_payloads for echo correlation.
+            # We try ts±3s to account for clock drift between host and firmware.
+            expected_payloads = set()
+            secret = self._channel_secrets.get(channel_idx)
+            if secret and self.device_name:
+                full_text = f"{self.device_name}: {text}"
+                for dt in range(-3, 4):
+                    try:
+                        expected_payloads.add(
+                            _compute_pkt_payload(secret, ts + dt, 0, full_text)
+                        )
+                    except Exception:
+                        pass
+
+            # Register for echo correlation
             with self._echo_lock:
                 self._pending_echo = {
                     'timestamp': time.time(),
                     'channel_idx': channel_idx,
                     'msg_id': msg_id,
                     'pkt_payload': None,
+                    'expected_payloads': expected_payloads or None,
                 }
 
             # Emit SocketIO event so sender's UI updates immediately
