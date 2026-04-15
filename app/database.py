@@ -197,12 +197,16 @@ class Database:
             return cursor.rowcount > 0
 
     def hard_delete_contact(self, public_key: str) -> bool:
-        """Permanently delete a contact from the database."""
+        """Permanently delete a contact from the database.
+
+        Also clears ignored/blocked rows that reference this contact
+        via FK without ON DELETE CASCADE.
+        """
+        pk = public_key.lower()
         with self._connect() as conn:
-            cursor = conn.execute(
-                "DELETE FROM contacts WHERE public_key = ?",
-                (public_key.lower(),)
-            )
+            conn.execute("DELETE FROM ignored_contacts WHERE public_key = ?", (pk,))
+            conn.execute("DELETE FROM blocked_contacts WHERE public_key = ?", (pk,))
+            cursor = conn.execute("DELETE FROM contacts WHERE public_key = ?", (pk,))
             return cursor.rowcount > 0
 
     def downgrade_stale_device_contacts(self, active_device_keys: set) -> int:
