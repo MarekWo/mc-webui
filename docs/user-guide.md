@@ -16,6 +16,7 @@ This guide covers all features and functionality of mc-webui. For installation i
 - [DM Path Management](#dm-path-management)
 - [Interactive Console](#interactive-console)
 - [Device Dashboard](#device-dashboard)
+- [Quick-Access FAB Buttons](#quick-access-fab-buttons)
 - [Settings](#settings)
 - [System Log](#system-log)
 - [Database Backup](#database-backup)
@@ -184,7 +185,9 @@ Access the Direct Messages feature:
 
 ### Real-time Delivery Progress
 
-While a message is being retried, the UI shows a live counter below the message bubble (e.g., "Attempt 3/11"). When delivery is confirmed, the route used is displayed (e.g., `5E->05->58->D1`) and can be clicked to show a popup with full path details.
+While a message is being retried, the UI shows a live counter below the message bubble (e.g., "Attempt 3/11") starting from "Attempt 1/..." immediately after sending. When delivery is confirmed (or fails), delivery details (attempt, route used) appear instantly without needing to close and reopen the conversation.
+
+The route used (e.g., `5E->05->58->D1`) can be clicked to show a popup with full path details. Tapping individual route entries in the popup copies the path to the clipboard in comma-separated format (e.g. `5E,32,0D,8C`).
 
 ### DM Notifications
 
@@ -501,14 +504,64 @@ Share your device contact with others:
 
 ---
 
+## Quick-Access FAB Buttons
+
+A set of Floating Action Buttons (FAB) is pinned to the main chat and DM pages for one-tap access to common features:
+
+- **Filter** (funnel icon) - Open the message filter bar
+- **Search** (magnifier icon) - Open global full-text search (main chat only)
+- **Direct Messages** (envelope icon) - Jump to the DM page (main chat only)
+- **Contact Management** (person icon) - Open the Contact Management page (main chat only)
+- **Settings** (gear icon) - Open the Settings modal
+
+### Drag to Reposition
+
+Press and hold the small toggle button (chevron) and drag the FAB cluster to any corner of the screen. The position is saved to browser local storage per page (main chat and DM each have their own).
+
+### Collapse / Expand
+
+Tap the toggle button (short click, no drag) to hide or show the rest of the FAB cluster. Only the toggle remains visible when collapsed. The collapsed state is shared between main chat and DM views and persists across page loads.
+
+### Customization
+
+Open Settings → **Appearance** tab to adjust:
+- **Button size** - 28 to 72 pixels (default: 56)
+- **Spacing** - 2 to 24 pixels between buttons (default: 12)
+- **Reset position** - Reset both main chat and DM FAB positions to their defaults
+
+Size and spacing are applied live as you move the sliders.
+
+---
+
 ## Settings
 
 Access the Settings modal to configure application behavior:
 
-1. Click the menu icon (☰) in the navbar
+1. Click the menu icon (☰) in the navbar (or tap the gear FAB button)
 2. Select "Settings" from the menu
 
-### DM Retry Settings
+The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **Interface**, and **Appearance**.
+
+### Device Tab
+
+Configure your MeshCore device directly from the web UI. Split into two sub-tabs:
+
+**Public Info:**
+- **Name** - Device name (up to 32 characters)
+- **Latitude / Longitude** - GPS coordinates. Click the map pin button to open a map picker and click anywhere on the map to select coordinates
+- **Share position in advert** - Toggle whether GPS coordinates are broadcast in advertisement frames (maps to `advert_loc_policy`)
+
+**Radio Settings:**
+- **Load preset** - Apply a regional preset (Australia, EU/UK, USA/Canada, New Zealand, Switzerland, Vietnam, and more). Selecting a preset fills in frequency, bandwidth, spreading factor, and coding rate
+- **Frequency (MHz)** - LoRa carrier frequency
+- **Bandwidth (kHz)** - 7.8 / 10.4 / 15.6 / 20.8 / 31.25 / 41.7 / 62.5 / 125 / 250 / 500
+- **Spreading Factor** - 5-12
+- **Coding Rate** - 5-8
+- **TX Power (dBm)** - 0-30
+
+Changes are written to the device (via the `set` command internally) and are persisted on the device.
+
+### Messages Tab — DM Retry Settings
 
 Configure how direct messages are retried when delivery is not confirmed. Settings are organized into two groups based on whether the contact has a known route:
 
@@ -526,17 +579,35 @@ Configure how direct messages are retried when delivery is not confirmed. Settin
 
 The app automatically picks one of four retry strategies depending on the contact's route status and configured paths. For full details, see [DM Delivery & Retry Logic](dm-retry-logic.md).
 
-### Quote Settings
+### Group Chat Tab
 
+**Quote Settings:**
 - **Max quote length** - Maximum number of bytes to include when quoting a message
 
-### Message Retention
-
+**Message Retention:**
 - **Live view days** - Number of days of messages shown in the live view (older messages are archived)
 
-### Theme
+**Route popup** (applies to both channel messages and DMs):
+- **Auto-close after (s)** - Seconds before the route popup (shown when tapping "SNR | Hops" under a message) closes automatically (default: 8)
+- **Don't close automatically** - Popup stays open until you tap outside it
 
+### Interface Tab
+
+Controls small notification toasts shown after actions (e.g. "Advert Sent", errors).
+
+- **Auto-close after (s)** - Seconds before a notification closes (default: 2.0)
+- **Don't close automatically** - Toasts stay visible until dismissed via their close button
+- **Position on screen** - Top-left / Top-right / Bottom-left / Bottom-right / Center
+
+### Appearance Tab
+
+**Theme:**
 - **Dark / Light** - Toggle between dark and light UI themes. The preference is saved in local browser storage
+
+**Quick Access Buttons:**
+- **Button size (px)** - Adjust the size of FAB buttons (default: 56)
+- **Spacing (px)** - Space between FAB buttons (default: 12)
+- **Position** - Reset FAB position to default (top-right)
 
 ---
 

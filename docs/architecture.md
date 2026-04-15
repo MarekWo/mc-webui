@@ -55,6 +55,14 @@ Three transport options are supported with the following priority: **BLE > TCP >
 
 This v2 architecture eliminates the need for a separate bridge container and relies on the native `meshcore` Python library for direct communication, ensuring lower latency and greater stability.
 
+### Docker Entrypoint (BLE cleanup)
+
+`scripts/docker-entrypoint.sh` runs before the Flask app starts. When `MC_BLE_ADDRESS` is set, it uses D-Bus to check if BlueZ has an active session to the device and disconnects it. BlueZ auto-reconnects trusted devices, which leaves stale GATT notification handles that block `bleak` from establishing a new session. A clean disconnect at startup ensures the app starts with a fresh BLE state.
+
+### Multi-architecture Images
+
+Official images are built via GitHub Actions for `linux/amd64`, `linux/arm64`, and `linux/arm/v7` (Raspberry Pi 2/3/4/5 supported). Build dependencies (`gcc`, `python3-dev`, `libjpeg-dev`, `zlib1g-dev`) are installed and then purged to keep the final image size small while still compiling `Pillow` and `pycryptodome` from source when wheels are unavailable (notably on `arm/v7`). GHA layer cache (`cache-from` / `cache-to`) speeds up subsequent rebuilds. Images are pushed to both Docker Hub (`mawoj/mc-webui`) and GitHub Container Registry (`ghcr.io/marekwo/mc-webui`), with `latest` tag on `main` and `dev` tag on the `dev` branch.
+
 ---
 
 ## DeviceManager Architecture
@@ -67,6 +75,8 @@ The `DeviceManager` handles the connection to the MeshCore device via a direct s
 - **Real-time messages** - Instant message processing via callback events without polling
 - **Thread-safe queue** - Commands are serialized to prevent device lockups
 - **Auto-restart watchdog** - Monitors connection health and restarts the session on crash
+- **BLE keepalive & reconnect** - When using Bluetooth transport, a 60s keepalive loop detects "zombie" connections (reads still succeed but writes silently fail). On disconnect or keepalive failure, the manager marks the session as permanently failed and the `/health` endpoint returns 503, letting the Docker healthcheck trigger a fast container restart (~5s) to get a clean BLE state rather than attempting unreliable in-process reconnects
+- **Echo correlation** - Sent channel messages pre-compute their expected `pkt_payload` using the channel secret and send timestamp (±3s for clock drift), so incoming echoes are matched exactly instead of only by 1-byte channel hash (prevents misattribution when two messages go out simultaneously on the same channel)
 
 ---
 
@@ -97,9 +107,14 @@ mc-webui/
 │   │   ├── api.py                  # REST API endpoints
 │   │   └── views.py                # HTML views
 │   ├── static/                     # Frontend assets (CSS, JS, images, vendors)
+│   │   └── js/fab-utils.js         # Floating-button drag/collapse/sizing helpers
 │   └── templates/                  # HTML templates
 ├── docs/                           # Documentation
-├── scripts/                        # Utility scripts (update, watchdog, updater)
+├── scripts/
+│   ├── update.sh                   # Automated update script
+│   ├── docker-entrypoint.sh        # Container startup (BLE cleanup)
+│   ├── updater/                    # Remote update webhook service
+│   └── watchdog/                   # Container health monitor
 └── README.md
 ```
 
@@ -206,10 +221,14 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 | GET | `/api/device/stats` | Device statistics |
 | GET | `/api/device/settings` | Get device settings |
 | POST | `/api/device/settings` | Update device settings |
+| GET | `/api/device/config` | Get device configuration (name, coords, advert_loc_policy, radio params, tx_power) |
+| POST | `/api/device/config` | Update device configuration from Settings > Device tab |
 | POST | `/api/device/command` | Execute command (advert, floodadv) |
 | GET | `/api/device/commands` | List available special commands |
-| GET | `/api/chat/settings` | Get chat settings (quote length) |
+| GET | `/api/chat/settings` | Get chat settings (quote length, route popup timeout/no-autoclose) |
 | POST | `/api/chat/settings` | Update chat settings |
+| GET | `/api/ui/settings` | Get UI settings (toast timeout, no-autoclose, position) |
+| POST | `/api/ui/settings` | Update UI settings |
 | GET | `/api/retention-settings` | Get message retention settings |
 | POST | `/api/retention-settings` | Update retention settings |
 

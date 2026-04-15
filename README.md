@@ -24,8 +24,10 @@ A lightweight web interface providing browser-based access to MeshCore mesh netw
 - **Message archives** - Automatic daily archiving with browse-by-date selector
 - **Interactive Console** - Full MeshCore command suite via WebSocket — repeater, contact, device, and channel management
 - **Device dashboard** - Device info, statistics, and contact sharing (QR code / URI)
+- **Device configuration** - Edit device name, GPS coordinates (with map picker), advert location sharing, and LoRa radio parameters (frequency, bandwidth, SF, CR, TX power) directly from Settings
+- **Quick-access FAB buttons** - Draggable floating action buttons (Filter, Search, DM, Contacts, Settings) on main chat and DM pages, with collapsible visibility and customizable size/spacing
 - **Dark/Light theme** - Toggle between dark and light UI themes
-- **Settings** - Configurable DM retry parameters, message retention, quote length, and theme
+- **Settings** - Configurable DM retry parameters, message retention, quote length, route popup timeout, toast notification position/timeout, and theme
 - **System Log** - Real-time log viewer with streaming
 - **Database backup** - Create, list, and download database backups from the UI
 - **@Mentions autocomplete** - Type @ to see contact suggestions with fuzzy search
@@ -43,12 +45,13 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
 ### Prerequisites
 
 **1. Meshcore Device (tested on Heltec V4)**
-- Flash the device at [https://flasher.meshcore.co.uk/](https://flasher.meshcore.co.uk/). Choose the `Companion USB` role.
+- Flash the device at [https://flasher.meshcore.co.uk/](https://flasher.meshcore.co.uk/). Choose the `Companion USB` role (or `Companion BLE` if you plan to use Bluetooth).
 - Configure the device with the Meshcore mobile app (from Google Play Store / App Store): Name, Location (optional), Preset
 
-**2. Linux Server**
+**2. Linux Server (or Raspberry Pi)**
 - Docker and Docker Compose installed ([installation guide](docs/docker-install.md))
 - Git installed (only needed for Option B: From Source)
+- Supported architectures: `linux/amd64`, `linux/arm64`, `linux/arm/v7` (Raspberry Pi 2/3/4/5 all work)
 
 **Important Notes:**
 - Powered by direct meshcore library integration (v2 architecture)
@@ -474,12 +477,15 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 - [x] MeshCore Analyzer - Packet analysis links on channel messages (analyzer.letsmesh.net)
 - [x] DM Delivery Tracking - ACK-based delivery checkmarks with SNR/route details
 - [x] Device Dashboard - Device info, statistics, and contact sharing (QR/URI)
-- [x] Settings Modal - DM retry parameters, message retention, and dark/light theme
+- [x] Device Configuration - Edit device name, coordinates (map picker), radio parameters from Settings
+- [x] Settings Modal - DM retry parameters, message retention, route popup / toast customization, and dark/light theme
+- [x] Quick-Access FAB Buttons - Draggable floating buttons with collapse toggle and size/spacing controls
 - [x] System Log - Real-time log viewer with streaming
 - [x] Database Backup - Create, list, and download backups from the UI
 - [x] Desktop Sidebar - Channel/contact sidebar for wide screens (tablet/desktop)
 - [x] Dark/Light Theme - Toggle between dark and light UI themes
 - [x] Multi-device Support - Database file named after device public key
+- [x] Multi-arch Docker Images - amd64, arm64, arm/v7 (Raspberry Pi supported)
 
 ### Next Steps
 
