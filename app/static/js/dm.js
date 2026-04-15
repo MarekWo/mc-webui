@@ -3,6 +3,64 @@
  * Full-page DM view functionality
  */
 
+// --- Settings caches (standalone page — no app.js on this route) ---
+
+const DM_CHAT_SETTINGS_DEFAULTS = {
+    path_popup_timeout_sec: 8,
+    path_popup_no_autoclose: false
+};
+
+const DM_UI_SETTINGS_DEFAULTS = {
+    toast_timeout_sec: 2,
+    toast_no_autoclose: false,
+    toast_position: 'top-left'
+};
+
+const DM_TOAST_POSITION_CLASSES = {
+    'top-left':     ['top-0', 'start-0'],
+    'top-right':    ['top-0', 'end-0'],
+    'bottom-left':  ['bottom-0', 'start-0'],
+    'bottom-right': ['bottom-0', 'end-0'],
+    'center':       ['top-50', 'start-50', 'translate-middle']
+};
+const DM_ALL_POSITION_CLASSES = ['top-0', 'top-50', 'start-0', 'start-50', 'bottom-0', 'end-0', 'translate-middle'];
+
+window.chatSettingsCache = window.chatSettingsCache || { ...DM_CHAT_SETTINGS_DEFAULTS };
+window.uiSettingsCache = window.uiSettingsCache || { ...DM_UI_SETTINGS_DEFAULTS };
+
+function dmApplyToastPosition(position) {
+    const classes = DM_TOAST_POSITION_CLASSES[position] || DM_TOAST_POSITION_CLASSES['top-left'];
+    document.querySelectorAll('[data-toast-container]').forEach(el => {
+        DM_ALL_POSITION_CLASSES.forEach(c => el.classList.remove(c));
+        classes.forEach(c => el.classList.add(c));
+    });
+}
+
+async function loadDmChatSettings() {
+    try {
+        const resp = await fetch('/api/chat/settings');
+        if (resp.ok) {
+            const data = await resp.json();
+            window.chatSettingsCache = { ...DM_CHAT_SETTINGS_DEFAULTS, ...data };
+        }
+    } catch (e) {
+        console.error('Failed to load chat settings:', e);
+    }
+}
+
+async function loadDmUiSettings() {
+    try {
+        const resp = await fetch('/api/ui/settings');
+        if (resp.ok) {
+            const data = await resp.json();
+            window.uiSettingsCache = { ...DM_UI_SETTINGS_DEFAULTS, ...data };
+            dmApplyToastPosition(window.uiSettingsCache.toast_position);
+        }
+    } catch (e) {
+        console.error('Failed to load UI settings:', e);
+    }
+}
+
 // State variables
 let currentConversationId = null;
 let currentRecipient = null;
@@ -201,6 +259,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     window.dispatchEvent(new Event('resize'));
     // Force reflow to ensure proper layout calculation
     document.body.offsetHeight;
+
+    // Load settings caches (path popup timeout + toast behavior/position)
+    loadDmChatSettings();
+    loadDmUiSettings();
 
     // Load last seen timestamps from server
     await loadDmLastSeenTimestampsFromServer();
@@ -1478,7 +1540,13 @@ function showDmRoutePopup(element, hexPath, hashSize) {
     element.appendChild(popup);
 
     const dismiss = () => popup.remove();
-    setTimeout(dismiss, 8000);
+    const cfg = window.chatSettingsCache || {};
+    const noAutoclose = !!cfg.path_popup_no_autoclose;
+    const timeoutSec = parseInt(cfg.path_popup_timeout_sec, 10);
+    if (!noAutoclose) {
+        const ms = (isFinite(timeoutSec) && timeoutSec > 0 ? timeoutSec : 8) * 1000;
+        setTimeout(dismiss, ms);
+    }
     document.addEventListener('click', function handler(e) {
         if (!element.contains(e.target)) {
             dismiss();
@@ -1725,9 +1793,14 @@ function showNotification(message, type = 'info') {
         }
     }
 
+    const cfg = window.uiSettingsCache || {};
+    const noAutoclose = !!cfg.toast_no_autoclose;
+    const timeoutSec = parseFloat(cfg.toast_timeout_sec);
+    const delay = isFinite(timeoutSec) && timeoutSec > 0 ? Math.round(timeoutSec * 1000) : 2000;
+
     const toast = new bootstrap.Toast(toastEl, {
-        autohide: true,
-        delay: 1500
+        autohide: !noAutoclose,
+        delay: delay
     });
     toast.show();
 }

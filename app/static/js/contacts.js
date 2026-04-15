@@ -10,6 +10,44 @@
  * - Mobile-first design
  */
 
+// --- UI settings bootstrap (for standalone contact pages that don't load app.js) ---
+
+(function initContactsUiSettings() {
+    const TOAST_POSITION_CLASSES = {
+        'top-left':     ['top-0', 'start-0'],
+        'top-right':    ['top-0', 'end-0'],
+        'bottom-left':  ['bottom-0', 'start-0'],
+        'bottom-right': ['bottom-0', 'end-0'],
+        'center':       ['top-50', 'start-50', 'translate-middle']
+    };
+    const ALL_CLASSES = ['top-0', 'top-50', 'start-0', 'start-50', 'bottom-0', 'end-0', 'translate-middle'];
+
+    function apply(position) {
+        const classes = TOAST_POSITION_CLASSES[position] || TOAST_POSITION_CLASSES['top-left'];
+        document.querySelectorAll('[data-toast-container]').forEach(el => {
+            ALL_CLASSES.forEach(c => el.classList.remove(c));
+            classes.forEach(c => el.classList.add(c));
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        // If app.js is on the page, it owns settings loading and will update all
+        // [data-toast-container] elements (including ours) once its fetch resolves.
+        if (typeof window.applyToastPosition === 'function') return;
+
+        try {
+            const resp = await fetch('/api/ui/settings');
+            if (resp.ok) {
+                const data = await resp.json();
+                window.uiSettingsCache = data;
+                apply(data.toast_position || 'top-left');
+            }
+        } catch (e) {
+            console.error('Failed to load UI settings:', e);
+        }
+    });
+})();
+
 // =============================================================================
 // Global Navigation Helper
 // =============================================================================
@@ -1783,10 +1821,15 @@ function showToast(message, type = 'info') {
         toastEl.classList.add('bg-info', 'text-white');
     }
 
-    // Show toast
+    // Show toast (honors ui_settings: timeout + no-autoclose; position handled by toast-container classes)
+    const cfg = window.uiSettingsCache || {};
+    const noAutoclose = !!cfg.toast_no_autoclose;
+    const timeoutSec = parseFloat(cfg.toast_timeout_sec);
+    const delay = isFinite(timeoutSec) && timeoutSec > 0 ? Math.round(timeoutSec * 1000) : 2000;
+
     const toast = new bootstrap.Toast(toastEl, {
-        autohide: true,
-        delay: 1500
+        autohide: !noAutoclose,
+        delay: delay
     });
     toast.show();
 }

@@ -1541,9 +1541,15 @@ function showPathsPopup(element, encodedPaths) {
         popup.style.left = '0';
     }
 
-    // Auto-dismiss after 8 seconds or on outside tap
+    // Auto-dismiss after configured timeout (unless disabled) or on outside tap
     const dismiss = () => popup.remove();
-    setTimeout(dismiss, 8000);
+    const cfg = window.chatSettingsCache || {};
+    const noAutoclose = !!cfg.path_popup_no_autoclose;
+    const timeoutSec = parseInt(cfg.path_popup_timeout_sec, 10);
+    if (!noAutoclose) {
+        const ms = (isFinite(timeoutSec) && timeoutSec > 0 ? timeoutSec : 8) * 1000;
+        setTimeout(dismiss, ms);
+    }
     document.addEventListener('click', function handler(e) {
         if (!element.contains(e.target)) {
             dismiss();
@@ -2077,19 +2083,31 @@ function openCoordPicker() {
 // --- Chat Settings ---
 
 const CHAT_SETTINGS_DEFAULTS = {
-    quote_max_bytes: 20
+    quote_max_bytes: 20,
+    path_popup_timeout_sec: 8,
+    path_popup_no_autoclose: false
 };
 
-const CHAT_SETTINGS_FIELDS = {
-    quote_max_bytes: 'settQuoteMaxBytes'
+const CHAT_SETTINGS_INT_FIELDS = {
+    quote_max_bytes: 'settQuoteMaxBytes',
+    path_popup_timeout_sec: 'settPathPopupTimeout'
+};
+
+const CHAT_SETTINGS_BOOL_FIELDS = {
+    path_popup_no_autoclose: 'settPathPopupNoAutoclose'
 };
 
 let chatSettingsCache = { ...CHAT_SETTINGS_DEFAULTS };
+window.chatSettingsCache = chatSettingsCache;
 
 function populateChatSettingsForm(data) {
-    for (const [key, elId] of Object.entries(CHAT_SETTINGS_FIELDS)) {
+    for (const [key, elId] of Object.entries(CHAT_SETTINGS_INT_FIELDS)) {
         const el = document.getElementById(elId);
         if (el) el.value = data[key] ?? CHAT_SETTINGS_DEFAULTS[key];
+    }
+    for (const [key, elId] of Object.entries(CHAT_SETTINGS_BOOL_FIELDS)) {
+        const el = document.getElementById(elId);
+        if (el) el.checked = !!(data[key] ?? CHAT_SETTINGS_DEFAULTS[key]);
     }
 }
 
@@ -2099,6 +2117,7 @@ async function loadChatSettings() {
         if (resp.ok) {
             const data = await resp.json();
             chatSettingsCache = { ...CHAT_SETTINGS_DEFAULTS, ...data };
+            window.chatSettingsCache = chatSettingsCache;
             populateChatSettingsForm(chatSettingsCache);
         }
     } catch (e) {
@@ -2108,7 +2127,7 @@ async function loadChatSettings() {
 
 async function saveChatSettings() {
     const payload = {};
-    for (const [key, elId] of Object.entries(CHAT_SETTINGS_FIELDS)) {
+    for (const [key, elId] of Object.entries(CHAT_SETTINGS_INT_FIELDS)) {
         const el = document.getElementById(elId);
         const val = parseInt(el.value, 10);
         if (isNaN(val) || val < parseInt(el.min) || val > parseInt(el.max)) {
@@ -2117,6 +2136,10 @@ async function saveChatSettings() {
             return;
         }
         payload[key] = val;
+    }
+    for (const [key, elId] of Object.entries(CHAT_SETTINGS_BOOL_FIELDS)) {
+        const el = document.getElementById(elId);
+        if (el) payload[key] = !!el.checked;
     }
     try {
         const resp = await fetch('/api/chat/settings', {
@@ -2127,6 +2150,95 @@ async function saveChatSettings() {
         if (resp.ok) {
             const data = await resp.json();
             chatSettingsCache = { ...CHAT_SETTINGS_DEFAULTS, ...data };
+            window.chatSettingsCache = chatSettingsCache;
+            showNotification('Settings saved', 'success');
+        } else {
+            const err = await resp.json();
+            showNotification(err.error || 'Failed to save', 'danger');
+        }
+    } catch (e) {
+        showNotification('Failed to save settings', 'danger');
+    }
+}
+
+// --- UI (Interface) Settings ---
+
+const UI_SETTINGS_DEFAULTS = {
+    toast_timeout_sec: 2,
+    toast_no_autoclose: false,
+    toast_position: 'top-left'
+};
+
+const TOAST_POSITION_CLASSES = {
+    'top-left':     ['top-0', 'start-0'],
+    'top-right':    ['top-0', 'end-0'],
+    'bottom-left':  ['bottom-0', 'start-0'],
+    'bottom-right': ['bottom-0', 'end-0'],
+    'center':       ['top-50', 'start-50', 'translate-middle']
+};
+
+const ALL_POSITION_CLASSES = ['top-0', 'top-50', 'start-0', 'start-50', 'bottom-0', 'end-0', 'translate-middle'];
+
+let uiSettingsCache = { ...UI_SETTINGS_DEFAULTS };
+window.uiSettingsCache = uiSettingsCache;
+
+function applyToastPosition(position) {
+    const classes = TOAST_POSITION_CLASSES[position] || TOAST_POSITION_CLASSES['top-left'];
+    document.querySelectorAll('[data-toast-container]').forEach(el => {
+        ALL_POSITION_CLASSES.forEach(c => el.classList.remove(c));
+        classes.forEach(c => el.classList.add(c));
+    });
+}
+window.applyToastPosition = applyToastPosition;
+
+function populateUiSettingsForm(data) {
+    const t = document.getElementById('settToastTimeout');
+    if (t) t.value = data.toast_timeout_sec ?? UI_SETTINGS_DEFAULTS.toast_timeout_sec;
+    const noClose = document.getElementById('settToastNoAutoclose');
+    if (noClose) noClose.checked = !!(data.toast_no_autoclose ?? UI_SETTINGS_DEFAULTS.toast_no_autoclose);
+    const pos = document.getElementById('settToastPosition');
+    if (pos) pos.value = data.toast_position ?? UI_SETTINGS_DEFAULTS.toast_position;
+}
+
+async function loadUiSettings() {
+    try {
+        const resp = await fetch('/api/ui/settings');
+        if (resp.ok) {
+            const data = await resp.json();
+            uiSettingsCache = { ...UI_SETTINGS_DEFAULTS, ...data };
+            window.uiSettingsCache = uiSettingsCache;
+            applyToastPosition(uiSettingsCache.toast_position);
+            populateUiSettingsForm(uiSettingsCache);
+        }
+    } catch (e) {
+        console.error('Failed to load UI settings:', e);
+    }
+}
+
+async function saveUiSettings() {
+    const timeoutEl = document.getElementById('settToastTimeout');
+    const timeout = parseFloat(timeoutEl.value);
+    if (isNaN(timeout) || timeout < 1 || timeout > 60) {
+        showNotification('Invalid auto-close duration', 'danger');
+        timeoutEl.focus();
+        return;
+    }
+    const payload = {
+        toast_timeout_sec: timeout,
+        toast_no_autoclose: !!document.getElementById('settToastNoAutoclose').checked,
+        toast_position: document.getElementById('settToastPosition').value
+    };
+    try {
+        const resp = await fetch('/api/ui/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            uiSettingsCache = { ...UI_SETTINGS_DEFAULTS, ...data };
+            window.uiSettingsCache = uiSettingsCache;
+            applyToastPosition(uiSettingsCache.toast_position);
             showNotification('Settings saved', 'success');
         } else {
             const err = await resp.json();
@@ -2212,6 +2324,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadDeviceConfig();
             loadDmRetrySettings();
             loadChatSettings();
+            loadUiSettings();
         });
         settingsModal.addEventListener('shown.bs.modal', () => {
             settingsModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
@@ -2242,6 +2355,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('chatSettingsResetBtn')?.addEventListener('click', () => {
         populateChatSettingsForm(CHAT_SETTINGS_DEFAULTS);
+    });
+
+    const uiSettingsForm = document.getElementById('uiSettingsForm');
+    if (uiSettingsForm) {
+        uiSettingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveUiSettings();
+        });
+    }
+
+    document.getElementById('uiSettingsResetBtn')?.addEventListener('click', () => {
+        populateUiSettingsForm(UI_SETTINGS_DEFAULTS);
     });
 
     // --- Device Settings ---
@@ -2279,8 +2404,9 @@ document.addEventListener('DOMContentLoaded', () => {
         bootstrap.Modal.getInstance(document.getElementById('coordPickerModal'))?.hide();
     });
 
-    // Load chat settings cache on startup (for quote dialog)
+    // Load settings caches on startup (for quote dialog, path popup, toast behavior)
     loadChatSettings();
+    loadUiSettings();
 });
 
 /**
@@ -2648,9 +2774,14 @@ function showNotification(message, type = 'info') {
     toastBody.textContent = message;
     toastEl.className = `toast bg-${type} text-white`;
 
+    const cfg = window.uiSettingsCache || {};
+    const noAutoclose = !!cfg.toast_no_autoclose;
+    const timeoutSec = parseFloat(cfg.toast_timeout_sec);
+    const delay = isFinite(timeoutSec) && timeoutSec > 0 ? Math.round(timeoutSec * 1000) : 2000;
+
     const toast = new bootstrap.Toast(toastEl, {
-        autohide: true,
-        delay: 1500
+        autohide: !noAutoclose,
+        delay: delay
     });
     toast.show();
 }

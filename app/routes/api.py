@@ -272,8 +272,25 @@ DM_RETRY_DEFAULTS = {
 }
 
 CHAT_SETTINGS_DEFAULTS = {
-    'quote_max_bytes': 20,         # max UTF-8 bytes for truncated quote
+    'quote_max_bytes': 20,              # max UTF-8 bytes for truncated quote
+    'path_popup_timeout_sec': 8,        # auto-close timeout for route popup (channel + DM)
+    'path_popup_no_autoclose': False,   # when True, route popup stays open until click-outside
 }
+
+# Keys in chat_settings that carry a boolean value
+CHAT_SETTINGS_BOOL_KEYS = {'path_popup_no_autoclose'}
+
+# =============================================================================
+# UI Settings (app-wide interface behavior — toast notifications, etc.)
+# =============================================================================
+
+UI_SETTINGS_DEFAULTS = {
+    'toast_timeout_sec': 2.0,           # auto-hide delay for notification toasts
+    'toast_no_autoclose': False,        # when True, toasts stay until dismissed
+    'toast_position': 'top-left',       # one of TOAST_POSITIONS
+}
+
+TOAST_POSITIONS = {'top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'}
 
 
 def get_dm_retry_settings() -> dict:
@@ -317,6 +334,28 @@ def save_chat_settings(settings: dict) -> bool:
         return True
     except Exception as e:
         logger.error(f"Failed to save chat settings: {e}")
+        return False
+
+
+def get_ui_settings() -> dict:
+    """Get UI (interface) settings from database."""
+    db = _get_db()
+    if db:
+        saved = db.get_setting_json('ui_settings', {})
+        return {**UI_SETTINGS_DEFAULTS, **saved}
+    return dict(UI_SETTINGS_DEFAULTS)
+
+
+def save_ui_settings(settings: dict) -> bool:
+    """Save UI settings to database."""
+    db = _get_db()
+    if not db:
+        return False
+    try:
+        db.set_setting_json('ui_settings', settings)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save UI settings: {e}")
         return False
 
 
@@ -2560,9 +2599,17 @@ def set_chat_config():
         valid_keys = set(CHAT_SETTINGS_DEFAULTS.keys())
         settings = {}
         for key in valid_keys:
-            if key in data:
-                val = data[key]
-                if not isinstance(val, (int, float)) or val < 1:
+            if key not in data:
+                continue
+            val = data[key]
+            if key in CHAT_SETTINGS_BOOL_KEYS:
+                if not isinstance(val, bool):
+                    return jsonify({'success': False, 'error': f'Invalid value for {key}'}), 400
+                settings[key] = val
+            else:
+                if isinstance(val, bool) or not isinstance(val, (int, float)) or val < 1:
+                    return jsonify({'success': False, 'error': f'Invalid value for {key}'}), 400
+                if key == 'path_popup_timeout_sec' and val > 60:
                     return jsonify({'success': False, 'error': f'Invalid value for {key}'}), 400
                 settings[key] = int(val)
 
@@ -2571,6 +2618,53 @@ def set_chat_config():
 
         if save_chat_settings(settings):
             return jsonify({**get_chat_settings(), 'success': True}), 200
+        return jsonify({'success': False, 'error': 'Failed to save settings'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/ui/settings', methods=['GET'])
+def get_ui_config():
+    """Get UI (interface) settings."""
+    try:
+        return jsonify(get_ui_settings()), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/ui/settings', methods=['POST'])
+def set_ui_config():
+    """Update UI (interface) settings."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Missing JSON body'}), 400
+
+        settings = {}
+
+        if 'toast_timeout_sec' in data:
+            val = data['toast_timeout_sec']
+            if not isinstance(val, (int, float)) or isinstance(val, bool) or val < 1 or val > 60:
+                return jsonify({'success': False, 'error': 'Invalid value for toast_timeout_sec'}), 400
+            settings['toast_timeout_sec'] = float(val)
+
+        if 'toast_no_autoclose' in data:
+            val = data['toast_no_autoclose']
+            if not isinstance(val, bool):
+                return jsonify({'success': False, 'error': 'Invalid value for toast_no_autoclose'}), 400
+            settings['toast_no_autoclose'] = val
+
+        if 'toast_position' in data:
+            val = data['toast_position']
+            if val not in TOAST_POSITIONS:
+                return jsonify({'success': False, 'error': 'Invalid value for toast_position'}), 400
+            settings['toast_position'] = val
+
+        if not settings:
+            return jsonify({'success': False, 'error': 'No valid settings provided'}), 400
+
+        if save_ui_settings(settings):
+            return jsonify({**get_ui_settings(), 'success': True}), 200
         return jsonify({'success': False, 'error': 'Failed to save settings'}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
