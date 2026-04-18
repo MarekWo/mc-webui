@@ -3753,6 +3753,85 @@ def update_device_settings_api():
         }), 500
 
 
+@api_bp.route('/contacts/settings', methods=['GET'])
+def get_contacts_settings_api():
+    """Get contact-management UI/behaviour settings.
+
+    Returns:
+        {
+            "success": true,
+            "settings": {
+                "manual_add_contacts": bool,
+                "suppress_advert_notifications": bool,
+                "auto_ignore_new_adverts": bool
+            }
+        }
+    """
+    try:
+        success, dev_settings = cli.get_device_settings()
+        manual = bool(dev_settings.get('manual_add_contacts', False)) if success else False
+
+        db = _get_db()
+        suppress = bool(db.get_setting_json('suppress_advert_notifications', False)) if db else False
+        auto_ignore = bool(db.get_setting_json('auto_ignore_new_adverts', False)) if db else False
+
+        return jsonify({
+            'success': True,
+            'settings': {
+                'manual_add_contacts': manual,
+                'suppress_advert_notifications': suppress,
+                'auto_ignore_new_adverts': auto_ignore,
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting contacts settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/settings', methods=['POST'])
+def update_contacts_settings_api():
+    """Update one or more contact-management settings (partial payload allowed).
+
+    JSON body keys (all optional):
+        manual_add_contacts: bool          -> applied to device + persisted
+        suppress_advert_notifications: bool -> persisted (frontend-only behaviour)
+        auto_ignore_new_adverts: bool      -> persisted, used by device_manager
+    """
+    try:
+        data = request.get_json() or {}
+        if not isinstance(data, dict):
+            return jsonify({'success': False, 'error': 'Invalid payload'}), 400
+
+        db = _get_db()
+
+        if 'manual_add_contacts' in data:
+            val = data['manual_add_contacts']
+            if not isinstance(val, bool):
+                return jsonify({'success': False, 'error': 'manual_add_contacts must be a boolean'}), 400
+            success, message = cli.set_manual_add_contacts(val)
+            if not success:
+                return jsonify({'success': False, 'error': message}), 500
+
+        if 'suppress_advert_notifications' in data:
+            val = data['suppress_advert_notifications']
+            if not isinstance(val, bool):
+                return jsonify({'success': False, 'error': 'suppress_advert_notifications must be a boolean'}), 400
+            if db:
+                db.set_setting_json('suppress_advert_notifications', val)
+
+        if 'auto_ignore_new_adverts' in data:
+            val = data['auto_ignore_new_adverts']
+            if not isinstance(val, bool):
+                return jsonify({'success': False, 'error': 'auto_ignore_new_adverts must be a boolean'}), 400
+            if db:
+                db.set_setting_json('auto_ignore_new_adverts', val)
+
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"Error updating contacts settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # =============================================================================
 # Message Retention Settings
 # =============================================================================

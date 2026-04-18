@@ -451,8 +451,9 @@ function connectChatSocket() {
         }, 2000);
     });
 
-    // Real-time pending contact — update badge
+    // Real-time pending contact — update badge (unless suppressed by user setting)
     chatSocket.on('pending_contact', () => {
+        if (window.contactsSettings?.suppress_advert_notifications) return;
         updatePendingContactsBadge();
     });
 
@@ -2325,6 +2326,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadDmRetrySettings();
             loadChatSettings();
             loadUiSettings();
+            loadContactsSettings();
         });
         settingsModal.addEventListener('shown.bs.modal', () => {
             settingsModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
@@ -2332,6 +2334,20 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    // Contacts tab toggle handlers
+    document.getElementById('settManualApproval')?.addEventListener('change', (e) => {
+        saveContactsSetting('manual_add_contacts', e.target.checked, e.target);
+    });
+    document.getElementById('settSuppressAdvertNotifs')?.addEventListener('change', (e) => {
+        saveContactsSetting('suppress_advert_notifications', e.target.checked, e.target);
+    });
+    document.getElementById('settAutoIgnoreAdverts')?.addEventListener('change', (e) => {
+        saveContactsSetting('auto_ignore_new_adverts', e.target.checked, e.target);
+    });
+
+    // Initial load so suppress flag is available before user opens Settings
+    loadContactsSettings();
 
     const dmRetryForm = document.getElementById('dmRetrySettingsForm');
     if (dmRetryForm) {
@@ -2606,6 +2622,90 @@ async function handleNotificationToggle() {
     }
 }
 
+// =============================================================================
+// Contacts Settings (Settings modal → Contacts tab)
+// =============================================================================
+
+window.contactsSettings = {
+    manual_add_contacts: false,
+    suppress_advert_notifications: false,
+    auto_ignore_new_adverts: false,
+};
+
+async function loadContactsSettings() {
+    try {
+        const resp = await fetch('/api/contacts/settings');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.success) return;
+        const s = data.settings || {};
+        window.contactsSettings = {
+            manual_add_contacts: !!s.manual_add_contacts,
+            suppress_advert_notifications: !!s.suppress_advert_notifications,
+            auto_ignore_new_adverts: !!s.auto_ignore_new_adverts,
+        };
+        const m = document.getElementById('settManualApproval');
+        const s1 = document.getElementById('settSuppressAdvertNotifs');
+        const s2 = document.getElementById('settAutoIgnoreAdverts');
+        if (m) m.checked = window.contactsSettings.manual_add_contacts;
+        if (s1) s1.checked = window.contactsSettings.suppress_advert_notifications;
+        if (s2) s2.checked = window.contactsSettings.auto_ignore_new_adverts;
+        applyContactsSettingsEnableState(window.contactsSettings.manual_add_contacts);
+        // If suppress was just turned on while page open, clear the FAB badge now
+        if (window.contactsSettings.suppress_advert_notifications) {
+            updateFabBadge('.fab-contacts', 'fab-badge-pending', 0);
+        }
+    } catch (e) {
+        console.error('Error loading contacts settings:', e);
+    }
+}
+
+function applyContactsSettingsEnableState(manualOn) {
+    const s1 = document.getElementById('settSuppressAdvertNotifs');
+    const s2 = document.getElementById('settAutoIgnoreAdverts');
+    const l1 = document.getElementById('settSuppressAdvertNotifsLabel');
+    const l2 = document.getElementById('settAutoIgnoreAdvertsLabel');
+    [s1, s2].forEach(el => {
+        if (!el) return;
+        el.disabled = !manualOn;
+    });
+    [l1, l2].forEach(el => {
+        if (!el) return;
+        el.classList.toggle('text-muted', !manualOn);
+    });
+}
+
+async function saveContactsSetting(key, value, inputEl) {
+    try {
+        const resp = await fetch('/api/contacts/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [key]: value }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            if (inputEl) inputEl.checked = !value;
+            showNotification(data.error || 'Failed to save setting', 'danger');
+            return;
+        }
+        window.contactsSettings[key] = !!value;
+        if (key === 'manual_add_contacts') {
+            applyContactsSettingsEnableState(!!value);
+        }
+        if (key === 'suppress_advert_notifications' && value) {
+            updateFabBadge('.fab-contacts', 'fab-badge-pending', 0);
+        }
+        if (key === 'suppress_advert_notifications' && !value) {
+            // Re-fetch real count when re-enabling notifications
+            updatePendingContactsBadge();
+        }
+    } catch (e) {
+        console.error('Error saving contacts setting:', e);
+        if (inputEl) inputEl.checked = !value;
+        showNotification('Network error saving setting', 'danger');
+    }
+}
+
 /**
  * Send browser notification when new messages arrive
  * @param {number} channelCount - Number of channels with new messages
@@ -2679,9 +2779,11 @@ function checkAndNotify() {
     const dmBadge = document.querySelector('.fab-badge-dm');
     const currentDmUnread = dmBadge ? parseInt(dmBadge.textContent) || 0 : 0;
 
-    // Get pending contacts count from badge
+    // Get pending contacts count from badge (forced to 0 when notifications are suppressed)
     const pendingBadge = document.querySelector('.fab-badge-pending');
-    const currentPendingCount = pendingBadge ? parseInt(pendingBadge.textContent) || 0 : 0;
+    const rawPendingCount = pendingBadge ? parseInt(pendingBadge.textContent) || 0 : 0;
+    const currentPendingCount = window.contactsSettings?.suppress_advert_notifications
+        ? 0 : rawPendingCount;
 
     // Detect increases (new messages/contacts)
     const channelIncrease = currentTotalUnread > previousTotalUnread;
@@ -4033,6 +4135,13 @@ function updateDmBadges(totalUnread) {
  */
 async function updatePendingContactsBadge() {
     try {
+        // Suppress: hide FAB badge entirely, skip browser notification path
+        if (window.contactsSettings?.suppress_advert_notifications) {
+            updateFabBadge('.fab-contacts', 'fab-badge-pending', 0);
+            updateAppBadge();
+            return;
+        }
+
         // Load type filter from localStorage (uses same function as contacts.js)
         const savedTypes = loadPendingTypeFilter();
 

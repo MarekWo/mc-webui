@@ -4,34 +4,8 @@
 
 {% block page_content %}
 <div id="managePageContent" class="p-3">
-    <!-- Page Header -->
-    <div class="mb-4">
-        <h2 class="mb-1">
-            <i class="bi bi-gear"></i> Settings
-        </h2>
-        <p class="text-muted small mb-0">Configure contact management preferences</p>
-    </div>
-
-    <!-- Manual Approval Settings Section -->
-    <div class="compact-setting">
-        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
-            <input class="form-check-input" type="checkbox" role="switch" id="manualApprovalSwitch" style="cursor: pointer; min-width: 3rem; min-height: 1.5rem;">
-            <label class="form-check-label mb-0" for="manualApprovalSwitch" style="cursor: pointer; font-weight: 500;">
-                <span id="switchLabel">Loading...</span>
-            </label>
-        </div>
-        <i class="bi bi-info-circle info-icon"
-           data-bs-toggle="tooltip"
-           data-bs-placement="top"
-           title="When enabled, new contacts must be manually approved before they can communicate with your node"></i>
-    </div>
-
     <!-- Navigation Section -->
     <div class="mb-4">
-        <h5 class="mb-3">
-            <i class="bi bi-list-ul"></i> Manage Contacts
-        </h5>
-
         <!-- Add Contact Card -->
         <div class="nav-card" onclick="navigateTo('/contacts/add');" style="border-left: 4px solid #198754;">
             <div>
@@ -56,7 +30,7 @@
         <div class="nav-card" onclick="navigateTo('/contacts/existing');">
             <div>
                 <h6><i class="bi bi-person-lines-fill"></i> Existing Contacts</h6>
-                <small class="text-muted">View and manage your approved contacts</small>
+                <small class="text-muted">Manage all stored contacts</small>
             </div>
             <span class="badge counter-badge counter-ok rounded-pill" id="existingBadge" style="font-size: 1.1rem;">
                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>

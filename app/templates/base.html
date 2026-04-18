@@ -385,6 +385,9 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsAppearance" type="button">Appearance</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsContacts" type="button">Contacts</button>
+                        </li>
                     </ul>
                     <div class="tab-content">
                         <!-- Device Settings Tab -->
@@ -674,6 +677,45 @@
                                         <td class="ps-0">Position</td>
                                         <td class="pe-0">
                                             <button type="button" class="btn btn-outline-secondary btn-sm" id="settFabResetPos">Reset to default</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="tab-pane fade" id="tabSettingsContacts">
+                            <table class="table table-sm table-borderless mb-0 align-middle">
+                                <tbody>
+                                    <tr>
+                                        <td class="ps-0">Manual approval enabled
+                                            <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip"
+                                                title="When enabled, new contacts must be manually approved before they can communicate with your node"><i class="bi bi-info-circle"></i></span>
+                                        </td>
+                                        <td class="pe-0">
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input" type="checkbox" id="settManualApproval">
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-0" id="settSuppressAdvertNotifsLabel">Suppress new advert notifications
+                                            <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip"
+                                                title="Hide the badge over Contact Management and the browser notification when new pending contacts arrive. The Pending Contacts list itself still shows them. Requires Manual approval ON."><i class="bi bi-info-circle"></i></span>
+                                        </td>
+                                        <td class="pe-0">
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input" type="checkbox" id="settSuppressAdvertNotifs">
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-0" id="settAutoIgnoreAdvertsLabel">Automatically add new contacts to "Ignored"
+                                            <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip"
+                                                title="Every new advert is automatically marked as Ignored — no notifications, no badge. Contacts still appear under Existing Contacts (Cache) and can be promoted with 'To Device'. Requires Manual approval ON."><i class="bi bi-info-circle"></i></span>
+                                        </td>
+                                        <td class="pe-0">
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input" type="checkbox" id="settAutoIgnoreAdverts">
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>

@@ -1156,6 +1156,14 @@ class DeviceManager:
             pass
         return False
 
+    def _is_auto_ignore_new_adverts_enabled(self) -> bool:
+        """Check if new adverts should be auto-marked as Ignored (from database)."""
+        try:
+            return bool(self.db.get_setting_json('auto_ignore_new_adverts', False))
+        except Exception:
+            pass
+        return False
+
     async def _on_new_contact(self, event):
         """Handle new contact discovered.
 
@@ -1246,6 +1254,15 @@ class DeviceManager:
                     last_advert=last_advert_val,
                     source='advert',  # cache-only until approved
                 )
+
+                # Auto-ignore: mark as ignored so it never shows up as pending
+                if self._is_auto_ignore_new_adverts_enabled():
+                    try:
+                        self.db.set_contact_ignored(pubkey, True)
+                        logger.info(f"Auto-ignored new advert: {name} ({pubkey[:8]}...)")
+                    except Exception as e:
+                        logger.warning(f"Failed to auto-ignore {pubkey[:8]}: {e}")
+                    return  # no socket emit -> no badge -> no notification
 
                 if self.socketio:
                     self.socketio.emit('pending_contact', {

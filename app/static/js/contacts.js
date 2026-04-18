@@ -77,7 +77,6 @@ window.navigateTo = function(url) {
 // =============================================================================
 
 let currentPage = null; // 'manage', 'pending', 'existing'
-let manualApprovalEnabled = false;
 let pendingContacts = [];
 let filteredPendingContacts = []; // Filtered pending contacts (for pending page filtering)
 let existingContacts = [];
@@ -210,9 +209,6 @@ function initializePage() {
 function initManagePage() {
     console.log('Initializing Management page...');
 
-    // Load settings for manual approval toggle
-    loadSettings();
-
     // Load contact counts for badges
     loadContactCounts();
 
@@ -224,12 +220,6 @@ function initManagePage() {
 }
 
 function attachManageEventListeners() {
-    // Manual approval toggle
-    const approvalSwitch = document.getElementById('manualApprovalSwitch');
-    if (approvalSwitch) {
-        approvalSwitch.addEventListener('change', handleApprovalToggle);
-    }
-
     // Cleanup preview button
     const cleanupPreviewBtn = document.getElementById('cleanupPreviewBtn');
     if (cleanupPreviewBtn) {
@@ -942,82 +932,6 @@ function attachExistingEventListeners() {
         confirmDeleteBtn.addEventListener('click', () => {
             confirmDelete();
         });
-    }
-}
-
-// =============================================================================
-// Settings Management (shared)
-// =============================================================================
-
-async function loadSettings() {
-    try {
-        const response = await fetch('/api/device/settings');
-        const data = await response.json();
-
-        if (data.success) {
-            manualApprovalEnabled = data.settings.manual_add_contacts || false;
-            updateApprovalUI(manualApprovalEnabled);
-        } else {
-            console.error('Failed to load settings:', data.error);
-            showToast('Failed to load settings', 'danger');
-        }
-    } catch (error) {
-        console.error('Error loading settings:', error);
-        showToast('Network error loading settings', 'danger');
-    }
-}
-
-async function handleApprovalToggle(event) {
-    const enabled = event.target.checked;
-
-    try {
-        const response = await fetch('/api/device/settings', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                manual_add_contacts: enabled
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            manualApprovalEnabled = enabled;
-            updateApprovalUI(enabled);
-            showToast(
-                enabled ? 'Manual approval enabled' : 'Manual approval disabled',
-                'success'
-            );
-        } else {
-            console.error('Failed to update setting:', data.error);
-            showToast('Failed to update setting: ' + data.error, 'danger');
-
-            // Revert toggle on failure
-            event.target.checked = !enabled;
-        }
-    } catch (error) {
-        console.error('Error updating setting:', error);
-        showToast('Network error updating setting', 'danger');
-
-        // Revert toggle on failure
-        event.target.checked = !enabled;
-    }
-}
-
-function updateApprovalUI(enabled) {
-    const switchEl = document.getElementById('manualApprovalSwitch');
-    const labelEl = document.getElementById('switchLabel');
-
-    if (switchEl) {
-        switchEl.checked = enabled;
-    }
-
-    if (labelEl) {
-        labelEl.textContent = enabled
-            ? 'Manual approval enabled'
-            : 'Automatic approval (default)';
     }
 }
 
