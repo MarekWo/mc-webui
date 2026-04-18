@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Management in mc-webui</title>
+<meta name="description" content="A deep dive into contact management in mc-webui: device contacts, the cache layer, ignored and blocked flags, recommended settings, and migration from the official MeshCore apps.">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #656d76;
+    --border: #d0d7de;
+    --border-soft: #eaeef2;
+    --surface: #f6f8fa;
+    --surface-hover: #eef1f4;
+    --accent: #0969da;
+    --accent-soft: #ddf4ff;
+    --code-bg: #f6f8fa;
+    --table-row-alt: #f6f8fa;
+    --note-bg: #ddf4ff;
+    --note-border: #54aeff;
+    --warn-bg: #fff8c5;
+    --warn-border: #d4a72c;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --max-width: 820px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9198a1;
+      --border: #30363d;
+      --border-soft: #21262d;
+      --surface: #161b22;
+      --surface-hover: #1f252d;
+      --accent: #4493f8;
+      --accent-soft: #1f2d3d;
+      --code-bg: #161b22;
+      --table-row-alt: #161b22;
+      --note-bg: #1f2d3d;
+      --note-border: #4493f8;
+      --warn-bg: #3b2e05;
+      --warn-border: #bb8009;
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: var(--bg);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .container {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+
+  header.page-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  header.page-header .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+  }
+
+  h1 {
+    font-size: 2.1rem;
+    line-height: 1.25;
+    margin: 0 0 0.5rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  .lede {
+    font-size: 1.05rem;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    margin-top: 2.75rem;
+    margin-bottom: 0.75rem;
+    padding-top: 0.5rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    border-top: 1px solid var(--border-soft);
+    padding-top: 1.75rem;
+  }
+
+  h2:first-of-type {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  h3 {
+    font-size: 1.2rem;
+    margin-top: 1.75rem;
+    margin-bottom: 0.5rem;
+    font-weight: 650;
+  }
+
+  h4 {
+    font-size: 1.05rem;
+    margin-top: 1.25rem;
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0 0 1rem;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  ul, ol {
+    margin: 0 0 1rem;
+    padding-left: 1.5rem;
+  }
+
+  li {
+    margin-bottom: 0.35rem;
+  }
+
+  li > p {
+    margin-bottom: 0.35rem;
+  }
+
+  strong {
+    font-weight: 650;
+    color: var(--fg);
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    border: 1px solid var(--border-soft);
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+  }
+
+  pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-size: 0.9em;
+  }
+
+  blockquote {
+    margin: 1.25rem 0;
+    padding: 0.75rem 1rem;
+    border-left: 4px solid var(--note-border);
+    background: var(--note-bg);
+    border-radius: 0 6px 6px 0;
+    color: var(--fg);
+  }
+
+  blockquote p:last-child {
+    margin-bottom: 0;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.25rem 0;
+    font-size: 0.95rem;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  th {
+    background: var(--surface);
+    font-weight: 650;
+  }
+
+  tr:nth-child(even) td {
+    background: var(--table-row-alt);
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border-soft);
+    margin: 2.5rem 0;
+  }
+
+  /* Table of contents */
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin: 2rem 0;
+  }
+
+  nav.toc h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0 0 0.75rem;
+    border: none;
+    padding: 0;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  nav.toc ul {
+    margin: 0;
+    padding-left: 1.25rem;
+    column-count: 1;
+  }
+
+  @media (min-width: 640px) {
+    nav.toc ul {
+      column-count: 2;
+      column-gap: 2rem;
+    }
+  }
+
+  nav.toc li {
+    margin-bottom: 0.4rem;
+    break-inside: avoid;
+  }
+
+  /* Anchor hover helper */
+  h2, h3 {
+    scroll-margin-top: 1.5rem;
+  }
+
+  /* Responsive table wrapping */
+  .table-scroll {
+    overflow-x: auto;
+    margin: 1.25rem 0;
+  }
+
+  .table-scroll table {
+    margin: 0;
+    min-width: 480px;
+  }
+
+  /* Badges (mostly emoji-style in the copy, but just in case) */
+  .badge {
+    display: inline-block;
+    padding: 0.1em 0.5em;
+    border-radius: 999px;
+    font-size: 0.8em;
+    font-weight: 600;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  /* Footer */
+  footer.page-footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-soft);
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  footer.page-footer p {
+    margin-bottom: 0.5rem;
+  }
+
+  @media (max-width: 480px) {
+    body {
+      font-size: 15.5px;
+    }
+    .container {
+      padding: 1.75rem 1rem 3rem;
+    }
+    h1 {
+      font-size: 1.75rem;
+    }
+    h2 {
+      font-size: 1.3rem;
+    }
+    h3 {
+      font-size: 1.1rem;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="page-header">
+  <div class="eyebrow">mc-webui Guide</div>
+  <h1>Contact Management in mc-webui</h1>
+  <p class="lede">Device contacts, the cache layer, the ignored and blocked flags, and the settings that tie everything together — plus how to migrate from the official MeshCore apps.</p>
+</header>
+
+<p>This guide explains how contact management works in <strong>mc-webui</strong> and how it differs from the official MeshCore apps for Android and iOS. If you've used the official apps before, some of the concepts introduced here — especially <strong>cache contacts</strong>, the <strong>ignored</strong> flag, and <strong>blocked</strong> contacts — may be new to you. This document walks through all of them, explains why they exist, and provides recommended settings so you can run a tidy contact list without constantly fighting the 350-contact device limit.</p>
+
+<nav class="toc" aria-label="Table of contents">
+  <h2>Contents</h2>
+  <ul>
+    <li><a href="#why-different">Why Contact Management Is Different Here</a></li>
+    <li><a href="#basics">The Basics: Contacts on Your Device</a></li>
+    <li><a href="#cache">Cache Contacts</a></li>
+    <li><a href="#ignored">The Ignored Flag</a></li>
+    <li><a href="#blocked">Blocked Contacts</a></li>
+    <li><a href="#moving">Moving Contacts Between Device and Cache</a></li>
+    <li><a href="#settings">Contact Settings</a></li>
+    <li><a href="#recommended">Recommended Settings</a></li>
+    <li><a href="#scenarios">Use Case Scenarios</a></li>
+    <li><a href="#limit">What to Do When You Hit the 350 Limit</a></li>
+    <li><a href="#indicators">Visual Indicators in the UI</a></li>
+    <li><a href="#auto-cleanup">Interaction With Auto-Cleanup</a></li>
+    <li><a href="#ignore-vs-block">Privacy: Ignore vs Block</a></li>
+    <li><a href="#faq">FAQ &amp; Migration From the Official Apps</a></li>
+  </ul>
+</nav>
+
+<h2 id="why-different">Why Contact Management Is Different Here</h2>
+
+<p>The official MeshCore applications for Android and iOS keep everything simple: every contact you receive an advertisement from is added to your device, and the only way to get rid of one is to delete it outright. That works fine for light mesh activity, but once you sit in a busy area — or leave your node running for weeks — you quickly hit the hard limit of 350 contacts on a MeshCore device. After that, new contacts either fail to add, or older ones start getting dropped.</p>
+
+<p>mc-webui takes a different approach. It introduces a <strong>cache layer</strong> in its own database that mirrors and extends what lives on the device. This gives you two tiers of storage:</p>
+
+<ul>
+  <li><strong>Device contacts</strong> — live on the MeshCore hardware. Limited (typically 350), but required for direct messages and repeater management.</li>
+  <li><strong>Cache contacts</strong> — live only in the mc-webui database. Unlimited in number, unavailable for DM, but still useful for path configuration, the contact map, and <code>@mentions</code>.</li>
+</ul>
+
+<p>On top of those two tiers, mc-webui adds two flags — <strong>ignored</strong> and <strong>blocked</strong> — that let you silence contacts without deleting them. Combined with the new <strong>Contacts</strong> settings tab, the goal is to let you keep a large, healthy overview of the mesh around you while only occupying device slots for the contacts you actually talk to.</p>
+
+<h2 id="basics">The Basics: Contacts on Your Device</h2>
+
+<p>Every MeshCore device keeps its own contact list in firmware storage. You can see it in <strong>Contact Management → Existing Contacts</strong> and edit it through the web UI. Each device contact is one of four types:</p>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>Type</th><th>Meaning</th><th>Typical use</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>COM</strong> (companion)</td><td>Another user's node</td><td>Direct messages</td></tr>
+    <tr><td><strong>REP</strong> (repeater)</td><td>A repeater node</td><td>Repeater admin commands, path building</td></tr>
+    <tr><td><strong>ROOM</strong> (room server)</td><td>A room server</td><td>Login + chat in group rooms</td></tr>
+    <tr><td><strong>SENS</strong> (sensor)</td><td>A sensor node</td><td>Telemetry queries</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Why the 350 limit matters</h3>
+
+<p>The MeshCore firmware stores contacts in limited flash memory. Most builds allow up to <strong>350 contacts</strong>; some configurations can go higher (reportedly up to 450), but this is hardware and firmware dependent. Once the device is full, any new advertisement that would create a fresh contact has nowhere to go, and you start losing visibility of the mesh.</p>
+
+<p>mc-webui highlights this pressure with a colored counter above the Existing Contacts list:</p>
+
+<ul>
+  <li><strong>Green</strong> (&lt; 300 contacts) — plenty of space.</li>
+  <li><strong>Yellow</strong> (300–339 contacts) — warning, start thinking about cleanup.</li>
+  <li><strong>Red, pulsing</strong> (≥ 340 contacts) — critical, action required.</li>
+</ul>
+
+<h3>What device contacts unlock</h3>
+
+<p>Only contacts stored on the device can be used for:</p>
+
+<ul>
+  <li>Sending <strong>Direct Messages</strong> (DMs).</li>
+  <li>Running commands against <strong>your own repeaters or room servers</strong>.</li>
+  <li>Receiving routing/ACK events that rely on the device's live contact table.</li>
+</ul>
+
+<p>Everything else — appearing on the map, being available in <code>@mentions</code>, being usable as a path node — does <strong>not</strong> require the contact to be on the device. That's where the cache comes in.</p>
+
+<h2 id="cache">Cache Contacts: Storage Without Device Slots</h2>
+
+<p>A <strong>cache contact</strong> is stored only in the mc-webui SQLite database. It never occupies a slot in the device firmware. In the Existing Contacts view, cache contacts show a <code>Cache</code> badge next to their name.</p>
+
+<p>A contact becomes a cache contact in one of three ways:</p>
+
+<ol>
+  <li><strong>Automatic caching of adverts.</strong> When Manual approval is enabled (recommended) and a new advert arrives, the contact is written to the cache — not the device. You then decide whether to promote it to the device or leave it in the cache.</li>
+  <li><strong>Manual "Move to Cache"</strong> from an existing device contact, which removes it from the device but keeps the full record in the database.</li>
+  <li><strong>Manual entry</strong> via <strong>Add Contact → Paste URI / Scan QR / Manual Entry</strong>, when you choose not to push it to the device.</li>
+</ol>
+
+<h3>What cache contacts can do</h3>
+
+<p>Cache contacts keep most of what makes a contact useful:</p>
+
+<ul>
+  <li><strong>Appear on the Contact Map</strong> — toggle "Cached" on the map to show or hide cache-only contacts.</li>
+  <li><strong>Participate in <code>@mentions</code></strong> — you can tag cache contacts in channel messages.</li>
+  <li><strong>Be used as path nodes</strong> in DM Path Management — a repeater you can't fit on the device can still appear in the path-picker when configuring paths to other contacts.</li>
+  <li><strong>Be promoted to the device at any time</strong> with the "To Device" / "Push to Device" button.</li>
+</ul>
+
+<h3>What cache contacts cannot do</h3>
+
+<ul>
+  <li><strong>No direct messages.</strong> To DM a cache contact you must first push it to the device (which consumes one of the 350 slots).</li>
+  <li><strong>No live routing data.</strong> The firmware doesn't know about them, so the device cannot ACK, retry, or trace them on your behalf.</li>
+</ul>
+
+<p>In short: treat the cache as an address book for people and nodes you want to remember but don't actively talk to. Promote them to the device only when you need to interact directly.</p>
+
+<h2 id="ignored">The Ignored Flag: Silent Mute for New Adverts</h2>
+
+<p>Even with Manual approval enabled, you may want to silence specific nodes entirely — spammers, misconfigured repeaters flooding adverts, or test nodes you simply don't care about. That's what the <strong>ignored</strong> flag is for.</p>
+
+<p>An ignored contact is a special case of a cache contact: the record still exists in the database, but:</p>
+
+<ul>
+  <li>Their adverts do <strong>not</strong> appear in the Pending Contacts list.</li>
+  <li>They do <strong>not</strong> trigger browser notifications or FAB badges.</li>
+  <li>They are hidden by default in the Existing Contacts view.</li>
+</ul>
+
+<p>To see ignored contacts, switch the type filter in Existing Contacts to <strong>"Ignored"</strong>. Each ignored row offers a <strong>Restore</strong> action that clears the flag and moves the contact back to the normal list (still cache-only until you push it to the device).</p>
+
+<p>You can ignore a contact in two ways:</p>
+
+<ol>
+  <li><strong>Manually</strong>, from Pending Contacts or Existing Contacts, via the <strong>Ignore</strong> button.</li>
+  <li><strong>Automatically</strong>, by enabling "Automatically add new contacts to 'Ignored'" in Settings → Contacts. Every new advert from an unknown node is written to the cache and immediately marked as ignored. See <a href="#settings">Contact Settings</a> below.</li>
+</ol>
+
+<p>The ignored flag is <strong>one-way silent</strong>: your node still <em>sees</em> the adverts under the hood, they just don't reach your inbox. This is different from blocking, described next.</p>
+
+<h2 id="blocked">Blocked Contacts: Stopping Unwanted Messages</h2>
+
+<p>Where ignoring handles adverts, <strong>blocking</strong> handles everything else. A blocked contact is another special case of a cache contact:</p>
+
+<ul>
+  <li>They are treated like an ignored contact for advert notifications (nothing pops up).</li>
+  <li>On top of that, any <strong>channel messages</strong> they send are dropped server-side — they are not rendered in your chat history, do not contribute to unread counts, and do not appear in search results.</li>
+</ul>
+
+<p>Blocking is the right tool for a contact you consider hostile or abusive on public channels, not just noisy. The distinction matters:</p>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>Behaviour</th><th>Ignored</th><th>Blocked</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Adverts suppressed</td><td>✔</td><td>✔</td></tr>
+    <tr><td>Hidden from Existing Contacts by default</td><td>✔</td><td>✔</td></tr>
+    <tr><td>Their group-chat messages appear in your UI</td><td>✔</td><td>✘ (dropped)</td></tr>
+    <tr><td>Still searchable via type filter</td><td>"Ignored"</td><td>"Blocked"</td></tr>
+    <tr><td>Reversible with "Restore"</td><td>✔</td><td>✔</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>To block a contact, click the <strong>Block</strong> button on their contact card. To restore, switch the Existing Contacts type filter to <strong>"Blocked"</strong> and click <strong>Restore</strong>.</p>
+
+<p>A note about DMs: the primary path a stranger takes to reach you is a public-channel message or an advert. If someone is already a DM contact and you want to shut them out, block them <em>and</em> delete the contact from your device — otherwise the device can still accept DMs from them at the firmware level.</p>
+
+<h2 id="moving">Moving Contacts Between Device and Cache</h2>
+
+<p>Contact management is a two-way street. Every contact in your Existing Contacts list has a button that moves it to the other tier:</p>
+
+<ul>
+  <li><strong>Push to Device</strong> (on a cache contact) — writes the contact to the MeshCore firmware so you can DM them or send repeater commands. This consumes one of the 350 device slots.</li>
+  <li><strong>Move to Cache</strong> (on a device contact) — removes the contact from the firmware but keeps the full record in the database. Frees up one slot; the contact remains available for <code>@mentions</code>, the map, and path configuration.</li>
+</ul>
+
+<p>Both operations are reversible at any time. The database keeps the contact's type, last-seen timestamp, public key, location, and path history intact, so promoting and demoting a contact never loses information.</p>
+
+<p>Typical flow:</p>
+
+<ol>
+  <li>Advert arrives from a new repeater → cached automatically (Manual approval + Auto-ignore recommended).</li>
+  <li>You later realize you want to use it as a path hop → leave it in cache, pick it from the Paths picker.</li>
+  <li>You now want to run admin commands against it → <strong>Push to Device</strong>; it occupies a slot and becomes usable via DM.</li>
+  <li>You're done configuring it and want to free the slot → <strong>Move to Cache</strong>; it remains in your database and on the map.</li>
+</ol>
+
+<h2 id="settings">Contact Settings (Settings → Contacts)</h2>
+
+<p>All contact-wide behaviour lives under <strong>Settings → Contacts</strong> (click the gear icon or use the FAB button). Three toggles control how new contacts reach you:</p>
+
+<h3>1. Manual approval enabled</h3>
+
+<p>When <strong>off</strong> (the default MeshCore behaviour), every new advert is added straight to the device. This is what the Android/iOS apps do.</p>
+
+<p>When <strong>on</strong>, new adverts are written to the mc-webui cache and surface in <strong>Pending Contacts</strong> for review. Nothing reaches the device until you explicitly approve the contact. This is the foundation for every other contact-hygiene feature, because it's only in this mode that mc-webui has a chance to intercept new adverts before they consume a device slot.</p>
+
+<p>The setting is written to the device itself via the <code>set_manual_add_contacts</code> firmware command, so it persists across container restarts.</p>
+
+<h3>2. Suppress new advert notifications</h3>
+
+<p>A purely UI-level toggle. When <strong>on</strong>:</p>
+
+<ul>
+  <li>The FAB badge over the Contact Management button does not increment on new pending contacts.</li>
+  <li>No browser notification is raised for new adverts.</li>
+  <li>The Pending Contacts list itself is unaffected — you'll still see every pending contact listed there when you open the page, with its own counter badge. Nothing is deleted.</li>
+</ul>
+
+<p>Use this when you know you'll receive many adverts (busy mesh, holiday weekend, a neighbour's flood-advert test) and you don't want your phone or desktop lighting up every few seconds.</p>
+
+<p>This toggle only matters when Manual approval is on — without manual approval, new adverts bypass the cache entirely, and there's nothing for the UI to suppress. mc-webui disables the checkbox while Manual approval is off.</p>
+
+<h3>3. Automatically add new contacts to "Ignored"</h3>
+
+<p>When <strong>on</strong>, every new advert that would normally land in Pending Contacts is instead written to the cache and immediately marked as ignored. The practical effect:</p>
+
+<ul>
+  <li>No entry in Pending Contacts.</li>
+  <li>No notification, no badge.</li>
+  <li>The contact is fully recorded in the database — visible in Existing Contacts under the "Ignored" filter, on the map (with "Cached" on), and usable as a path hop.</li>
+</ul>
+
+<p>This is the closest thing mc-webui offers to "silent observation": your node absorbs the topology of the mesh around it without adding noise to your inbox or burning through device slots. It's also the option that pairs best with a small, hand-curated set of device contacts.</p>
+
+<p>Like suppression, this toggle is gated on Manual approval = on. Without manual approval, new adverts go to the device, not the cache.</p>
+
+<h2 id="recommended">Recommended Settings</h2>
+
+<p>For the vast majority of users running mc-webui long-term, the recommended configuration is:</p>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>Setting</th><th>Recommended</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Manual approval enabled</td><td><strong>On</strong></td></tr>
+    <tr><td>Suppress new advert notifications</td><td><strong>On</strong> (reduces notification pressure) or <strong>Off</strong> (if you like seeing mesh activity)</td></tr>
+    <tr><td>Automatically add new contacts to "Ignored"</td><td><strong>On</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>This combination gives you:</p>
+
+<ul>
+  <li><strong>No silent overflow of the 350-contact device limit</strong> — nothing ever lands on the device without your explicit action.</li>
+  <li><strong>Zero ongoing maintenance</strong> — you don't have to manually approve or ignore every advert.</li>
+  <li><strong>Full mesh visibility</strong> — every node you've ever heard from remains searchable in Existing Contacts (under "Ignored") and visible on the contact map.</li>
+  <li><strong>Easy promotion when needed</strong> — any contact can be pushed to the device with one click as soon as you want to DM them or run admin commands.</li>
+</ul>
+
+<p>If you prefer to see new adverts as they arrive (for example, to celebrate a new node appearing in your area), turn off "Automatically add new contacts" and "Suppress new advert notifications", but keep Manual approval on. You'll then triage each advert manually from Pending Contacts.</p>
+
+<h2 id="scenarios">Use Case Scenarios</h2>
+
+<h3>Scenario A: The distant repeater you don't own</h3>
+
+<p>You hear a repeater three valleys away. It's useful as a route hop for a DM contact, but you're never going to admin it.</p>
+
+<ul>
+  <li>Leave the repeater in the cache (or let Auto-ignore put it there).</li>
+  <li>In the DM Path Management for the contact that needs it, use the <strong>Repeater picker</strong> or <strong>Map picker</strong> to select the cached repeater as a hop.</li>
+  <li>No device slot used, no clutter in your Existing Contacts list.</li>
+</ul>
+
+<h3>Scenario B: A talkative but irrelevant node</h3>
+
+<p>Someone's repeater keeps advertising every few seconds (misconfigured timing). You don't want to look at its adverts, but you also don't want to block legitimate traffic on channels it relays.</p>
+
+<ul>
+  <li>Click <strong>Ignore</strong> on the contact.</li>
+  <li>You stop seeing its adverts; its relayed channel messages still flow through normally (repeaters don't send their own channel content).</li>
+</ul>
+
+<h3>Scenario C: A spammer on the public channel</h3>
+
+<p>A node keeps flooding <code>#general</code> with unwanted messages.</p>
+
+<ul>
+  <li>Switch to Existing Contacts, find them, click <strong>Block</strong>.</li>
+  <li>Their channel messages stop appearing in your chat history.</li>
+  <li>If they're already a device contact, also click <strong>Delete</strong> on the device side to stop them from opening DMs.</li>
+</ul>
+
+<h3>Scenario D: Adding a contact from a QR code at a meetup</h3>
+
+<p>You want to add three friends you met in person. None of them advertise from your location yet.</p>
+
+<ul>
+  <li>Open <strong>Contact Management → Add Contact</strong>.</li>
+  <li>Scan each QR code; choose <strong>Add to Device</strong> for the two you'll DM regularly and <strong>Add to Cache</strong> for the third (whose call sign you just want to remember).</li>
+  <li>Your device slot usage stays low, but all three are retrievable later.</li>
+</ul>
+
+<h3>Scenario E: Reclaiming device slots before a trip</h3>
+
+<p>You're about to travel into a dense mesh and expect many new adverts. Your current count is 310 / 350.</p>
+
+<ul>
+  <li>Open Existing Contacts, filter to <strong>COM</strong>, sort by Last Seen ascending.</li>
+  <li>For every contact inactive for 30+ days, click <strong>Move to Cache</strong>. You keep the contact record, you free the slot.</li>
+  <li>Optionally enable Auto-Cleanup to make this routine (see <a href="#auto-cleanup">Interaction With Auto-Cleanup</a>).</li>
+</ul>
+
+<h2 id="limit">What to Do When You Hit the 350 Limit</h2>
+
+<p>If the counter in Existing Contacts is red and you can no longer add new contacts to the device, work through this sequence:</p>
+
+<ol>
+  <li><strong>Stop the bleeding.</strong> If Manual approval is off, turn it on immediately (Settings → Contacts). This prevents any further automatic additions while you clean up.</li>
+
+  <li><strong>Enable Auto-ignore temporarily.</strong> New adverts will now skip the Pending list entirely and land silently in the cache as "ignored", so your UI doesn't flood while you work.</li>
+
+  <li><strong>Demote inactive contacts.</strong> Switch Existing Contacts to type <strong>COM</strong>, sort by <strong>Last Seen</strong>, and start clicking <strong>Move to Cache</strong> on nodes you haven't heard from in 30+ days. You keep the full record; you just free the device slot.</li>
+
+  <li><strong>Use the Cleanup Tool</strong> (bottom of the Contact Management page) for bulk operations:
+    <ul>
+      <li>Set <strong>Days of Inactivity</strong> to a reasonable number (30, 60, 90).</li>
+      <li>Tick the types you want to prune (typically REP and ROOM first, since those recover easily from cache).</li>
+      <li>Click <strong>Preview Cleanup</strong> and review before confirming.</li>
+    </ul>
+  </li>
+
+  <li><strong>Consider Auto-Cleanup</strong> for ongoing hygiene. It runs daily at a set hour with the same filter criteria, so the device never creeps back up to the limit.</li>
+
+  <li><strong>Keep contacts you actively talk to.</strong> Mark contacts you always want to keep as <strong>Protected</strong> — the cleanup tool (manual and automatic) skips them.</li>
+</ol>
+
+<h2 id="indicators">Visual Indicators in the UI</h2>
+
+<p>Contact Management pages use a consistent set of badges and icons so you can tell each contact's status at a glance:</p>
+
+<ul>
+  <li><strong>Type badge</strong> — <code>COM</code> (blue), <code>REP</code> (green), <code>ROOM</code> (cyan), <code>SENS</code> (yellow).</li>
+  <li><strong>Cache badge</strong> — grey pill saying <code>Cache</code>, present only on contacts that live in the database but not on the device.</li>
+  <li><strong>Ignored / Blocked sections</strong> — selectable via the type filter in Existing Contacts. Contacts with these flags are hidden from the default view and appear only under their respective filter.</li>
+  <li><strong>Activity dot</strong> on the Last Seen field:
+    <ul>
+      <li>🟢 active (&lt; 5 minutes ago)</li>
+      <li>🟡 recent (&lt; 1 hour ago)</li>
+      <li>🔴 inactive (&gt; 1 hour ago)</li>
+      <li>⚫ unknown (no timestamp available)</li>
+    </ul>
+  </li>
+  <li><strong>Contact counter</strong> above the Existing Contacts list — colored green / yellow / red based on how close you are to the 350-slot limit.</li>
+  <li><strong>FAB badge</strong> on the Contact Management button — shows pending contact count unless Suppress is enabled.</li>
+  <li><strong>Map markers</strong> — contacts with GPS coordinates appear on the contact map; a "Cached" toggle shows/hides cache-only entries.</li>
+</ul>
+
+<p>If you ever need to know whether a contact is on the device or only in the cache, the answer is always one glance at the Cache badge.</p>
+
+<h2 id="auto-cleanup">Interaction With Auto-Cleanup</h2>
+
+<p><strong>Auto-Cleanup</strong> (configured at the bottom of the Contact Management page) operates on <strong>device contacts only</strong>. It never touches cache contacts or the ignored/blocked flags. The reasoning is straightforward:</p>
+
+<ul>
+  <li>Device contacts consume a limited resource (the 350 slots). Pruning them has a tangible benefit.</li>
+  <li>Cache contacts are cheap; leaving them around costs nothing.</li>
+  <li>Ignored / blocked contacts represent explicit user decisions — they shouldn't be deleted silently.</li>
+</ul>
+
+<h3>Recommended Auto-Cleanup configuration</h3>
+
+<ul>
+  <li><strong>Types:</strong> tick <strong>REP</strong>, <strong>ROOM</strong>, and optionally <strong>SENS</strong>. Leave <strong>COM</strong> unticked so that people you've talked to aren't removed automatically.</li>
+  <li><strong>Date Field:</strong> <strong>Last Advert</strong> (more reliable than Last Modified).</li>
+  <li><strong>Days of Inactivity:</strong> <strong>30</strong> is a good default; raise it if you have a quiet mesh.</li>
+  <li><strong>Hour:</strong> pick an hour when the app is not busy (e.g., 03:00 local time).</li>
+  <li><strong>Protected contacts:</strong> mark any repeater, room, or companion you never want touched as Protected — Auto-Cleanup will skip them.</li>
+</ul>
+
+<p>Combined with Auto-ignore, this keeps your device hovering at a healthy contact count without you thinking about it. Adverts you never interact with flow into the ignored cache; device contacts that go quiet for 30+ days roll off automatically; everything you actively use stays put.</p>
+
+<h2 id="ignore-vs-block">Privacy: Ignore vs Block</h2>
+
+<p>It's worth spelling out the distinction one more time, because the vocabulary doesn't exist in the official apps:</p>
+
+<ul>
+  <li><strong>Ignoring</strong> is about <em>your UI quiet</em>. You no longer see adverts or notifications from that contact. It's the default tool for "I don't care about this node".</li>
+  <li><strong>Blocking</strong> is about <em>content filtering</em>. In addition to suppressing adverts, it drops their channel messages from your view. It's the tool for "this person's posts are unwelcome on my screen".</li>
+</ul>
+
+<p>Neither action is broadcast to the mesh. The node you ignore or block has no way of knowing — from their perspective, nothing changes. Their adverts still travel the network; their messages still reach other users. Only your own node stops rendering them.</p>
+
+<p>Both actions are reversible. Nothing is deleted from the database unless you also hit <strong>Delete</strong> — the flags are just another column in the contact record. If you change your mind, switch the Existing Contacts filter to "Ignored" or "Blocked" and click <strong>Restore</strong>.</p>
+
+<h2 id="faq">FAQ &amp; Migration From the Official Apps</h2>
+
+<p><strong>Q: I've been using the Android app and my device is already at 350 contacts. Where do I start?</strong></p>
+<p>Follow <a href="#limit">What to Do When You Hit the 350 Limit</a>. The short version: turn on Manual approval, turn on Auto-ignore, then use Move to Cache (or the Cleanup tool) to demote contacts you don't actively use.</p>
+
+<p><strong>Q: Do cache contacts count against the 350 device limit?</strong></p>
+<p>No. The 350-limit applies only to contacts stored on the MeshCore firmware. Cache contacts live in the mc-webui database, which is effectively unlimited.</p>
+
+<p><strong>Q: Will cache contacts sync to my Android/iOS device if I pair it later?</strong></p>
+<p>No. The cache is specific to mc-webui. The official MeshCore apps only know about what's on the device. If you connect the same device to the Android app, you'll see only the device contacts, not the cache.</p>
+
+<p><strong>Q: Can I send a DM to a cache contact?</strong></p>
+<p>Not directly. Click <strong>Push to Device</strong> first; the contact then occupies a device slot and becomes DM-ready. You can Move it back to the cache when you're done.</p>
+
+<p><strong>Q: What happens if I delete a cache contact?</strong></p>
+<p>The full record is removed from the mc-webui database. Ignored / blocked flags, path history, last-seen timestamps, everything goes. The next advert from that node will re-create it — but without any of the history.</p>
+
+<p><strong>Q: I enabled Auto-ignore and now my Pending Contacts list is empty. Is that normal?</strong></p>
+<p>Yes. That's exactly what Auto-ignore is designed to do: new adverts bypass the Pending list and land directly in the cache with the ignored flag set. To review recently ignored nodes, open Existing Contacts and switch the type filter to <strong>Ignored</strong>.</p>
+
+<p><strong>Q: Why is Manual approval required for Suppress and Auto-ignore?</strong></p>
+<p>Both features operate on the <strong>cache</strong> (pending or newly arrived adverts in the database). Without Manual approval, adverts go straight to the device — there's nothing to suppress or ignore at the cache level. Enabling the toggles in that mode wouldn't change anything, so the UI disables them.</p>
+
+<p><strong>Q: Can I still use <code>@mentions</code> for cache contacts?</strong></p>
+<p>Yes. <code>@mentions</code> autocompletes against the full database, including cache-only contacts. This is one of the main reasons the cache exists.</p>
+
+<p><strong>Q: What's the difference between "Last Advert" and "Last Modified" in the Cleanup tool?</strong></p>
+<p><strong>Last Advert</strong> is the timestamp of the most recent advertisement received from the contact — it's the most honest signal that a node is still alive. <strong>Last Modified</strong> reflects when anything about the contact record changed (including path updates from your own actions), so it can be misleading. Prefer Last Advert unless you have a specific reason not to.</p>
+
+<p><strong>Q: Can I block a contact by name pattern rather than a specific key?</strong></p>
+<p>mc-webui supports a <code>blocked_names</code> table for blocking by name. Currently this isn't exposed in the UI; the individual-contact Block action is the supported path for day-to-day use.</p>
+
+<p><strong>Q: Will the cache grow forever?</strong></p>
+<p>Technically yes — every unique advert you've ever received leaves a record. In practice, the database stays small (a record is a few dozen bytes), and you can always run the Cleanup tool against cache entries if you want to prune them manually.</p>
+
+<footer class="page-footer">
+  <p><strong>Related documentation</strong></p>
+  <ul>
+    <li><a href="user-guide.md">User Guide</a> — full feature overview of mc-webui.</li>
+    <li><a href="rpt-mgmt.md">Repeater Management</a> — how to admin your own repeaters using DM.</li>
+    <li><a href="dm-retry-logic.md">DM Delivery &amp; Retry Logic</a> — what happens when you send a message and why retries are smart.</li>
+    <li><a href="meshcore-faq.md">MeshCore FAQ</a> — general questions about MeshCore (not mc-webui-specific).</li>
+    <li><a href="architecture.md">Architecture</a> — how mc-webui is structured internally, including the contacts data model.</li>
+  </ul>
+  <p>Part of the <a href="https://github.com/MarekWo/mc-webui">mc-webui</a> project documentation.</p>
+</footer>
+
+</div>
+</body>
+</html>

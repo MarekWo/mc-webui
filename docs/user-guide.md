@@ -226,6 +226,8 @@ Access the Contact Management feature to control who can connect to your node:
 2. Select "Contact Management" from the menu
 3. Opens the contact management page
 
+> **In depth:** For a full conceptual walkthrough of device contacts, the cache layer, the ignored/blocked flags, and recommended settings — especially if you're coming from the official Android/iOS apps — see the dedicated [Contact Management Guide](contact-management.md).
+
 ### Manual Contact Approval
 
 By default, new contacts attempting to connect are automatically added to your contacts list. You can enable manual approval to control who can communicate with your node.
@@ -751,6 +753,7 @@ To get the full PWA experience with app badge counters:
 ## Getting Help
 
 - **Full README:** [README.md](../README.md)
+- **Contact Management Guide:** [contact-management.md](contact-management.md)
 - **Repeater Management:** [rpt-mgmt.md](rpt-mgmt.md)
 - **DM Delivery & Retry Logic:** [dm-retry-logic.md](dm-retry-logic.md)
 - **Bluetooth Pairing Guide:** [meshcore_bluetooth_pairing.md](meshcore_bluetooth_pairing.md)
