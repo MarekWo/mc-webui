@@ -1872,6 +1872,13 @@ async function loadDeviceConfig() {
         document.getElementById('settDeviceLat').value = c.lat || '';
         document.getElementById('settDeviceLon').value = c.lon || '';
         document.getElementById('settDeviceAdvertLoc').checked = !!c.advert_loc_policy;
+        const phmSel = document.getElementById('settDevicePathHashMode');
+        if (phmSel) {
+            const phm = (c.path_hash_mode === 0 || c.path_hash_mode === 1 || c.path_hash_mode === 2)
+                ? String(c.path_hash_mode) : '0';
+            phmSel.value = phm;
+            phmSel.dataset.initial = phm;
+        }
 
         // Radio
         document.getElementById('settRadioFreq').value = c.radio_freq || '';
@@ -1910,21 +1917,28 @@ async function saveDevicePublicInfo() {
     const lon = parseFloat(document.getElementById('settDeviceLon').value) || 0;
     const advertLoc = document.getElementById('settDeviceAdvertLoc').checked;
 
+    const phmSel = document.getElementById('settDevicePathHashMode');
+    const payload = {
+        name: name,
+        lat: lat,
+        lon: lon,
+        advert_loc_policy: advertLoc
+    };
+    if (phmSel && phmSel.value !== phmSel.dataset.initial) {
+        payload.path_hash_mode = parseInt(phmSel.value, 10);
+    }
+
     try {
         const resp = await fetch('/api/device/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: name,
-                lat: lat,
-                lon: lon,
-                advert_loc_policy: advertLoc
-            })
+            body: JSON.stringify(payload)
         });
         const data = await resp.json();
         if (data.success) {
             showNotification('Public info saved', 'success');
             _selfInfo = null;
+            if (phmSel) phmSel.dataset.initial = phmSel.value;
         } else {
             showNotification(data.error || 'Failed to save', 'danger');
         }

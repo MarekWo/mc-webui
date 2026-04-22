@@ -1170,6 +1170,14 @@ def get_device_config():
         if not info:
             return jsonify({'success': False, 'error': 'No device info available'}), 503
 
+        path_hash_mode = None
+        try:
+            phm_result = dm.get_param('path_hash_mode')
+            if phm_result.get('success'):
+                path_hash_mode = phm_result.get('data', {}).get('path_hash_mode')
+        except Exception as e:
+            logger.warning(f"Could not read path_hash_mode: {e}")
+
         return jsonify({
             'success': True,
             'config': {
@@ -1177,6 +1185,7 @@ def get_device_config():
                 'lat': info.get('adv_lat', 0),
                 'lon': info.get('adv_lon', 0),
                 'advert_loc_policy': info.get('adv_loc_policy', 0),
+                'path_hash_mode': path_hash_mode,
                 'radio_freq': info.get('radio_freq', 0),
                 'radio_bw': info.get('radio_bw', 0),
                 'radio_sf': info.get('radio_sf', 0),
@@ -1223,6 +1232,19 @@ def update_device_config():
             result = dm.set_param('advert_loc_policy', val)
             if not result.get('success'):
                 errors.append(f"advert_loc_policy: {result.get('error')}")
+
+        # Path hash mode (0=1B, 1=2B, 2=3B)
+        if 'path_hash_mode' in data and data['path_hash_mode'] is not None:
+            try:
+                phm = int(data['path_hash_mode'])
+                if phm not in (0, 1, 2):
+                    errors.append(f"path_hash_mode: must be 0, 1, or 2")
+                else:
+                    result = dm.set_param('path_hash_mode', str(phm))
+                    if not result.get('success'):
+                        errors.append(f"path_hash_mode: {result.get('error')}")
+            except (TypeError, ValueError):
+                errors.append("path_hash_mode: invalid value")
 
         # Radio params (all 4 together)
         if 'radio_freq' in data:

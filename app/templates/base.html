@@ -440,6 +440,19 @@
                                                         </div>
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <td class="ps-0">Path hash mode
+                                                        <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip"
+                                                            title="Bytes per hop in routing paths. 1B = shortest path, more collisions; 3B = longest, fewest collisions."><i class="bi bi-info-circle"></i></span>
+                                                    </td>
+                                                    <td class="pe-0">
+                                                        <select class="form-select form-select-sm" id="settDevicePathHashMode">
+                                                            <option value="0">1 byte (default)</option>
+                                                            <option value="1">2 bytes</option>
+                                                            <option value="2">3 bytes</option>
+                                                        </select>
+                                                    </td>
+                                                </tr>
                                             </tbody>
                                         </table>
                                         <div class="d-flex gap-2">
@@ -722,6 +735,9 @@
                             </table>
                         </div>
                     </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
