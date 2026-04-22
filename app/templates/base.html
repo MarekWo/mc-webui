@@ -57,10 +57,16 @@
                 <div id="notificationBell" class="btn btn-outline-light position-relative navbar-touch-btn" style="cursor: pointer;" onclick="markAllChannelsRead()" title="Mark all as read">
                     <i class="bi bi-bell"></i>
                 </div>
-                <select id="channelSelector" class="form-select navbar-touch-select" style="width: auto; min-width: 100px;" title="Select channel">
-                    <option value="0">Public</option>
-                    <!-- Channels loaded dynamically via JavaScript -->
-                </select>
+                <div class="position-relative channel-mobile-selector" id="channelSelectorWrapper" style="min-width: 140px;">
+                    <input type="text"
+                           id="channelSelectorInput"
+                           class="form-control form-select navbar-touch-select"
+                           placeholder="Public"
+                           autocomplete="off"
+                           title="Select channel"
+                           style="cursor: pointer;">
+                    <div id="channelSelectorDropdown" class="channel-selector-dropdown" style="display: none;"></div>
+                </div>
                 <button class="btn btn-outline-light navbar-touch-btn" data-bs-toggle="offcanvas" data-bs-target="#mainMenu" title="Menu">
                     <i class="bi bi-list"></i>
                 </button>

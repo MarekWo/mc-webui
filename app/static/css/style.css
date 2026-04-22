@@ -103,9 +103,51 @@ main {
     .channel-sidebar {
         display: flex;
     }
-    #channelSelector {
+    #channelSelectorWrapper {
         display: none !important;
     }
+}
+
+/* Channel Selector Dropdown (base.html navbar, narrow screens) */
+.channel-selector-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 200px;
+    z-index: 1050;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: var(--dropdown-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    box-shadow: var(--popup-shadow);
+}
+
+.channel-selector-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.88rem;
+    font-weight: 400;
+}
+
+.channel-selector-item:hover,
+.channel-selector-item.active {
+    background-color: var(--dropdown-item-hover);
+}
+
+.channel-selector-item.muted {
+    opacity: 0.5;
+}
+
+.channel-selector-item .channel-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* =============================================================================
@@ -418,8 +460,7 @@ main {
     background: var(--scrollbar-thumb-hover);
 }
 
-/* Channel selector and date selector - larger font size */
-#channelSelector,
+/* Date selector - larger font size */
 #dateSelector {
     font-size: 1rem;
 }
@@ -517,7 +558,7 @@ main {
     }
 
     /* Navbar: Channel selector on mobile */
-    #channelSelector,
+    #channelSelectorInput,
     #dmContactSearchInput {
         min-width: 100px !important;
         font-size: 0.9rem;
@@ -1896,6 +1937,8 @@ emoji-picker {
     align-items: center;
     gap: 0.5rem;
     border-bottom: 1px solid var(--border-light);
+    font-size: 0.88rem;
+    font-weight: 400;
 }
 
 .dm-contact-item:hover,
@@ -1908,6 +1951,8 @@ emoji-picker {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 0.88rem;
+    font-weight: 400;
 }
 
 .dm-contact-item .badge {

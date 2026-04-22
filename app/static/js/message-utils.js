@@ -311,11 +311,11 @@ async function handleChannelLinkClick(channelName) {
  * @param {string} channelName - Channel name for notification
  */
 function switchToChannel(channelIdx, channelName) {
-    const selector = document.getElementById('channelSelector');
-    if (selector) {
-        selector.value = channelIdx;
-        // Trigger change event to update state and load messages
-        selector.dispatchEvent(new Event('change'));
+    if (typeof selectChannelFromDropdown === 'function') {
+        const channels = window._channelDropdownItems || [];
+        const ch = channels.find(c => c && c.index === channelIdx);
+        const name = (ch && ch.name) || channelName || '';
+        selectChannelFromDropdown(channelIdx, name);
     }
 }
 

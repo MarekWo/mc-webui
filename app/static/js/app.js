@@ -691,20 +691,65 @@ function setupEventListeners() {
         loadDeviceInfo();
     });
 
-    // Channel selector (dropdown, visible on mobile)
-    document.getElementById('channelSelector').addEventListener('change', function(e) {
-        currentChannelIdx = parseInt(e.target.value);
-        localStorage.setItem('mc_active_channel', currentChannelIdx);
-        loadMessages();
-        updateChannelSidebarActive();
+    // Channel selector (custom searchable picker, visible on mobile)
+    const channelInput = document.getElementById('channelSelectorInput');
+    const channelDropdown = document.getElementById('channelSelectorDropdown');
+    const channelWrapper = document.getElementById('channelSelectorWrapper');
 
-        // Show notification only if we have a valid selection
-        const selectedOption = e.target.options[e.target.selectedIndex];
-        if (selectedOption) {
-            const channelName = selectedOption.text;
-            showNotification(`Switched to channel: ${channelName}`, 'info');
-        }
-    });
+    if (channelInput && channelDropdown) {
+        channelInput.addEventListener('focus', () => {
+            channelInput.value = '';
+            renderChannelDropdownItems('');
+            channelDropdown.style.display = 'block';
+        });
+
+        channelInput.addEventListener('input', () => {
+            renderChannelDropdownItems(channelInput.value);
+            channelDropdown.style.display = 'block';
+        });
+
+        // Prevent dropdown mousedown from stealing focus/closing dropdown
+        channelDropdown.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+        });
+
+        // Close dropdown when clicking outside the wrapper
+        document.addEventListener('mousedown', (e) => {
+            if (channelWrapper && !channelWrapper.contains(e.target)) {
+                if (channelDropdown.style.display !== 'none') {
+                    channelDropdown.style.display = 'none';
+                    updateChannelInputDisplay();
+                }
+            }
+        });
+
+        channelInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                channelDropdown.style.display = 'none';
+                updateChannelInputDisplay();
+                channelInput.blur();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const active = channelDropdown.querySelector('.channel-selector-item.active[data-channel-idx]');
+                const target = active || channelDropdown.querySelector('.channel-selector-item[data-channel-idx]');
+                if (target) target.click();
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const items = Array.from(channelDropdown.querySelectorAll('.channel-selector-item[data-channel-idx]'));
+                if (items.length === 0) return;
+                const activeIdx = items.findIndex(el => el.classList.contains('active'));
+                items.forEach(el => el.classList.remove('active'));
+                let nextIdx;
+                if (e.key === 'ArrowDown') {
+                    nextIdx = activeIdx < 0 ? 0 : Math.min(activeIdx + 1, items.length - 1);
+                } else {
+                    nextIdx = activeIdx <= 0 ? 0 : activeIdx - 1;
+                }
+                items[nextIdx].classList.add('active');
+                items[nextIdx].scrollIntoView({ block: 'nearest' });
+            }
+        });
+    }
 
     // Channels modal - load channels when opened
     const channelsModal = document.getElementById('channelsModal');
@@ -3480,25 +3525,6 @@ async function checkForUpdates() {
  * Update unread badges on channel selector and notification bell
  */
 function updateUnreadBadges() {
-    // Update channel selector options
-    const selector = document.getElementById('channelSelector');
-    if (selector) {
-        Array.from(selector.options).forEach(option => {
-            const channelIdx = parseInt(option.value);
-            const unreadCount = unreadCounts[channelIdx] || 0;
-
-            // Get base channel name (remove existing badge if any)
-            let channelName = option.textContent.replace(/\s*\(\d+\)$/, '');
-
-            // Add badge if there are unread messages, not current channel, and not muted
-            if (unreadCount > 0 && channelIdx !== currentChannelIdx && !mutedChannels.has(channelIdx)) {
-                option.textContent = `${channelName} (${unreadCount})`;
-            } else {
-                option.textContent = channelName;
-            }
-        });
-    }
-
     // Update notification bell (exclude muted channels)
     let totalUnread = 0;
     for (const [idx, count] of Object.entries(unreadCounts)) {
@@ -3680,11 +3706,11 @@ async function loadChannels() {
 }
 
 /**
- * Fallback: ensure Public channel exists in dropdown even if API fails
+ * Fallback: ensure Public channel exists in selector data even if API fails
  */
 function ensurePublicChannel() {
-    const selector = document.getElementById('channelSelector');
-    if (!selector || selector.options.length === 0) {
+    const items = window._channelDropdownItems;
+    if (!items || items.length === 0) {
         console.log('[ensurePublicChannel] Adding fallback Public channel');
         availableChannels = [{index: 0, name: 'Public', key: ''}];
         populateChannelSelector(availableChannels);
@@ -3692,53 +3718,124 @@ function ensurePublicChannel() {
 }
 
 /**
- * Populate channel selector dropdown
+ * Populate channel selector data (for both mobile dropdown and wide-screen sidebar)
  */
 function populateChannelSelector(channels) {
-    const selector = document.getElementById('channelSelector');
-    if (!selector) {
-        console.error('[populateChannelSelector] Channel selector element not found');
-        return;
-    }
-
     // Validate input
     if (!channels || !Array.isArray(channels) || channels.length === 0) {
         console.warn('[populateChannelSelector] Invalid channels array, using fallback');
         channels = [{index: 0, name: 'Public', key: ''}];
     }
 
-    // Remove all options - we'll rebuild everything from API data
-    while (selector.options.length > 0) {
-        selector.remove(0);
-    }
-
-    // Add all channels from API (including Public at index 0)
-    channels.forEach(channel => {
-        if (channel && typeof channel.index !== 'undefined' && channel.name) {
-            const option = document.createElement('option');
-            option.value = channel.index;
-            option.textContent = channel.name;
-            selector.appendChild(option);
-        } else {
-            console.warn('[populateChannelSelector] Skipping invalid channel:', channel);
-        }
-    });
-
-    // Restore selection (use currentChannelIdx from global state)
-    selector.value = currentChannelIdx;
-
-    // If the saved channel doesn't exist, fall back to Public (0)
-    if (selector.value !== currentChannelIdx.toString()) {
+    // If the saved channel doesn't exist in the list, fall back to Public (0)
+    if (!channels.some(c => c && c.index === currentChannelIdx)) {
         console.log(`[populateChannelSelector] Channel ${currentChannelIdx} not found, falling back to Public`);
         currentChannelIdx = 0;
-        selector.value = 0;
         localStorage.setItem('mc_active_channel', '0');
     }
+
+    // Save data for the mobile dropdown
+    window._channelDropdownItems = channels;
+
+    // Pre-render dropdown contents (still hidden) and update input display
+    renderChannelDropdownItems('');
+    updateChannelInputDisplay();
 
     console.log(`[populateChannelSelector] Loaded ${channels.length} channels, active: ${currentChannelIdx}`);
 
     // Also populate sidebar (lg+ screens)
     populateChannelSidebar();
+}
+
+/**
+ * Render channel items into the mobile dropdown, optionally filtered by query.
+ */
+function renderChannelDropdownItems(query) {
+    const dropdown = document.getElementById('channelSelectorDropdown');
+    if (!dropdown) return;
+
+    dropdown.innerHTML = '';
+
+    const channels = window._channelDropdownItems || [];
+    const q = (query || '').toLowerCase().trim();
+
+    const filtered = q
+        ? channels.filter(c => c && c.name && c.name.toLowerCase().includes(q))
+        : channels;
+
+    if (filtered.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'channel-selector-item text-muted';
+        empty.style.cursor = 'default';
+        empty.textContent = q ? 'No matches' : 'No channels';
+        dropdown.appendChild(empty);
+        return;
+    }
+
+    filtered.forEach(channel => {
+        if (!channel || typeof channel.index === 'undefined' || !channel.name) return;
+
+        const item = document.createElement('div');
+        item.className = 'channel-selector-item';
+        item.dataset.channelIdx = channel.index;
+
+        if (channel.index === currentChannelIdx) {
+            item.classList.add('active');
+        }
+        if (mutedChannels.has(channel.index)) {
+            item.classList.add('muted');
+        }
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'channel-name';
+        nameSpan.textContent = channel.name;
+        item.appendChild(nameSpan);
+
+        const unread = unreadCounts[channel.index] || 0;
+        if (unread > 0 && channel.index !== currentChannelIdx && !mutedChannels.has(channel.index)) {
+            const badge = document.createElement('span');
+            badge.className = 'sidebar-unread-badge';
+            badge.textContent = unread;
+            item.appendChild(badge);
+        }
+
+        item.addEventListener('click', () => {
+            selectChannelFromDropdown(channel.index, channel.name);
+        });
+
+        dropdown.appendChild(item);
+    });
+}
+
+/**
+ * Switch to a channel via the mobile dropdown (closes dropdown, syncs state).
+ */
+function selectChannelFromDropdown(idx, name) {
+    currentChannelIdx = idx;
+    localStorage.setItem('mc_active_channel', currentChannelIdx);
+
+    const input = document.getElementById('channelSelectorInput');
+    const dropdown = document.getElementById('channelSelectorDropdown');
+    if (input) {
+        input.value = name;
+        input.blur();
+    }
+    if (dropdown) dropdown.style.display = 'none';
+
+    loadMessages();
+    updateChannelSidebarActive();
+    showNotification(`Switched to channel: ${name}`, 'info');
+}
+
+/**
+ * Sync mobile selector input value with the currently active channel name.
+ */
+function updateChannelInputDisplay() {
+    const input = document.getElementById('channelSelectorInput');
+    if (!input) return;
+    const channels = window._channelDropdownItems || [];
+    const current = channels.find(c => c && c.index === currentChannelIdx);
+    input.value = current ? current.name : 'Public';
 }
 
 /**
@@ -3853,9 +3950,6 @@ function populateChannelSidebar() {
             localStorage.setItem('mc_active_channel', currentChannelIdx);
             loadMessages();
             updateChannelSidebarActive();
-            // Also sync dropdown for consistency
-            const selector = document.getElementById('channelSelector');
-            if (selector) selector.value = currentChannelIdx;
         });
 
         list.appendChild(item);
@@ -3863,16 +3957,19 @@ function populateChannelSidebar() {
 }
 
 /**
- * Update active state on channel sidebar items
+ * Update active state on channel sidebar items and sync mobile selector input.
  */
 function updateChannelSidebarActive() {
     const list = document.getElementById('channelSidebarList');
-    if (!list) return;
+    if (list) {
+        list.querySelectorAll('.channel-sidebar-item').forEach(item => {
+            const idx = parseInt(item.dataset.channelIdx);
+            item.classList.toggle('active', idx === currentChannelIdx);
+        });
+    }
 
-    list.querySelectorAll('.channel-sidebar-item').forEach(item => {
-        const idx = parseInt(item.dataset.channelIdx);
-        item.classList.toggle('active', idx === currentChannelIdx);
-    });
+    // Sync mobile selector input with current channel name
+    updateChannelInputDisplay();
 }
 
 /**
@@ -3903,6 +4000,13 @@ function updateChannelSidebarBadges() {
             badge.remove();
         }
     });
+
+    // Re-render mobile dropdown if currently visible (badges/muted state)
+    const dropdown = document.getElementById('channelSelectorDropdown');
+    const input = document.getElementById('channelSelectorInput');
+    if (dropdown && dropdown.style.display !== 'none') {
+        renderChannelDropdownItems(input ? input.value : '');
+    }
 }
 
 /**
@@ -5028,11 +5132,9 @@ async function performSearch(query) {
                 `;
                 item.addEventListener('click', () => {
                     // Navigate to channel
-                    const selector = document.getElementById('channelSelector');
-                    if (selector) {
-                        selector.value = r.channel_idx;
-                        selector.dispatchEvent(new Event('change'));
-                    }
+                    const channels = window._channelDropdownItems || [];
+                    const ch = channels.find(c => c && c.index === r.channel_idx);
+                    selectChannelFromDropdown(r.channel_idx, ch ? ch.name : (r.channel_name || ''));
                     bootstrap.Modal.getInstance(document.getElementById('searchModal'))?.hide();
                 });
             } else {
