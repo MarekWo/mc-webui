@@ -368,7 +368,10 @@ class DeviceManager:
 
     async def _load_channel_secrets(self):
         """Load channel secrets from device for pkt_payload computation and persist to DB."""
-        EMPTY_SECRET = '0' * 32  # all-zero secret means empty channel slot
+        # A slot is empty iff firmware returns no name for it. The returned
+        # "secret" on an empty slot is not reliable — some firmwares send all
+        # zeros, others send SHA256("")[:16] — so we anchor on name presence.
+        EMPTY_SECRET = '0' * 32
         consecutive_empty = 0
         valid_channel_indices = set()
         try:
@@ -388,10 +391,15 @@ class DeviceManager:
                     name = data.get('channel_name', data.get('name', ''))
                     if isinstance(name, str):
                         name = name.strip('\x00').strip()
-                    if secret and len(secret) == 32 and secret != EMPTY_SECRET:
+                    secret_valid = (
+                        isinstance(secret, str)
+                        and len(secret) == 32
+                        and secret != EMPTY_SECRET
+                    )
+                    if name and secret_valid:
                         self._channel_secrets[idx] = secret
                         # Persist to DB so API endpoints can read without device calls
-                        self.db.upsert_channel(idx, name or f'Channel {idx}', secret)
+                        self.db.upsert_channel(idx, name, secret)
                         valid_channel_indices.add(idx)
                         consecutive_empty = 0
                     elif name:
