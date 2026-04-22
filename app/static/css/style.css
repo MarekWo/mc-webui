@@ -557,6 +557,11 @@ main {
         gap: 0.25rem !important;
     }
 
+    /* Navbar: Shrink brand title so all controls fit on one row */
+    .navbar-brand.h1 {
+        font-size: 1.25rem;
+    }
+
     /* Navbar: Channel selector on mobile */
     #channelSelectorInput {
         min-width: 0 !important;
