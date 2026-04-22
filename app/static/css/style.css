@@ -557,9 +557,19 @@ main {
         gap: 0.25rem !important;
     }
 
-    /* Navbar: Shrink brand title so all controls fit on one row */
+    /* Navbar: Force one-row layout (Bootstrap default is flex-wrap: wrap) */
+    .navbar,
+    .navbar > .container-fluid {
+        flex-wrap: nowrap !important;
+    }
+
+    /* Navbar: Shrink brand title and let it truncate if needed */
     .navbar-brand.h1 {
         font-size: 1.25rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-right: 0.5rem;
     }
 
     /* Navbar: Channel selector on mobile */
