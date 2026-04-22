@@ -761,8 +761,12 @@ function setupEventListeners() {
     document.getElementById('createChannelForm').addEventListener('submit', async function(e) {
         e.preventDefault();
 
+        const submitBtn = this.querySelector('button[type="submit"]');
+        if (submitBtn && submitBtn.disabled) return;  // in-flight guard
+
         const name = document.getElementById('newChannelName').value.trim();
 
+        if (submitBtn) submitBtn.disabled = true;
         try {
             const response = await fetch('/api/channels', {
                 method: 'POST',
@@ -775,7 +779,10 @@ function setupEventListeners() {
             const data = await response.json();
 
             if (data.success) {
-                showNotification(`Channel "${name}" created!`, 'success');
+                const msg = data.already_existed
+                    ? `Channel "${name}" already exists.`
+                    : `Channel "${name}" created!`;
+                showNotification(msg, data.already_existed ? 'info' : 'success');
 
                 // Show warning if returned (e.g., exceeding soft limit of 7 channels)
                 if (data.warning) {
@@ -795,12 +802,17 @@ function setupEventListeners() {
             }
         } catch (error) {
             showNotification('Failed to create channel', 'danger');
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
         }
     });
 
     // Join channel form
     document.getElementById('joinChannelFormSubmit').addEventListener('submit', async function(e) {
         e.preventDefault();
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        if (submitBtn && submitBtn.disabled) return;  // in-flight guard
 
         const name = document.getElementById('joinChannelName').value.trim();
         const key = document.getElementById('joinChannelKey').value.trim().toLowerCase();
@@ -817,6 +829,7 @@ function setupEventListeners() {
             return;
         }
 
+        if (submitBtn) submitBtn.disabled = true;
         try {
             const payload = { name: name };
             if (key) {
@@ -834,7 +847,10 @@ function setupEventListeners() {
             const data = await response.json();
 
             if (data.success) {
-                showNotification(`Joined channel "${name}"!`, 'success');
+                const msg = data.already_existed
+                    ? `Already joined channel "${name}".`
+                    : `Joined channel "${name}"!`;
+                showNotification(msg, data.already_existed ? 'info' : 'success');
 
                 // Show warning if returned (e.g., exceeding soft limit of 7 channels)
                 if (data.warning) {
@@ -855,6 +871,8 @@ function setupEventListeners() {
             }
         } catch (error) {
             showNotification('Failed to join channel', 'danger');
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
         }
     });
 

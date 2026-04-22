@@ -360,10 +360,18 @@ async function joinAndSwitchToChannel(channelName) {
 /**
  * Initialize channel link click handlers using event delegation
  */
+let _channelLinkHandlersInitialized = false;
 function initializeChannelLinkHandlers() {
+    // Guard against double registration - otherwise one click fires N handlers
+    // and sends N duplicate POSTs to /api/channels/join.
+    if (_channelLinkHandlersInitialized) return;
+    _channelLinkHandlersInitialized = true;
+
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('channel-link')) {
             e.preventDefault();
+            // Swallow clicks while this link is already handling a request.
+            if (e.target.classList.contains('loading')) return;
 
             const channelName = e.target.getAttribute('data-channel-name');
             if (channelName) {
