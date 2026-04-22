@@ -479,7 +479,7 @@ main {
 .navbar-touch-select {
     min-height: 40px;
     font-size: 1rem;
-    padding: 0.35rem 2rem 0.35rem 0.6rem;
+    padding: 0.35rem 1.5rem 0.35rem 0.5rem;
 }
 
 /* Offcanvas menu styling */
