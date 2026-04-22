@@ -558,7 +558,13 @@ main {
     }
 
     /* Navbar: Channel selector on mobile */
-    #channelSelectorInput,
+    #channelSelectorInput {
+        min-width: 0 !important;
+        width: 100%;
+        font-size: 0.9rem;
+    }
+
+    /* DM: Contact search input on mobile */
     #dmContactSearchInput {
         min-width: 100px !important;
         font-size: 0.9rem;
