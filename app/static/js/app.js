@@ -10,6 +10,7 @@ let currentChannelIdx = 0;  // Current active channel (0 = Public)
 let availableChannels = [];  // List of channels from API
 let lastSeenTimestamps = {};  // Track last seen message timestamp per channel
 let unreadCounts = {};  // Track unread message counts per channel
+let channelLastMessages = {};  // channel_idx -> {preview, timestamp}
 let mutedChannels = new Set();  // Channel indices with muted notifications
 
 // DM state (for badge updates on main page)
@@ -422,12 +423,21 @@ function connectChatSocket() {
         if (data.type === 'dm' && blockedContactNames.has(data.sender)) return;
 
         if (data.type === 'channel') {
+            // Update last-message preview/time for this channel (for sidebar/dropdown)
+            if (typeof data.content === 'string' && typeof data.timestamp === 'number') {
+                channelLastMessages[data.channel_idx] = {
+                    preview: makeChannelPreview(data.content),
+                    timestamp: data.timestamp
+                };
+            }
             // Update unread count for this channel
             if (data.channel_idx !== currentChannelIdx) {
                 unreadCounts[data.channel_idx] = (unreadCounts[data.channel_idx] || 0) + 1;
                 updateUnreadBadges();
                 checkAndNotify();
             } else if (!currentArchiveDate) {
+                // Refresh sidebar preview even for the active channel
+                updateChannelSidebarBadges();
                 // Skip own messages — already appended optimistically on send
                 if (data.is_own) return;
                 // Current channel and live view — append message directly (no full reload)
@@ -3300,6 +3310,32 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+/**
+ * Format a Unix timestamp for the channel list: HH:MM if today, DD.MM otherwise.
+ */
+function formatChannelTime(unixTimestamp) {
+    if (!unixTimestamp) return '';
+    const d = new Date(unixTimestamp * 1000);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}.${month}`;
+}
+
+/**
+ * Mirror of backend _make_preview: strip @[name] mention syntax, truncate to 60 chars with ellipsis.
+ */
+function makeChannelPreview(text, maxLen = 60) {
+    if (!text) return '';
+    const stripped = text.replace(/@\[([^\]]+)\]/g, '$1');
+    if (stripped.length > maxLen) return stripped.slice(0, maxLen) + '…';
+    return stripped;
+}
+
 // =============================================================================
 // Avatar Generation Functions
 // =============================================================================
@@ -3514,9 +3550,15 @@ async function checkForUpdates() {
         const data = await response.json();
 
         if (data.success && data.channels) {
-            // Update unread counts
+            // Update unread counts and last-message preview/time
             data.channels.forEach(channel => {
                 unreadCounts[channel.index] = channel.unread_count;
+                if (channel.last_message_preview !== undefined) {
+                    channelLastMessages[channel.index] = {
+                        preview: channel.last_message_preview,
+                        timestamp: channel.last_message_time
+                    };
+                }
             });
 
             // Sync muted channels from server
@@ -3804,17 +3846,39 @@ function renderChannelDropdownItems(query) {
             item.classList.add('muted');
         }
 
+        // Top row: name + time + unread badge
+        const topRow = document.createElement('div');
+        topRow.className = 'channel-item-top';
+
         const nameSpan = document.createElement('span');
         nameSpan.className = 'channel-name';
         nameSpan.textContent = channel.name;
-        item.appendChild(nameSpan);
+        topRow.appendChild(nameSpan);
+
+        const lastMsg = channelLastMessages[channel.index];
+        if (lastMsg && lastMsg.timestamp) {
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'channel-last-time';
+            timeSpan.textContent = formatChannelTime(lastMsg.timestamp);
+            topRow.appendChild(timeSpan);
+        }
 
         const unread = unreadCounts[channel.index] || 0;
         if (unread > 0 && channel.index !== currentChannelIdx && !mutedChannels.has(channel.index)) {
             const badge = document.createElement('span');
             badge.className = 'sidebar-unread-badge';
             badge.textContent = unread;
-            item.appendChild(badge);
+            topRow.appendChild(badge);
+        }
+
+        item.appendChild(topRow);
+
+        // Preview row (CSS clamps to 1 line for .channel-selector-item)
+        if (lastMsg && lastMsg.preview) {
+            const preview = document.createElement('div');
+            preview.className = 'channel-item-preview';
+            preview.textContent = lastMsg.preview;
+            item.appendChild(preview);
         }
 
         item.addEventListener('click', () => {
@@ -3949,18 +4013,39 @@ function populateChannelSidebar() {
             item.classList.add('muted');
         }
 
+        // Top row: name + time + unread badge
+        const topRow = document.createElement('div');
+        topRow.className = 'channel-item-top';
+
         const nameSpan = document.createElement('span');
         nameSpan.className = 'channel-name';
         nameSpan.textContent = channel.name;
-        item.appendChild(nameSpan);
+        topRow.appendChild(nameSpan);
 
-        // Unread badge
+        const lastMsg = channelLastMessages[channel.index];
+        if (lastMsg && lastMsg.timestamp) {
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'channel-last-time';
+            timeSpan.textContent = formatChannelTime(lastMsg.timestamp);
+            topRow.appendChild(timeSpan);
+        }
+
         const unread = unreadCounts[channel.index] || 0;
         if (unread > 0 && channel.index !== currentChannelIdx && !mutedChannels.has(channel.index)) {
             const badge = document.createElement('span');
             badge.className = 'sidebar-unread-badge';
             badge.textContent = unread;
-            item.appendChild(badge);
+            topRow.appendChild(badge);
+        }
+
+        item.appendChild(topRow);
+
+        // Preview row (only if non-empty preview exists)
+        if (lastMsg && lastMsg.preview) {
+            const preview = document.createElement('div');
+            preview.className = 'channel-item-preview';
+            preview.textContent = lastMsg.preview;
+            item.appendChild(preview);
         }
 
         item.addEventListener('click', () => {
@@ -4001,21 +4086,52 @@ function updateChannelSidebarBadges() {
         const idx = parseInt(item.dataset.channelIdx);
         const unread = unreadCounts[idx] || 0;
         const isMuted = mutedChannels.has(idx);
+        const lastMsg = channelLastMessages[idx];
 
         // Update muted state
         item.classList.toggle('muted', isMuted);
 
+        const topRow = item.querySelector('.channel-item-top');
+        if (!topRow) return;
+
+        // Update or remove time label (insert before badge if present, else append)
+        let timeEl = topRow.querySelector('.channel-last-time');
+        if (lastMsg && lastMsg.timestamp) {
+            if (!timeEl) {
+                timeEl = document.createElement('span');
+                timeEl.className = 'channel-last-time';
+                const badgeEl = topRow.querySelector('.sidebar-unread-badge');
+                topRow.insertBefore(timeEl, badgeEl);  // insertBefore(x, null) == appendChild
+            }
+            timeEl.textContent = formatChannelTime(lastMsg.timestamp);
+        } else if (timeEl) {
+            timeEl.remove();
+        }
+
         // Update or remove badge
-        let badge = item.querySelector('.sidebar-unread-badge');
+        let badge = topRow.querySelector('.sidebar-unread-badge');
         if (unread > 0 && idx !== currentChannelIdx && !isMuted) {
             if (!badge) {
                 badge = document.createElement('span');
                 badge.className = 'sidebar-unread-badge';
-                item.appendChild(badge);
+                topRow.appendChild(badge);
             }
             badge.textContent = unread;
         } else if (badge) {
             badge.remove();
+        }
+
+        // Update or remove preview row
+        let preview = item.querySelector('.channel-item-preview');
+        if (lastMsg && lastMsg.preview) {
+            if (!preview) {
+                preview = document.createElement('div');
+                preview.className = 'channel-item-preview';
+                item.appendChild(preview);
+            }
+            preview.textContent = lastMsg.preview;
+        } else if (preview) {
+            preview.remove();
         }
     });
 

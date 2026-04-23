@@ -1902,6 +1902,19 @@ def get_channel_qr(index):
         }), 500
 
 
+_MENTION_RE = re.compile(r'@\[([^\]]+)\]')
+
+
+def _make_preview(content, max_len=60):
+    """Strip @[name] mention syntax and truncate content for channel list preview."""
+    if not content:
+        return ''
+    stripped = _MENTION_RE.sub(r'\1', content)
+    if len(stripped) > max_len:
+        return stripped[:max_len] + '…'
+    return stripped
+
+
 @api_bp.route('/messages/updates', methods=['GET'])
 def get_messages_updates():
     """
@@ -1973,12 +1986,16 @@ def get_messages_updates():
             if ch_idx not in channel_stats:
                 channel_stats[ch_idx] = {
                     'latest_timestamp': 0,
-                    'unread_count': 0
+                    'unread_count': 0,
+                    'last_message_content': '',
+                    'last_message_sender': ''
                 }
 
-            # Track latest timestamp per channel
+            # Track latest timestamp per channel (and capture its content/sender)
             if ts > channel_stats[ch_idx]['latest_timestamp']:
                 channel_stats[ch_idx]['latest_timestamp'] = ts
+                channel_stats[ch_idx]['last_message_content'] = msg.get('content', '')
+                channel_stats[ch_idx]['last_message_sender'] = msg.get('sender', '')
 
             # Count unread messages (newer than last_seen)
             last_seen_ts = last_seen.get(ch_idx, 0)
@@ -1995,7 +2012,12 @@ def get_messages_updates():
 
         for channel in channels:
             channel_idx = channel['index']
-            stats = channel_stats.get(channel_idx, {'latest_timestamp': 0, 'unread_count': 0})
+            stats = channel_stats.get(channel_idx, {
+                'latest_timestamp': 0,
+                'unread_count': 0,
+                'last_message_content': '',
+                'last_message_sender': ''
+            })
 
             last_seen_ts = last_seen.get(channel_idx, 0)
             has_updates = stats['latest_timestamp'] > last_seen_ts
@@ -2010,7 +2032,9 @@ def get_messages_updates():
                 'name': channel['name'],
                 'has_updates': has_updates,
                 'latest_timestamp': stats['latest_timestamp'],
-                'unread_count': unread_count
+                'unread_count': unread_count,
+                'last_message_preview': _make_preview(stats.get('last_message_content', '')),
+                'last_message_time': stats['latest_timestamp']
             })
 
         return jsonify({

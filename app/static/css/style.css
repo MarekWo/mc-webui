@@ -52,15 +52,47 @@ main {
 }
 
 .channel-sidebar-item {
-    padding: 0.5rem 0.75rem;
+    padding: 0.45rem 0.75rem;
     cursor: pointer;
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
     border-bottom: 1px solid var(--border-light);
     font-size: 0.85rem;
     transition: background-color 0.15s;
     color: var(--text-primary);
+}
+
+/* Top row: name + time + unread badge */
+.channel-item-top {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.channel-last-time {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.channel-item-preview {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-height: 1.3;
+    margin-top: 0.1rem;
+    word-break: break-word;
+}
+
+.channel-selector-item .channel-item-preview {
+    -webkit-line-clamp: 1;
 }
 
 .channel-sidebar-item:hover {
@@ -124,11 +156,12 @@ main {
 }
 
 .channel-selector-item {
-    padding: 0.5rem 0.75rem;
+    padding: 0.45rem 0.75rem;
     cursor: pointer;
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
     border-bottom: 1px solid var(--border-light);
     font-size: 0.88rem;
     font-weight: 400;
