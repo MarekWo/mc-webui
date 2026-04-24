@@ -142,6 +142,7 @@ class DeviceManager:
         self._max_channels = 8     # updated from device_info at connect
         self._pending_echo = None   # {'timestamp': float, 'channel_idx': int, 'msg_id': int, 'pkt_payload': str|None}
         self._echo_lock = threading.Lock()
+        self._send_lock = threading.Lock()  # serialize set-scope + send-channel-message pair (used in PR #4)
         self._pending_acks = {}     # {ack_code_hex: dm_id} — maps retry acks to DM
         self._retry_tasks = {}      # {dm_id: asyncio.Task} — active retry coroutines
         self._retry_context = {}    # {dm_id: {attempt, max_attempts, path}} — for _on_ack
@@ -2929,6 +2930,71 @@ class DeviceManager:
         except Exception as e:
             logger.error(f"set_flood_scope failed: {e}")
             return {'success': False, 'error': str(e)}
+
+    def set_flood_scope_key(self, key_hex: Optional[str]) -> Dict:
+        """Set the volatile per-send flood scope by raw 16-byte key (CMD_SET_FLOOD_SCOPE_KEY = 54).
+
+        Passing None or empty hex clears the scope (firmware falls back to its default).
+        Used on the channel-send hot path in PR #4.
+        """
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            if not key_hex:
+                key_bytes = b'\x00' * 16
+            else:
+                key_bytes = bytes.fromhex(key_hex)
+                if len(key_bytes) != 16:
+                    return {'success': False, 'error': 'Scope key must be 16 bytes (32 hex chars)'}
+            self.execute(self.mc.commands.set_flood_scope(key_bytes), timeout=5)
+            return {'success': True}
+        except Exception as e:
+            logger.error(f"set_flood_scope_key failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def set_default_flood_scope(self, name: str, key_hex: str) -> Dict:
+        """Set the firmware's persistent default flood scope (CMD_SET_DEFAULT_FLOOD_SCOPE = 63).
+
+        Passing empty name+key (or name='' / key_hex='') clears the firmware default.
+        Frame format: [0x3F][name: 31 bytes NUL-padded][key: 16 bytes] = 48 bytes.
+        Hand-rolled because the installed meshcore-py (<=2.2.15) has no wrapper.
+        """
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        try:
+            from meshcore.events import EventType
+            CMD_SET_DEFAULT_FLOOD_SCOPE = 63
+
+            if not name or not key_hex:
+                # Send just the opcode — firmware clears both name and key.
+                payload = bytes([CMD_SET_DEFAULT_FLOOD_SCOPE])
+            else:
+                name_bytes = name.encode('utf-8')
+                if len(name_bytes) >= 31:
+                    return {'success': False, 'error': 'Name too long (max 30 bytes)'}
+                key_bytes = bytes.fromhex(key_hex)
+                if len(key_bytes) != 16:
+                    return {'success': False, 'error': 'Scope key must be 16 bytes (32 hex chars)'}
+                payload = bytes([CMD_SET_DEFAULT_FLOOD_SCOPE]) + name_bytes.ljust(31, b'\x00') + key_bytes
+
+            event = self.execute(
+                self.mc.commands.send(payload, [EventType.OK, EventType.ERROR]),
+                timeout=5,
+            )
+            if event and getattr(event, 'type', None) == EventType.ERROR:
+                reason = (getattr(event, 'payload', {}) or {}).get('reason', 'unknown')
+                return {'success': False, 'error': f'Firmware error: {reason}'}
+            return {'success': True, 'message': f'Default scope set to: {name or "(cleared)"}'}
+        except Exception as e:
+            logger.error(f"set_default_flood_scope failed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    # NOTE: CMD_GET_DEFAULT_FLOOD_SCOPE (64) / RESP_CODE_DEFAULT_FLOOD_SCOPE (28)
+    # is intentionally NOT implemented here. The installed meshcore-py reader has
+    # no handler for opcode 28 (reader.py:919-921 silently drops unknown opcodes
+    # with a debug log), so we can't reliably wait for its response. Until the
+    # upstream library adds support, mc-webui treats its own `regions.is_default`
+    # row as the source of truth and pushes it one-way to the firmware via CMD 63.
 
     def get_self_telemetry(self) -> Dict:
         """Get own telemetry data."""
