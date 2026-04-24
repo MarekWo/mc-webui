@@ -18,6 +18,7 @@ from io import BytesIO
 from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file, current_app
 from app.meshcore import cli, parser
+from app.meshcore.regions import derive_scope_key_hex, is_valid_region_name
 from app.config import config, runtime_config
 from app.device_manager import decode_path_len
 from app.archiver import manager as archive_manager
@@ -3927,6 +3928,130 @@ def update_contacts_settings_api():
         return jsonify({'success': True}), 200
     except Exception as e:
         logger.error(f"Error updating contacts settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# =============================================================================
+# Regions (MeshCore flood scopes) — Settings > Channels tab
+# =============================================================================
+
+@api_bp.route('/regions', methods=['GET'])
+def list_regions_api():
+    """List the device's region registry."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        return jsonify({
+            'success': True,
+            'regions': db.list_regions(),
+        }), 200
+    except Exception as e:
+        logger.error(f"Error listing regions: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/regions', methods=['POST'])
+def create_region_api():
+    """Create a new region. Body: {name: str}. Key is derived from the name."""
+    try:
+        data = request.get_json() or {}
+        name = (data.get('name') or '').strip()
+        ok, err = is_valid_region_name(name)
+        if not ok:
+            return jsonify({'success': False, 'error': err}), 400
+
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        if db.get_region_by_name(name) is not None:
+            return jsonify({'success': False, 'error': f'Region "{name}" already exists'}), 409
+
+        import sqlite3
+        try:
+            rid = db.create_region(name, derive_scope_key_hex(name))
+        except sqlite3.IntegrityError:
+            return jsonify({'success': False, 'error': f'Region "{name}" already exists'}), 409
+
+        return jsonify({'success': True, 'region': db.get_region(rid)}), 201
+    except Exception as e:
+        logger.error(f"Error creating region: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/regions/<int:region_id>', methods=['DELETE'])
+def delete_region_api(region_id):
+    """Delete a region. Channels mapped to it have their scope cleared (cascade)."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        region = db.get_region(region_id)
+        if region is None:
+            return jsonify({'success': False, 'error': 'Region not found'}), 404
+
+        was_default = bool(region.get('is_default'))
+        db.delete_region(region_id)
+
+        # If we just deleted the firmware default, best-effort clear it on device.
+        warning = None
+        if was_default:
+            dm = _get_dm()
+            if dm and dm.is_connected:
+                try:
+                    res = dm.set_default_flood_scope('', '')
+                    if not res.get('success'):
+                        warning = f"Firmware default not cleared: {res.get('error')}"
+                except Exception as e:
+                    warning = f"Firmware default not cleared: {e}"
+
+        out = {'success': True}
+        if warning:
+            out['warning'] = warning
+        return jsonify(out), 200
+    except Exception as e:
+        logger.error(f"Error deleting region: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/regions/<int:region_id>/default', methods=['POST'])
+def set_default_region_api(region_id):
+    """Mark a region as default in the DB AND push it to the firmware (CMD 63).
+
+    If the firmware push fails the DB flag is still flipped; we return 200 with
+    a non-blocking `warning` so the UI can toast it.
+    """
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        region = db.get_region(region_id)
+        if region is None:
+            return jsonify({'success': False, 'error': 'Region not found'}), 404
+
+        db.set_default_region(region_id)
+
+        warning = None
+        dm = _get_dm()
+        if dm and dm.is_connected:
+            try:
+                res = dm.set_default_flood_scope(region['name'], region['key_hex'])
+                if not res.get('success'):
+                    warning = f"Firmware push failed: {res.get('error')}"
+            except Exception as e:
+                warning = f"Firmware push failed: {e}"
+        else:
+            warning = 'Device disconnected; firmware default not updated'
+
+        out = {'success': True, 'region': db.get_region(region_id)}
+        if warning:
+            out['warning'] = warning
+        return jsonify(out), 200
+    except Exception as e:
+        logger.error(f"Error setting default region: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

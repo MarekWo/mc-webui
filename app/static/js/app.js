@@ -2414,6 +2414,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadChatSettings();
             loadUiSettings();
             loadContactsSettings();
+            loadRegions();
         });
         settingsModal.addEventListener('shown.bs.modal', () => {
             settingsModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
@@ -2435,6 +2436,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial load so suppress flag is available before user opens Settings
     loadContactsSettings();
+
+    // Channels tab: region registry
+    const addRegionForm = document.getElementById('addRegionForm');
+    if (addRegionForm) {
+        addRegionForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('newRegionName');
+            const name = (input?.value || '').trim();
+            if (!name) return;
+            addRegion(name, input);
+        });
+    }
 
     const dmRetryForm = document.getElementById('dmRetrySettingsForm');
     if (dmRetryForm) {
@@ -2790,6 +2803,134 @@ async function saveContactsSetting(key, value, inputEl) {
         console.error('Error saving contacts setting:', e);
         if (inputEl) inputEl.checked = !value;
         showNotification('Network error saving setting', 'danger');
+    }
+}
+
+// ================================================================
+// Region Registry (Settings > Channels)
+// ================================================================
+
+// Mirrors the firmware RegionMap::is_name_char rule: '-', '$', '#',
+// digits, or any byte >= 'A'. UTF-8 bytes >= 0x80 pass via byte >= 'A'.
+function isValidRegionName(name) {
+    if (!name || typeof name !== 'string') return false;
+    const bytes = new TextEncoder().encode(name);
+    if (bytes.length === 0 || bytes.length > 30) return false;
+    for (const b of bytes) {
+        if (b === 0x2d || b === 0x24 || b === 0x23) continue;  // - $ #
+        if (b >= 0x30 && b <= 0x39) continue;                   // digits
+        if (b >= 0x41) continue;                                // >= 'A'
+        return false;
+    }
+    return true;
+}
+
+async function loadRegions() {
+    const listEl = document.getElementById('regionsList');
+    if (!listEl) return;
+    try {
+        const resp = await fetch('/api/regions');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        window.regionRegistry = data.regions || [];
+        renderRegionsList();
+    } catch (e) {
+        console.error('Error loading regions:', e);
+        listEl.innerHTML = '<div class="text-center text-danger small py-2">Failed to load regions</div>';
+    }
+}
+
+function renderRegionsList() {
+    const listEl = document.getElementById('regionsList');
+    if (!listEl) return;
+    const regions = window.regionRegistry || [];
+    if (regions.length === 0) {
+        listEl.innerHTML = '<div class="text-center text-muted small py-3">No regions defined. Add one below.</div>';
+        return;
+    }
+    listEl.innerHTML = regions.map(r => {
+        const isDefault = r.is_default ? 'checked' : '';
+        const keyShort = (r.key_hex || '').slice(0, 8) + '…';
+        return `
+            <div class="list-group-item d-flex align-items-center gap-2 py-2">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="radio" name="regionDefault"
+                           id="regionDefault_${r.id}" ${isDefault}
+                           onchange="setDefaultRegion(${r.id})">
+                </div>
+                <div class="flex-grow-1">
+                    <div><strong>${escapeHtml(r.name)}</strong></div>
+                    <code class="small text-muted" title="${escapeHtml(r.key_hex)}">${keyShort}</code>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        onclick="deleteRegion(${r.id}, '${escapeHtml(r.name).replace(/'/g, "\\'")}')"
+                        title="Delete region">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+async function addRegion(name, inputEl) {
+    if (!isValidRegionName(name)) {
+        showNotification('Invalid region name. Allowed: letters, digits, - $ # (max 30 bytes, no spaces).', 'warning');
+        return;
+    }
+    try {
+        const resp = await fetch('/api/regions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to add region', 'danger');
+            return;
+        }
+        if (inputEl) inputEl.value = '';
+        await loadRegions();
+    } catch (e) {
+        console.error('Error adding region:', e);
+        showNotification('Network error adding region', 'danger');
+    }
+}
+
+async function deleteRegion(id, name) {
+    if (!confirm(`Delete region "${name}"?\nChannels using this region will revert to no scope.`)) return;
+    try {
+        const resp = await fetch(`/api/regions/${id}`, { method: 'DELETE' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to delete region', 'danger');
+            return;
+        }
+        await loadRegions();
+    } catch (e) {
+        console.error('Error deleting region:', e);
+        showNotification('Network error deleting region', 'danger');
+    }
+}
+
+async function setDefaultRegion(id) {
+    try {
+        const resp = await fetch(`/api/regions/${id}/default`, { method: 'POST' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to set default region', 'danger');
+            await loadRegions();  // snap UI back to server truth
+            return;
+        }
+        if (data.warning) {
+            showNotification(data.warning, 'warning');
+        }
+        // Update the local cache in place so radio stays checked without flicker.
+        (window.regionRegistry || []).forEach(r => { r.is_default = (r.id === id) ? 1 : 0; });
+    } catch (e) {
+        console.error('Error setting default region:', e);
+        showNotification('Network error setting default', 'danger');
+        await loadRegions();
     }
 }
 

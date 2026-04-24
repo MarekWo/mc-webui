@@ -394,6 +394,9 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsContacts" type="button">Contacts</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsChannels" type="button">Channels</button>
+                        </li>
                     </ul>
                     <div class="tab-content">
                         <!-- Device Settings Tab -->
@@ -739,6 +742,33 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="tab-pane fade" id="tabSettingsChannels">
+                            <div class="alert alert-info py-2 small mb-3 mt-2">
+                                <i class="bi bi-info-circle"></i> Only repeaters allowing a region will forward messages tagged with it.
+                                Find standardised region names at
+                                <a href="https://regions.meshcore.nz/" target="_blank" rel="noopener">regions.meshcore.nz</a>.
+                            </div>
+                            <h6 class="mb-2">Region Registry</h6>
+                            <div id="regionsList" class="list-group mb-3">
+                                <div class="text-center text-muted py-3 small">
+                                    <div class="spinner-border spinner-border-sm"></div> Loading...
+                                </div>
+                            </div>
+                            <form id="addRegionForm" class="row g-2 mb-0">
+                                <div class="col-8">
+                                    <input type="text" class="form-control form-control-sm" id="newRegionName"
+                                           placeholder="Region name (e.g. pl, pl-ma)" required maxlength="30" autocomplete="off">
+                                </div>
+                                <div class="col-4">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                                        <i class="bi bi-plus-circle"></i> Add
+                                    </button>
+                                </div>
+                            </form>
+                            <div class="form-text small">
+                                Tip: pick the default region via the radio button. The default is also pushed to the firmware so any untagged channel uses it.
+                            </div>
                         </div>
                     </div>
                 </div>
