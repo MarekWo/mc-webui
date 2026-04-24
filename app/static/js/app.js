@@ -3005,6 +3005,22 @@ async function openRegionPicker(channelIdx) {
     renderRegionPickerList();
 
     const modalEl = document.getElementById('regionPickerModal');
+    // Stacked-modal fix: when opened on top of Manage Channels, bump z-index so
+    // the new backdrop dims the channels modal underneath instead of sliding behind it.
+    const onShown = () => {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        if (backdrops.length > 1) {
+            modalEl.style.zIndex = '1075';
+            backdrops[backdrops.length - 1].style.zIndex = '1065';
+        }
+    };
+    const onHidden = () => {
+        modalEl.style.zIndex = '';
+        modalEl.removeEventListener('shown.bs.modal', onShown);
+        modalEl.removeEventListener('hidden.bs.modal', onHidden);
+    };
+    modalEl.addEventListener('shown.bs.modal', onShown);
+    modalEl.addEventListener('hidden.bs.modal', onHidden);
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
