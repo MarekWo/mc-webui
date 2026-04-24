@@ -510,6 +510,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // NOTE: checkForUpdates() was removed from loadChannels() to speed up init
     console.log('[init] Loading channels...');
     await loadChannels();
+    loadChannelScopes();  // non-blocking, populates status-bar region pill
 
     // OPTIMIZATION: Load messages immediately, don't wait for geo cache
     // Map buttons will appear once geo cache loads (non-blocking UX improvement)
@@ -942,6 +943,7 @@ async function loadMessages() {
             displayMessages(data.messages);
             updateStatus('connected');
             updateLastRefresh();
+            updateRegionIndicator();
         } else {
             showNotification('Error loading messages: ' + data.error, 'danger');
             clearLoadingSpinner();
@@ -2455,6 +2457,12 @@ document.addEventListener('DOMContentLoaded', () => {
         regionPickerSaveBtn.addEventListener('click', () => saveChannelScope());
     }
 
+    // Status-bar region pill: click to open picker for current channel
+    const regionIndicator = document.getElementById('regionIndicator');
+    if (regionIndicator) {
+        regionIndicator.addEventListener('click', () => openRegionPicker(currentChannelIdx));
+    }
+
     const dmRetryForm = document.getElementById('dmRetrySettingsForm');
     if (dmRetryForm) {
         dmRetryForm.addEventListener('submit', (e) => {
@@ -3025,6 +3033,33 @@ function renderRegionPickerList() {
             _regionPickerPending = v === '' ? null : parseInt(v, 10);
         });
     });
+}
+
+async function loadChannelScopes() {
+    try {
+        const resp = await fetch('/api/channels/scopes');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data && data.success) {
+            window.channelScopes = data.scopes || {};
+            updateRegionIndicator();
+        }
+    } catch (e) {
+        console.error('Error loading channel scopes:', e);
+    }
+}
+
+function updateRegionIndicator() {
+    const el = document.getElementById('regionIndicator');
+    const nameEl = document.getElementById('regionIndicatorName');
+    if (!el || !nameEl) return;
+    const scope = (window.channelScopes || {})[String(currentChannelIdx)];
+    if (scope && scope.name) {
+        nameEl.textContent = scope.name;
+        el.classList.remove('d-none');
+    } else {
+        el.classList.add('d-none');
+    }
 }
 
 async function saveChannelScope() {

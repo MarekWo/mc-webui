@@ -97,9 +97,15 @@
             <!-- Status Bar -->
             <div class="border-top">
                 <div class="p-2 small text-muted d-flex justify-content-between align-items-center">
-                    <span id="statusText">
-                        <i class="bi bi-circle-fill text-secondary"></i> Connecting...
-                    </span>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span id="statusText">
+                            <i class="bi bi-circle-fill text-secondary"></i> Connecting...
+                        </span>
+                        <span id="regionIndicator" class="badge bg-info text-dark d-none" role="button"
+                              title="Click to change region for this channel">
+                            <i class="bi bi-pin-map"></i> <span id="regionIndicatorName"></span>
+                        </span>
+                    </div>
                     <span id="lastRefresh">Updated: Never</span>
                 </div>
             </div>
