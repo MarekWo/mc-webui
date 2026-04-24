@@ -43,6 +43,23 @@ CREATE TABLE IF NOT EXISTS channels (
     updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Region registry (user-curated MeshCore flood scopes)
+CREATE TABLE IF NOT EXISTS regions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL UNIQUE,           -- firmware-safe name, e.g. 'pl-ma'
+    key_hex     TEXT NOT NULL,                  -- 32 hex chars = 16-byte scope key
+    is_default  INTEGER NOT NULL DEFAULT 0,     -- mirrors firmware CMD_GET_DEFAULT_FLOOD_SCOPE
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Per-channel region mapping (absent row = no override; firmware default applies)
+CREATE TABLE IF NOT EXISTS channel_scopes (
+    channel_idx INTEGER PRIMARY KEY,
+    region_id   INTEGER NOT NULL REFERENCES regions(id) ON DELETE CASCADE,
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Channel messages (replaces CHAN/SENT_CHAN from .msgs)
 CREATE TABLE IF NOT EXISTS channel_messages (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -188,6 +205,7 @@ CREATE INDEX IF NOT EXISTS idx_echoes_pkt ON echoes(pkt_payload);
 CREATE INDEX IF NOT EXISTS idx_adv_pubkey ON advertisements(public_key, timestamp);
 CREATE INDEX IF NOT EXISTS idx_contacts_name ON contacts(name);
 CREATE INDEX IF NOT EXISTS idx_cp_contact ON contact_paths(contact_pubkey, sort_order);
+CREATE INDEX IF NOT EXISTS idx_regions_default ON regions(is_default) WHERE is_default = 1;
 
 -- ============================================================
 -- Full-Text Search (FTS5)

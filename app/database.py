@@ -483,6 +483,105 @@ class Database:
             return cursor.rowcount > 0
 
     # ================================================================
+    # Regions (MeshCore flood scopes)
+    # ================================================================
+
+    def create_region(self, name: str, key_hex: str) -> int:
+        """Insert a new region. Raises sqlite3.IntegrityError on duplicate name."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """INSERT INTO regions (name, key_hex) VALUES (?, ?)""",
+                (name, key_hex)
+            )
+            return cursor.lastrowid
+
+    def list_regions(self) -> List[Dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM regions ORDER BY name COLLATE NOCASE"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_region(self, region_id: int) -> Optional[Dict]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM regions WHERE id = ?", (region_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_region_by_name(self, name: str) -> Optional[Dict]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM regions WHERE name = ?", (name,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def delete_region(self, region_id: int) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM regions WHERE id = ?", (region_id,))
+            return cursor.rowcount > 0
+
+    def set_default_region(self, region_id: Optional[int]) -> None:
+        """Clear any existing default, then set the given region as default.
+
+        Passing None clears the default flag on all regions.
+        """
+        with self._connect() as conn:
+            conn.execute("UPDATE regions SET is_default = 0, updated_at = datetime('now') WHERE is_default = 1")
+            if region_id is not None:
+                conn.execute(
+                    "UPDATE regions SET is_default = 1, updated_at = datetime('now') WHERE id = ?",
+                    (region_id,)
+                )
+
+    def get_default_region(self) -> Optional[Dict]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM regions WHERE is_default = 1 LIMIT 1"
+            ).fetchone()
+            return dict(row) if row else None
+
+    def set_channel_scope(self, channel_idx: int, region_id: Optional[int]) -> None:
+        """Set or clear the region mapping for a channel.
+
+        region_id=None removes the mapping (firmware default will apply).
+        """
+        with self._connect() as conn:
+            if region_id is None:
+                conn.execute("DELETE FROM channel_scopes WHERE channel_idx = ?", (channel_idx,))
+            else:
+                conn.execute(
+                    """INSERT INTO channel_scopes (channel_idx, region_id)
+                       VALUES (?, ?)
+                       ON CONFLICT(channel_idx) DO UPDATE SET
+                           region_id = excluded.region_id,
+                           updated_at = datetime('now')""",
+                    (channel_idx, region_id)
+                )
+
+    def get_channel_scope(self, channel_idx: int) -> Optional[Dict]:
+        """Return the region dict assigned to this channel, or None."""
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT r.id AS region_id, r.name, r.key_hex, r.is_default
+                   FROM channel_scopes cs
+                   JOIN regions r ON r.id = cs.region_id
+                   WHERE cs.channel_idx = ?""",
+                (channel_idx,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_all_channel_scopes(self) -> Dict[int, Dict]:
+        """Bulk-load the full channel->region mapping for UI rendering."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT cs.channel_idx, r.id AS region_id, r.name, r.key_hex, r.is_default
+                   FROM channel_scopes cs
+                   JOIN regions r ON r.id = cs.region_id"""
+            ).fetchall()
+            return {r['channel_idx']: dict(r) for r in rows}
+
+    # ================================================================
     # Channel Messages
     # ================================================================
 
