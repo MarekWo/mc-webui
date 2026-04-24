@@ -4070,6 +4070,43 @@ def set_channel_scope_api(index):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/regions/default', methods=['DELETE'])
+def clear_default_region_api():
+    """Clear the default-region flag in the DB and the firmware default (CMD 63).
+
+    If the firmware push fails the DB flag is still cleared; we return 200 with
+    a non-blocking `warning` so the UI can toast it.
+    """
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        had_default = db.get_default_region() is not None
+        db.set_default_region(None)
+
+        warning = None
+        if had_default:
+            dm = _get_dm()
+            if dm and dm.is_connected:
+                try:
+                    res = dm.set_default_flood_scope('', '')
+                    if not res.get('success'):
+                        warning = f"{res.get('error')} Your choice is saved locally."
+                except Exception as e:
+                    warning = f"Could not clear firmware default: {e}. Your choice is saved locally."
+            else:
+                warning = 'Device disconnected — choice saved locally; firmware default not updated.'
+
+        out = {'success': True}
+        if warning:
+            out['warning'] = warning
+        return jsonify(out), 200
+    except Exception as e:
+        logger.error(f"Error clearing default region: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/regions/<int:region_id>/default', methods=['POST'])
 def set_default_region_api(region_id):
     """Mark a region as default in the DB AND push it to the firmware (CMD 63).

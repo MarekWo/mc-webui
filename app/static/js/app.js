@@ -2871,7 +2871,8 @@ function renderRegionsList() {
                 <div class="form-check mb-0">
                     <input class="form-check-input" type="radio" name="regionDefault"
                            id="regionDefault_${r.id}" ${isDefault}
-                           onchange="setDefaultRegion(${r.id})">
+                           title="Click again to clear the default"
+                           onclick="handleRegionRadioClick(${r.id}, this)">
                 </div>
                 <div class="flex-grow-1">
                     <div><strong>${escapeHtml(r.name)}</strong></div>
@@ -2927,6 +2928,17 @@ async function deleteRegion(id, name) {
     }
 }
 
+function handleRegionRadioClick(id, inputEl) {
+    // Click on the already-selected default clears the default; otherwise sets it.
+    const wasDefault = (window.regionRegistry || []).some(r => r.id === id && r.is_default);
+    if (wasDefault) {
+        inputEl.checked = false;
+        clearDefaultRegion();
+    } else {
+        setDefaultRegion(id);
+    }
+}
+
 async function setDefaultRegion(id) {
     try {
         const resp = await fetch(`/api/regions/${id}/default`, { method: 'POST' });
@@ -2944,6 +2956,26 @@ async function setDefaultRegion(id) {
     } catch (e) {
         console.error('Error setting default region:', e);
         showNotification('Network error setting default', 'danger');
+        await loadRegions();
+    }
+}
+
+async function clearDefaultRegion() {
+    try {
+        const resp = await fetch('/api/regions/default', { method: 'DELETE' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to clear default region', 'danger');
+            await loadRegions();  // snap UI back to server truth
+            return;
+        }
+        if (data.warning) {
+            showNotification(data.warning, 'warning');
+        }
+        (window.regionRegistry || []).forEach(r => { r.is_default = 0; });
+    } catch (e) {
+        console.error('Error clearing default region:', e);
+        showNotification('Network error clearing default', 'danger');
         await loadRegions();
     }
 }
