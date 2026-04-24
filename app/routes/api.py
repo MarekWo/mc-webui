@@ -4016,6 +4016,60 @@ def delete_region_api(region_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/channels/scopes', methods=['GET'])
+def list_channel_scopes_api():
+    """Bulk-load the per-channel region mapping for UI rendering.
+
+    Returns:
+        {"success": true, "scopes": {"0": {region_id, name, key_hex, is_default}, ...}}
+    """
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        scopes = db.get_all_channel_scopes()
+        # JSON object keys must be strings
+        return jsonify({
+            'success': True,
+            'scopes': {str(k): v for k, v in scopes.items()},
+        }), 200
+    except Exception as e:
+        logger.error(f"Error listing channel scopes: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/channels/<int:index>/scope', methods=['PUT'])
+def set_channel_scope_api(index):
+    """Assign or clear the region scope for a channel.
+
+    Body: {"region_id": int | null}.  null removes the mapping (firmware default applies).
+    """
+    try:
+        if index < 0 or index > 7:
+            return jsonify({'success': False, 'error': 'Channel index out of range (0-7)'}), 400
+
+        data = request.get_json() or {}
+        if 'region_id' not in data:
+            return jsonify({'success': False, 'error': 'region_id is required (int or null)'}), 400
+        region_id = data['region_id']
+
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        if region_id is not None:
+            if not isinstance(region_id, int):
+                return jsonify({'success': False, 'error': 'region_id must be an integer or null'}), 400
+            if db.get_region(region_id) is None:
+                return jsonify({'success': False, 'error': 'Region not found'}), 404
+
+        db.set_channel_scope(index, region_id)
+        return jsonify({'success': True, 'scope': db.get_channel_scope(index)}), 200
+    except Exception as e:
+        logger.error(f"Error setting channel scope: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/regions/<int:region_id>/default', methods=['POST'])
 def set_default_region_api(region_id):
     """Mark a region as default in the DB AND push it to the firmware (CMD 63).

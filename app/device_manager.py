@@ -1352,12 +1352,35 @@ class DeviceManager:
     # ================================================================
 
     def send_channel_message(self, channel_idx: int, text: str) -> Dict:
-        """Send a message to a channel. Returns result dict."""
+        """Send a message to a channel. Returns result dict.
+
+        Before each send, the per-channel region scope (if any) is pushed to
+        the firmware via CMD_SET_FLOOD_SCOPE_KEY. The scope-set + send pair is
+        serialised under _send_lock so two Flask threads can't swap each
+        other's send_scope at an await boundary. Channels without a mapping
+        get an all-zero key so a previously-set scope doesn't leak across
+        channels (firmware's send_scope is sticky until overwritten).
+        """
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
 
+        # Look up scope outside the lock — DB is thread-safe and fast.
         try:
-            event = self.execute(self.mc.commands.send_chan_msg(channel_idx, text))
+            scope = self.db.get_channel_scope(channel_idx)
+        except Exception as e:
+            logger.warning(f"get_channel_scope({channel_idx}) failed: {e}")
+            scope = None
+
+        try:
+            with self._send_lock:
+                scope_res = self.set_flood_scope_key(scope['key_hex'] if scope else None)
+                if not scope_res.get('success'):
+                    scope_name = scope['name'] if scope else 'none'
+                    return {
+                        'success': False,
+                        'error': f"Could not set region scope ({scope_name}): {scope_res.get('error')}",
+                    }
+                event = self.execute(self.mc.commands.send_chan_msg(channel_idx, text))
 
             # Store the sent message in database
             ts = int(time.time())

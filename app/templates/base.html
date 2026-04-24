@@ -282,6 +282,31 @@
         </div>
     </div>
 
+    <!-- Set Channel Region Scope Modal -->
+    <div class="modal fade" id="regionPickerModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-pin-map"></i>
+                        Set Region Scope for <span id="regionPickerChannelName" class="fw-bold"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small mb-3">
+                        <i class="bi bi-info-circle"></i> Only repeaters allowing the selected region will forward messages from this channel.
+                    </div>
+                    <div id="regionPickerList" class="list-group mb-0"></div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="regionPickerSaveBtn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Share Channel Modal -->
     <div class="modal fade" id="shareChannelModal" tabindex="-1">
         <div class="modal-dialog">

@@ -2449,6 +2449,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Region picker (per-channel): Save button
+    const regionPickerSaveBtn = document.getElementById('regionPickerSaveBtn');
+    if (regionPickerSaveBtn) {
+        regionPickerSaveBtn.addEventListener('click', () => saveChannelScope());
+    }
+
     const dmRetryForm = document.getElementById('dmRetrySettingsForm');
     if (dmRetryForm) {
         dmRetryForm.addEventListener('submit', (e) => {
@@ -2931,6 +2937,129 @@ async function setDefaultRegion(id) {
         console.error('Error setting default region:', e);
         showNotification('Network error setting default', 'danger');
         await loadRegions();
+    }
+}
+
+// ================================================================
+// Per-channel region picker (Manage Channels > row > pin icon)
+// ================================================================
+
+let _regionPickerChannelIdx = null;
+let _regionPickerPending = null;  // region_id chosen in the radio list, null = "none"
+
+async function openRegionPicker(channelIdx) {
+    _regionPickerChannelIdx = channelIdx;
+
+    // Ensure the registry is loaded (it may not be if user never opened Settings).
+    if (!Array.isArray(window.regionRegistry)) {
+        await loadRegions();
+    }
+
+    const ch = (availableChannels || []).find(c => c.index === channelIdx);
+    const nameEl = document.getElementById('regionPickerChannelName');
+    if (nameEl) nameEl.textContent = ch ? ch.name : `Channel ${channelIdx}`;
+
+    const currentScope = (window.channelScopes || {})[String(channelIdx)];
+    _regionPickerPending = currentScope ? currentScope.region_id : null;
+
+    renderRegionPickerList();
+
+    const modalEl = document.getElementById('regionPickerModal');
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+function renderRegionPickerList() {
+    const listEl = document.getElementById('regionPickerList');
+    if (!listEl) return;
+    const regions = window.regionRegistry || [];
+
+    if (regions.length === 0) {
+        listEl.innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-pin-map fs-3 d-block mb-2"></i>
+                <p class="mb-2">No regions defined yet.</p>
+                <button type="button" class="btn btn-sm btn-primary" id="pickerManageRegionsBtn">
+                    <i class="bi bi-gear"></i> Manage Regions
+                </button>
+            </div>
+        `;
+        document.getElementById('pickerManageRegionsBtn')?.addEventListener('click', () => {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('regionPickerModal')).hide();
+            const settingsModal = document.getElementById('settingsModal');
+            bootstrap.Modal.getOrCreateInstance(settingsModal).show();
+            // Activate the Channels tab after the modal is shown.
+            settingsModal.addEventListener('shown.bs.modal', function onceShown() {
+                settingsModal.removeEventListener('shown.bs.modal', onceShown);
+                const btn = document.querySelector('[data-bs-target="#tabSettingsChannels"]');
+                if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+            });
+        });
+        return;
+    }
+
+    const rows = [`
+        <label class="list-group-item d-flex align-items-center gap-2">
+            <input type="radio" name="regionPickerChoice" value="" class="form-check-input mt-0"
+                   ${_regionPickerPending === null ? 'checked' : ''}>
+            <span class="text-muted"><i class="bi bi-dash-circle"></i> None — use firmware default</span>
+        </label>
+    `];
+    for (const r of regions) {
+        rows.push(`
+            <label class="list-group-item d-flex align-items-center gap-2">
+                <input type="radio" name="regionPickerChoice" value="${r.id}" class="form-check-input mt-0"
+                       ${_regionPickerPending === r.id ? 'checked' : ''}>
+                <span class="flex-grow-1">
+                    <strong>${escapeHtml(r.name)}</strong>
+                    ${r.is_default ? '<span class="badge bg-secondary ms-1">default</span>' : ''}
+                </span>
+            </label>
+        `);
+    }
+    listEl.innerHTML = rows.join('');
+
+    // Track selection so Save knows what to send.
+    listEl.querySelectorAll('input[name="regionPickerChoice"]').forEach(el => {
+        el.addEventListener('change', (e) => {
+            const v = e.target.value;
+            _regionPickerPending = v === '' ? null : parseInt(v, 10);
+        });
+    });
+}
+
+async function saveChannelScope() {
+    if (_regionPickerChannelIdx === null) return;
+    const idx = _regionPickerChannelIdx;
+    const regionId = _regionPickerPending;
+    try {
+        const resp = await fetch(`/api/channels/${idx}/scope`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ region_id: regionId }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to save region scope', 'danger');
+            return;
+        }
+        // Update the local cache + re-render the channels list.
+        if (!window.channelScopes) window.channelScopes = {};
+        if (regionId === null) {
+            delete window.channelScopes[String(idx)];
+        } else {
+            window.channelScopes[String(idx)] = data.scope;
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('regionPickerModal')).hide();
+        if (typeof availableChannels !== 'undefined' && availableChannels.length) {
+            displayChannelsList(availableChannels);
+        }
+        // PR #5 will also refresh the status-bar indicator here.
+        if (typeof updateRegionIndicator === 'function') {
+            updateRegionIndicator(currentChannelIdx);
+        }
+    } catch (e) {
+        console.error('Error saving channel scope:', e);
+        showNotification('Network error saving region scope', 'danger');
     }
 }
 
@@ -4069,8 +4198,13 @@ async function loadChannelsList() {
     listEl.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
 
     try {
-        const response = await fetch('/api/channels');
-        const data = await response.json();
+        const [chResp, scResp] = await Promise.all([
+            fetch('/api/channels'),
+            fetch('/api/channels/scopes'),
+        ]);
+        const data = await chResp.json();
+        const scData = await scResp.json().catch(() => ({}));
+        window.channelScopes = (scData && scData.success) ? (scData.scopes || {}) : {};
 
         if (data.success) {
             displayChannelsList(data.channels);
@@ -4102,15 +4236,25 @@ function displayChannelsList(channels) {
         const isPublic = channel.index === 0;
 
         const isMuted = mutedChannels.has(channel.index);
+        const scope = (window.channelScopes || {})[String(channel.index)];
+        const hasScope = !!scope;
+        const scopeTitle = hasScope
+            ? `Region: ${scope.name} — click to change`
+            : 'Set region scope';
         item.innerHTML = `
             <div>
                 <strong>${escapeHtml(channel.name)}</strong>
+                ${hasScope ? `<span class="badge bg-info text-dark ms-2" style="font-size:0.7em;"><i class="bi bi-pin-map"></i> ${escapeHtml(scope.name)}</span>` : ''}
             </div>
             <div class="btn-group btn-group-sm">
                 <button class="btn ${isMuted ? 'btn-secondary' : 'btn-outline-secondary'}"
                         onclick="toggleChannelMute(${channel.index})"
                         title="${isMuted ? 'Unmute notifications' : 'Mute notifications'}">
                     <i class="bi ${isMuted ? 'bi-bell-slash' : 'bi-bell'}"></i>
+                </button>
+                <button class="btn ${hasScope ? 'btn-info' : 'btn-outline-info'}"
+                        onclick="openRegionPicker(${channel.index})" title="${scopeTitle}">
+                    <i class="bi bi-pin-map"></i>
                 </button>
                 <button class="btn btn-outline-primary" onclick="shareChannel(${channel.index})" title="Share">
                     <i class="bi bi-share"></i>
