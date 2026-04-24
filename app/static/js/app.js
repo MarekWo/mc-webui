@@ -2439,7 +2439,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial load so suppress flag is available before user opens Settings
     loadContactsSettings();
 
-    // Channels tab: region registry
+    // Regions tab: region registry
     const addRegionForm = document.getElementById('addRegionForm');
     if (addRegionForm) {
         addRegionForm.addEventListener('submit', (e) => {
@@ -2998,7 +2998,7 @@ function renderRegionPickerList() {
             // Activate the Channels tab after the modal is shown.
             settingsModal.addEventListener('shown.bs.modal', function onceShown() {
                 settingsModal.removeEventListener('shown.bs.modal', onceShown);
-                const btn = document.querySelector('[data-bs-target="#tabSettingsChannels"]');
+                const btn = document.querySelector('[data-bs-target="#tabSettingsRegions"]');
                 if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
             });
         });

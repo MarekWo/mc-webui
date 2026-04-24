@@ -3005,8 +3005,15 @@ class DeviceManager:
                 timeout=5,
             )
             if event and getattr(event, 'type', None) == EventType.ERROR:
-                reason = (getattr(event, 'payload', {}) or {}).get('reason', 'unknown')
-                return {'success': False, 'error': f'Firmware error: {reason}'}
+                reason = (getattr(event, 'payload', {}) or {}).get('reason', '')
+                # CMD_SET_DEFAULT_FLOOD_SCOPE (63) was introduced in firmware v1.15.0.
+                # Older firmware replies with a generic ERR frame (no specific reason)
+                # or times out — both funnel into this branch.
+                if not reason or reason in ('timeout', 'no_event_received'):
+                    friendly = "Device did not accept the default scope — this requires firmware v1.15 or newer."
+                else:
+                    friendly = f"Device rejected the default scope (reason: {reason})."
+                return {'success': False, 'error': friendly}
             return {'success': True, 'message': f'Default scope set to: {name or "(cleared)"}'}
         except Exception as e:
             logger.error(f"set_default_flood_scope failed: {e}")

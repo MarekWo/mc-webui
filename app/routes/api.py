@@ -4003,9 +4003,9 @@ def delete_region_api(region_id):
                 try:
                     res = dm.set_default_flood_scope('', '')
                     if not res.get('success'):
-                        warning = f"Firmware default not cleared: {res.get('error')}"
+                        warning = f"{res.get('error')} Firmware default left as-is."
                 except Exception as e:
-                    warning = f"Firmware default not cleared: {e}"
+                    warning = f"Could not clear firmware default: {e}"
 
         out = {'success': True}
         if warning:
@@ -4094,11 +4094,12 @@ def set_default_region_api(region_id):
             try:
                 res = dm.set_default_flood_scope(region['name'], region['key_hex'])
                 if not res.get('success'):
-                    warning = f"Firmware push failed: {res.get('error')}"
+                    # device_manager already returns a user-friendly message here.
+                    warning = f"{res.get('error')} Your choice is saved locally."
             except Exception as e:
-                warning = f"Firmware push failed: {e}"
+                warning = f"Could not push to firmware: {e}. Your choice is saved locally."
         else:
-            warning = 'Device disconnected; firmware default not updated'
+            warning = 'Device disconnected — choice saved locally; firmware default not updated.'
 
         out = {'success': True, 'region': db.get_region(region_id)}
         if warning:
