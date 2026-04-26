@@ -3007,15 +3007,24 @@ async function openRegionPicker(channelIdx) {
     const modalEl = document.getElementById('regionPickerModal');
     // Stacked-modal fix: when opened on top of Manage Channels, bump z-index so
     // the new backdrop dims the channels modal underneath instead of sliding behind it.
+    // Bootstrap reuses the same backdrop element across show/hide cycles, so we must
+    // also reset its inline z-index on hide — otherwise the next non-stacked open
+    // inherits z-index 1065 and the backdrop ends up above the modal, blocking clicks.
+    let bumpedBackdrop = null;
     const onShown = () => {
         const backdrops = document.querySelectorAll('.modal-backdrop');
         if (backdrops.length > 1) {
             modalEl.style.zIndex = '1075';
-            backdrops[backdrops.length - 1].style.zIndex = '1065';
+            bumpedBackdrop = backdrops[backdrops.length - 1];
+            bumpedBackdrop.style.zIndex = '1065';
         }
     };
     const onHidden = () => {
         modalEl.style.zIndex = '';
+        if (bumpedBackdrop) {
+            bumpedBackdrop.style.zIndex = '';
+            bumpedBackdrop = null;
+        }
         modalEl.removeEventListener('shown.bs.modal', onShown);
         modalEl.removeEventListener('hidden.bs.modal', onHidden);
     };
