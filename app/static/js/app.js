@@ -2863,7 +2863,20 @@ function renderRegionsList() {
         listEl.innerHTML = '<div class="text-center text-muted small py-3">No regions defined. Add one below.</div>';
         return;
     }
-    listEl.innerHTML = regions.map(r => {
+    const noDefault = !regions.some(r => r.is_default);
+    const noneRow = `
+        <div class="list-group-item d-flex align-items-center gap-2 py-2">
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="radio" name="regionDefault"
+                       id="regionDefault_none" ${noDefault ? 'checked' : ''}
+                       onchange="clearDefaultRegion()">
+            </div>
+            <div class="flex-grow-1 text-muted">
+                <i class="bi bi-dash-circle"></i> None — use firmware default
+            </div>
+        </div>
+    `;
+    const regionRows = regions.map(r => {
         const isDefault = r.is_default ? 'checked' : '';
         const keyShort = (r.key_hex || '').slice(0, 8) + '…';
         return `
@@ -2871,8 +2884,7 @@ function renderRegionsList() {
                 <div class="form-check mb-0">
                     <input class="form-check-input" type="radio" name="regionDefault"
                            id="regionDefault_${r.id}" ${isDefault}
-                           title="Click again to clear the default"
-                           onclick="handleRegionRadioClick(${r.id}, this)">
+                           onchange="setDefaultRegion(${r.id})">
                 </div>
                 <div class="flex-grow-1">
                     <div><strong>${escapeHtml(r.name)}</strong></div>
@@ -2886,6 +2898,7 @@ function renderRegionsList() {
             </div>
         `;
     }).join('');
+    listEl.innerHTML = noneRow + regionRows;
 }
 
 async function addRegion(name, inputEl) {
@@ -2925,17 +2938,6 @@ async function deleteRegion(id, name) {
     } catch (e) {
         console.error('Error deleting region:', e);
         showNotification('Network error deleting region', 'danger');
-    }
-}
-
-function handleRegionRadioClick(id, inputEl) {
-    // Click on the already-selected default clears the default; otherwise sets it.
-    const wasDefault = (window.regionRegistry || []).some(r => r.id === id && r.is_default);
-    if (wasDefault) {
-        inputEl.checked = false;
-        clearDefaultRegion();
-    } else {
-        setDefaultRegion(id);
     }
 }
 
