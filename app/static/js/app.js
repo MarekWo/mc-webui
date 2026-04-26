@@ -3113,11 +3113,17 @@ function updateRegionIndicator() {
     const nameEl = document.getElementById('regionIndicatorName');
     if (!el || !nameEl) return;
     const scope = (window.channelScopes || {})[String(currentChannelIdx)];
+    el.classList.remove('d-none');
     if (scope && scope.name) {
         nameEl.textContent = scope.name;
-        el.classList.remove('d-none');
+        el.classList.remove('bg-light', 'text-secondary', 'border');
+        el.classList.add('bg-info', 'text-dark');
+        el.title = 'Click to change region for this channel';
     } else {
-        el.classList.add('d-none');
+        nameEl.textContent = 'No region';
+        el.classList.remove('bg-info', 'text-dark');
+        el.classList.add('bg-light', 'text-secondary', 'border');
+        el.title = 'Click to set a region for this channel';
     }
 }
 
