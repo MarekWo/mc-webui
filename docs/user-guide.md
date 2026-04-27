@@ -6,6 +6,7 @@ This guide covers all features and functionality of mc-webui. For installation i
 
 - [Viewing Messages](#viewing-messages)
 - [Managing Channels](#managing-channels)
+- [Region Scopes](#region-scopes)
 - [Message Archives](#message-archives)
 - [Sending Messages](#sending-messages)
 - [Message Content Features](#message-content-features)
@@ -86,7 +87,47 @@ Access channel management:
 
 ### Switching Channels
 
-Use the channel selector dropdown in the navbar to switch between channels. Your selection is remembered between sessions.
+On narrow screens, tap the channel selector in the navbar to open a searchable picker:
+
+- Type to filter channels by name (case-insensitive substring match)
+- Each row shows the last message time (HH:MM today, DD.MM.YYYY otherwise) and a one-line preview of the latest message
+- Use ↑/↓ arrows + Enter to select with the keyboard, Esc to close
+- Unread channels show a red badge with the count
+
+On wide screens (tablets/desktops), use the channel sidebar on the left. Each sidebar entry shows the channel name, time of the last message, unread badge, and a two-line message preview.
+
+Your selection is remembered between sessions.
+
+---
+
+## Region Scopes
+
+Region scopes (called "flood scopes" in the firmware) tag your channel messages with a 16-byte key derived from a region name (e.g. `pl`, `pl-ma`, `krakow`). Repeaters that support region filtering will only forward a message if their list of allowed regions includes the tag — so you can keep regional traffic out of distant nodes and reduce airtime on the wider mesh.
+
+Standardised region names are listed at <https://regions.meshcore.nz/>.
+
+### Region Registry
+
+Manage the regions you use in **Settings → Regions**:
+
+1. Open Settings (cog icon in the menu or FAB)
+2. Switch to the **Regions** tab
+3. Type a region name (max 30 bytes; allowed: letters, digits, `-`, `$`, `#`) and click **Add**
+4. Pick the **default region** via the radio button — this is the scope used for any channel without an explicit override (and is also pushed to the firmware as its persistent default)
+5. Select the **None** radio to clear the firmware default and rely on the firmware's built-in fallback
+6. Click the trash icon to delete a region (channels using it revert to "no scope")
+
+> **Firmware version:** Setting the persistent firmware default scope (CMD 63) requires firmware **v1.15 or newer**. On older firmware mc-webui still saves your choice locally but shows a warning that the firmware default was not updated.
+
+### Per-Channel Region
+
+Each channel can have its own region scope, overriding the default:
+
+- **Status bar pill** — Below the channel chat, a pill shows the active channel's region (e.g. "📍 pl-ma"). Tap it to change the region or set one.
+- **Manage Channels modal** — Each channel row has a 📍 pin button and an inline region badge. Click the pin button to open the picker.
+- In the picker, choose a region from the list, or pick **None — use firmware default** to remove the override.
+
+When you send a message on a channel, mc-webui pushes the channel's scope key to the device just before sending. Channels without an explicit region send with an empty key so a previously-set scope from another channel doesn't leak.
 
 ---
 
@@ -542,7 +583,7 @@ Access the Settings modal to configure application behavior:
 1. Click the menu icon (☰) in the navbar (or tap the gear FAB button)
 2. Select "Settings" from the menu
 
-The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **Interface**, and **Appearance**.
+The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **Interface**, **Appearance**, **Contacts**, and **Regions**. A global **Close** button at the bottom of the modal dismisses Settings from any tab.
 
 ### Device Tab
 
@@ -552,6 +593,7 @@ Configure your MeshCore device directly from the web UI. Split into two sub-tabs
 - **Name** - Device name (up to 32 characters)
 - **Latitude / Longitude** - GPS coordinates. Click the map pin button to open a map picker and click anywhere on the map to select coordinates
 - **Share position in advert** - Toggle whether GPS coordinates are broadcast in advertisement frames (maps to `advert_loc_policy`)
+- **Path hash mode** - Bytes per hop in routing paths (1 byte / 2 bytes / 3 bytes). 1 byte produces the shortest paths but more hash collisions; 3 bytes produces the longest paths with the fewest collisions. Default is 1 byte. Requires firmware v1.14 or newer for 2/3 byte modes.
 
 **Radio Settings:**
 - **Load preset** - Apply a regional preset (Australia, EU/UK, USA/Canada, New Zealand, Switzerland, Vietnam, and more). Selecting a preset fills in frequency, bandwidth, spreading factor, and coding rate
@@ -610,6 +652,15 @@ Controls small notification toasts shown after actions (e.g. "Advert Sent", erro
 - **Button size (px)** - Adjust the size of FAB buttons (default: 56)
 - **Spacing (px)** - Space between FAB buttons (default: 12)
 - **Position** - Reset FAB position to default (top-right)
+
+### Regions Tab
+
+Manage MeshCore region scopes (also called flood scopes). See [Region Scopes](#region-scopes) above for the full walkthrough; in short:
+
+- Add new regions by name (the 16-byte scope key is derived automatically from `SHA256('#'+name)`)
+- Pick the **default region** with the radio button — pushed to the firmware (requires v1.15+) and used by any channel without an explicit override
+- Pick **None** to clear the firmware default
+- Delete regions you no longer need (channels using a deleted region revert to "no scope")
 
 ---
 

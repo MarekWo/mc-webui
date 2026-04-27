@@ -77,6 +77,7 @@ The `DeviceManager` handles the connection to the MeshCore device via a direct s
 - **Auto-restart watchdog** - Monitors connection health and restarts the session on crash
 - **BLE keepalive & reconnect** - When using Bluetooth transport, a 60s keepalive loop detects "zombie" connections (reads still succeed but writes silently fail). On disconnect or keepalive failure, the manager marks the session as permanently failed and the `/health` endpoint returns 503, letting the Docker healthcheck trigger a fast container restart (~5s) to get a clean BLE state rather than attempting unreliable in-process reconnects
 - **Echo correlation** - Sent channel messages pre-compute their expected `pkt_payload` using the channel secret and send timestamp (±3s for clock drift), so incoming echoes are matched exactly instead of only by 1-byte channel hash (prevents misattribution when two messages go out simultaneously on the same channel)
+- **Per-channel region scope** - Before each channel send, the channel's mapped region scope key (16 bytes) is pushed to the firmware via `CMD_SET_FLOOD_SCOPE_KEY` (54). The scope-set + send pair is serialised under a `_send_lock` so concurrent sends on different channels can't swap each other's scope. Channels without a mapping get an all-zero key so a previously-set scope doesn't leak across channels
 
 ---
 
@@ -134,6 +135,8 @@ Key tables:
 - `direct_messages` - DM messages with delivery tracking (`delivery_status`, `delivery_attempt`, `delivery_max_attempts`, `delivery_path`)
 - `acks` - DM delivery status
 - `settings` - Application settings (migrated from .webui_settings.json)
+- `regions` - User-curated MeshCore flood scopes (`name`, `key_hex`, `is_default`)
+- `channel_scopes` - Per-channel region mapping (`channel_idx` → `region_id`, CASCADE on region delete; absent row = no override → firmware default applies)
 
 The use of SQLite allows for fast queries, reliable data storage, full-text search, and complex filtering (such as contact ignoring/blocking) without the risk of file corruption inherent to flat JSON files.
 
@@ -194,12 +197,24 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/channels` | List all channels |
-| POST | `/api/channels` | Create new channel |
-| POST | `/api/channels/join` | Join existing channel |
+| POST | `/api/channels` | Create new channel (idempotent — returns existing slot if name already used) |
+| POST | `/api/channels/join` | Join existing channel (idempotent unless explicit `index` overrides) |
 | DELETE | `/api/channels/<index>` | Remove channel |
 | GET | `/api/channels/<index>/qr` | QR code (`?format=json\|png`) |
 | GET | `/api/channels/muted` | Get muted channels |
 | POST | `/api/channels/<index>/mute` | Toggle channel mute |
+| GET | `/api/channels/scopes` | Bulk per-channel region mapping for UI |
+| PUT | `/api/channels/<index>/scope` | Assign/clear region scope (`{region_id: int\|null}`) |
+
+### Regions (MeshCore flood scopes)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/regions` | List the device's region registry |
+| POST | `/api/regions` | Create region (`{name}`); key derived as `SHA256('#'+name)[:16]` |
+| DELETE | `/api/regions/<id>` | Delete region; CASCADE clears channel mappings; if it was the firmware default, clears it on device |
+| POST | `/api/regions/<id>/default` | Mark default in DB AND push to firmware (CMD_SET_DEFAULT_FLOOD_SCOPE = 63, requires firmware v1.15+) |
+| DELETE | `/api/regions/default` | Clear default region in DB and on firmware |
 
 ### Direct Messages
 
@@ -221,8 +236,8 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 | GET | `/api/device/stats` | Device statistics |
 | GET | `/api/device/settings` | Get device settings |
 | POST | `/api/device/settings` | Update device settings |
-| GET | `/api/device/config` | Get device configuration (name, coords, advert_loc_policy, radio params, tx_power) |
-| POST | `/api/device/config` | Update device configuration from Settings > Device tab |
+| GET | `/api/device/config` | Get device configuration (name, coords, advert_loc_policy, path_hash_mode, radio params, tx_power) |
+| POST | `/api/device/config` | Update device configuration from Settings > Device tab. Subset of fields incl. `path_hash_mode` (0=1B, 1=2B, 2=3B) |
 | POST | `/api/device/command` | Execute command (advert, floodadv) |
 | GET | `/api/device/commands` | List available special commands |
 | GET | `/api/chat/settings` | Get chat settings (quote length, route popup timeout/no-autoclose) |
