@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS read_status (
     key             TEXT PRIMARY KEY,       -- 'chan_0', 'dm_<pubkey>', etc.
     last_seen_ts    INTEGER DEFAULT 0,      -- unix timestamp
     is_muted        INTEGER DEFAULT 0,      -- 1 = muted (channels only)
+    is_favorite     INTEGER DEFAULT 0,      -- 1 = favorite (channels only)
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

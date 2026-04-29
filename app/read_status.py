@@ -30,6 +30,7 @@ def load_read_status():
         channels = {}
         dm = {}
         muted_channels = []
+        favorite_channels = []
 
         for key, row in rows.items():
             if key.startswith('chan_'):
@@ -40,6 +41,11 @@ def load_read_status():
                         muted_channels.append(int(chan_idx))
                     except ValueError:
                         pass
+                if row.get('is_favorite'):
+                    try:
+                        favorite_channels.append(int(chan_idx))
+                    except ValueError:
+                        pass
             elif key.startswith('dm_'):
                 conv_id = key[3:]  # "dm_name_User1" -> "name_User1"
                 dm[conv_id] = row['last_seen_ts']
@@ -48,11 +54,12 @@ def load_read_status():
             'channels': channels,
             'dm': dm,
             'muted_channels': muted_channels,
+            'favorite_channels': favorite_channels,
         }
 
     except Exception as e:
         logger.error(f"Error loading read status: {e}")
-        return {'channels': {}, 'dm': {}, 'muted_channels': []}
+        return {'channels': {}, 'dm': {}, 'muted_channels': [], 'favorite_channels': []}
 
 
 def save_read_status(status):
@@ -123,6 +130,28 @@ def set_channel_muted(channel_idx, muted):
         return True
     except Exception as e:
         logger.error(f"Error setting mute for channel {channel_idx}: {e}")
+        return False
+
+
+def get_favorite_channels():
+    """Get list of favorite channel indices."""
+    try:
+        db = _get_db()
+        return db.get_favorite_channels()
+    except Exception as e:
+        logger.error(f"Error getting favorite channels: {e}")
+        return []
+
+
+def set_channel_favorite(channel_idx, favorite):
+    """Set favorite state for a channel."""
+    try:
+        db = _get_db()
+        db.set_channel_favorite(int(channel_idx), favorite)
+        logger.info(f"Channel {channel_idx} {'favorited' if favorite else 'unfavorited'}")
+        return True
+    except Exception as e:
+        logger.error(f"Error setting favorite for channel {channel_idx}: {e}")
         return False
 
 

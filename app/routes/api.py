@@ -2006,6 +2006,7 @@ def get_messages_updates():
         # Get muted channels to exclude from total
         from app import read_status as rs
         muted_channels = set(rs.get_muted_channels())
+        favorite_channels = rs.get_favorite_channels()
 
         # Build response
         updates = []
@@ -2042,7 +2043,8 @@ def get_messages_updates():
             'success': True,
             'channels': updates,
             'total_unread': total_unread,
-            'muted_channels': list(muted_channels)
+            'muted_channels': list(muted_channels),
+            'favorite_channels': favorite_channels
         }), 200
 
     except Exception as e:
@@ -4230,7 +4232,8 @@ def get_read_status_api():
             'success': True,
             'channels': status['channels'],
             'dm': status['dm'],
-            'muted_channels': status.get('muted_channels', [])
+            'muted_channels': status.get('muted_channels', []),
+            'favorite_channels': status.get('favorite_channels', [])
         }), 200
 
     except Exception as e:
@@ -4240,7 +4243,8 @@ def get_read_status_api():
             'error': str(e),
             'channels': {},
             'dm': {},
-            'muted_channels': []
+            'muted_channels': [],
+            'favorite_channels': []
         }), 500
 
 
@@ -4663,6 +4667,43 @@ def set_channel_muted_api(index):
 
     except Exception as e:
         logger.error(f"Error setting channel mute: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/channels/favorites', methods=['GET'])
+def get_favorite_channels_api():
+    """Get list of favorite channel indices."""
+    try:
+        from app import read_status
+        favorites = read_status.get_favorite_channels()
+        return jsonify({'success': True, 'favorite_channels': favorites}), 200
+    except Exception as e:
+        logger.error(f"Error getting favorite channels: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/channels/<int:index>/favorite', methods=['POST'])
+def set_channel_favorite_api(index):
+    """Set favorite state for a channel."""
+    try:
+        from app import read_status
+
+        data = request.get_json()
+        if data is None or 'favorite' not in data:
+            return jsonify({'success': False, 'error': 'Missing favorite field'}), 400
+
+        success = read_status.set_channel_favorite(index, data['favorite'])
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Channel {index} {"favorited" if data["favorite"] else "unfavorited"}'
+            }), 200
+        else:
+            return jsonify({'success': False, 'error': 'Failed to save'}), 500
+
+    except Exception as e:
+        logger.error(f"Error setting channel favorite: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

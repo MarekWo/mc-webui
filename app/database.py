@@ -62,6 +62,12 @@ class Database:
             conn.execute("ALTER TABLE echoes ADD COLUMN hash_size INTEGER NOT NULL DEFAULT 1")
             logger.info("Migration: added echoes.hash_size column")
 
+        # Add is_favorite column to read_status (channel favorites)
+        rs_columns = {r[1] for r in conn.execute("PRAGMA table_info(read_status)").fetchall()}
+        if 'is_favorite' not in rs_columns:
+            conn.execute("ALTER TABLE read_status ADD COLUMN is_favorite INTEGER DEFAULT 0")
+            logger.info("Migration: added read_status.is_favorite column")
+
     @contextmanager
     def _connect(self):
         """Yield a connection with auto-commit/rollback."""
@@ -1127,6 +1133,26 @@ class Database:
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT key FROM read_status WHERE is_muted = 1 AND key LIKE 'chan_%'"
+            ).fetchall()
+            return [int(r['key'][5:]) for r in rows]
+
+    def set_channel_favorite(self, channel_idx: int, favorite: bool) -> None:
+        key = f"chan_{channel_idx}"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO read_status (key, is_favorite)
+                   VALUES (?, ?)
+                   ON CONFLICT(key) DO UPDATE SET
+                       is_favorite = excluded.is_favorite,
+                       updated_at = datetime('now')""",
+                (key, 1 if favorite else 0)
+            )
+
+    def get_favorite_channels(self) -> List[int]:
+        """Get list of favorite channel indices."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT key FROM read_status WHERE is_favorite = 1 AND key LIKE 'chan_%'"
             ).fetchall()
             return [int(r['key'][5:]) for r in rows]
 

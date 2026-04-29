@@ -12,6 +12,7 @@ let lastSeenTimestamps = {};  // Track last seen message timestamp per channel
 let unreadCounts = {};  // Track unread message counts per channel
 let channelLastMessages = {};  // channel_idx -> {preview, timestamp}
 let mutedChannels = new Set();  // Channel indices with muted notifications
+let favoriteChannels = new Set();  // Channel indices marked as favorites (always shown above non-favorites)
 
 // DM state (for badge updates on main page)
 let dmLastSeenTimestamps = {};  // Track last seen DM timestamp per conversation
@@ -430,6 +431,8 @@ function connectChatSocket() {
                     timestamp: data.timestamp
                 };
             }
+            // Reorder: move this channel to the top of its tier in sidebar + dropdown
+            moveChannelToTopOfTier(data.channel_idx);
             // Update unread count for this channel
             if (data.channel_idx !== currentChannelIdx) {
                 unreadCounts[data.channel_idx] = (unreadCounts[data.channel_idx] || 0) + 1;
@@ -3796,7 +3799,11 @@ async function loadLastSeenTimestampsFromServer() {
             if (data.muted_channels) {
                 mutedChannels = new Set(data.muted_channels);
             }
-            console.log('Loaded channel read status from server:', lastSeenTimestamps, 'muted:', [...mutedChannels]);
+            // Load favorite channels
+            if (data.favorite_channels) {
+                favoriteChannels = new Set(data.favorite_channels);
+            }
+            console.log('Loaded channel read status from server:', lastSeenTimestamps, 'muted:', [...mutedChannels], 'favorites:', [...favoriteChannels]);
         } else {
             console.warn('Failed to load read status from server, using empty state');
             lastSeenTimestamps = {};
@@ -3935,9 +3942,18 @@ async function checkForUpdates() {
             if (data.muted_channels) {
                 mutedChannels = new Set(data.muted_channels);
             }
+            // Sync favorite channels from server
+            if (data.favorite_channels) {
+                favoriteChannels = new Set(data.favorite_channels);
+            }
 
             // Update UI badges
             updateUnreadBadges();
+
+            // Re-render channel lists now that we have last-message timestamps
+            // (initial paint runs before checkForUpdates returns, so the first
+            // sort would otherwise be all-zeros).
+            populateChannelSelector(availableChannels);
 
             // Check if we should send browser notification
             checkAndNotify();
@@ -4148,6 +4164,23 @@ function ensurePublicChannel() {
 }
 
 /**
+ * Sort a channel array by (favorite-first, latest-message-desc, original-index).
+ * Returns a new array; does not mutate the input. Channels with no recorded
+ * last message fall to the bottom of their tier in original order (stable sort).
+ */
+function sortedChannelsByFavoriteAndActivity(channels) {
+    return channels
+        .map((ch, i) => ({
+            ch,
+            i,
+            fav: favoriteChannels.has(ch.index) ? 0 : 1,
+            ts: (channelLastMessages[ch.index] && channelLastMessages[ch.index].timestamp) || 0
+        }))
+        .sort((a, b) => (a.fav - b.fav) || (b.ts - a.ts) || (a.i - b.i))
+        .map(x => x.ch);
+}
+
+/**
  * Populate channel selector data (for both mobile dropdown and wide-screen sidebar)
  */
 function populateChannelSelector(channels) {
@@ -4164,8 +4197,8 @@ function populateChannelSelector(channels) {
         localStorage.setItem('mc_active_channel', '0');
     }
 
-    // Save data for the mobile dropdown
-    window._channelDropdownItems = channels;
+    // Save data for the mobile dropdown (sorted by favorite + latest activity)
+    window._channelDropdownItems = sortedChannelsByFavoriteAndActivity(channels);
 
     // Pre-render dropdown contents (still hidden) and update input display
     renderChannelDropdownItems('');
@@ -4214,6 +4247,9 @@ function renderChannelDropdownItems(query) {
         }
         if (mutedChannels.has(channel.index)) {
             item.classList.add('muted');
+        }
+        if (favoriteChannels.has(channel.index)) {
+            item.classList.add('is-favorite');
         }
 
         // Top row: name + time + unread badge
@@ -4336,6 +4372,7 @@ function displayChannelsList(channels) {
         const isPublic = channel.index === 0;
 
         const isMuted = mutedChannels.has(channel.index);
+        const isFavorite = favoriteChannels.has(channel.index);
         const scope = (window.channelScopes || {})[String(channel.index)];
         const hasScope = !!scope;
         const scopeTitle = hasScope
@@ -4347,6 +4384,11 @@ function displayChannelsList(channels) {
                 ${hasScope ? `<span class="badge bg-info text-dark ms-2" style="font-size:0.7em;"><i class="bi bi-pin-map"></i> ${escapeHtml(scope.name)}</span>` : ''}
             </div>
             <div class="btn-group btn-group-sm">
+                <button class="btn ${isFavorite ? 'btn-warning' : 'btn-outline-warning'}"
+                        onclick="toggleChannelFavorite(${channel.index})"
+                        title="${isFavorite ? 'Unfavorite channel' : 'Favorite channel'}">
+                    <i class="bi ${isFavorite ? 'bi-star-fill' : 'bi-star'}"></i>
+                </button>
                 <button class="btn ${isMuted ? 'btn-secondary' : 'btn-outline-secondary'}"
                         onclick="toggleChannelMute(${channel.index})"
                         title="${isMuted ? 'Unmute notifications' : 'Mute notifications'}">
@@ -4380,9 +4422,10 @@ function populateChannelSidebar() {
 
     list.innerHTML = '';
 
-    const channels = availableChannels.length > 0
+    const baseChannels = availableChannels.length > 0
         ? availableChannels
         : [{index: 0, name: 'Public', key: ''}];
+    const channels = sortedChannelsByFavoriteAndActivity(baseChannels);
 
     channels.forEach(channel => {
         if (!channel || typeof channel.index === 'undefined' || !channel.name) return;
@@ -4396,6 +4439,9 @@ function populateChannelSidebar() {
         }
         if (mutedChannels.has(channel.index)) {
             item.classList.add('muted');
+        }
+        if (favoriteChannels.has(channel.index)) {
+            item.classList.add('is-favorite');
         }
 
         // Top row: name + time + unread badge
@@ -4458,6 +4504,39 @@ function updateChannelSidebarActive() {
 
     // Sync mobile selector input with current channel name
     updateChannelInputDisplay();
+}
+
+/**
+ * Move a channel's <li>/<div> to the top of its tier (favorite or non-favorite)
+ * in both the sidebar and the mobile dropdown. Pure DOM move — does not rebuild
+ * the list, so the active highlight, scroll, and event listeners survive.
+ */
+function moveChannelToTopOfTier(channelIdx) {
+    const isFav = favoriteChannels.has(channelIdx);
+    const idxStr = String(channelIdx);
+
+    const moveIn = (containerId, childClass) => {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const item = container.querySelector(`.${childClass}[data-channel-idx="${idxStr}"]`);
+        if (!item) return;  // channel not currently rendered (e.g. dropdown filtered)
+
+        if (isFav) {
+            if (item !== container.firstElementChild) container.prepend(item);
+            return;
+        }
+        // Non-favorite: insert before the first non-favorite sibling.
+        const firstNonFav = container.querySelector(`:scope > .${childClass}:not(.is-favorite)`);
+        if (!firstNonFav) {
+            // No non-favorite tier yet — append after the favorites block.
+            container.appendChild(item);
+        } else if (firstNonFav !== item) {
+            container.insertBefore(item, firstNonFav);
+        }
+    };
+
+    moveIn('channelSidebarList', 'channel-sidebar-item');
+    moveIn('channelSelectorDropdown', 'channel-selector-item');
 }
 
 /**
@@ -4556,6 +4635,37 @@ async function toggleChannelMute(index) {
         }
     } catch (error) {
         showNotification('Failed to update mute state', 'danger');
+    }
+}
+
+/**
+ * Toggle favorite state for a channel
+ */
+async function toggleChannelFavorite(index) {
+    const newFavorite = !favoriteChannels.has(index);
+
+    try {
+        const response = await fetch(`/api/channels/${index}/favorite`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ favorite: newFavorite })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            if (newFavorite) {
+                favoriteChannels.add(index);
+            } else {
+                favoriteChannels.delete(index);
+            }
+            // Refresh modal (star icon) and rebuild sidebar/dropdown to apply new tier
+            loadChannelsList();
+            populateChannelSelector(availableChannels);
+        } else {
+            showNotification('Failed to update favorite state', 'danger');
+        }
+    } catch (error) {
+        showNotification('Failed to update favorite state', 'danger');
     }
 }
 
