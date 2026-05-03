@@ -554,6 +554,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize filter functionality
     initializeFilter();
 
+    // Apply Quick Access / Main Menu placements before FAB init so visibility is set early
+    applyItemPlacements();
+    initializeItemPlacementSettings();
+
     // Initialize FAB toggle
     initializeFabToggle();
 
@@ -633,18 +637,6 @@ function setupEventListeners() {
 
     // Setup mentions autocomplete
     setupMentionsAutocomplete();
-
-    // Manual refresh button
-    document.getElementById('refreshBtn').addEventListener('click', async function() {
-        await loadMessages();
-        await checkForUpdates();
-
-        // Close offcanvas menu after refresh
-        const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('mainMenu'));
-        if (offcanvas) {
-            offcanvas.hide();
-        }
-    });
 
     // Check for app updates button
     const checkUpdateBtn = document.getElementById('checkUpdateBtn');
@@ -906,6 +898,28 @@ function setupEventListeners() {
             return;
         }
         await executeSpecialCommand('floodadv');
+    });
+
+    // FAB equivalents for menu actions (visible only when item placement = "fab")
+    document.getElementById('fab-advert')?.addEventListener('click', async () => {
+        await executeSpecialCommand('advert');
+    });
+    document.getElementById('fab-floodadvert')?.addEventListener('click', async () => {
+        if (!confirm('Flood Advertisement uses high airtime and should only be used for network recovery.\n\nAre you sure you want to proceed?')) {
+            return;
+        }
+        await executeSpecialCommand('floodadv');
+    });
+    document.getElementById('fab-map')?.addEventListener('click', () => {
+        showAllContactsOnMap();
+    });
+
+    // Menu equivalent for filter FAB: close offcanvas first, then open filter bar
+    document.getElementById('menu-filter')?.addEventListener('click', () => {
+        const oc = document.getElementById('mainMenu');
+        const inst = bootstrap.Offcanvas.getInstance(oc) || bootstrap.Offcanvas.getOrCreateInstance(oc);
+        oc.addEventListener('hidden.bs.offcanvas', () => openFilterBar(), { once: true });
+        inst.hide();
     });
 
     // Notification toggle
@@ -4861,7 +4875,7 @@ async function checkDmUpdates() {
  * Update DM notification badges
  */
 function updateDmBadges(totalUnread) {
-    // Update menu badge
+    // Update menu badge (legacy element, kept for backwards compat)
     const menuBadge = document.getElementById('dmMenuBadge');
     if (menuBadge) {
         if (totalUnread > 0) {
@@ -4872,19 +4886,42 @@ function updateDmBadges(totalUnread) {
         }
     }
 
-    // Update FAB badge (green badge on Direct Messages button)
+    // Update FAB badge (red badge on Direct Messages FAB)
     updateFabBadge('.fab-dm', 'fab-badge-dm', totalUnread);
+
+    // Update Main Menu copy badge (#menu-dm .menu-badge-dm) — kept in sync regardless of placement
+    const menuDmBadge = document.querySelector('#menu-dm .menu-badge-dm');
+    if (menuDmBadge) {
+        if (totalUnread > 0) {
+            menuDmBadge.textContent = totalUnread > 99 ? '99+' : totalUnread;
+            menuDmBadge.classList.remove('d-none');
+        } else {
+            menuDmBadge.classList.add('d-none');
+        }
+    }
 }
 
 /**
  * Update pending contacts badge on Contact Management FAB button
  * Fetches count from API using type filter from localStorage
  */
+function setMenuContactsBadge(count) {
+    const badge = document.querySelector('#menu-contacts .menu-badge-contacts');
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.classList.remove('d-none');
+    } else {
+        badge.classList.add('d-none');
+    }
+}
+
 async function updatePendingContactsBadge() {
     try {
         // Suppress: hide FAB badge entirely, skip browser notification path
         if (window.contactsSettings?.suppress_advert_notifications) {
             updateFabBadge('.fab-contacts', 'fab-badge-pending', 0);
+            setMenuContactsBadge(0);
             updateAppBadge();
             return;
         }
@@ -4904,9 +4941,10 @@ async function updatePendingContactsBadge() {
 
         if (data.success) {
             const count = data.pending?.length || 0;
-            // Update FAB badge (orange badge on Contact Management button)
+            // Update FAB badge (red badge on Contact Management button)
             updateFabBadge('.fab-contacts', 'fab-badge-pending', count);
-
+            // Update Main Menu copy badge
+            setMenuContactsBadge(count);
             // Update app icon badge
             updateAppBadge();
         }
@@ -5203,6 +5241,113 @@ async function loadContactsForMentions() {
 // =============================================================================
 // FAB Toggle (Collapse/Expand)
 // =============================================================================
+
+// =============================================================================
+// Item placement (Quick Access vs Main Menu)
+// =============================================================================
+
+const ITEM_PLACEMENT_DEFS = {
+    filter:      { fab: '#filterFab',       menu: '#menu-filter' },
+    search:      { fab: '#globalSearchBtn', menu: '#menu-search' },
+    dm:          { fab: '.fab-dm',          menu: '#menu-dm' },
+    contacts:    { fab: '.fab-contacts',    menu: '#menu-contacts' },
+    settings:    { fab: '.fab-settings',    menu: '#menu-settings' },
+    advert:      { fab: '#fab-advert',      menu: '#advertBtn' },
+    floodadvert: { fab: '#fab-floodadvert', menu: '#floodadvBtn' },
+    map:         { fab: '#fab-map',         menu: '#mapBtn' },
+    console:     { fab: '#fab-console',     menu: '#consoleBtn' },
+    deviceinfo:  { fab: '#fab-deviceinfo',  menu: '#deviceInfoBtn' },
+    syslog:      { fab: '#fab-syslog',      menu: '#logsBtn' },
+};
+
+const ITEM_PLACEMENT_DEFAULTS = {
+    filter: 'fab', search: 'fab', dm: 'fab', contacts: 'fab', settings: 'fab',
+    advert: 'menu', floodadvert: 'menu', map: 'menu',
+    console: 'menu', deviceinfo: 'menu', syslog: 'menu'
+};
+
+function readItemPlacements() {
+    let stored = {};
+    try {
+        stored = JSON.parse(localStorage.getItem('mc-webui-item-placements') || '{}');
+    } catch (e) {
+        stored = {};
+    }
+    return { ...ITEM_PLACEMENT_DEFAULTS, ...stored };
+}
+
+function isFabHidden() {
+    return localStorage.getItem('mc-webui-fab-hidden') === 'true';
+}
+
+function applyItemPlacements() {
+    const hidden = isFabHidden();
+    const placements = readItemPlacements();
+    const fabContainer = document.getElementById('fabContainer');
+
+    if (fabContainer) {
+        fabContainer.classList.toggle('d-none', hidden);
+    }
+
+    for (const [key, sels] of Object.entries(ITEM_PLACEMENT_DEFS)) {
+        const place = hidden ? 'menu' : placements[key];
+        const fabEl = document.querySelector(sels.fab);
+        const menuEl = document.querySelector(sels.menu);
+        if (fabEl) fabEl.classList.toggle('d-none', place !== 'fab');
+        if (menuEl) menuEl.classList.toggle('d-none', place !== 'menu');
+    }
+}
+
+function syncPlacementSettingsUI() {
+    const hideCheckbox = document.getElementById('settHideFab');
+    if (hideCheckbox) hideCheckbox.checked = isFabHidden();
+
+    const placements = readItemPlacements();
+    for (const key of Object.keys(ITEM_PLACEMENT_DEFS)) {
+        const radio = document.querySelector(`input[name="place-${key}"][value="${placements[key]}"]`);
+        if (radio) radio.checked = true;
+    }
+    applyPlacementControlsDisabled();
+}
+
+function applyPlacementControlsDisabled() {
+    const wrap = document.getElementById('fabAppearanceControls');
+    if (!wrap) return;
+    const disabled = isFabHidden();
+    wrap.style.opacity = disabled ? '0.5' : '';
+    wrap.style.pointerEvents = disabled ? 'none' : '';
+    wrap.querySelectorAll('input, button').forEach(el => {
+        el.disabled = disabled;
+    });
+}
+
+function initializeItemPlacementSettings() {
+    const hideCheckbox = document.getElementById('settHideFab');
+    if (hideCheckbox) {
+        hideCheckbox.addEventListener('change', () => {
+            localStorage.setItem('mc-webui-fab-hidden', hideCheckbox.checked ? 'true' : 'false');
+            applyPlacementControlsDisabled();
+            applyItemPlacements();
+        });
+    }
+
+    for (const key of Object.keys(ITEM_PLACEMENT_DEFS)) {
+        document.querySelectorAll(`input[name="place-${key}"]`).forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (!radio.checked) return;
+                const placements = readItemPlacements();
+                placements[key] = radio.value;
+                localStorage.setItem('mc-webui-item-placements', JSON.stringify(placements));
+                applyItemPlacements();
+            });
+        });
+    }
+
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal) {
+        settingsModal.addEventListener('show.bs.modal', syncPlacementSettingsUI);
+    }
+}
 
 function initializeFabToggle() {
     const toggle = document.getElementById('fabToggle');

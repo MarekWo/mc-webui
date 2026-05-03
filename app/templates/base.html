@@ -95,25 +95,46 @@
         <div class="offcanvas-body">
             <div class="list-group list-group-flush">
                 <!-- Messages -->
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" id="refreshBtn">
-                    <i class="bi bi-arrow-clockwise" style="font-size: 1.5rem;"></i>
-                    <span>Refresh Messages</span>
+                <button id="menu-filter" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" type="button">
+                    <i class="bi bi-funnel" style="font-size: 1.5rem;"></i>
+                    <div class="flex-grow-1">
+                        <div>Filter messages</div>
+                        <small class="d-block text-muted">Filter current chat</small>
+                    </div>
+                </button>
+                <button id="menu-search" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" type="button"
+                        data-bs-toggle="modal" data-bs-target="#searchModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-search" style="font-size: 1.5rem;"></i>
+                    <div class="flex-grow-1">
+                        <div>Search messages</div>
+                        <small class="d-block text-muted">Search all messages</small>
+                    </div>
+                </button>
+                <button id="menu-dm" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" type="button"
+                        data-bs-toggle="modal" data-bs-target="#dmModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-envelope-fill" style="font-size: 1.5rem;"></i>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Direct Messages</span>
+                            <span class="badge rounded-pill bg-danger d-none menu-badge-dm">0</span>
+                        </div>
+                        <small class="d-block text-muted">Private conversations</small>
+                    </div>
+                </button>
+                <button id="menu-contacts" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" type="button"
+                        data-bs-toggle="modal" data-bs-target="#contactsModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-person-lines-fill" style="font-size: 1.5rem;"></i>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Contact Management</span>
+                            <span class="badge rounded-pill bg-warning d-none menu-badge-contacts">0</span>
+                        </div>
+                        <small class="d-block text-muted">Manage known contacts</small>
+                    </div>
                 </button>
                 <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#channelsModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-broadcast-pin" style="font-size: 1.5rem;"></i>
                     <span>Manage Channels</span>
-                </button>
-                <button id="notificationsToggle" class="list-group-item list-group-item-action d-flex align-items-center gap-3" type="button">
-                    <i class="bi bi-bell" style="font-size: 1.5rem;"></i>
-                    <div class="flex-grow-1">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span>Notifications</span>
-                            <span id="notificationStatus" class="badge bg-secondary">Disabled</span>
-                        </div>
-                        <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
-                            Works when app is hidden
-                        </small>
-                    </div>
                 </button>
                 <div class="list-group-item">
                     <div class="d-flex align-items-center gap-3 mb-2">
@@ -157,7 +178,7 @@
                         <small class="d-block text-muted">All contacts with GPS</small>
                     </div>
                 </button>
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#consoleModal" data-bs-dismiss="offcanvas">
+                <button id="consoleBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#consoleModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-terminal" style="font-size: 1.5rem;"></i>
                     <div>
                         <span>Console</span>
@@ -169,15 +190,22 @@
                 <div class="list-group-item py-2 mt-2">
                     <small class="text-muted fw-bold text-uppercase">System</small>
                 </div>
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#deviceInfoModal" data-bs-dismiss="offcanvas">
+                <button id="deviceInfoBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#deviceInfoModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-cpu" style="font-size: 1.5rem;"></i>
                     <span>Device Info</span>
                 </button>
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#logsModal" data-bs-dismiss="offcanvas">
+                <button id="logsBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#logsModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-journal-text" style="font-size: 1.5rem;"></i>
                     <div>
                         <span>System Log</span>
                         <small class="d-block text-muted">Real-time application logs</small>
+                    </div>
+                </button>
+                <button id="menu-settings" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" data-bs-toggle="modal" data-bs-target="#settingsModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-gear" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <span>Settings</span>
+                        <small class="d-block text-muted">Application settings</small>
                     </div>
                 </button>
                 <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#backupModal" data-bs-dismiss="offcanvas">
@@ -185,13 +213,6 @@
                     <div>
                         <span>Backup</span>
                         <small class="d-block text-muted">Database backup & restore</small>
-                    </div>
-                </button>
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#settingsModal" data-bs-dismiss="offcanvas">
-                    <i class="bi bi-gear" style="font-size: 1.5rem;"></i>
-                    <div>
-                        <span>Settings</span>
-                        <small class="d-block text-muted">Application settings</small>
                     </div>
                 </button>
             </div>
@@ -421,6 +442,9 @@
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsRegions" type="button">Regions</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsNotifications" type="button">Notifications</button>
                         </li>
                     </ul>
                     <div class="tab-content">
@@ -704,30 +728,168 @@
 
                             <hr>
                             <h6 class="text-muted mb-3">Quick Access Buttons</h6>
-                            <table class="table table-sm table-borderless mb-3 align-middle">
-                                <tbody>
-                                    <tr>
-                                        <td class="ps-0">Button size (px)</td>
-                                        <td class="pe-0 d-flex align-items-center gap-2" style="width:12rem">
-                                            <input type="range" class="form-range flex-grow-1" id="settFabSize" min="28" max="72" step="2" value="56">
-                                            <span class="text-muted small" id="settFabSizeVal" style="min-width:2.5rem;text-align:right">56</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="ps-0">Spacing (px)</td>
-                                        <td class="pe-0 d-flex align-items-center gap-2">
-                                            <input type="range" class="form-range flex-grow-1" id="settFabGap" min="2" max="24" step="1" value="12">
-                                            <span class="text-muted small" id="settFabGapVal" style="min-width:2.5rem;text-align:right">12</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="ps-0">Position</td>
-                                        <td class="pe-0">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="settFabResetPos">Reset to default</button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="settHideFab">
+                                <label class="form-check-label" for="settHideFab">Hide Quick Access buttons</label>
+                                <small class="d-block text-muted">When hidden, all items appear in the Main Menu.</small>
+                            </div>
+                            <div id="fabAppearanceControls">
+                                <table class="table table-sm align-middle mb-3" id="settItemPlacementTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="ps-0 fw-normal text-muted small">Item</th>
+                                            <th class="pe-0 text-end fw-normal text-muted small">Placement</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr data-placement-key="filter">
+                                            <td class="ps-0">Filter messages</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Filter placement">
+                                                    <input type="radio" class="btn-check" name="place-filter" id="place-filter-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-filter-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-filter" id="place-filter-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-filter-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="search">
+                                            <td class="ps-0">Search messages</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Search placement">
+                                                    <input type="radio" class="btn-check" name="place-search" id="place-search-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-search-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-search" id="place-search-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-search-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="dm">
+                                            <td class="ps-0">Direct Messages</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="DM placement">
+                                                    <input type="radio" class="btn-check" name="place-dm" id="place-dm-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-dm-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-dm" id="place-dm-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-dm-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="contacts">
+                                            <td class="ps-0">Contact Management</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Contacts placement">
+                                                    <input type="radio" class="btn-check" name="place-contacts" id="place-contacts-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-contacts-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-contacts" id="place-contacts-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-contacts-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="settings">
+                                            <td class="ps-0">Settings</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Settings placement">
+                                                    <input type="radio" class="btn-check" name="place-settings" id="place-settings-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-settings-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-settings" id="place-settings-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-settings-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="advert">
+                                            <td class="ps-0">Send Advert</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Advert placement">
+                                                    <input type="radio" class="btn-check" name="place-advert" id="place-advert-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-advert-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-advert" id="place-advert-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-advert-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="floodadvert">
+                                            <td class="ps-0">Flood Advert</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Flood Advert placement">
+                                                    <input type="radio" class="btn-check" name="place-floodadvert" id="place-floodadvert-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-floodadvert-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-floodadvert" id="place-floodadvert-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-floodadvert-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="map">
+                                            <td class="ps-0">Map</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Map placement">
+                                                    <input type="radio" class="btn-check" name="place-map" id="place-map-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-map-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-map" id="place-map-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-map-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="console">
+                                            <td class="ps-0">Console</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Console placement">
+                                                    <input type="radio" class="btn-check" name="place-console" id="place-console-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-console-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-console" id="place-console-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-console-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="deviceinfo">
+                                            <td class="ps-0">Device Info</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Device Info placement">
+                                                    <input type="radio" class="btn-check" name="place-deviceinfo" id="place-deviceinfo-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-deviceinfo-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-deviceinfo" id="place-deviceinfo-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-deviceinfo-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="syslog">
+                                            <td class="ps-0">System Log</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="System Log placement">
+                                                    <input type="radio" class="btn-check" name="place-syslog" id="place-syslog-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-syslog-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-syslog" id="place-syslog-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-syslog-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <table class="table table-sm table-borderless mb-3 align-middle">
+                                    <tbody>
+                                        <tr>
+                                            <td class="ps-0">Button size (px)</td>
+                                            <td class="pe-0 d-flex align-items-center gap-2" style="width:12rem">
+                                                <input type="range" class="form-range flex-grow-1" id="settFabSize" min="28" max="72" step="2" value="56">
+                                                <span class="text-muted small" id="settFabSizeVal" style="min-width:2.5rem;text-align:right">56</span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="ps-0">Spacing (px)</td>
+                                            <td class="pe-0 d-flex align-items-center gap-2">
+                                                <input type="range" class="form-range flex-grow-1" id="settFabGap" min="2" max="24" step="1" value="12">
+                                                <span class="text-muted small" id="settFabGapVal" style="min-width:2.5rem;text-align:right">12</span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="ps-0">Position</td>
+                                            <td class="pe-0">
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" id="settFabResetPos">Reset to default</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                         <div class="tab-pane fade" id="tabSettingsContacts">
                             <table class="table table-sm table-borderless mb-0 align-middle">
@@ -794,6 +956,21 @@
                             <div class="form-text small">
                                 Tip: pick the default region via the radio button, or select <em>None</em> to fall back to the firmware default. The chosen region is also pushed to the firmware so any untagged channel uses it.
                             </div>
+                        </div>
+                        <div class="tab-pane fade" id="tabSettingsNotifications">
+                            <p class="text-muted small mb-3">Browser notifications appear when the app is hidden or in the background.</p>
+                            <button id="notificationsToggle" class="list-group-item list-group-item-action d-flex align-items-center gap-3 border rounded" type="button" style="width: 100%;">
+                                <i class="bi bi-bell" style="font-size: 1.5rem;"></i>
+                                <div class="flex-grow-1 text-start">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>Notifications</span>
+                                        <span id="notificationStatus" class="badge bg-secondary">Disabled</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                                        Works when app is hidden
+                                    </small>
+                                </div>
+                            </button>
                         </div>
                     </div>
                 </div>

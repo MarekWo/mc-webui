@@ -1593,6 +1593,42 @@ main {
     color: white;
 }
 
+/* Advert FAB button (muted teal) */
+.fab-advert {
+    background: linear-gradient(135deg, #5fa8a0 0%, #4a8f88 100%);
+    color: white;
+}
+
+/* Flood Advert FAB button (warning yellow) */
+.fab-floodadvert {
+    background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%);
+    color: white;
+}
+
+/* Map FAB button (muted teal) */
+.fab-map {
+    background: linear-gradient(135deg, #5fa8a0 0%, #4a8f88 100%);
+    color: white;
+}
+
+/* Console FAB button (blue) */
+.fab-console {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    color: white;
+}
+
+/* Device Info FAB button (muted teal) */
+.fab-deviceinfo {
+    background: linear-gradient(135deg, #5fa8a0 0%, #4a8f88 100%);
+    color: white;
+}
+
+/* System Log FAB button (blue) */
+.fab-syslog {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    color: white;
+}
+
 /* Filter bar overlay - slides down from top of chat area */
 .filter-bar {
     position: absolute;
