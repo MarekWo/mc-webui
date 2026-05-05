@@ -2784,15 +2784,15 @@ class DeviceManager:
             logger.error(f"discover_path failed: {e}")
             return {'success': False, 'error': str(e)}
 
-    def change_path(self, name_or_key: str, path: str) -> Dict:
-        """Change the path to a contact."""
+    def change_path(self, name_or_key: str, path: str, hash_size: int = 1) -> Dict:
+        """Change the path to a contact. hash_size: 1/2/3 bytes per hop."""
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
         contact = self.resolve_contact(name_or_key)
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
-            self.execute(self.mc.commands.change_contact_path(contact, path), timeout=10)
+            self.execute(self._change_path_async(contact, path, hash_size=hash_size), timeout=10)
             return {'success': True, 'message': f'Path changed for {contact.get("adv_name", name_or_key)}'}
         except Exception as e:
             logger.error(f"change_path failed: {e}")

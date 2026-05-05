@@ -27,7 +27,7 @@ This guide explains how to manage a MeshCore repeater device directly from the m
 
 ## 2. Login to Your Repeater and Initialize Conversation
 
-- Open the `meshcli Console`
+- Open the `mc-webui Console`
 
     <img src="../images/RPT-Mgmt-05-open-console.png" alt="Console" width="200px">
 

@@ -372,7 +372,6 @@ def handle_chat_disconnect():
 def handle_console_connect():
     """Handle console WebSocket connection"""
     logger.info("Console WebSocket client connected")
-    emit('console_status', {'message': 'Connected to mc-webui console'})
 
 
 @socketio.on('disconnect', namespace='/console')
@@ -494,7 +493,7 @@ def _execute_console_command(args: list) -> str:
                 meaningful = raw[:hop_count * hash_size * 2]
                 chunk = hash_size * 2
                 hops = [meaningful[i:i+chunk].upper() for i in range(0, len(meaningful), chunk)]
-                path_str = '→'.join(hops) if hops else f'len:{opl}'
+                path_str = ','.join(hops) if hops else f'len:{opl}'
             elif opl == 0:
                 path_str = 'Direct'
             else:
@@ -814,7 +813,7 @@ def _execute_console_command(args: list) -> str:
                 meaningful = raw[:hop_count * hash_size * 2]
                 chunk = hash_size * 2
                 hops = [meaningful[i:i+chunk].upper() for i in range(0, len(meaningful), chunk)]
-                path_str = ' → '.join(hops) if hops else f'len:{opl}'
+                path_str = ','.join(hops) if hops else f'len:{opl}'
                 return f"Path to {name}: {path_str} ({hop_count} hops)"
             elif opl == 0:
                 return f"Path to {name}: Direct"
@@ -845,14 +844,36 @@ def _execute_console_command(args: list) -> str:
 
     elif cmd == 'change_path' and len(args) >= 3:
         name = args[1]
-        path = args[2]
-        result = device_manager.change_path(name, path)
+        # Recombine remaining args so space-separated input ("d1 90 05 54") works
+        raw = ' '.join(args[2:])
+        if ',' in raw:
+            chunks = [c.strip() for c in raw.split(',') if c.strip()]
+            first_len = len(chunks[0]) if chunks else 0
+            if first_len in (2, 4, 6):
+                hash_size = first_len // 2
+            else:
+                return "Error: hop must be 1, 2, or 3 bytes (2/4/6 hex chars)"
+            path_hex = ''.join(chunks)
+        else:
+            path_hex = raw.replace(' ', '').replace('→', '').replace('->', '')
+            hash_size = 1
+        try:
+            bytes.fromhex(path_hex)
+        except ValueError:
+            return f"Error: invalid hex in path: {raw}"
+        if not path_hex or len(path_hex) % (hash_size * 2) != 0:
+            return f"Error: path length not aligned to {hash_size}-byte hops"
+        result = device_manager.change_path(name, path_hex, hash_size=hash_size)
         if result.get('success'):
             return result.get('message', 'OK')
         return f"Error: {result.get('error')}"
 
     elif cmd == 'change_path':
-        return "Usage: change_path <name> <path>\n  Path: hex string, e.g. 6a61"
+        return ("Usage: change_path <name> <hops>\n"
+                "  hops: comma-separated hex, e.g. d1,90,05,54  (1-byte hops)\n"
+                "                                  5e34,d1ac     (2-byte hops)\n"
+                "                                  5e346e,d1ac2c (3-byte hops)\n"
+                "  Spaces or continuous hex also accepted.")
 
     elif cmd == 'advert_path' and len(args) >= 2:
         name = ' '.join(args[1:])
@@ -1253,7 +1274,7 @@ def _execute_console_command(args: list) -> str:
             "  path <name>             — Show path to contact\n"
             "  disc_path <name>        — Discover new path\n"
             "  reset_path <name>       — Reset path to flood\n"
-            "  change_path <name> <p>  — Change path to contact\n"
+            "  change_path <name> <hops> — Change path (e.g. d1,90,05,54 or 5e34,d1ac)\n"
             "  advert_path <name>      — Get path from advert\n"
             "  share_contact <name>    — Share contact with mesh\n"
             "  export_contact <name>   — Export contact URI\n"

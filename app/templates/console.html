@@ -39,6 +39,11 @@
             flex-shrink: 0;
         }
 
+        .device-name {
+            color: #4ecdc4;
+            font-weight: 500;
+        }
+
         .console-messages {
             flex: 1;
             overflow-y: auto;
@@ -79,6 +84,16 @@
         .console-message.system {
             color: #4ecdc4;
             font-style: italic;
+        }
+
+        .console-message.historic {
+            opacity: 0.55;
+        }
+
+        .history-divider {
+            border: none;
+            border-top: 1px dashed #0f3460;
+            margin: 0.5rem 0 1rem 0;
         }
 
         .console-input-area {
@@ -254,7 +269,7 @@
     <div class="console-container">
         <!-- Header with status indicator -->
         <div class="console-header d-flex justify-content-between align-items-center">
-            <small class="text-muted">{{ device_name }}</small>
+            <small class="device-name">{{ device_name }}</small>
             <div class="d-flex align-items-center gap-2">
                 <span class="status-dot" id="statusDot"></span>
                 <small class="text-muted" id="statusText">Connecting...</small>
@@ -263,10 +278,7 @@
 
         <!-- Messages Area -->
         <div class="console-messages" id="consoleMessages">
-            <div class="console-message system">
-                Type a meshcli command and press Enter.
-                Examples: infos, contacts, help
-            </div>
+            <div class="console-message system">Type 'help' for available commands.</div>
         </div>
 
         <!-- Input Area -->
@@ -281,6 +293,10 @@
                         <div class="history-empty">No commands in history</div>
                     </div>
                 </div>
+                <!-- Clear output transcript -->
+                <button type="button" class="btn history-btn" id="clearOutputBtn" title="Clear output history">
+                    <i class="bi bi-trash"></i>
+                </button>
                 <input type="text"
                        id="commandInput"
                        class="form-control console-input"

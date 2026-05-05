@@ -4869,6 +4869,94 @@ def clear_console_history():
         }), 500
 
 
+# ============================================================
+# Console Output History API (persistent transcript)
+# ============================================================
+
+CONSOLE_OUTPUT_FILE = 'console_output_history.json'
+CONSOLE_OUTPUT_MAX_ENTRIES = 500
+CONSOLE_OUTPUT_ALLOWED_TYPES = {'command', 'response', 'error', 'system'}
+
+
+def _get_console_output_path():
+    return Path(config.MC_CONFIG_DIR) / CONSOLE_OUTPUT_FILE
+
+
+def _load_console_output():
+    path = _get_console_output_path()
+    try:
+        if path.exists():
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('entries', [])
+    except Exception as e:
+        logger.error(f"Error loading console output history: {e}")
+    return []
+
+
+def _save_console_output(entries):
+    path = _get_console_output_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump({'entries': entries}, f, ensure_ascii=False)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving console output history: {e}")
+        return False
+
+
+@api_bp.route('/console/output', methods=['GET'])
+def get_console_output():
+    """Get persisted console output transcript."""
+    try:
+        return jsonify({'success': True, 'entries': _load_console_output()}), 200
+    except Exception as e:
+        logger.error(f"Error getting console output: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/console/output', methods=['POST'])
+def add_console_output():
+    """Append an entry to the console output transcript."""
+    try:
+        data = request.get_json() or {}
+        entry_type = data.get('type', 'system')
+        text = data.get('text', '')
+        if entry_type not in CONSOLE_OUTPUT_ALLOWED_TYPES:
+            return jsonify({'success': False, 'error': 'Invalid type'}), 400
+        if not isinstance(text, str) or not text:
+            return jsonify({'success': False, 'error': 'Empty text'}), 400
+
+        entries = _load_console_output()
+        entries.append({
+            'ts': datetime.now().isoformat(timespec='seconds'),
+            'type': entry_type,
+            'text': text,
+        })
+        if len(entries) > CONSOLE_OUTPUT_MAX_ENTRIES:
+            entries = entries[-CONSOLE_OUTPUT_MAX_ENTRIES:]
+
+        if _save_console_output(entries):
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False, 'error': 'Failed to save'}), 500
+    except Exception as e:
+        logger.error(f"Error adding console output: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/console/output', methods=['DELETE'])
+def clear_console_output():
+    """Clear persisted console output transcript."""
+    try:
+        if _save_console_output([]):
+            return jsonify({'success': True, 'message': 'Output cleared'}), 200
+        return jsonify({'success': False, 'error': 'Failed to clear'}), 500
+    except Exception as e:
+        logger.error(f"Error clearing console output: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # =============================================================================
 # Backup Endpoints
 # =============================================================================

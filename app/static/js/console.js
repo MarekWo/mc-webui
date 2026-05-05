@@ -14,12 +14,14 @@ let historyIndex = -1;
 let pendingCommandDiv = null;
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     console.log('Console page initialized');
     loadServerHistory();
+    await loadOutputHistory();
     connectWebSocket();
     setupInputHandlers();
     setupHistoryDropdown();
+    setupClearOutputButton();
 });
 
 /**
@@ -49,7 +51,6 @@ function connectWebSocket() {
             isConnected = true;
             updateStatus('connected');
             enableInput(true);
-            addMessage('Connected to meshcli', 'system');
         });
 
         socket.on('disconnect', (reason) => {
@@ -57,7 +58,7 @@ function connectWebSocket() {
             isConnected = false;
             updateStatus('disconnected');
             enableInput(false);
-            addMessage('Disconnected from meshcli', 'error');
+            addMessage('Disconnected', 'error');
 
             // Clear pending command indicator
             if (pendingCommandDiv) {
@@ -200,14 +201,20 @@ function navigateHistory(direction) {
  * Add message to console display
  * @param {string} text Message text
  * @param {string} type Message type: 'command', 'response', 'error', 'system'
+ *                     (may include extra modifier classes like 'command pending')
+ * @param {boolean} persist Whether to save to the persistent transcript (default true)
  * @returns {HTMLElement} The created message div
  */
-function addMessage(text, type) {
+function addMessage(text, type, persist = true) {
     const container = document.getElementById('consoleMessages');
     const div = document.createElement('div');
     div.className = `console-message ${type}`;
     div.textContent = text;
     container.appendChild(div);
+    if (persist) {
+        const baseType = (type || '').split(' ')[0];
+        saveOutputEntry(baseType, text);
+    }
     return div;
 }
 
@@ -420,4 +427,78 @@ function selectHistoryItem(command) {
     if (historyMenu) {
         historyMenu.classList.remove('show');
     }
+}
+
+
+// ============================================================
+// Persistent console output transcript
+// ============================================================
+
+/**
+ * Load persisted output entries and render them as historic (faded) items,
+ * followed by a divider marking the start of the current session.
+ */
+async function loadOutputHistory() {
+    try {
+        const response = await fetch('/api/console/output');
+        const data = await response.json();
+        if (!data.success || !Array.isArray(data.entries) || data.entries.length === 0) {
+            return;
+        }
+        const container = document.getElementById('consoleMessages');
+        if (!container) return;
+        for (const entry of data.entries) {
+            const div = document.createElement('div');
+            div.className = `console-message ${entry.type} historic`;
+            div.textContent = entry.text;
+            container.appendChild(div);
+        }
+        const divider = document.createElement('hr');
+        divider.className = 'history-divider';
+        container.appendChild(divider);
+    } catch (error) {
+        console.error('Failed to load output history:', error);
+    }
+}
+
+/**
+ * POST a single transcript entry to the server (fire-and-forget).
+ */
+function saveOutputEntry(type, text) {
+    try {
+        fetch('/api/console/output', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, text })
+        }).catch(err => console.error('Failed to persist output entry:', err));
+    } catch (error) {
+        console.error('Failed to persist output entry:', error);
+    }
+}
+
+/**
+ * Clear the persisted transcript and the current display.
+ */
+async function clearOutputHistory() {
+    try {
+        await fetch('/api/console/output', { method: 'DELETE' });
+    } catch (error) {
+        console.error('Failed to clear output history:', error);
+    }
+    const container = document.getElementById('consoleMessages');
+    if (container) {
+        container.innerHTML = '';
+    }
+}
+
+/**
+ * Wire the trash button next to the history dropdown.
+ */
+function setupClearOutputButton() {
+    const btn = document.getElementById('clearOutputBtn');
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        clearOutputHistory();
+    });
 }
