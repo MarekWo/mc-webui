@@ -509,7 +509,9 @@ function setupClearOutputButton() {
 
 /**
  * Wire the floating scroll-to-bottom button: visible when the user has
- * scrolled away from the bottom of the transcript.
+ * scrolled away from the bottom of the transcript. Also auto-scrolls to
+ * the bottom whenever the container transitions from hidden (0 height,
+ * e.g. inside a closed Bootstrap modal) to visible.
  */
 function setupScrollToBottom() {
     const container = document.getElementById('consoleMessages');
@@ -530,4 +532,17 @@ function setupScrollToBottom() {
         e.preventDefault();
         container.scrollTop = container.scrollHeight;
     });
+
+    // When the modal hosting this iframe opens, the container goes from
+    // 0 height to its real height. Jump to the latest entry on that edge.
+    let wasVisible = container.clientHeight > 0;
+    const ro = new ResizeObserver(() => {
+        const isVisible = container.clientHeight > 0;
+        if (isVisible && !wasVisible) {
+            container.scrollTop = container.scrollHeight;
+        }
+        wasVisible = isVisible;
+        update();
+    });
+    ro.observe(container);
 }
