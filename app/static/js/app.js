@@ -558,6 +558,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     applyItemPlacements();
     initializeItemPlacementSettings();
 
+    // Sidebar breakpoint: re-apply (covers no-localStorage case) and wire up settings UI + resize listener
+    applySidebarBreakpoint();
+    initializeSidebarBreakpointSettings();
+
     // Initialize FAB toggle
     initializeFabToggle();
 
@@ -5380,6 +5384,70 @@ function initializeFabToggle() {
             }
         }
     });
+}
+
+// =============================================================================
+// Sidebar breakpoint (channel/DM list as sidebar vs. dropdown)
+// =============================================================================
+
+const SIDEBAR_BREAKPOINT_DEFAULT = 992;
+const SIDEBAR_BREAKPOINT_MIN = 600;
+const SIDEBAR_BREAKPOINT_MAX = 2000;
+const SIDEBAR_BREAKPOINT_KEY = 'mc-webui-sidebar-breakpoint';
+
+function readSidebarBreakpoint() {
+    const stored = parseInt(localStorage.getItem(SIDEBAR_BREAKPOINT_KEY), 10);
+    if (isNaN(stored) || stored < SIDEBAR_BREAKPOINT_MIN || stored > SIDEBAR_BREAKPOINT_MAX) {
+        return SIDEBAR_BREAKPOINT_DEFAULT;
+    }
+    return stored;
+}
+
+function applySidebarBreakpoint() {
+    const bp = readSidebarBreakpoint();
+    document.documentElement.classList.toggle('layout-wide', window.innerWidth >= bp);
+}
+
+let _sidebarBreakpointRaf = null;
+function onSidebarBreakpointResize() {
+    if (_sidebarBreakpointRaf) return;
+    _sidebarBreakpointRaf = requestAnimationFrame(() => {
+        _sidebarBreakpointRaf = null;
+        applySidebarBreakpoint();
+    });
+}
+
+function syncSidebarBreakpointUI() {
+    const input = document.getElementById('settSidebarBreakpoint');
+    if (input) input.value = readSidebarBreakpoint();
+}
+
+function initializeSidebarBreakpointSettings() {
+    window.addEventListener('resize', onSidebarBreakpointResize);
+
+    const input = document.getElementById('settSidebarBreakpoint');
+    if (input) {
+        input.addEventListener('input', () => {
+            const val = parseInt(input.value, 10);
+            if (isNaN(val) || val < SIDEBAR_BREAKPOINT_MIN || val > SIDEBAR_BREAKPOINT_MAX) return;
+            localStorage.setItem(SIDEBAR_BREAKPOINT_KEY, String(val));
+            applySidebarBreakpoint();
+        });
+    }
+
+    const resetBtn = document.getElementById('settSidebarBreakpointReset');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            localStorage.removeItem(SIDEBAR_BREAKPOINT_KEY);
+            if (input) input.value = SIDEBAR_BREAKPOINT_DEFAULT;
+            applySidebarBreakpoint();
+        });
+    }
+
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal) {
+        settingsModal.addEventListener('show.bs.modal', syncSidebarBreakpointUI);
+    }
 }
 
 // =============================================================================

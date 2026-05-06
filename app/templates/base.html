@@ -21,6 +21,19 @@
         })();
     </script>
 
+    <!-- Sidebar breakpoint: apply saved preference before CSS loads to prevent layout flash -->
+    <script>
+        (function() {
+            try {
+                var stored = parseInt(localStorage.getItem('mc-webui-sidebar-breakpoint'), 10);
+                var bp = (isNaN(stored) || stored < 600 || stored > 2000) ? 992 : stored;
+                if (window.innerWidth >= bp) {
+                    document.documentElement.classList.add('layout-wide');
+                }
+            } catch (e) {}
+        })();
+    </script>
+
     <!-- Bootstrap 5 CSS (local) -->
     <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <!-- Bootstrap Icons (local) -->
@@ -666,6 +679,22 @@
                             </form>
                         </div>
                         <div class="tab-pane fade" id="tabSettingsInterface">
+                            <h6 class="text-muted mb-2">Layout</h6>
+                            <p class="text-muted small mb-2">Window width above which the channel/contact list is shown as a sidebar. Below this width it collapses to a dropdown at the top of the screen. Saved per device (browser).</p>
+                            <table class="table table-sm table-borderless mb-3 align-middle">
+                                <tbody>
+                                    <tr>
+                                        <td class="ps-0">Sidebar breakpoint (px) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Default: 992. Range: 600-2000."><i class="bi bi-info-circle"></i></span></td>
+                                        <td class="pe-0" style="width:10rem">
+                                            <div class="d-flex gap-1">
+                                                <input type="number" class="form-control form-control-sm" id="settSidebarBreakpoint" min="600" max="2000" step="1" value="992">
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" id="settSidebarBreakpointReset" title="Reset to default (992)"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <hr>
                             <form id="uiSettingsForm">
                                 <h6 class="text-muted mb-2">Notifications</h6>
                                 <p class="text-muted small mb-2">Controls the small toasts shown after actions (e.g. "Advert Sent", errors).</p>

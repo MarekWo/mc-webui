@@ -130,14 +130,12 @@ main {
     flex-shrink: 0;
 }
 
-/* Show sidebar and hide dropdown on wide screens */
-@media (min-width: 992px) {
-    .channel-sidebar {
-        display: flex;
-    }
-    #channelSelectorWrapper {
-        display: none !important;
-    }
+/* Show sidebar and hide dropdown on wide screens (toggled by JS via .layout-wide on <html>) */
+.layout-wide .channel-sidebar {
+    display: flex;
+}
+.layout-wide #channelSelectorWrapper {
+    display: none !important;
 }
 
 /* Channel Selector Dropdown (base.html navbar, narrow screens) */
@@ -266,17 +264,15 @@ main {
     flex-shrink: 0;
 }
 
-/* Show DM sidebar and hide mobile selector on wide screens */
-@media (min-width: 992px) {
-    .dm-sidebar {
-        display: flex;
-    }
-    .dm-mobile-selector {
-        display: none !important;
-    }
-    .dm-desktop-header {
-        display: block !important;
-    }
+/* Show DM sidebar and hide mobile selector on wide screens (toggled by JS via .layout-wide on <html>) */
+.layout-wide .dm-sidebar {
+    display: flex;
+}
+.layout-wide .dm-mobile-selector {
+    display: none !important;
+}
+.layout-wide .dm-desktop-header {
+    display: block !important;
 }
 
 .dm-desktop-header {
