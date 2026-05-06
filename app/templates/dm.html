@@ -14,6 +14,31 @@
         })();
     </script>
 
+    <!-- Sidebar breakpoint: apply, react to resize, and react to changes from parent (Settings -> Interface) -->
+    <script>
+        (function() {
+            function readBp() {
+                try {
+                    var s = parseInt(localStorage.getItem('mc-webui-sidebar-breakpoint'), 10);
+                    return (isNaN(s) || s < 600 || s > 2000) ? 992 : s;
+                } catch (e) { return 992; }
+            }
+            function apply() {
+                document.documentElement.classList.toggle('layout-wide', window.innerWidth >= readBp());
+            }
+            apply();
+            var raf = null;
+            window.addEventListener('resize', function() {
+                if (raf) return;
+                raf = requestAnimationFrame(function() { raf = null; apply(); });
+            });
+            // Live update when the user changes the breakpoint in the parent window's Settings
+            window.addEventListener('storage', function(e) {
+                if (e.key === 'mc-webui-sidebar-breakpoint' || e.key === null) apply();
+            });
+        })();
+    </script>
+
     <!-- Favicon -->
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32x32.png') }}">
