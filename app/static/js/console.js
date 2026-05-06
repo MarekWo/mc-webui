@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupInputHandlers();
     setupHistoryDropdown();
     setupClearOutputButton();
+    setupScrollToBottom();
 });
 
 /**
@@ -58,7 +59,8 @@ function connectWebSocket() {
             isConnected = false;
             updateStatus('disconnected');
             enableInput(false);
-            addMessage('Disconnected', 'error');
+            // Transient session event — show inline but don't persist to transcript
+            addMessage('Disconnected', 'error', false);
 
             // Clear pending command indicator
             if (pendingCommandDiv) {
@@ -102,7 +104,7 @@ function connectWebSocket() {
     } catch (error) {
         console.error('Failed to create WebSocket connection:', error);
         updateStatus('disconnected');
-        addMessage('Failed to connect: ' + error.message, 'error');
+        addMessage('Failed to connect: ' + error.message, 'error', false);
     }
 }
 
@@ -456,6 +458,8 @@ async function loadOutputHistory() {
         const divider = document.createElement('hr');
         divider.className = 'history-divider';
         container.appendChild(divider);
+        // Open at the bottom of the transcript, like a chat window
+        scrollToBottom();
     } catch (error) {
         console.error('Failed to load output history:', error);
     }
@@ -500,5 +504,30 @@ function setupClearOutputButton() {
     btn.addEventListener('click', (e) => {
         e.preventDefault();
         clearOutputHistory();
+    });
+}
+
+/**
+ * Wire the floating scroll-to-bottom button: visible when the user has
+ * scrolled away from the bottom of the transcript.
+ */
+function setupScrollToBottom() {
+    const container = document.getElementById('consoleMessages');
+    const btn = document.getElementById('scrollBottomBtn');
+    if (!container || !btn) return;
+
+    const SHOW_THRESHOLD = 80; // px from bottom before button appears
+
+    const update = () => {
+        const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+        btn.classList.toggle('show', distance > SHOW_THRESHOLD);
+    };
+
+    container.addEventListener('scroll', update, { passive: true });
+    // Re-check after content changes (new messages, dropdowns, etc.)
+    new MutationObserver(update).observe(container, { childList: true, subtree: false });
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        container.scrollTop = container.scrollHeight;
     });
 }

@@ -44,12 +44,47 @@
             font-weight: 500;
         }
 
+        .messages-wrap {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+            display: flex;
+        }
+
         .console-messages {
             flex: 1;
             overflow-y: auto;
             padding: 1rem;
             background-color: #1a1a2e;
             min-height: 0;
+        }
+
+        .scroll-bottom-btn {
+            position: absolute;
+            right: 1rem;
+            bottom: 1rem;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid #0f3460;
+            background-color: #16213e;
+            color: #4ecdc4;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            z-index: 5;
+        }
+
+        .scroll-bottom-btn.show {
+            display: flex;
+        }
+
+        .scroll-bottom-btn:hover {
+            background-color: #1a1a4e;
+            color: #00ff88;
         }
 
         .console-message {
@@ -277,8 +312,13 @@
         </div>
 
         <!-- Messages Area -->
-        <div class="console-messages" id="consoleMessages">
-            <div class="console-message system">Type 'help' for available commands.</div>
+        <div class="messages-wrap">
+            <div class="console-messages" id="consoleMessages">
+                <div class="console-message system">Type 'help' for available commands.</div>
+            </div>
+            <button type="button" class="scroll-bottom-btn" id="scrollBottomBtn" title="Scroll to latest" aria-label="Scroll to latest">
+                <i class="bi bi-arrow-down"></i>
+            </button>
         </div>
 
         <!-- Input Area -->
