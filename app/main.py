@@ -845,7 +845,13 @@ def _execute_console_command(args: list) -> str:
     elif cmd == 'change_path' and len(args) >= 3:
         name = args[1]
         # Recombine remaining args so space-separated input ("d1 90 05 54") works
-        raw = ' '.join(args[2:])
+        raw = ' '.join(args[2:]).strip()
+        # Special keyword: 'direct' sets the path to Direct (0 hops, empty path)
+        if raw.lower() == 'direct':
+            result = device_manager.change_path(name, '', hash_size=1)
+            if result.get('success'):
+                return result.get('message', 'OK')
+            return f"Error: {result.get('error')}"
         if ',' in raw:
             chunks = [c.strip() for c in raw.split(',') if c.strip()]
             first_len = len(chunks[0]) if chunks else 0
@@ -869,11 +875,13 @@ def _execute_console_command(args: list) -> str:
         return f"Error: {result.get('error')}"
 
     elif cmd == 'change_path':
-        return ("Usage: change_path <name> <hops>\n"
+        return ("Usage: change_path <name> <hops|direct>\n"
                 "  hops: comma-separated hex, e.g. d1,90,05,54  (1-byte hops)\n"
                 "                                  5e34,d1ac     (2-byte hops)\n"
                 "                                  5e346e,d1ac2c (3-byte hops)\n"
-                "  Spaces or continuous hex also accepted.")
+                "  direct: set path to Direct (0 hops)\n"
+                "  Spaces or continuous hex also accepted.\n"
+                "  (Use reset_path to set the path to Flood.)")
 
     elif cmd == 'advert_path' and len(args) >= 2:
         name = ' '.join(args[1:])
@@ -1274,7 +1282,7 @@ def _execute_console_command(args: list) -> str:
             "  path <name>             — Show path to contact\n"
             "  disc_path <name>        — Discover new path\n"
             "  reset_path <name>       — Reset path to flood\n"
-            "  change_path <name> <hops> — Change path (e.g. d1,90,05,54 or 5e34,d1ac)\n"
+            "  change_path <name> <hops|direct> — Change path (e.g. d1,90,05,54 or direct)\n"
             "  advert_path <name>      — Get path from advert\n"
             "  share_contact <name>    — Share contact with mesh\n"
             "  export_contact <name>   — Export contact URI\n"
