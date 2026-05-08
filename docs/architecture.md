@@ -137,6 +137,7 @@ Key tables:
 - `settings` - Application settings (migrated from .webui_settings.json)
 - `regions` - User-curated MeshCore flood scopes (`name`, `key_hex`, `is_default`)
 - `channel_scopes` - Per-channel region mapping (`channel_idx` → `region_id`, CASCADE on region delete; absent row = no override → firmware default applies)
+- `read_status` - Per-channel read counters and favorites (`is_favorite` column; used to pin channels in the sidebar/dropdown sort order)
 
 The use of SQLite allows for fast queries, reliable data storage, full-text search, and complex filtering (such as contact ignoring/blocking) without the risk of file corruption inherent to flat JSON files.
 
@@ -205,6 +206,8 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 | POST | `/api/channels/<index>/mute` | Toggle channel mute |
 | GET | `/api/channels/scopes` | Bulk per-channel region mapping for UI |
 | PUT | `/api/channels/<index>/scope` | Assign/clear region scope (`{region_id: int\|null}`) |
+| GET | `/api/channels/favorites` | List favorite channel indices |
+| POST | `/api/channels/<index>/favorite` | Set favorite state (`{favorite: bool}`) |
 
 ### Regions (MeshCore flood scopes)
 
@@ -272,6 +275,9 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 | GET | `/api/console/history` | Get console command history |
 | POST | `/api/console/history` | Save console command |
 | DELETE | `/api/console/history` | Clear console history |
+| GET | `/api/console/output` | Get persisted console output transcript (capped at 500 entries) |
+| POST | `/api/console/output` | Append entry to transcript |
+| DELETE | `/api/console/output` | Clear transcript |
 | GET | `/api/logs` | Get application logs |
 
 ---

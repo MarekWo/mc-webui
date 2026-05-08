@@ -23,6 +23,7 @@ This guide covers all features and functionality of mc-webui. For installation i
 - [Database Backup](#database-backup)
 - [Network Commands](#network-commands)
 - [PWA Notifications](#pwa-notifications)
+- [Notifications Tab](#notifications-tab)
 
 ---
 
@@ -95,6 +96,8 @@ On narrow screens, tap the channel selector in the navbar to open a searchable p
 - Unread channels show a red badge with the count
 
 On wide screens (tablets/desktops), use the channel sidebar on the left. Each sidebar entry shows the channel name, time of the last message, unread badge, and a two-line message preview.
+
+Both the dropdown and the sidebar sort channels by most recent message first. **Favorited channels are pinned above non-favorites**, so your most-used channels stay at the top regardless of activity. Toggle the star icon ★ next to any channel in the **Manage Channels** modal to favorite or unfavorite it.
 
 Your selection is remembered between sessions.
 
@@ -492,11 +495,13 @@ The console supports a comprehensive set of MeshCore commands organized into cat
 - `set_clock <name>` - Sync repeater clock
 
 **Contact Management:**
-- `contacts` - List all device contacts
+- `contacts` - List all device contacts (paths shown with commas, e.g. `D1,90,05,54`)
 - `.contacts` - List contacts (JSON format)
 - `.pending_contacts` - List pending contacts
 - `add_pending <key>` - Approve pending contact
 - `remove_contact <name>` - Remove contact
+- `change_path <name> <path>` - Change contact's routing path. Accepts comma-separated hex bytes (`D1,90,05`), continuous hex (`D19005`), or space-separated bytes. Use the keyword `direct` to set a Direct (0-hop) path. Hash size is auto-detected from the chunk length. Use `reset_path <name>` to switch back to Flood
+- `path <name>` - Show the current path for a contact
 
 **Device & Channel Management:**
 - `infos` / `ver` - Device info / firmware version
@@ -511,6 +516,8 @@ The console supports a comprehensive set of MeshCore commands organized into cat
 
 - **Command history** - Navigate with up/down arrows, or use the history dropdown
 - **Persistent history** - Saved on server, accessible across sessions
+- **Persistent transcript** - Output from previous sessions is restored (faded) above a separator line when you reopen the console. Use the trash button (🗑) to clear the saved transcript
+- **Jump-to-latest button** - A floating button appears when you scroll up through the transcript; click it to jump back to the newest entry
 - **Auto-reconnect** - WebSocket reconnects automatically on disconnect
 - **Status indicator** - Green/yellow/red dot shows connection status
 - **Human-readable output** - Clock times, statistics, and telemetry formatted for readability
@@ -568,6 +575,8 @@ Tap the toggle button (short click, no drag) to hide or show the rest of the FAB
 ### Customization
 
 Open Settings → **Appearance** tab to adjust:
+- **Hide Quick Access** - Master switch: hides the FAB cluster entirely and moves all actions to the Main Menu
+- **Per-item placement** - Choose whether each of the 11 actions appears in the FAB or in the Main Menu. Changes take effect immediately
 - **Button size** - 28 to 72 pixels (default: 56)
 - **Spacing** - 2 to 24 pixels between buttons (default: 12)
 - **Reset position** - Reset both main chat and DM FAB positions to their defaults
@@ -583,7 +592,7 @@ Access the Settings modal to configure application behavior:
 1. Click the menu icon (☰) in the navbar (or tap the gear FAB button)
 2. Select "Settings" from the menu
 
-The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **Interface**, **Appearance**, **Contacts**, and **Regions**. A global **Close** button at the bottom of the modal dismisses Settings from any tab.
+The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **Interface**, **Appearance**, **Contacts**, **Regions**, and **Notifications**. A global **Close** button at the bottom of the modal dismisses Settings from any tab.
 
 ### Device Tab
 
@@ -643,12 +652,17 @@ Controls small notification toasts shown after actions (e.g. "Advert Sent", erro
 - **Don't close automatically** - Toasts stay visible until dismissed via their close button
 - **Position on screen** - Top-left / Top-right / Bottom-left / Bottom-right / Center
 
+**Layout:**
+- **Sidebar breakpoint (px)** - Screen width above which the channel/DM list is shown as a sidebar instead of a top dropdown. Default: 992 px, range: 600–2000. Saved per browser in local storage
+
 ### Appearance Tab
 
 **Theme:**
 - **Dark / Light** - Toggle between dark and light UI themes. The preference is saved in local browser storage
 
 **Quick Access Buttons:**
+- **Hide Quick Access** - Master switch that hides the entire floating FAB cluster and moves all items to the Main Menu (slide-out)
+- **Per-item placement** - A table of all 11 configurable actions (Filter, Search, Direct Messages, Contacts, Settings, Send Advert, Flood Advert, Backup, Cleanup Contacts, System Log, Repeater Mgmt). Each row has two radio buttons: **Quick Access** (shows in FAB) and **Main Menu** (shows in the slide-out). Changes take effect immediately
 - **Button size (px)** - Adjust the size of FAB buttons (default: 56)
 - **Spacing (px)** - Space between FAB buttons (default: 12)
 - **Position** - Reset FAB position to default (top-right)
@@ -661,6 +675,15 @@ Manage MeshCore region scopes (also called flood scopes). See [Region Scopes](#r
 - Pick the **default region** with the radio button — pushed to the firmware (requires v1.15+) and used by any channel without an explicit override
 - Pick **None** to clear the firmware default
 - Delete regions you no longer need (channels using a deleted region revert to "no scope")
+
+### Notifications Tab
+
+Enable or disable browser push notifications for new messages received while the app is hidden or in the background.
+
+- Click **Notifications** to toggle the browser permission on or off
+- The badge next to the button shows the current state: **Enabled** (green) or **Disabled** (gray)
+
+See [PWA Notifications](#pwa-notifications) for platform support and troubleshooting.
 
 ---
 
@@ -727,10 +750,10 @@ The application supports Progressive Web App (PWA) notifications to alert you of
 
 ### Enabling Notifications
 
-1. Click the menu icon (☰) in the navbar
-2. Click "Notifications" in the menu
-3. Browser will request permission - click "Allow"
-4. Status badge will change from "Disabled" to "Enabled" (green)
+1. Open Settings (gear FAB or menu → Settings)
+2. Switch to the **Notifications** tab
+3. Click the **Notifications** button — the browser will request permission, click "Allow"
+4. The status badge changes from "Disabled" to "Enabled" (green)
 
 ### How It Works
 
