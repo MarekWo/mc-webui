@@ -2753,7 +2753,7 @@ class DeviceManager:
         return {'success': True, 'data': {
             'out_path': contact.get('out_path', ''),
             'out_path_len': contact.get('out_path_len', -1),
-            'out_path_hash_len': contact.get('out_path_hash_len', 0),
+            'out_path_hash_mode': contact.get('out_path_hash_mode', 0),
         }}
 
     def discover_path(self, name_or_key: str) -> Dict:

@@ -807,14 +807,15 @@ def _execute_console_command(args: list) -> str:
             data = result['data']
             opl = data.get('out_path_len', -1)
             raw = data.get('out_path', '')
+            hash_mode = data.get('out_path_hash_mode', 0)
             if opl > 0:
-                hop_count = opl & 0x3F
-                hash_size = (opl >> 6) + 1
-                meaningful = raw[:hop_count * hash_size * 2]
+                hop_count = opl
+                hash_size = max(1, hash_mode + 1) if hash_mode >= 0 else 1
                 chunk = hash_size * 2
+                meaningful = raw[:hop_count * chunk]
                 hops = [meaningful[i:i+chunk].upper() for i in range(0, len(meaningful), chunk)]
                 path_str = ','.join(hops) if hops else f'len:{opl}'
-                return f"Path to {name}: {path_str} ({hop_count} hops)"
+                return f"Path to {name}: {path_str} ({hop_count} hops, {hash_size}B)"
             elif opl == 0:
                 return f"Path to {name}: Direct"
             else:
@@ -852,17 +853,23 @@ def _execute_console_command(args: list) -> str:
             if result.get('success'):
                 return result.get('message', 'OK')
             return f"Error: {result.get('error')}"
-        if ',' in raw:
-            chunks = [c.strip() for c in raw.split(',') if c.strip()]
-            first_len = len(chunks[0]) if chunks else 0
-            if first_len in (2, 4, 6):
-                hash_size = first_len // 2
-            else:
+        # Split on commas, whitespace, or arrow separators. Each chunk = one hop.
+        norm = raw.replace('→', ' ').replace('->', ' ')
+        chunks = [c for c in re.split(r'[,\s]+', norm) if c]
+        if len(chunks) >= 2:
+            first_len = len(chunks[0])
+            if first_len not in (2, 4, 6):
                 return "Error: hop must be 1, 2, or 3 bytes (2/4/6 hex chars)"
+            if any(len(c) != first_len for c in chunks):
+                return "Error: all hops must have the same length"
+            hash_size = first_len // 2
             path_hex = ''.join(chunks)
-        else:
-            path_hex = raw.replace(' ', '').replace('→', '').replace('->', '')
+        elif len(chunks) == 1:
+            # Single chunk: continuous hex, assume 1-byte hops
+            path_hex = chunks[0]
             hash_size = 1
+        else:
+            return "Error: empty path"
         try:
             bytes.fromhex(path_hex)
         except ValueError:
