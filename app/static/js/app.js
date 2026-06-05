@@ -3035,6 +3035,16 @@ function substituteAnalyzerUrl(template, packetHash) {
     return (template || '').replaceAll(ANALYZER_PLACEHOLDER, packetHash || '');
 }
 
+// Bootstrap stacks modal backdrops at z-index 1050 by default, which sits
+// below an already-open modal (1055). Bump the latest backdrop above the
+// underlying modal so our stacked dialog actually dims the page.
+function _bumpAnalyzerBackdrop() {
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    if (backdrops.length > 0) {
+        backdrops[backdrops.length - 1].style.zIndex = '1075';
+    }
+}
+
 async function loadAnalyzers() {
     try {
         const resp = await fetch('/api/analyzers');
@@ -3147,6 +3157,7 @@ function openAnalyzerEditModal(id) {
         disabledEl.checked = false;
     }
 
+    modalEl.addEventListener('shown.bs.modal', _bumpAnalyzerBackdrop, { once: true });
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
@@ -3337,6 +3348,7 @@ function openAnalyzerChooser(packetHash, enabled) {
         }, { once: true });
     });
 
+    modalEl.addEventListener('shown.bs.modal', _bumpAnalyzerBackdrop, { once: true });
     modal.show();
 }
 
