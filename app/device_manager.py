@@ -447,6 +447,48 @@ class DeviceManager:
         except Exception as e:
             logger.error(f"Failed to load channel secrets: {e}")
 
+    def _refresh_channel_secret(self, channel_idx: int) -> Optional[str]:
+        """Re-read a single channel from the device and update local caches.
+
+        Returns the current secret (hex string) for use in pkt_payload
+        computation. Deleting a channel on the device shifts later indices
+        down, so the boot-time _channel_secrets cache can map this idx to
+        a stale or removed channel; re-querying guarantees we encrypt the
+        echo-correlation candidates with the right key.
+        """
+        if not self.is_connected:
+            return self._channel_secrets.get(channel_idx)
+        try:
+            info = self.get_channel_info(channel_idx)
+        except Exception as e:
+            logger.warning(f"_refresh_channel_secret({channel_idx}) failed: {e}")
+            return self._channel_secrets.get(channel_idx)
+        if not info:
+            # idx is empty on the device — drop any stale cache entry
+            old = self._channel_secrets.pop(channel_idx, None)
+            if old is not None:
+                logger.info(f"Channel idx {channel_idx} no longer exists on device — cleared stale cache")
+                try:
+                    self.db.delete_channel(channel_idx)
+                except Exception:
+                    pass
+            return None
+        secret = info.get('secret') or ''
+        name = info.get('name') or ''
+        if not (isinstance(secret, str) and len(secret) == 32 and secret != '0' * 32):
+            # Channel slot exists but has no usable secret (e.g. Public)
+            return None
+        old = self._channel_secrets.get(channel_idx)
+        if old != secret:
+            self._channel_secrets[channel_idx] = secret
+            logger.info(f"Channel idx {channel_idx} ('{name}') secret refreshed (cache was stale)")
+            try:
+                if name:
+                    self.db.upsert_channel(channel_idx, name, secret)
+            except Exception as e:
+                logger.debug(f"DB upsert for channel {channel_idx} failed: {e}")
+        return secret
+
     async def _subscribe_events(self):
         """Subscribe to all relevant device events."""
         from meshcore.events import EventType
@@ -1416,13 +1458,16 @@ class DeviceManager:
                 content=text,
                 timestamp=ts,
                 is_own=True,
-                pkt_payload=getattr(event, 'data', {}).get('pkt_payload') if event else None,
+                pkt_payload=getattr(event, 'payload', {}).get('pkt_payload') if event else None,
             )
 
             # Pre-compute expected pkt_payloads for echo correlation.
             # We try ts±3s to account for clock drift between host and firmware.
+            # Refresh channel secret from the device first: deleting a channel
+            # shifts subsequent indices down, so the cache loaded at startup
+            # may map this idx to a different (or removed) channel.
+            secret = self._refresh_channel_secret(channel_idx)
             expected_payloads = set()
-            secret = self._channel_secrets.get(channel_idx)
             if secret and self.device_name:
                 full_text = f"{self.device_name}: {text}"
                 for dt in range(-3, 4):
@@ -3190,17 +3235,23 @@ class DeviceManager:
                 self.execute(self.mc.commands.set_multi_acks(enabled), timeout=5)
                 return {'success': True, 'message': f'Multi acks: {enabled}'}
             elif param == 'path_hash_mode':
-                self.execute(self.mc.commands.set_path_hash_mode(int(value)), timeout=5)
+                # Lib's internal default_timeout is 15s; give the outer wrapper
+                # enough headroom so we don't surface a bare TimeoutError when
+                # the device just needs a moment to acknowledge.
+                self.execute(self.mc.commands.set_path_hash_mode(int(value)), timeout=20)
                 return {'success': True, 'message': f'Path hash mode set to: {value}'}
             elif param == 'help':
                 return {'success': True, 'help': 'set'}
             else:
                 # Try as custom variable
-                self.execute(self.mc.commands.set_custom_var(param, value), timeout=5)
+                self.execute(self.mc.commands.set_custom_var(param, value), timeout=20)
                 return {'success': True, 'message': f'Custom var {param} set to: {value}'}
         except Exception as e:
-            logger.error(f"set_param failed: {e}")
-            return {'success': False, 'error': str(e)}
+            # TimeoutError on the outer asyncio future has an empty str(e);
+            # surface the type so the log isn't blank.
+            err_msg = str(e) or type(e).__name__
+            logger.error(f"set_param({param}={value}) failed: {err_msg}")
+            return {'success': False, 'error': err_msg}
 
     def node_discover(self, type_filter: str = None) -> Dict:
         """Discover nodes on the mesh."""
