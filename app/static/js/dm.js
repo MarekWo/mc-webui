@@ -2204,6 +2204,11 @@ async function renderPathList(pubkey) {
                             data-action="primary" data-id="${path.id}">
                         <i class="bi bi-star${path.is_primary ? '-fill' : ''}"></i>
                     </button>
+                    <button class="btn btn-link p-0 text-primary"
+                            title="Set as device path"
+                            data-action="apply" data-id="${path.id}">
+                        <i class="bi bi-upload"></i>
+                    </button>
                     ${index > 0 ? `<button class="btn btn-link p-0 text-muted" title="Move up" data-action="up" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-up"></i></button>` : ''}
                     ${index < data.paths.length - 1 ? `<button class="btn btn-link p-0 text-muted" title="Move down" data-action="down" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-down"></i></button>` : ''}
                     <button class="btn btn-link p-0 text-danger" title="Delete" data-action="delete" data-id="${path.id}">
@@ -2223,6 +2228,8 @@ async function renderPathList(pubkey) {
 
                 if (action === 'primary') {
                     await setPathPrimary(pubkey, pathId);
+                } else if (action === 'apply') {
+                    await applyPathToDevice(pubkey, pathId);
                 } else if (action === 'delete') {
                     await deletePathItem(pubkey, pathId);
                 } else if (action === 'up' || action === 'down') {
@@ -2246,6 +2253,25 @@ async function setPathPrimary(pubkey, pathId) {
         await renderPathList(pubkey);
     } catch (e) {
         console.error('Failed to set primary path:', e);
+    }
+}
+
+async function applyPathToDevice(pubkey, pathId) {
+    try {
+        const response = await fetch(
+            `/api/contacts/${encodeURIComponent(pubkey)}/paths/${pathId}/apply`,
+            { method: 'POST' }
+        );
+        const data = await response.json();
+        if (data.success) {
+            showNotification('Device path updated', 'info');
+            await refreshContactInfoPath();
+        } else {
+            showNotification(data.error || 'Failed to set device path', 'danger');
+        }
+    } catch (e) {
+        console.error('Failed to apply path to device:', e);
+        showNotification('Failed to set device path', 'danger');
     }
 }
 

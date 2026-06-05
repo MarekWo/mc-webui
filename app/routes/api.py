@@ -2607,6 +2607,38 @@ def reorder_contact_paths(pubkey):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/contacts/<pubkey>/paths/<int:path_id>/apply', methods=['POST'])
+def apply_contact_path(pubkey, path_id):
+    """Push a configured path to the device as the active path.
+
+    Equivalent to running `change_path <name> <hops>` from the console:
+    the configured path's hex + hash_size are sent to the firmware so the
+    next DM goes via that route instead of FLOOD or the prior device path.
+    """
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    dm = _get_dm()
+    if not dm or not dm.is_connected:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    try:
+        target = next((p for p in db.get_contact_paths(pubkey) if p['id'] == path_id), None)
+        if not target:
+            return jsonify({'success': False, 'error': 'Path not found'}), 404
+        path_hex = (target.get('path_hex') or '').strip()
+        hash_size = target.get('hash_size') or 1
+        if not path_hex:
+            return jsonify({'success': False, 'error': 'Configured path has no hex data'}), 400
+        result = dm.change_path(pubkey, path_hex, hash_size=hash_size)
+        if result.get('success'):
+            invalidate_contacts_cache()
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False, 'error': result.get('error', 'Device change_path failed')}), 500
+    except Exception as e:
+        logger.error(f"apply_contact_path error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/contacts/<pubkey>/paths/reset_flood', methods=['POST'])
 def reset_contact_to_flood(pubkey):
     """Reset device path to FLOOD mode (does not delete configured paths)."""
