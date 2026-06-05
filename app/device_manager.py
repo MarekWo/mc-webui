@@ -44,6 +44,26 @@ def decode_path_len(path_len_raw: int) -> tuple:
     return hop_count, hash_size, hop_count * hash_size
 
 
+def pack_path_len(payload: dict):
+    """Recombine the meshcore-lib-split path_len + path_hash_mode back into the
+    original firmware byte (hop_count in 6 LSB | mode in upper 2 bits).
+
+    Lib 2.x splits the wire byte: payload['path_len'] holds the masked hop
+    count (or 0xFF for direct), payload['path_hash_mode'] holds the hash-size
+    mode (or -1 for direct). Storing the recombined byte means downstream
+    decode_path_len() works unchanged.
+    """
+    pl = payload.get('path_len')
+    if pl is None:
+        return None
+    if pl == 0xFF:
+        return 0xFF
+    mode = payload.get('path_hash_mode', 0)
+    if not isinstance(mode, int) or mode < 0:
+        return pl
+    return (pl & 0x3F) | ((mode & 0x03) << 6)
+
+
 def _to_str(val) -> str:
     """Convert bytes or other types to string. Used for expected_ack, pkt_payload, etc."""
     if val is None:
@@ -575,6 +595,9 @@ class DeviceManager:
             blocked_names = self.db.get_blocked_contact_names()
             is_blocked = sender in blocked_names
 
+            # Recombine masked path_len + path_hash_mode (lib 2.x splits them)
+            # so decode_path_len() works downstream.
+            path_len_packed = pack_path_len(data)
             msg_id = self.db.insert_channel_message(
                 channel_idx=channel_idx,
                 sender=sender,
@@ -582,7 +605,7 @@ class DeviceManager:
                 timestamp=ts,
                 sender_timestamp=data.get('sender_timestamp'),
                 snr=data.get('SNR', data.get('snr')),
-                path_len=data.get('path_len'),
+                path_len=path_len_packed,
                 pkt_payload=data.get('pkt_payload'),
                 raw_json=json.dumps(data, default=str),
             )
@@ -595,7 +618,7 @@ class DeviceManager:
 
             if self.socketio:
                 snr = data.get('SNR', data.get('snr'))
-                path_len_raw = data.get('path_len')
+                path_len_raw = path_len_packed
                 pkt_payload = data.get('pkt_payload')
 
                 # Decode path_len into hop_count and path_hash_size
@@ -688,7 +711,7 @@ class DeviceManager:
                 timestamp=ts,
                 sender_timestamp=data.get('sender_timestamp'),
                 snr=data.get('SNR', data.get('snr')),
-                path_len=data.get('path_len'),
+                path_len=pack_path_len(data),
                 pkt_payload=data.get('pkt_payload'),
                 raw_json=json.dumps(data, default=str),
             )
@@ -928,7 +951,7 @@ class DeviceManager:
                 contact_pubkey=pubkey,
                 path=data.get('path', ''),
                 snr=data.get('snr'),
-                path_len=data.get('path_len'),
+                path_len=pack_path_len(data),
             )
             logger.debug(f"Path update for {pubkey[:8]}...")
 
