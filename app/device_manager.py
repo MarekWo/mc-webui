@@ -19,7 +19,7 @@ from urllib.parse import urlparse, parse_qs
 
 from Crypto.Cipher import AES
 
-ANALYZER_BASE_URL = 'https://analyzer.letsmesh.net/packets?packet_hash='
+LETSMESH_ANALYZER_URL_TEMPLATE = 'https://analyzer.letsmesh.net/packets?packet_hash={packetHash}'
 GRP_TXT_TYPE_BYTE = 0x05
 
 logger = logging.getLogger(__name__)
@@ -669,13 +669,12 @@ class DeviceManager:
                 if path_len_raw is not None:
                     hop_count, path_hash_size, _ = decode_path_len(path_len_raw)
 
-                # Compute analyzer URL from pkt_payload
-                analyzer_url = None
+                # Compute packet hash from pkt_payload (frontend builds URL)
+                packet_hash = None
                 if pkt_payload:
                     try:
                         raw = bytes([GRP_TXT_TYPE_BYTE]) + bytes.fromhex(pkt_payload)
                         packet_hash = hashlib.sha256(raw).hexdigest()[:16].upper()
-                        analyzer_url = f"{ANALYZER_BASE_URL}{packet_hash}"
                     except (ValueError, TypeError):
                         pass
 
@@ -691,7 +690,7 @@ class DeviceManager:
                     'hop_count': hop_count,
                     'path_hash_size': path_hash_size,
                     'pkt_payload': pkt_payload,
-                    'analyzer_url': analyzer_url,
+                    'packet_hash': packet_hash,
                 }, namespace='/chat')
                 logger.debug(f"SocketIO emitted new_message for ch{channel_idx} msg #{msg_id}")
 

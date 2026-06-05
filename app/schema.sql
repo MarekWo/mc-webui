@@ -53,6 +53,19 @@ CREATE TABLE IF NOT EXISTS regions (
     updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- User-configured MeshCore Analyzer services
+CREATE TABLE IF NOT EXISTS analyzers (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL UNIQUE,
+    url_template  TEXT NOT NULL,                  -- must contain '{packetHash}'
+    is_default    INTEGER NOT NULL DEFAULT 0,
+    is_disabled   INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_analyzers_one_default
+    ON analyzers(is_default) WHERE is_default = 1;
+
 -- Per-channel region mapping (absent row = no override; firmware default applies)
 CREATE TABLE IF NOT EXISTS channel_scopes (
     channel_idx INTEGER PRIMARY KEY,

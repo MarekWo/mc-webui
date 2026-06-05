@@ -1066,7 +1066,7 @@ function appendMessageFromSocket(data) {
         echo_paths: [],
         echo_snrs: [],
         echo_hash_sizes: [],
-        analyzer_url: data.analyzer_url || null,
+        packet_hash: data.packet_hash || null,
         pkt_payload: data.pkt_payload || null,
         txt_type: data.txt_type || 0,
     };
@@ -1178,13 +1178,13 @@ function updateMessageMetaDOM(wrapper, meta) {
         }
 
         // Add analyzer button if not already present
-        if (meta.analyzer_url) {
+        if (meta.packet_hash) {
             const actionsEl = msgDiv.querySelector('.message-actions');
             if (actionsEl && !actionsEl.querySelector('[title="View in Analyzer"]')) {
                 const ignoreBtn = actionsEl.querySelector('[title^="Ignore"]');
                 const analyzerBtn = document.createElement('button');
                 analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action';
-                analyzerBtn.setAttribute('onclick', `window.open('${meta.analyzer_url}', 'meshcore-analyzer')`);
+                analyzerBtn.setAttribute('onclick', `openMessageAnalyzer('${meta.packet_hash}')`);
                 analyzerBtn.title = 'View in Analyzer';
                 analyzerBtn.innerHTML = '<i class="bi bi-clipboard-data"></i>';
                 actionsEl.insertBefore(analyzerBtn, ignoreBtn);
@@ -1218,13 +1218,13 @@ function updateMessageMetaDOM(wrapper, meta) {
         }
 
         // Add analyzer button
-        if (meta.analyzer_url) {
+        if (meta.packet_hash) {
             const actionsEl = msgDiv.querySelector('.message-actions');
             if (actionsEl && !actionsEl.querySelector('[title="View in Analyzer"]')) {
                 const resendBtn = actionsEl.querySelector('[title="Resend"]');
                 const analyzerBtn = document.createElement('button');
                 analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action';
-                analyzerBtn.setAttribute('onclick', `window.open('${meta.analyzer_url}', 'meshcore-analyzer')`);
+                analyzerBtn.setAttribute('onclick', `openMessageAnalyzer('${meta.packet_hash}')`);
                 analyzerBtn.title = 'View in Analyzer';
                 analyzerBtn.innerHTML = '<i class="bi bi-clipboard-data"></i>';
                 actionsEl.insertBefore(analyzerBtn, resendBtn);
@@ -1308,8 +1308,8 @@ function createMessageElement(msg) {
                     <div class="message-content">${processMessageContent(msg.content)}</div>
                     <div class="message-actions justify-content-end">
                         ${echoDisplay}
-                        ${msg.analyzer_url ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="window.open('${msg.analyzer_url}', 'meshcore-analyzer')" title="View in Analyzer">
+                        ${msg.packet_hash ? `
+                            <button class="btn btn-outline-secondary btn-msg-action" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="View in Analyzer">
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
@@ -1352,8 +1352,8 @@ function createMessageElement(msg) {
                                 <i class="bi bi-geo-alt"></i>
                             </button>
                         ` : ''}
-                        ${msg.analyzer_url ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="window.open('${msg.analyzer_url}', 'meshcore-analyzer')" title="View in Analyzer">
+                        ${msg.packet_hash ? `
+                            <button class="btn btn-outline-secondary btn-msg-action" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="View in Analyzer">
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
@@ -2438,6 +2438,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadUiSettings();
             loadContactsSettings();
             loadRegions();
+            loadAnalyzers();
         });
         settingsModal.addEventListener('shown.bs.modal', () => {
             settingsModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
@@ -2483,6 +2484,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (regionIndicator) {
         regionIndicator.addEventListener('click', () => openRegionPicker(currentChannelIdx));
     }
+
+    // Analyzer tab: add button + edit form submit
+    const addAnalyzerBtn = document.getElementById('addAnalyzerBtn');
+    if (addAnalyzerBtn) {
+        addAnalyzerBtn.addEventListener('click', () => openAnalyzerEditModal(null));
+    }
+    const analyzerEditForm = document.getElementById('analyzerEditForm');
+    if (analyzerEditForm) {
+        analyzerEditForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveAnalyzerFromForm();
+        });
+    }
+
+    // Preload analyzers so the first click on a chart icon doesn't need a round-trip.
+    loadAnalyzers();
 
     const dmRetryForm = document.getElementById('dmRetrySettingsForm');
     if (dmRetryForm) {
@@ -3001,6 +3018,326 @@ async function clearDefaultRegion() {
         showNotification('Network error clearing default', 'danger');
         await loadRegions();
     }
+}
+
+// ================================================================
+// Analyzers (Settings > Analyzer + group chat View in Analyzer button)
+// ================================================================
+
+const ANALYZER_PLACEHOLDER = '{packetHash}';
+window.analyzerCache = window.analyzerCache || {
+    analyzers: [],
+    letsmesh_url_template: 'https://analyzer.letsmesh.net/packets?packet_hash={packetHash}',
+    loaded: false,
+};
+
+function substituteAnalyzerUrl(template, packetHash) {
+    return (template || '').replaceAll(ANALYZER_PLACEHOLDER, packetHash || '');
+}
+
+async function loadAnalyzers() {
+    try {
+        const resp = await fetch('/api/analyzers');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        window.analyzerCache.analyzers = data.analyzers || [];
+        if (data.letsmesh_url_template) {
+            window.analyzerCache.letsmesh_url_template = data.letsmesh_url_template;
+        }
+        window.analyzerCache.loaded = true;
+        renderAnalyzersList();
+    } catch (e) {
+        console.error('Error loading analyzers:', e);
+        const listEl = document.getElementById('analyzersList');
+        if (listEl) {
+            listEl.innerHTML = '<div class="text-center text-danger small py-2">Failed to load analyzers</div>';
+        }
+    }
+}
+
+function renderAnalyzersList() {
+    const listEl = document.getElementById('analyzersList');
+    if (!listEl) return;
+    const analyzers = window.analyzerCache.analyzers || [];
+
+    const builtinRow = `
+        <div class="list-group-item d-flex align-items-center gap-2 py-2">
+            <span class="text-muted" title="Built-in default — not configurable">
+                <i class="bi bi-star"></i>
+            </span>
+            <div class="flex-grow-1">
+                <div><strong>Letsmesh Analyzer</strong> <span class="badge bg-light text-muted">built-in</span></div>
+                <code class="small text-muted">${escapeHtml(window.analyzerCache.letsmesh_url_template)}</code>
+            </div>
+        </div>
+    `;
+
+    if (analyzers.length === 0) {
+        listEl.innerHTML = builtinRow +
+            '<div class="text-center text-muted small py-3">No custom analyzers. Click "Add analyzer" to add one.</div>';
+        return;
+    }
+
+    const rows = analyzers.map(a => {
+        const disabled = !!a.is_disabled;
+        const isDefault = !!a.is_default;
+        const starIcon = isDefault ? 'bi-star-fill text-warning' : 'bi-star';
+        const disabledBadge = disabled
+            ? '<span class="badge bg-secondary ms-1">Disabled</span>' : '';
+        const nameClass = disabled ? 'text-muted text-decoration-line-through' : '';
+        const safeName = escapeHtml(a.name);
+        return `
+            <div class="list-group-item d-flex align-items-center gap-2 py-2">
+                <button type="button" class="btn btn-link p-0 text-decoration-none"
+                        onclick="toggleAnalyzerDefault(${a.id}, ${isDefault})"
+                        title="${isDefault ? 'Clear default' : 'Mark as default'}">
+                    <i class="bi ${starIcon}"></i>
+                </button>
+                <div class="flex-grow-1">
+                    <div class="${nameClass}"><strong>${safeName}</strong>${disabledBadge}</div>
+                    <code class="small text-muted">${escapeHtml(a.url_template)}</code>
+                </div>
+                <div class="form-check form-switch mb-0" title="Disabled">
+                    <input class="form-check-input" type="checkbox"
+                           id="analyzerDisabled_${a.id}" ${disabled ? 'checked' : ''}
+                           onchange="toggleAnalyzerDisabled(${a.id}, this.checked)">
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        onclick="openAnalyzerEditModal(${a.id})" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        onclick="deleteAnalyzer(${a.id}, '${safeName.replace(/'/g, "\\'")}')" title="Delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    listEl.innerHTML = builtinRow + rows;
+}
+
+function openAnalyzerEditModal(id) {
+    const modalEl = document.getElementById('analyzerEditModal');
+    if (!modalEl) return;
+    const titleEl = document.getElementById('analyzerEditModalTitle');
+    const idEl = document.getElementById('analyzerEditId');
+    const nameEl = document.getElementById('analyzerEditName');
+    const urlEl = document.getElementById('analyzerEditUrl');
+    const disabledEl = document.getElementById('analyzerEditDisabled');
+    const errorEl = document.getElementById('analyzerEditError');
+
+    errorEl.classList.add('d-none');
+    errorEl.textContent = '';
+
+    if (id) {
+        const a = (window.analyzerCache.analyzers || []).find(x => x.id === id);
+        if (!a) return;
+        titleEl.textContent = 'Edit analyzer';
+        idEl.value = String(a.id);
+        nameEl.value = a.name || '';
+        urlEl.value = a.url_template || '';
+        disabledEl.checked = !!a.is_disabled;
+    } else {
+        titleEl.textContent = 'Add analyzer';
+        idEl.value = '';
+        nameEl.value = '';
+        urlEl.value = '';
+        disabledEl.checked = false;
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+async function saveAnalyzerFromForm() {
+    const idEl = document.getElementById('analyzerEditId');
+    const nameEl = document.getElementById('analyzerEditName');
+    const urlEl = document.getElementById('analyzerEditUrl');
+    const disabledEl = document.getElementById('analyzerEditDisabled');
+    const errorEl = document.getElementById('analyzerEditError');
+
+    const id = idEl.value ? parseInt(idEl.value, 10) : null;
+    const name = (nameEl.value || '').trim();
+    const url_template = (urlEl.value || '').trim();
+    const is_disabled = !!disabledEl.checked;
+
+    if (!name) {
+        showAnalyzerFormError('Name is required');
+        return;
+    }
+    if (!url_template.startsWith('http://') && !url_template.startsWith('https://')) {
+        showAnalyzerFormError('URL must start with http:// or https://');
+        return;
+    }
+    if (!url_template.includes(ANALYZER_PLACEHOLDER)) {
+        showAnalyzerFormError(`URL must contain the ${ANALYZER_PLACEHOLDER} placeholder`);
+        return;
+    }
+
+    try {
+        const url = id ? `/api/analyzers/${id}` : '/api/analyzers';
+        const method = id ? 'PUT' : 'POST';
+        const body = id ? { name, url_template, is_disabled } : { name, url_template };
+        const resp = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showAnalyzerFormError(data.error || 'Failed to save analyzer');
+            return;
+        }
+        // If creating a new analyzer with disabled=true, push the flag in a follow-up PUT.
+        if (!id && is_disabled && data.analyzer) {
+            await fetch(`/api/analyzers/${data.analyzer.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_disabled: true }),
+            });
+        }
+        errorEl.classList.add('d-none');
+        bootstrap.Modal.getInstance(document.getElementById('analyzerEditModal'))?.hide();
+        await loadAnalyzers();
+    } catch (e) {
+        console.error('Error saving analyzer:', e);
+        showAnalyzerFormError('Network error saving analyzer');
+    }
+}
+
+function showAnalyzerFormError(msg) {
+    const errorEl = document.getElementById('analyzerEditError');
+    if (!errorEl) return;
+    errorEl.textContent = msg;
+    errorEl.classList.remove('d-none');
+}
+
+async function deleteAnalyzer(id, name) {
+    if (!confirm(`Delete analyzer "${name}"?`)) return;
+    try {
+        const resp = await fetch(`/api/analyzers/${id}`, { method: 'DELETE' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to delete analyzer', 'danger');
+            return;
+        }
+        await loadAnalyzers();
+    } catch (e) {
+        console.error('Error deleting analyzer:', e);
+        showNotification('Network error deleting analyzer', 'danger');
+    }
+}
+
+async function toggleAnalyzerDefault(id, currentlyDefault) {
+    try {
+        const url = currentlyDefault ? '/api/analyzers/default' : `/api/analyzers/${id}/default`;
+        const method = currentlyDefault ? 'DELETE' : 'POST';
+        const resp = await fetch(url, { method });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to update default', 'danger');
+            await loadAnalyzers();
+            return;
+        }
+        await loadAnalyzers();
+    } catch (e) {
+        console.error('Error toggling analyzer default:', e);
+        showNotification('Network error updating default', 'danger');
+        await loadAnalyzers();
+    }
+}
+
+async function toggleAnalyzerDisabled(id, disabled) {
+    try {
+        const resp = await fetch(`/api/analyzers/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_disabled: !!disabled }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to update analyzer', 'danger');
+            await loadAnalyzers();
+            return;
+        }
+        await loadAnalyzers();
+    } catch (e) {
+        console.error('Error toggling analyzer disabled:', e);
+        showNotification('Network error updating analyzer', 'danger');
+        await loadAnalyzers();
+    }
+}
+
+function getEnabledCustomAnalyzers() {
+    return (window.analyzerCache.analyzers || []).filter(a => !a.is_disabled);
+}
+
+async function ensureAnalyzersLoaded() {
+    if (!window.analyzerCache.loaded) {
+        await loadAnalyzers();
+    }
+}
+
+async function openMessageAnalyzer(packetHash) {
+    if (!packetHash) return;
+    await ensureAnalyzersLoaded();
+
+    const enabled = getEnabledCustomAnalyzers();
+    const letsmeshTpl = window.analyzerCache.letsmesh_url_template;
+
+    // No custom analyzers — open Letsmesh directly.
+    if (enabled.length === 0) {
+        window.open(substituteAnalyzerUrl(letsmeshTpl, packetHash), 'meshcore-analyzer');
+        return;
+    }
+
+    // Default exists and is enabled — open it directly.
+    const defaultRow = enabled.find(a => a.is_default);
+    if (defaultRow) {
+        window.open(substituteAnalyzerUrl(defaultRow.url_template, packetHash), 'meshcore-analyzer');
+        return;
+    }
+
+    // Otherwise — show chooser modal (Letsmesh + enabled customs sorted by name).
+    openAnalyzerChooser(packetHash, enabled);
+}
+
+function openAnalyzerChooser(packetHash, enabled) {
+    const modalEl = document.getElementById('analyzerChooserModal');
+    const listEl = document.getElementById('analyzerChooserList');
+    if (!modalEl || !listEl) return;
+
+    const letsmeshTpl = window.analyzerCache.letsmesh_url_template;
+    const sorted = (enabled || []).slice().sort((a, b) =>
+        (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+    );
+
+    const builtinItem = `
+        <button type="button" class="list-group-item list-group-item-action"
+                data-url="${escapeHtml(substituteAnalyzerUrl(letsmeshTpl, packetHash))}">
+            <i class="bi bi-clipboard-data"></i> Letsmesh Analyzer
+            <span class="badge bg-light text-muted ms-1">built-in</span>
+        </button>
+    `;
+    const customItems = sorted.map(a => `
+        <button type="button" class="list-group-item list-group-item-action"
+                data-url="${escapeHtml(substituteAnalyzerUrl(a.url_template, packetHash))}">
+            <i class="bi bi-clipboard-data"></i> ${escapeHtml(a.name)}
+        </button>
+    `).join('');
+
+    listEl.innerHTML = builtinItem + customItems;
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+    listEl.querySelectorAll('button[data-url]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            window.open(btn.getAttribute('data-url'), 'meshcore-analyzer');
+            modal.hide();
+        }, { once: true });
+    });
+
+    modal.show();
 }
 
 // ================================================================

@@ -20,7 +20,7 @@ from flask import Blueprint, jsonify, request, send_file, current_app
 from app.meshcore import cli, parser
 from app.meshcore.regions import derive_scope_key_hex, is_valid_region_name
 from app.config import config, runtime_config
-from app.device_manager import decode_path_len
+from app.device_manager import decode_path_len, LETSMESH_ANALYZER_URL_TEMPLATE
 from app.archiver import manager as archive_manager
 from app.contacts_cache import get_all_names, get_all_contacts
 
@@ -56,16 +56,15 @@ _contacts_detailed_cache_timestamp = 0
 CONTACTS_DETAILED_CACHE_TTL = 60  # seconds
 
 
-ANALYZER_BASE_URL = 'https://analyzer.letsmesh.net/packets?packet_hash='
 GRP_TXT_TYPE_BYTE = 0x05
+ANALYZER_PLACEHOLDER = '{packetHash}'
 
 
-def compute_analyzer_url(pkt_payload):
-    """Compute MeshCore Analyzer URL from a hex-encoded pkt_payload."""
+def compute_packet_hash(pkt_payload):
+    """Compute MeshCore Analyzer packet hash (16 uppercase hex chars) from a hex-encoded pkt_payload."""
     try:
         raw = bytes([GRP_TXT_TYPE_BYTE]) + bytes.fromhex(pkt_payload)
-        packet_hash = hashlib.sha256(raw).hexdigest()[:16].upper()
-        return f"{ANALYZER_BASE_URL}{packet_hash}"
+        return hashlib.sha256(raw).hexdigest()[:16].upper()
     except (ValueError, TypeError):
         return None
 
@@ -483,9 +482,9 @@ def get_messages():
                     'pkt_payload': pkt_payload,
                 }
 
-                # Enrich with echo data and analyzer URL
+                # Enrich with echo data and packet hash (frontend builds analyzer URL)
                 if pkt_payload:
-                    msg['analyzer_url'] = compute_analyzer_url(pkt_payload)
+                    msg['packet_hash'] = compute_packet_hash(pkt_payload)
                     echoes = db.get_echoes_for_message(pkt_payload)
                     if echoes:
                         msg['echo_count'] = len(echoes)
@@ -590,7 +589,7 @@ def get_message_meta(msg_id):
         }
 
         if pkt_payload:
-            meta['analyzer_url'] = compute_analyzer_url(pkt_payload)
+            meta['packet_hash'] = compute_packet_hash(pkt_payload)
             echoes = db.get_echoes_for_message(pkt_payload)
             if echoes:
                 meta['echo_count'] = len(echoes)
@@ -4183,6 +4182,157 @@ def set_default_region_api(region_id):
         return jsonify(out), 200
     except Exception as e:
         logger.error(f"Error setting default region: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# =============================================================================
+# Analyzers (user-configured MeshCore Analyzer services) — Settings > Analyzer tab
+# =============================================================================
+
+def _validate_analyzer_url_template(url_template: str):
+    """Return (ok, error_msg). Validates the template the frontend will substitute."""
+    if not url_template:
+        return False, 'URL is required'
+    if not (url_template.startswith('http://') or url_template.startswith('https://')):
+        return False, 'URL must start with http:// or https://'
+    if ANALYZER_PLACEHOLDER not in url_template:
+        return False, f'URL must contain the {ANALYZER_PLACEHOLDER} placeholder'
+    return True, None
+
+
+@api_bp.route('/analyzers', methods=['GET'])
+def list_analyzers_api():
+    """List user-configured analyzers and the built-in Letsmesh URL template."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        return jsonify({
+            'success': True,
+            'analyzers': db.list_analyzers(),
+            'letsmesh_url_template': LETSMESH_ANALYZER_URL_TEMPLATE,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error listing analyzers: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/analyzers', methods=['POST'])
+def create_analyzer_api():
+    """Create a new analyzer. Body: {name, url_template}."""
+    try:
+        data = request.get_json() or {}
+        name = (data.get('name') or '').strip()
+        url_template = (data.get('url_template') or '').strip()
+
+        if not name:
+            return jsonify({'success': False, 'error': 'Name is required'}), 400
+        ok, err = _validate_analyzer_url_template(url_template)
+        if not ok:
+            return jsonify({'success': False, 'error': err}), 400
+
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        import sqlite3
+        try:
+            aid = db.create_analyzer(name, url_template)
+        except sqlite3.IntegrityError:
+            return jsonify({'success': False, 'error': f'Analyzer "{name}" already exists'}), 409
+
+        return jsonify({'success': True, 'analyzer': db.get_analyzer(aid)}), 201
+    except Exception as e:
+        logger.error(f"Error creating analyzer: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/analyzers/<int:analyzer_id>', methods=['PUT'])
+def update_analyzer_api(analyzer_id):
+    """Update an analyzer. Body: {name?, url_template?, is_disabled?}."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        if db.get_analyzer(analyzer_id) is None:
+            return jsonify({'success': False, 'error': 'Analyzer not found'}), 404
+
+        data = request.get_json() or {}
+        name = data.get('name')
+        url_template = data.get('url_template')
+        is_disabled = data.get('is_disabled')
+
+        if name is not None:
+            name = name.strip()
+            if not name:
+                return jsonify({'success': False, 'error': 'Name cannot be empty'}), 400
+        if url_template is not None:
+            url_template = url_template.strip()
+            ok, err = _validate_analyzer_url_template(url_template)
+            if not ok:
+                return jsonify({'success': False, 'error': err}), 400
+
+        import sqlite3
+        try:
+            db.update_analyzer(analyzer_id, name=name, url_template=url_template,
+                               is_disabled=is_disabled)
+        except sqlite3.IntegrityError:
+            return jsonify({'success': False, 'error': f'Analyzer "{name}" already exists'}), 409
+
+        return jsonify({'success': True, 'analyzer': db.get_analyzer(analyzer_id)}), 200
+    except Exception as e:
+        logger.error(f"Error updating analyzer: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/analyzers/<int:analyzer_id>', methods=['DELETE'])
+def delete_analyzer_api(analyzer_id):
+    """Delete an analyzer."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        if db.get_analyzer(analyzer_id) is None:
+            return jsonify({'success': False, 'error': 'Analyzer not found'}), 404
+
+        db.delete_analyzer(analyzer_id)
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"Error deleting analyzer: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/analyzers/default', methods=['DELETE'])
+def clear_default_analyzer_api():
+    """Clear the default-analyzer flag."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        db.set_default_analyzer(None)
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"Error clearing default analyzer: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/analyzers/<int:analyzer_id>/default', methods=['POST'])
+def set_default_analyzer_api(analyzer_id):
+    """Mark an analyzer as default. Clears any previous default in the same transaction."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        if db.get_analyzer(analyzer_id) is None:
+            return jsonify({'success': False, 'error': 'Analyzer not found'}), 404
+
+        db.set_default_analyzer(analyzer_id)
+        return jsonify({'success': True, 'analyzer': db.get_analyzer(analyzer_id)}), 200
+    except Exception as e:
+        logger.error(f"Error setting default analyzer: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

@@ -548,6 +548,81 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
 
+    # ================================================================
+    # Analyzers (user-configured MeshCore Analyzer services)
+    # ================================================================
+
+    def create_analyzer(self, name: str, url_template: str) -> int:
+        """Insert a new analyzer. Raises sqlite3.IntegrityError on duplicate name."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "INSERT INTO analyzers (name, url_template) VALUES (?, ?)",
+                (name, url_template)
+            )
+            return cursor.lastrowid
+
+    def list_analyzers(self) -> List[Dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM analyzers ORDER BY name COLLATE NOCASE"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_analyzer(self, analyzer_id: int) -> Optional[Dict]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM analyzers WHERE id = ?", (analyzer_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def update_analyzer(self, analyzer_id: int, name: Optional[str] = None,
+                        url_template: Optional[str] = None,
+                        is_disabled: Optional[bool] = None) -> bool:
+        """Update fields on an analyzer. Pass None to leave a field unchanged."""
+        sets = []
+        params: List[Any] = []
+        if name is not None:
+            sets.append("name = ?")
+            params.append(name)
+        if url_template is not None:
+            sets.append("url_template = ?")
+            params.append(url_template)
+        if is_disabled is not None:
+            sets.append("is_disabled = ?")
+            params.append(1 if is_disabled else 0)
+        if not sets:
+            return False
+        sets.append("updated_at = datetime('now')")
+        params.append(analyzer_id)
+        with self._connect() as conn:
+            cursor = conn.execute(
+                f"UPDATE analyzers SET {', '.join(sets)} WHERE id = ?",
+                params
+            )
+            return cursor.rowcount > 0
+
+    def delete_analyzer(self, analyzer_id: int) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM analyzers WHERE id = ?", (analyzer_id,))
+            return cursor.rowcount > 0
+
+    def set_default_analyzer(self, analyzer_id: Optional[int]) -> None:
+        """Clear any existing default, then set the given analyzer as default.
+
+        Passing None clears the default flag on all analyzers.
+        """
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE analyzers SET is_default = 0, updated_at = datetime('now') "
+                "WHERE is_default = 1"
+            )
+            if analyzer_id is not None:
+                conn.execute(
+                    "UPDATE analyzers SET is_default = 1, updated_at = datetime('now') "
+                    "WHERE id = ?",
+                    (analyzer_id,)
+                )
+
     def set_channel_scope(self, channel_idx: int, region_id: Optional[int]) -> None:
         """Set or clear the region mapping for a channel.
 
