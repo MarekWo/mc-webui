@@ -3066,9 +3066,9 @@ function renderAnalyzersList() {
             <span class="text-muted" title="Built-in default — not configurable">
                 <i class="bi bi-star"></i>
             </span>
-            <div class="flex-grow-1">
+            <div class="flex-grow-1" style="min-width: 0;">
                 <div><strong>Letsmesh Analyzer</strong> <span class="badge bg-light text-muted">built-in</span></div>
-                <code class="small text-muted">${escapeHtml(window.analyzerCache.letsmesh_url_template)}</code>
+                <code class="small text-muted text-break" style="word-break: break-all;">${escapeHtml(window.analyzerCache.letsmesh_url_template)}</code>
             </div>
         </div>
     `;
@@ -3094,9 +3094,9 @@ function renderAnalyzersList() {
                         title="${isDefault ? 'Clear default' : 'Mark as default'}">
                     <i class="bi ${starIcon}"></i>
                 </button>
-                <div class="flex-grow-1">
+                <div class="flex-grow-1" style="min-width: 0;">
                     <div class="${nameClass}"><strong>${safeName}</strong>${disabledBadge}</div>
-                    <code class="small text-muted">${escapeHtml(a.url_template)}</code>
+                    <code class="small text-muted text-break" style="word-break: break-all;">${escapeHtml(a.url_template)}</code>
                 </div>
                 <div class="form-check form-switch mb-0" title="Disabled">
                     <input class="form-check-input" type="checkbox"
