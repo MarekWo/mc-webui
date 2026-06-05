@@ -184,6 +184,7 @@ def get_contacts_with_last_seen() -> Tuple[bool, Dict[str, Dict], str]:
                 'flags': contact.get('flags', 0),
                 'out_path_len': contact.get('out_path_len', -1),
                 'out_path': contact.get('out_path', ''),
+                'out_path_hash_mode': contact.get('out_path_hash_mode', 0),
                 'adv_name': contact.get('adv_name', contact.get('name', '')),
                 'last_advert': int(last_adv) if last_adv and isinstance(last_adv, (int, float)) and last_adv > 0 else 0,
                 'adv_lat': contact.get('adv_lat', 0.0),
