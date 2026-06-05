@@ -2274,6 +2274,7 @@ def get_dm_messages():
                     'delivery_attempt': row.get('delivery_attempt'),
                     'delivery_max_attempts': row.get('delivery_max_attempts'),
                     'delivery_path': row.get('delivery_path'),
+                    'delivery_path_hash_size': row.get('delivery_path_hash_size') or 1,
                     'conversation_id': conversation_id,
                 })
         else:

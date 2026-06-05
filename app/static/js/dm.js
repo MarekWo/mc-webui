@@ -1234,7 +1234,7 @@ function displayMessages(messages) {
                 if (msg.delivery_attempt && msg.delivery_max_attempts) {
                     title += ` (${msg.delivery_attempt}/${msg.delivery_max_attempts})`;
                 }
-                const route = formatDmRoute(msg.delivery_path, msg.path_hash_size);
+                const route = formatDmRoute(msg.delivery_path, msg.delivery_path_hash_size || msg.path_hash_size);
                 if (route) title += `, Route: ${route}`;
                 else if (msg.delivery_route) title += `, ${msg.delivery_route.replace('PATH_', '')}`;
                 if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
@@ -1274,7 +1274,7 @@ function displayMessages(messages) {
             }
             // Show route only for delivered messages (not failed)
             if (msg.status === 'delivered') {
-                const routeHtml = buildDmRouteHtml(msg.delivery_path, msg.path_hash_size);
+                const routeHtml = buildDmRouteHtml(msg.delivery_path, msg.delivery_path_hash_size || msg.path_hash_size);
                 if (routeHtml) {
                     parts.push(routeHtml);
                 } else if (msg.delivery_route) {

@@ -51,6 +51,7 @@ class Database:
             ('delivery_attempt', 'INTEGER'),
             ('delivery_max_attempts', 'INTEGER'),
             ('delivery_path', 'TEXT'),
+            ('delivery_path_hash_size', 'INTEGER DEFAULT 1'),
         ]:
             if col not in dm_columns:
                 conn.execute(f"ALTER TABLE direct_messages ADD COLUMN {col} {typedef}")
@@ -788,13 +789,15 @@ class Database:
             return dict(row) if row else None
 
     def update_dm_delivery_info(self, dm_id: int, attempt: int,
-                                max_attempts: int, path: str):
-        """Store successful delivery details (attempt number, path used)."""
+                                max_attempts: int, path: str,
+                                hash_size: int = 1):
+        """Store successful delivery details (attempt number, path used, hop byte size)."""
         with self._connect() as conn:
             conn.execute(
                 "UPDATE direct_messages SET delivery_attempt=?, "
-                "delivery_max_attempts=?, delivery_path=? WHERE id=?",
-                (attempt, max_attempts, path, dm_id))
+                "delivery_max_attempts=?, delivery_path=?, delivery_path_hash_size=? "
+                "WHERE id=?",
+                (attempt, max_attempts, path, hash_size, dm_id))
 
     def update_dm_delivery_status(self, dm_id: int, status: str):
         """Mark message delivery as failed."""

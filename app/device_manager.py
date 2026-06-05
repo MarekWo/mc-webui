@@ -779,7 +779,8 @@ class DeviceManager:
                 ctx = self._retry_context.pop(dm_id, None)
                 if ctx:
                     self.db.update_dm_delivery_info(
-                        dm_id, ctx['attempt'], ctx['max_attempts'], ctx['path'])
+                        dm_id, ctx['attempt'], ctx['max_attempts'], ctx['path'],
+                        ctx.get('hash_size', 1))
                     if self.socketio:
                         self.socketio.emit('dm_delivered_info', {
                             'dm_id': dm_id,
@@ -980,7 +981,8 @@ class DeviceManager:
                             disc_hash_size = path_hash_mode + 1
                         if ctx:
                             self.db.update_dm_delivery_info(
-                                dm_id, ctx['attempt'], ctx['max_attempts'], discovered_path)
+                                dm_id, ctx['attempt'], ctx['max_attempts'], discovered_path,
+                                disc_hash_size)
                             if self.socketio:
                                 self.socketio.emit('dm_delivered_info', {
                                     'dm_id': dm_id,
@@ -1018,7 +1020,8 @@ class DeviceManager:
                     if recent:
                         self.db.update_dm_delivery_info(
                             recent['id'], recent['delivery_attempt'],
-                            recent['delivery_max_attempts'], discovered_path)
+                            recent['delivery_max_attempts'], discovered_path,
+                            backfill_hash_size)
                         if self.socketio:
                             self.socketio.emit('dm_delivered_info', {
                                 'dm_id': recent['id'],
@@ -1651,7 +1654,8 @@ class DeviceManager:
                 dm_id,
                 dm.get('delivery_attempt') or 1,
                 dm.get('delivery_max_attempts') or 1,
-                path_hex)
+                path_hex,
+                bf_hash_size)
             if self.socketio:
                 self.socketio.emit('dm_delivered_info', {
                     'dm_id': dm_id,
@@ -1960,7 +1964,8 @@ class DeviceManager:
         ctx = self._retry_context.pop(dm_id, None)
         if ctx:
             self.db.update_dm_delivery_info(
-                dm_id, ctx['attempt'], ctx['max_attempts'], ctx['path'])
+                dm_id, ctx['attempt'], ctx['max_attempts'], ctx['path'],
+                ctx.get('hash_size', 1))
 
         # Mark delivery_status so reloading messages from DB shows delivered
         self.db.update_dm_delivery_status(dm_id, 'delivered')
