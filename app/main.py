@@ -486,12 +486,13 @@ def _execute_console_command(args: list) -> str:
             pk_short = pk[:12]
             opl = c.get('out_path_len', -1)
             if opl > 0:
-                # Decode path: lower 6 bits = hop count, upper 2 bits = hash_size-1
-                hop_count = opl & 0x3F
-                hash_size = (opl >> 6) + 1
-                raw = c.get('out_path', '')
-                meaningful = raw[:hop_count * hash_size * 2]
+                # meshcore lib 2.x: out_path_len holds hop count; mode is in out_path_hash_mode
+                hop_count = opl
+                hash_mode = c.get('out_path_hash_mode', 0)
+                hash_size = max(1, hash_mode + 1) if hash_mode >= 0 else 1
                 chunk = hash_size * 2
+                raw = c.get('out_path', '')
+                meaningful = raw[:hop_count * chunk]
                 hops = [meaningful[i:i+chunk].upper() for i in range(0, len(meaningful), chunk)]
                 path_str = ','.join(hops) if hops else f'len:{opl}'
             elif opl == 0:

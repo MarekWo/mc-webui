@@ -1057,8 +1057,9 @@ function populateContactInfoModal() {
         } else {
             const hops = mode.split('→').length;
             const outPathLen = contact.out_path_len || 0;
-            const hashSize = outPathLen > 0 ? ((outPathLen >> 6) + 1) : 1;
-            const hopCount = outPathLen & 0x3F;
+            const hashMode = contact.out_path_hash_mode;
+            const hashSize = (Number.isInteger(hashMode) && hashMode >= 0) ? hashMode + 1 : 1;
+            const hopCount = outPathLen > 0 ? outPathLen : 0;
             const pathHex = contact.out_path ? contact.out_path.substring(0, hopCount * hashSize * 2) : '';
 
             div.innerHTML = `

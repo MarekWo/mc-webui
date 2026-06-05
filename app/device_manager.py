@@ -973,11 +973,11 @@ class DeviceManager:
                         # Store delivery info — use path from PATH event (actual discovered route)
                         ctx = self._retry_context.pop(dm_id, None)
                         discovered_path = data.get('path', '')
-                        # Derive hash_size from PATH event's path_len, fallback to ctx
-                        path_len_val = data.get('path_len')
+                        # Derive hash_size from PATH event's path_hash_mode, fallback to ctx
                         disc_hash_size = ctx.get('hash_size', 1) if ctx else 1
-                        if path_len_val is not None and path_len_val != 0xFF:
-                            disc_hash_size = (path_len_val >> 6) + 1
+                        path_hash_mode = data.get('path_hash_mode')
+                        if isinstance(path_hash_mode, int) and path_hash_mode >= 0:
+                            disc_hash_size = path_hash_mode + 1
                         if ctx:
                             self.db.update_dm_delivery_info(
                                 dm_id, ctx['attempt'], ctx['max_attempts'], discovered_path)
@@ -1007,11 +1007,11 @@ class DeviceManager:
             # Update delivery_path for recently-delivered DMs where _on_ack
             # stored empty path (FLOOD mode) before PATH_UPDATE could provide it
             discovered_path = data.get('path', '')
-            # Derive hash_size from PATH event's path_len
+            # Derive hash_size from PATH event's path_hash_mode
             backfill_hash_size = 1
-            backfill_path_len = data.get('path_len')
-            if backfill_path_len is not None and backfill_path_len != 0xFF:
-                backfill_hash_size = (backfill_path_len >> 6) + 1
+            backfill_hash_mode = data.get('path_hash_mode')
+            if isinstance(backfill_hash_mode, int) and backfill_hash_mode >= 0:
+                backfill_hash_size = backfill_hash_mode + 1
             if pubkey:
                 if discovered_path:
                     recent = self.db.get_recent_delivered_dm_with_empty_path(pubkey)
@@ -1593,26 +1593,36 @@ class DeviceManager:
 
     @staticmethod
     def _paths_match(contact_out_path: str, contact_out_path_len: int,
+                     contact_out_path_hash_mode: int,
                      configured_path: dict) -> bool:
-        """Check if device's current path matches a configured path."""
+        """Check if device's current path matches a configured path.
+
+        contact_out_path_len holds the hop count (meshcore lib 2.x already
+        masks the upper bits). contact_out_path_hash_mode is the hash-size
+        mode: 0=1B, 1=2B, 2=3B per hop.
+        """
         if contact_out_path_len <= 0:
             return False
         cfg_hash_size = configured_path['hash_size']
-        device_hash_size = (contact_out_path_len >> 6) + 1
+        device_hash_size = max(1, contact_out_path_hash_mode + 1) if contact_out_path_hash_mode >= 0 else 1
         if device_hash_size != cfg_hash_size:
             return False
-        hop_count = contact_out_path_len & 0x3F
+        hop_count = contact_out_path_len
         meaningful_len = hop_count * device_hash_size * 2
         return (contact_out_path.lower()[:meaningful_len] ==
                 configured_path['path_hex'].lower()[:meaningful_len])
 
     @staticmethod
-    def _extract_path_hex(out_path: str, out_path_len: int) -> str:
-        """Extract meaningful hex portion from a device contact path."""
+    def _extract_path_hex(out_path: str, out_path_len: int, out_path_hash_mode: int = 0) -> str:
+        """Extract meaningful hex portion from a device contact path.
+
+        out_path_len holds the hop count. out_path_hash_mode is the hash-size
+        mode: 0=1B, 1=2B, 2=3B per hop.
+        """
         if out_path_len <= 0 or not out_path:
             return ''
-        hop_count = out_path_len & 0x3F
-        hash_size = (out_path_len >> 6) + 1
+        hop_count = out_path_len
+        hash_size = max(1, out_path_hash_mode + 1) if out_path_hash_mode >= 0 else 1
         meaningful_len = hop_count * hash_size * 2
         return out_path[:meaningful_len].lower() if meaningful_len > 0 else ''
 
@@ -1627,8 +1637,9 @@ class DeviceManager:
                 return
             out_path = contact.get('out_path', '')
             out_path_len = contact.get('out_path_len', -1)
-            path_hex = self._extract_path_hex(out_path, out_path_len)
-            bf_hash_size = ((out_path_len >> 6) + 1) if out_path_len > 0 else 1
+            out_path_hash_mode = contact.get('out_path_hash_mode', 0)
+            path_hex = self._extract_path_hex(out_path, out_path_len, out_path_hash_mode)
+            bf_hash_size = max(1, out_path_hash_mode + 1) if (out_path_len > 0 and out_path_hash_mode >= 0) else 1
             if not path_hex:
                 logger.debug(f"Delayed path backfill: still no path for dm_id={dm_id}")
                 return
@@ -1687,6 +1698,7 @@ class DeviceManager:
         # Capture original device path for dedup (contact dict may mutate)
         original_out_path = contact.get('out_path', '').lower()
         original_out_path_len = contact.get('out_path_len', -1)
+        original_out_path_hash_mode = contact.get('out_path_hash_mode', 0)
 
         # Load user-configured paths and no_auto_flood flag
         configured_paths = self.db.get_contact_paths(contact_pubkey) if contact_pubkey else []
@@ -1737,15 +1749,19 @@ class DeviceManager:
                             + len(rotation_order) * retries_per_path)
         else:  # S4
             deduped = sum(1 for p in rotation_order
-                          if self._paths_match(original_out_path, original_out_path_len, p))
+                          if self._paths_match(original_out_path, original_out_path_len,
+                                               original_out_path_hash_mode, p))
             effective_sd = len(rotation_order) - deduped
             max_attempts = 1 + cfg['direct_max_retries'] + effective_sd * retries_per_path
             if not no_auto_flood:
                 max_attempts += cfg['flood_max_retries']
 
         # Track current path hex and hash_size for delivery info
-        path_desc = self._extract_path_hex(original_out_path, original_out_path_len) if has_path else ''
-        path_hash_size = ((original_out_path_len >> 6) + 1) if has_path and original_out_path_len > 0 else 1
+        path_desc = self._extract_path_hex(original_out_path, original_out_path_len,
+                                            original_out_path_hash_mode) if has_path else ''
+        path_hash_size = (max(1, original_out_path_hash_mode + 1)
+                          if has_path and original_out_path_len > 0
+                              and original_out_path_hash_mode >= 0 else 1)
 
         logger.info(f"DM retry task started: dm_id={dm_id}, scenario={scenario}, "
                      f"configured_paths={len(configured_paths)}, no_auto_flood={no_auto_flood}, "
@@ -1870,7 +1886,8 @@ class DeviceManager:
 
             for path_info in rotation_order:
                 # Dedup: skip if this configured path matches original device path
-                if self._paths_match(original_out_path, original_out_path_len, path_info):
+                if self._paths_match(original_out_path, original_out_path_len,
+                                     original_out_path_hash_mode, path_info):
                     logger.debug(f"DM retry: skipping path '{path_info.get('label', '')}' "
                                  f"({path_info['path_hex']}) — matches current device path")
                     continue

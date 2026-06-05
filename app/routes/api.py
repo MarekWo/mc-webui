@@ -990,6 +990,7 @@ def preview_cleanup_contacts():
                 'lastmod': details.get('lastmod'),
                 'out_path_len': out_path_len,
                 'out_path': details.get('out_path', ''),
+                'out_path_hash_mode': details.get('out_path_hash_mode', 0),
                 'adv_lat': details.get('adv_lat'),
                 'adv_lon': details.get('adv_lon')
             })
@@ -2901,8 +2902,9 @@ def get_contacts_detailed_api():
                     "type": 2,                                  // 1=COM, 2=REP, 3=ROOM, 4=SENS
                     "type_label": "REP",                        // Human-readable type
                     "flags": 0,
-                    "out_path_len": -1,                         // -1 = Flood mode
-                    "out_path": "",                             // Path string
+                    "out_path_len": -1,                         // -1 = Flood, 0 = Direct, >0 = hop count
+                    "out_path": "",                             // Path bytes as hex
+                    "out_path_hash_mode": 0,                    // 0=1B/hop, 1=2B/hop, 2=3B/hop
                     "last_advert": 1735429453,                  // Unix timestamp
                     "adv_lat": 50.866005,                       // GPS latitude
                     "adv_lon": 20.669308,                       // GPS longitude
@@ -2937,18 +2939,19 @@ def get_contacts_detailed_api():
         blocked_keys = db.get_blocked_keys() if db else set()
 
         for public_key, details in contacts_detailed.items():
-            # Compute path display string
-            # out_path_len encodes hop count (lower 6 bits) and hash_size (upper 2 bits)
-            # In MeshCore V1: hash_size=1 byte per hop, so each hop = 2 hex chars
+            # Compute path display string.
+            # meshcore lib 2.x: out_path_len already holds the hop count (6 LSB)
+            # and the hash-size mode is stored separately in out_path_hash_mode.
             out_path_len = details.get('out_path_len', -1)
             out_path_raw = details.get('out_path', '')
+            out_path_hash_mode = details.get('out_path_hash_mode', 0)
             if out_path_len > 0 and out_path_raw:
-                hop_count = out_path_len & 0x3F
-                hash_size = (out_path_len >> 6) + 1  # 1, 2, or 3 bytes per hop
-                # Truncate to meaningful bytes (firmware buffer may have trailing garbage)
-                meaningful_hex = out_path_raw[:hop_count * hash_size * 2]
-                # Format as HEX→HEX→HEX (each hop is hash_size*2 hex chars)
+                hop_count = out_path_len
+                hash_size = max(1, out_path_hash_mode + 1) if out_path_hash_mode >= 0 else 1
                 chunk = hash_size * 2
+                # Truncate to meaningful bytes (firmware buffer may have trailing garbage)
+                meaningful_hex = out_path_raw[:hop_count * chunk]
+                # Format as HEX→HEX→HEX (each hop is hash_size*2 hex chars)
                 hops = [meaningful_hex[i:i+chunk].upper() for i in range(0, len(meaningful_hex), chunk)]
                 path_or_mode = '→'.join(hops) if hops else out_path_raw
             elif out_path_len == 0:
@@ -2963,6 +2966,7 @@ def get_contacts_detailed_api():
                 'flags': details.get('flags'),
                 'out_path_len': out_path_len,
                 'out_path': out_path_raw,
+                'out_path_hash_mode': out_path_hash_mode,
                 'last_advert': details.get('last_advert'),
                 'adv_lat': details.get('adv_lat'),
                 'adv_lon': details.get('adv_lon'),
