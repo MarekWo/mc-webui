@@ -4389,6 +4389,44 @@ def update_retention_settings_api():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/db/vacuum', methods=['POST'])
+def vacuum_database_api():
+    """Run SQLite VACUUM to reclaim space freed by DELETE statements.
+
+    Returned payload includes size_before / size_after / freed (bytes) and
+    elapsed_seconds so the UI can show how much space was reclaimed.
+    """
+    try:
+        db = _get_db()
+        if db is None:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        stats = db.vacuum()
+        logger.info(
+            f"Manual VACUUM: {stats['size_before']:,} -> {stats['size_after']:,} "
+            f"bytes (freed {stats['freed']:,} in {stats['elapsed_seconds']}s)"
+        )
+        return jsonify({'success': True, **stats})
+    except Exception as e:
+        logger.error(f"VACUUM failed: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/db/size', methods=['GET'])
+def get_database_size_api():
+    """Return current database file size in bytes (for the Optimize DB UI)."""
+    try:
+        db = _get_db()
+        if db is None:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        from pathlib import Path
+        path = Path(db.db_path)
+        size = path.stat().st_size if path.exists() else 0
+        return jsonify({'success': True, 'size': size, 'path': str(path)})
+    except Exception as e:
+        logger.error(f"Failed to read DB size: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # =============================================================================
 # Read Status (Server-side message read tracking)
 # =============================================================================

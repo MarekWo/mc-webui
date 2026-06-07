@@ -1349,6 +1349,30 @@ class Database:
 
         return result
 
+    def vacuum(self) -> dict:
+        """Run VACUUM to reclaim space freed by DELETEs.
+
+        VACUUM rewrites the entire database file, so it briefly takes an
+        exclusive lock — writers wait, readers continue in WAL mode. Caller
+        gets back the size before/after and the duration so it can be
+        surfaced to the user.
+        """
+        size_before = self.db_path.stat().st_size if self.db_path.exists() else 0
+        started = time.time()
+        conn = sqlite3.connect(str(self.db_path), timeout=30, isolation_level=None)
+        try:
+            conn.execute("VACUUM")
+        finally:
+            conn.close()
+        elapsed = time.time() - started
+        size_after = self.db_path.stat().st_size if self.db_path.exists() else 0
+        return {
+            'size_before': size_before,
+            'size_after': size_after,
+            'freed': size_before - size_after,
+            'elapsed_seconds': round(elapsed, 2),
+        }
+
     # ================================================================
     # Backup
     # ================================================================

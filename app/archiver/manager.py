@@ -562,6 +562,22 @@ def _retention_job():
         total = sum(result.values())
         logger.info(f"Retention job completed: {total} rows deleted ({result})")
 
+        # Reclaim free pages so the DB file actually shrinks. SQLite DELETE
+        # only marks pages free; without VACUUM the file size never drops.
+        # Threshold avoids a multi-second VACUUM on quiet days when nothing
+        # meaningful was deleted.
+        VACUUM_THRESHOLD = 1000
+        if total >= VACUUM_THRESHOLD:
+            try:
+                stats = _db.vacuum()
+                logger.info(
+                    f"Post-retention VACUUM: {stats['size_before']:,} → "
+                    f"{stats['size_after']:,} bytes (freed {stats['freed']:,} "
+                    f"in {stats['elapsed_seconds']}s)"
+                )
+            except Exception as e:
+                logger.warning(f"Post-retention VACUUM failed: {e}", exc_info=True)
+
     except Exception as e:
         logger.error(f"Retention job failed: {e}", exc_info=True)
 

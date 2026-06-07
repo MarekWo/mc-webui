@@ -6373,7 +6373,67 @@ document.addEventListener('DOMContentLoaded', initializeSearch);
 // =============================================================================
 
 function initializeBackup() {
-    document.getElementById('backupModal')?.addEventListener('shown.bs.modal', loadBackupList);
+    const modal = document.getElementById('backupModal');
+    if (!modal) return;
+    modal.addEventListener('shown.bs.modal', () => {
+        loadBackupList();
+        loadDatabaseSize();
+    });
+}
+
+function _formatBytes(n) {
+    if (!Number.isFinite(n) || n < 0) return '?';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+async function loadDatabaseSize() {
+    const statusEl = document.getElementById('vacuumDbStatus');
+    if (!statusEl) return;
+    try {
+        const response = await fetch('/api/db/size');
+        const data = await response.json();
+        if (data.success) {
+            statusEl.textContent = `Current size: ${_formatBytes(data.size)}`;
+        } else {
+            statusEl.textContent = 'Size: unknown';
+        }
+    } catch (error) {
+        statusEl.textContent = 'Size: unknown';
+    }
+}
+
+async function optimizeDatabase() {
+    const btn = document.getElementById('vacuumDbBtn');
+    const statusEl = document.getElementById('vacuumDbStatus');
+    if (!btn) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Optimizing…';
+    if (statusEl) statusEl.textContent = 'Running VACUUM…';
+
+    try {
+        const response = await fetch('/api/db/vacuum', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            const freed = data.freed > 0 ? `freed ${_formatBytes(data.freed)}` : 'no space to reclaim';
+            showNotification(`Optimized: ${freed} in ${data.elapsed_seconds}s`, 'success');
+            if (statusEl) statusEl.textContent = `Current size: ${_formatBytes(data.size_after)}`;
+        } else {
+            showNotification('Optimize failed: ' + (data.error || 'unknown'), 'danger');
+            loadDatabaseSize();
+        }
+    } catch (error) {
+        console.error('Error running VACUUM:', error);
+        showNotification('Optimize failed', 'danger');
+        loadDatabaseSize();
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrows-collapse"></i> Optimize now';
+    }
 }
 
 async function loadBackupList() {
