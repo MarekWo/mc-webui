@@ -5,6 +5,7 @@ Function signatures preserved for backward compatibility with api.py.
 """
 
 import logging
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Tuple, Optional, List, Dict
 from app.config import config
 
@@ -318,18 +319,66 @@ def check_connection() -> bool:
 # =============================================================================
 
 def get_channels() -> Tuple[bool, List[Dict]]:
-    """Get list of configured channels."""
+    """Get list of configured channels.
+
+    When the USB device is briefly unresponsive a single get_channel_info()
+    times out (3 s) and the rest of the slots would too — so we stop hitting
+    the device and merge whatever we got with the locally cached channels in
+    the DB. This guarantees the UI shows all channels instead of just Public.
+    """
     try:
         dm = _get_dm()
         channels = []
+        seen_idx = set()
+        device_partial = False
+
         for idx in range(dm._max_channels):
-            info = dm.get_channel_info(idx)
+            try:
+                info = dm.get_channel_info(idx)
+            except FuturesTimeoutError:
+                logger.warning(
+                    f"get_channels: device timeout at slot {idx} — "
+                    f"falling back to DB for remaining slots"
+                )
+                device_partial = True
+                break
+
             if info and info.get('name'):
                 channels.append({
                     'index': idx,
                     'name': info.get('name', ''),
                     'key': info.get('secret', info.get('key', '')),
                 })
+                seen_idx.add(idx)
+                # Keep the DB in sync with what the device just told us
+                try:
+                    secret_hex = info.get('secret', '') or None
+                    dm.db.upsert_channel(idx, info.get('name', ''), secret_hex)
+                except Exception as e:
+                    logger.debug(f"upsert_channel({idx}) failed: {e}")
+
+        if device_partial:
+            try:
+                for row in dm.db.get_channels():
+                    db_idx = row.get('idx')
+                    if db_idx is None or db_idx in seen_idx:
+                        continue
+                    name = row.get('name') or ''
+                    if not name:
+                        continue
+                    channels.append({
+                        'index': db_idx,
+                        'name': name,
+                        'key': row.get('secret', '') or '',
+                    })
+                channels.sort(key=lambda c: c['index'])
+                logger.info(
+                    f"get_channels: returned {len(channels)} channels "
+                    f"({len(seen_idx)} from device + DB fallback)"
+                )
+            except Exception as e:
+                logger.error(f"get_channels DB fallback failed: {e}")
+
         return True, channels
     except Exception as e:
         logger.error(f"get_channels error: {e}")

@@ -125,7 +125,8 @@ function connectChatSocket() {
 
     const wsUrl = window.location.origin;
     chatSocket = io(wsUrl + '/chat', {
-        transports: ['websocket', 'polling'],
+        transports: ['polling'],
+        upgrade: false,
         reconnection: true,
         reconnectionDelay: 2000,
         reconnectionDelayMax: 10000,

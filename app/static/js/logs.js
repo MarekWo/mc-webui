@@ -33,7 +33,8 @@
 
     // --- WebSocket ---
     const socket = io('/logs', {
-        transports: ['websocket', 'polling'],
+        transports: ['polling'],
+        upgrade: false,
         reconnection: true,
         reconnectionDelay: 2000,
     });

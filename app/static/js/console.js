@@ -38,7 +38,8 @@ function connectWebSocket() {
 
     try {
         socket = io(wsUrl + '/console', {
-            transports: ['websocket', 'polling'],
+            transports: ['polling'],
+            upgrade: false,
             reconnection: true,
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
