@@ -469,23 +469,46 @@ def handle_unhealthy_container(container_name: str, status: dict):
 
 
 def check_device_unresponsive(container_name: str) -> bool:
-    """Check if the container logs indicate the USB device is unresponsive."""
+    """Check if the container logs indicate the USB device is unresponsive.
+
+    Two classes of patterns:
+      - HARD: any single occurrence triggers a restart. These are the
+        long-standing "device clearly dead" messages.
+      - SOFT: any of these failing >=5 times in the last 2 minutes triggers
+        a restart. Catches the "sluggish but not dead" mode (firmware
+        stalls on get_stats / get_bat commands while still answering
+        passive RX events).
+    """
     success, stdout, stderr = run_compose_command([
-        'logs', '--since', '1m', container_name
+        'logs', '--since', '2m', container_name
     ])
     if not success:
         return False
-        
-    error_patterns = [
+
+    hard_patterns = [
         "No response from meshcore node, disconnecting",
         "Device connected but self_info is empty",
-        "Failed to connect after 10 attempts"
+        "Failed to connect after 10 attempts",
     ]
-    
-    for pattern in error_patterns:
+
+    soft_patterns = [
+        "get_stats_core failed:",
+        "get_stats_radio failed:",
+        "get_stats_packets failed:",
+        "Failed to get battery:",
+        "Failed to get channel",
+    ]
+    SOFT_THRESHOLD = 5
+
+    for pattern in hard_patterns:
         if pattern in stdout:
             return True
-            
+
+    for pattern in soft_patterns:
+        if stdout.count(pattern) >= SOFT_THRESHOLD:
+            log(f"Soft-failure threshold tripped: '{pattern}' x{stdout.count(pattern)} in 2m", "WARN")
+            return True
+
     return False
 
 

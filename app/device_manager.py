@@ -170,6 +170,10 @@ class DeviceManager:
         self._ble_keepalive_task = None   # asyncio.Task for BLE keepalive
         self._ble_permanently_failed = False  # True when all reconnect attempts exhausted
 
+        # Liveness telemetry for /health/strict and the watchdog
+        self._last_rx_at: float = 0.0           # unix ts of last RX_LOG_DATA / event from device
+        self._consecutive_stats_failures: int = 0  # incremented on get_stats_* / get_bat failures
+
     @property
     def is_connected(self) -> bool:
         return self._connected and self.mc is not None
@@ -1116,6 +1120,7 @@ class DeviceManager:
         """
         try:
             import io
+            self._last_rx_at = time.time()
             data = getattr(event, 'payload', {})
             payload_hex = data.get('payload', '')
             logger.debug(f"RX_LOG_DATA received: {len(payload_hex)//2} bytes, snr={data.get('snr')}")
@@ -2500,8 +2505,10 @@ class DeviceManager:
         try:
             event = self.execute(self.mc.commands.get_bat(), timeout=5)
             if event and hasattr(event, 'data'):
+                self._consecutive_stats_failures = 0
                 return getattr(event, 'payload', {})
         except Exception as e:
+            self._consecutive_stats_failures += 1
             logger.error(f"Failed to get battery: {e}")
         return None
 
@@ -2511,10 +2518,12 @@ class DeviceManager:
             return {}
 
         stats = {}
+        any_success = False
         try:
             event = self.execute(self.mc.commands.get_stats_core(), timeout=5)
             if event and hasattr(event, 'payload'):
                 stats['core'] = event.payload
+                any_success = True
         except Exception as e:
             logger.debug(f"get_stats_core failed: {e}")
 
@@ -2522,6 +2531,7 @@ class DeviceManager:
             event = self.execute(self.mc.commands.get_stats_radio(), timeout=5)
             if event and hasattr(event, 'payload'):
                 stats['radio'] = event.payload
+                any_success = True
         except Exception as e:
             logger.debug(f"get_stats_radio failed: {e}")
 
@@ -2529,8 +2539,14 @@ class DeviceManager:
             event = self.execute(self.mc.commands.get_stats_packets(), timeout=5)
             if event and hasattr(event, 'payload'):
                 stats['packets'] = event.payload
+                any_success = True
         except Exception as e:
             logger.debug(f"get_stats_packets failed: {e}")
+
+        if any_success:
+            self._consecutive_stats_failures = 0
+        else:
+            self._consecutive_stats_failures += 1
 
         return stats
 
