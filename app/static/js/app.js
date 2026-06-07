@@ -6414,25 +6414,66 @@ async function optimizeDatabase() {
     btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Optimizing…';
     if (statusEl) statusEl.textContent = 'Running VACUUM…';
 
-    try {
-        const response = await fetch('/api/db/vacuum', { method: 'POST' });
-        const data = await response.json();
+    const restoreButton = () => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrows-collapse"></i> Optimize now';
+    };
 
-        if (data.success) {
-            const freed = data.freed > 0 ? `freed ${_formatBytes(data.freed)}` : 'no space to reclaim';
-            showNotification(`Optimized: ${freed} in ${data.elapsed_seconds}s`, 'success');
-            if (statusEl) statusEl.textContent = `Current size: ${_formatBytes(data.size_after)}`;
-        } else {
-            showNotification('Optimize failed: ' + (data.error || 'unknown'), 'danger');
+    try {
+        const kickoff = await fetch('/api/db/vacuum', { method: 'POST' });
+        const kickoffData = await kickoff.json().catch(() => ({}));
+
+        if (!kickoff.ok && kickoff.status !== 409) {
+            showNotification('Optimize failed: ' + (kickoffData.error || `HTTP ${kickoff.status}`), 'danger');
             loadDatabaseSize();
+            restoreButton();
+            return;
         }
+        // 409 means another VACUUM is already running — we just attach to it.
+
+        // Poll status every 2s. Cap at 10 minutes to avoid an infinite spinner
+        // if something goes really wrong on the server side.
+        const POLL_INTERVAL_MS = 2000;
+        const MAX_POLLS = 300;
+        for (let i = 0; i < MAX_POLLS; i++) {
+            await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+            let status;
+            try {
+                const resp = await fetch('/api/db/vacuum/status');
+                status = await resp.json();
+            } catch (e) {
+                continue;   // transient — try again
+            }
+
+            if (status.running) {
+                if (statusEl) statusEl.textContent = `Running VACUUM… (${status.elapsed_seconds || 0}s)`;
+                continue;
+            }
+
+            // Done — either success or error.
+            if (status.success === true && status.size_after !== undefined) {
+                const freed = status.freed > 0 ? `freed ${_formatBytes(status.freed)}` : 'no space to reclaim';
+                showNotification(`Optimized: ${freed} in ${status.elapsed_seconds}s`, 'success');
+                if (statusEl) statusEl.textContent = `Current size: ${_formatBytes(status.size_after)}`;
+            } else if (status.error) {
+                showNotification('Optimize failed: ' + status.error, 'danger');
+                loadDatabaseSize();
+            } else {
+                // No result, no error, not running — odd, just refresh size
+                loadDatabaseSize();
+            }
+            restoreButton();
+            return;
+        }
+
+        showNotification('Optimize is still running after 10 minutes — check container logs', 'warning');
+        loadDatabaseSize();
+        restoreButton();
     } catch (error) {
         console.error('Error running VACUUM:', error);
         showNotification('Optimize failed', 'danger');
         loadDatabaseSize();
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-arrows-collapse"></i> Optimize now';
+        restoreButton();
     }
 }
 

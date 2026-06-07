@@ -4389,26 +4389,98 @@ def update_retention_settings_api():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# VACUUM runs in a worker thread so a multi-second SQLite rewrite can't be
+# killed by an upstream reverse proxy's response timeout (~30 s on most
+# defaults). The UI polls /api/db/vacuum/status until 'running' flips false.
+_vacuum_state_lock = threading.Lock()
+_vacuum_state = {
+    'running': False,
+    'started_at': None,
+    'finished_at': None,
+    'result': None,    # dict from db.vacuum() on success
+    'error': None,     # string on failure
+}
+
+
+def _run_vacuum_in_thread(app, db):
+    with app.app_context():
+        try:
+            stats = db.vacuum()
+            logger.info(
+                f"Manual VACUUM: {stats['size_before']:,} -> {stats['size_after']:,} "
+                f"bytes (freed {stats['freed']:,} in {stats['elapsed_seconds']}s)"
+            )
+            with _vacuum_state_lock:
+                _vacuum_state['result'] = stats
+                _vacuum_state['error'] = None
+        except Exception as e:
+            logger.error(f"VACUUM failed: {e}", exc_info=True)
+            with _vacuum_state_lock:
+                _vacuum_state['result'] = None
+                _vacuum_state['error'] = str(e)
+        finally:
+            with _vacuum_state_lock:
+                _vacuum_state['running'] = False
+                _vacuum_state['finished_at'] = time.time()
+
+
 @api_bp.route('/db/vacuum', methods=['POST'])
 def vacuum_database_api():
-    """Run SQLite VACUUM to reclaim space freed by DELETE statements.
+    """Kick off a SQLite VACUUM in the background.
 
-    Returned payload includes size_before / size_after / freed (bytes) and
-    elapsed_seconds so the UI can show how much space was reclaimed.
+    Returns 202 immediately so a slow VACUUM can't be killed by a reverse
+    proxy timeout. Poll /api/db/vacuum/status for the outcome.
     """
-    try:
-        db = _get_db()
-        if db is None:
-            return jsonify({'success': False, 'error': 'Database not available'}), 500
-        stats = db.vacuum()
-        logger.info(
-            f"Manual VACUUM: {stats['size_before']:,} -> {stats['size_after']:,} "
-            f"bytes (freed {stats['freed']:,} in {stats['elapsed_seconds']}s)"
-        )
-        return jsonify({'success': True, **stats})
-    except Exception as e:
-        logger.error(f"VACUUM failed: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+    db = _get_db()
+    if db is None:
+        return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+    with _vacuum_state_lock:
+        if _vacuum_state['running']:
+            return jsonify({
+                'success': False,
+                'running': True,
+                'error': 'VACUUM already in progress',
+            }), 409
+        _vacuum_state['running'] = True
+        _vacuum_state['started_at'] = time.time()
+        _vacuum_state['finished_at'] = None
+        _vacuum_state['result'] = None
+        _vacuum_state['error'] = None
+
+    app = current_app._get_current_object()
+    threading.Thread(
+        target=_run_vacuum_in_thread,
+        args=(app, db),
+        name='vacuum-worker',
+        daemon=True,
+    ).start()
+
+    return jsonify({'success': True, 'running': True, 'started': True}), 202
+
+
+@api_bp.route('/db/vacuum/status', methods=['GET'])
+def vacuum_status_api():
+    """Return current VACUUM status. UI polls this until running=false."""
+    with _vacuum_state_lock:
+        state = dict(_vacuum_state)
+    payload = {
+        'running': state['running'],
+        'started_at': state['started_at'],
+        'finished_at': state['finished_at'],
+    }
+    if state['running'] and state['started_at']:
+        payload['elapsed_seconds'] = round(time.time() - state['started_at'], 1)
+    if state['result'] is not None:
+        payload['success'] = True
+        payload.update(state['result'])
+    elif state['error'] is not None:
+        payload['success'] = False
+        payload['error'] = state['error']
+    else:
+        # Idle (never run since boot) or running with no result yet
+        payload['success'] = None if state['running'] else True
+    return jsonify(payload)
 
 
 @api_bp.route('/db/size', methods=['GET'])
