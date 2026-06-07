@@ -14,7 +14,6 @@ import logging
 import struct
 import threading
 import time
-from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Optional, Any, Dict, List, Tuple
 from urllib.parse import urlparse, parse_qs
 
@@ -2196,8 +2195,10 @@ class DeviceManager:
     def get_channel_info(self, idx: int, timeout: float = 3) -> Optional[Dict]:
         """Get info for a specific channel.
 
-        Raises TimeoutError when the device fails to respond within `timeout`
-        seconds so callers can distinguish "device sluggish" from "empty slot".
+        Short default timeout (3 s) means iterating empty slots stays cheap
+        even when the device is sluggish. Returns None on any failure —
+        callers iterating over slots can't distinguish "empty" from "stalled"
+        and need the loop to keep moving regardless.
         """
         if not self.is_connected:
             return None
@@ -2219,9 +2220,6 @@ class DeviceManager:
                         'secret': secret,
                         'channel_idx': data.get('channel_idx', idx),
                     }
-        except FuturesTimeoutError:
-            # Re-raise so caller can break the loop instead of hammering a stuck device
-            raise
         except Exception as e:
             logger.error(f"Failed to get channel {idx}: {e}")
         return None
