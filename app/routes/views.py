@@ -160,7 +160,10 @@ def health_strict():
 
     transport = getattr(config, 'transport_type', 'serial')
     last_rx = getattr(dm, '_last_rx_at', 0.0) or 0.0
-    if transport in ('serial', 'usb') and last_rx > 0:
+    # TCP included: long-lived TCP to meshcore-proxy can degrade in ways the
+    # socket can't detect (commands time out while events still trickle in or
+    # vice versa). rx_stale is the cheapest external symptom.
+    if transport in ('serial', 'usb', 'tcp') and last_rx > 0:
         stale = time.time() - last_rx
         if stale > HEALTH_STRICT_MAX_RX_STALE_SEC:
             return jsonify({
