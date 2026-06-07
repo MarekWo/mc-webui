@@ -338,10 +338,19 @@ def create_app():
 
     threading.Thread(target=_wait_for_device_name, daemon=True).start()
 
-    # Start background scheduler (archiving, contact cleanup, message retention)
-    from app.archiver.manager import schedule_daily_archiving, init_retention_schedule
-    schedule_daily_archiving()
-    init_retention_schedule(db=db)
+    # Start background scheduler (archiving, contact cleanup, message retention).
+    # init_*_schedule and the jobs themselves call api.get_*_settings(), which
+    # touches current_app.db — so the scheduler module needs an app reference
+    # to push app_context, and the init paths must run inside a context too.
+    from app.archiver.manager import (
+        schedule_daily_archiving,
+        init_retention_schedule,
+        set_flask_app as _archiver_set_app,
+    )
+    _archiver_set_app(app)
+    with app.app_context():
+        schedule_daily_archiving()
+        init_retention_schedule(db=db)
 
     logger.info(f"mc-webui v2 started — transport: {config.transport_type}")
     logger.info(f"Database: {db.db_path}")

@@ -212,11 +212,15 @@ CLEANUP_DEFAULTS = {
 }
 
 RETENTION_DEFAULTS = {
-    'enabled': False,
-    'days': 90,
-    'include_dms': False,
-    'include_adverts': False,
-    'hour': 2
+    'enabled': True,
+    'days': 90,                  # channel_messages
+    'days_dms': 90,              # direct_messages
+    'days_adverts': 60,          # advertisements
+    'days_diagnostics': 30,      # echoes, paths, acks (high-volume debug data)
+    'include_dms': True,
+    'include_adverts': True,
+    'include_diagnostics': True,
+    'hour': 3
 }
 
 

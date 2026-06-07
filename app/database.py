@@ -1287,27 +1287,65 @@ class Database:
         return stats
 
     def cleanup_old_messages(self, days: int, include_dms: bool = False,
-                             include_adverts: bool = False) -> dict:
-        """Delete messages older than N days. Returns counts per table."""
-        cutoff = int((datetime.now() - timedelta(days=days)).timestamp())
+                             include_adverts: bool = False,
+                             days_dms: Optional[int] = None,
+                             days_adverts: Optional[int] = None,
+                             include_diagnostics: bool = True,
+                             days_diagnostics: Optional[int] = None) -> dict:
+        """Delete old rows from message + diagnostic tables. Returns counts per table.
+
+        - channel_messages, direct_messages, advertisements use unix `timestamp`.
+        - echoes, paths, acks use TEXT `received_at` (datetime('now') format).
+        Diagnostic tables are joined to messages but are mostly write-heavy
+        debug data, so they get a tighter default retention.
+        """
         result = {}
+        now = datetime.now()
+
+        def _cutoff_unix(d):
+            return int((now - timedelta(days=d)).timestamp())
+
+        def _cutoff_text(d):
+            return (now - timedelta(days=d)).strftime('%Y-%m-%d %H:%M:%S')
+
         with self._connect() as conn:
             cursor = conn.execute(
-                "DELETE FROM channel_messages WHERE timestamp < ?", (cutoff,)
+                "DELETE FROM channel_messages WHERE timestamp < ?",
+                (_cutoff_unix(days),)
             )
             result['channel_messages'] = cursor.rowcount
 
             if include_dms:
+                dm_days = days_dms if days_dms is not None else days
                 cursor = conn.execute(
-                    "DELETE FROM direct_messages WHERE timestamp < ?", (cutoff,)
+                    "DELETE FROM direct_messages WHERE timestamp < ?",
+                    (_cutoff_unix(dm_days),)
                 )
                 result['direct_messages'] = cursor.rowcount
 
             if include_adverts:
+                adv_days = days_adverts if days_adverts is not None else days
                 cursor = conn.execute(
-                    "DELETE FROM advertisements WHERE timestamp < ?", (cutoff,)
+                    "DELETE FROM advertisements WHERE timestamp < ?",
+                    (_cutoff_unix(adv_days),)
                 )
                 result['advertisements'] = cursor.rowcount
+
+            if include_diagnostics:
+                diag_days = days_diagnostics if days_diagnostics is not None else min(days, 30)
+                diag_cutoff = _cutoff_text(diag_days)
+                cursor = conn.execute(
+                    "DELETE FROM echoes WHERE received_at < ?", (diag_cutoff,)
+                )
+                result['echoes'] = cursor.rowcount
+                cursor = conn.execute(
+                    "DELETE FROM paths WHERE received_at < ?", (diag_cutoff,)
+                )
+                result['paths'] = cursor.rowcount
+                cursor = conn.execute(
+                    "DELETE FROM acks WHERE received_at < ?", (diag_cutoff,)
+                )
+                result['acks'] = cursor.rowcount
 
         return result
 

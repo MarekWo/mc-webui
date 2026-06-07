@@ -5,6 +5,7 @@ Archive manager - handles message archiving and scheduling
 import os
 import shutil
 import logging
+from functools import wraps
 from pathlib import Path
 from datetime import datetime, time
 from typing import List, Dict, Optional
@@ -23,8 +24,69 @@ CLEANUP_JOB_ID = 'daily_cleanup'
 RETENTION_JOB_ID = 'daily_retention'
 BACKUP_JOB_ID = 'daily_backup'
 
-# Module-level db reference (set by init_retention_schedule)
+# Module-level references (set by set_flask_app / init_retention_schedule)
 _db = None
+_app = None
+
+
+def set_flask_app(app):
+    """Store Flask app so scheduled jobs can push app_context.
+
+    Without this, _cleanup_job/_retention_job hit `current_app.db` from
+    api.get_*_settings() and raise "Working outside of application context".
+    """
+    global _app
+    _app = app
+
+
+def _with_app_context(fn):
+    """Decorator: push Flask app_context around scheduled jobs.
+
+    APScheduler runs job functions in worker threads with no Flask context.
+    Anything that reaches current_app (e.g. api.get_cleanup_settings -> _get_db)
+    needs the context to be active.
+    """
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if _app is not None:
+            with _app.app_context():
+                return fn(*args, **kwargs)
+        logger.warning(f"{fn.__name__}: no Flask app registered, running without context")
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def _find_live_msgs_file(device_name: str) -> Optional[Path]:
+    """Locate the live (non-archive) .msgs file.
+
+    Tries the configured device-name-based path first. If that file does not
+    exist (e.g. because the device name contains emoji or whitespace the
+    meshcore library strips when writing the file), falls back to an
+    unambiguous glob in the data dir, excluding archive files
+    (which have a .YYYY-MM-DD. segment in their name).
+    """
+    candidate = Path(config.MC_CONFIG_DIR) / f"{device_name}.msgs"
+    if candidate.exists():
+        return candidate
+
+    data_dir = Path(config.MC_CONFIG_DIR)
+    if not data_dir.exists():
+        return None
+
+    # Live file pattern: name.msgs (no date segment in stem)
+    live_files = [f for f in data_dir.glob("*.msgs") if f.stem.count('.') == 0]
+    if len(live_files) == 1:
+        logger.info(
+            f"Live .msgs file resolved via fallback glob: {live_files[0].name} "
+            f"(expected {candidate.name})"
+        )
+        return live_files[0]
+    if len(live_files) > 1:
+        logger.warning(
+            f"Multiple .msgs files found in {data_dir}, cannot pick one: "
+            f"{[f.name for f in live_files]}"
+        )
+    return None
 
 
 def get_local_timezone_name() -> str:
@@ -104,13 +166,15 @@ def archive_messages(archive_date: Optional[str] = None) -> Dict[str, any]:
         archive_dir = config.archive_dir_path
         archive_dir.mkdir(parents=True, exist_ok=True)
 
-        # Get source .msgs file
-        source_file = runtime_config.get_msgs_file_path()
-        if not source_file.exists():
-            logger.warning(f"Source messages file not found: {source_file}")
+        # Get source .msgs file. Use tolerant lookup because meshcore lib may
+        # strip non-ASCII / whitespace from the device-derived filename.
+        source_file = _find_live_msgs_file(runtime_config.get_device_name())
+        if source_file is None or not source_file.exists():
+            expected = runtime_config.get_msgs_file_path()
+            logger.warning(f"Source messages file not found (expected {expected})")
             return {
                 'success': False,
-                'error': f'Messages file not found: {source_file}'
+                'error': f'Messages file not found: {expected}'
             }
 
         # Get destination archive file
@@ -245,6 +309,7 @@ def _count_messages_in_file(file_path: Path) -> int:
     return count
 
 
+@_with_app_context
 def _archive_job():
     """
     Background job that runs daily to archive messages.
@@ -264,6 +329,7 @@ def _archive_job():
         logger.error(f"Archive job failed: {result.get('error', 'Unknown error')}")
 
 
+@_with_app_context
 def _cleanup_job():
     """
     Background job that runs daily to clean up contacts.
@@ -465,6 +531,7 @@ def init_cleanup_schedule():
         logger.error(f"Error initializing cleanup schedule: {e}", exc_info=True)
 
 
+@_with_app_context
 def _retention_job():
     """Background job that runs daily to delete old messages from DB."""
     logger.info("Running daily retention job...")
@@ -482,14 +549,14 @@ def _retention_job():
             logger.error("Database not available for retention job")
             return
 
-        days = settings.get('days', 90)
-        include_dms = settings.get('include_dms', False)
-        include_adverts = settings.get('include_adverts', False)
-
         result = _db.cleanup_old_messages(
-            days=days,
-            include_dms=include_dms,
-            include_adverts=include_adverts
+            days=settings.get('days', 90),
+            include_dms=settings.get('include_dms', True),
+            include_adverts=settings.get('include_adverts', True),
+            days_dms=settings.get('days_dms'),
+            days_adverts=settings.get('days_adverts'),
+            include_diagnostics=settings.get('include_diagnostics', True),
+            days_diagnostics=settings.get('days_diagnostics'),
         )
 
         total = sum(result.values())
@@ -640,6 +707,7 @@ def init_backup_schedule():
         logger.error(f"Error scheduling backup: {e}", exc_info=True)
 
 
+@_with_app_context
 def _backup_job(backup_dir):
     """Execute daily backup and cleanup old backups."""
     global _db
