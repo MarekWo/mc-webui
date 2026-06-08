@@ -845,6 +845,7 @@ To get the full PWA experience with app badge counters:
 
 ## Getting Help
 
+- **What's New:** [whatsnew.md](whatsnew.md)
 - **Full README:** [README.md](../README.md)
 - **Contact Management Guide:** [contact-management.md](contact-management.md)
 - **Repeater Management:** [rpt-mgmt.md](rpt-mgmt.md)
