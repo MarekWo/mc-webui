@@ -456,6 +456,7 @@ Configure message routing paths for individual contacts:
   - **Repeater picker** - Browse available repeaters by name or ID
   - **Map picker** - Select repeaters from a map view showing their GPS locations
   - **Import current path** - Import the path currently stored on the device
+- **Apply to device** (upload-arrow icon) - Push a configured path to the firmware as the active route without leaving the modal. The device-path line refreshes once the change is confirmed, mirroring the console's `change_path` command
 - **Reorder** - Drag paths to change priority (starred path is used first)
 - **Star** - Mark a preferred primary path (used first in retry rotation)
 - **Delete** - Remove individual paths
@@ -500,8 +501,8 @@ The console supports a comprehensive set of MeshCore commands organized into cat
 - `.pending_contacts` - List pending contacts
 - `add_pending <key>` - Approve pending contact
 - `remove_contact <name>` - Remove contact
-- `change_path <name> <path>` - Change contact's routing path. Accepts comma-separated hex bytes (`D1,90,05`), continuous hex (`D19005`), or space-separated bytes. Use the keyword `direct` to set a Direct (0-hop) path. Hash size is auto-detected from the chunk length. Use `reset_path <name>` to switch back to Flood
-- `path <name>` - Show the current path for a contact
+- `change_path <name> <path>` - Change contact's routing path. Accepts comma-, whitespace-, or arrow-separated hex chunks (`D1,90,05`, `D103 5E34`, `D1->90->05`) or continuous hex (`D19005`). For multi-byte paths all chunks must have a consistent length — that length determines the hash-size mode (1, 2, or 3 bytes per hop). Use the keyword `direct` to set a Direct (0-hop) path; use `reset_path <name>` to switch back to Flood
+- `path <name>` - Show the current path for a contact (e.g. `D103,5E34 (2 hops, 2B)` — hop count and byte size)
 
 **Device & Channel Management:**
 - `infos` / `ver` - Device info / firmware version
@@ -592,7 +593,7 @@ Access the Settings modal to configure application behavior:
 1. Click the menu icon (☰) in the navbar (or tap the gear FAB button)
 2. Select "Settings" from the menu
 
-The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **Interface**, **Appearance**, **Contacts**, **Regions**, and **Notifications**. A global **Close** button at the bottom of the modal dismisses Settings from any tab.
+The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **Interface**, **Appearance**, **Contacts**, **Regions**, **Analyzer**, and **Notifications**. A global **Close** button at the bottom of the modal dismisses Settings from any tab.
 
 ### Device Tab
 
@@ -676,6 +677,22 @@ Manage MeshCore region scopes (also called flood scopes). See [Region Scopes](#r
 - Pick **None** to clear the firmware default
 - Delete regions you no longer need (channels using a deleted region revert to "no scope")
 
+### Analyzer Tab
+
+Configure MeshCore Analyzer services used by the chart icon under each group-chat message. The icon resolves at click time depending on what you configure here:
+
+- **No custom analyzers (or all disabled)** → opens the built-in Letsmesh analyzer
+- **One default analyzer set** → opens that service directly
+- **Multiple enabled analyzers, no default** → opens a chooser modal
+
+Each row supports:
+
+- **Star toggle** — mark this analyzer as the default. Only one default is allowed
+- **Enabled switch** — temporarily disable a service without deleting it
+- **Edit / Delete** buttons
+
+When adding or editing, the URL template must contain the placeholder `{packetHash}` — it is substituted with the message's packet hash at click time.
+
 ### Notifications Tab
 
 Enable or disable browser push notifications for new messages received while the app is hidden or in the background.
@@ -710,6 +727,8 @@ Create and manage database backups:
 - **Create backup** - Creates a timestamped copy of the current database
 - **List backups** - View all available backups with timestamps and file sizes
 - **Download** - Download any backup file to your local machine
+- **Current size** - Live label showing the active DB file size
+- **Optimize now** - Run `VACUUM` on demand to reclaim free pages left behind by the retention job. The kickoff returns immediately and the UI polls for completion; a toast reports `freed X bytes in Y s` when done. A concurrent request returns HTTP 409. A nightly `VACUUM` already runs automatically when the retention job deletes 1000+ rows, so use this only when you want to reclaim space before the next 03:30 run
 
 Backups are stored in the `./data/` directory alongside the main database.
 

@@ -78,6 +78,9 @@ The `DeviceManager` handles the connection to the MeshCore device via a direct s
 - **BLE keepalive & reconnect** - When using Bluetooth transport, a 60s keepalive loop detects "zombie" connections (reads still succeed but writes silently fail). On disconnect or keepalive failure, the manager marks the session as permanently failed and the `/health` endpoint returns 503, letting the Docker healthcheck trigger a fast container restart (~5s) to get a clean BLE state rather than attempting unreliable in-process reconnects
 - **Echo correlation** - Sent channel messages pre-compute their expected `pkt_payload` using the channel secret and send timestamp (±3s for clock drift), so incoming echoes are matched exactly instead of only by 1-byte channel hash (prevents misattribution when two messages go out simultaneously on the same channel)
 - **Per-channel region scope** - Before each channel send, the channel's mapped region scope key (16 bytes) is pushed to the firmware via `CMD_SET_FLOOD_SCOPE_KEY` (54). The scope-set + send pair is serialised under a `_send_lock` so concurrent sends on different channels can't swap each other's scope. Channels without a mapping get an all-zero key so a previously-set scope doesn't leak across channels
+- **Per-send channel-secret refresh** - Channel indices on the device compact down after a deletion, so the boot-time `_load_channel_secrets()` cache can drift. `send_channel_message` calls `_refresh_channel_secret(idx)` first (one extra `get_channel(idx)` round-trip) to fetch the current secret straight from firmware, update the in-memory cache and DB if they had drifted, and use it for the `pkt_payload` echo correlation
+- **Liveness telemetry** - Tracks `_last_rx_at` (bumped on every `RX_LOG_DATA` event) and `_consecutive_stats_failures` (incremented on `get_stats_*` / `get_bat` exceptions, cleared on success). Surfaced via `/health/strict` for the external watchdog
+- **TCP self-heal** - A `_liveness_watcher_loop` task on the DM event loop calls `force_reconnect()` when no RX event has arrived for `HEALTH_STRICT_MAX_RX_STALE_SEC` (5 min). `send_channel_message` also detects empty-string `concurrent.futures.TimeoutError` from `set_flood_scope_key` (the symptom of a degraded long-lived TCP) and runs an in-place reconnect + one retry before failing. A 30 s cooldown and `_reconnect_lock` prevent churn; `_intentional_disconnect` keeps the DISCONNECTED handler from racing the reconnect
 
 ---
 
@@ -138,8 +141,21 @@ Key tables:
 - `regions` - User-curated MeshCore flood scopes (`name`, `key_hex`, `is_default`)
 - `channel_scopes` - Per-channel region mapping (`channel_idx` → `region_id`, CASCADE on region delete; absent row = no override → firmware default applies)
 - `read_status` - Per-channel read counters and favorites (`is_favorite` column; used to pin channels in the sidebar/dropdown sort order)
+- `analyzers` - User-configured MeshCore Analyzer services (`name`, `url_template` with `{packetHash}` placeholder, `is_default`, `is_disabled`; partial unique index enforces a single default)
+
+`direct_messages` gained a `delivery_path_hash_size` column (auto-migrated, defaults to 1) so reloaded DM bubbles render multi-byte routes correctly. The `path_len` column on `channel_messages`, `direct_messages`, and `paths` now stores the raw firmware byte (masked hop count plus path_hash_mode in the upper bits), recombined at write time via `pack_path_len()`; the API endpoints decode it back into `path_hash_size` on read.
 
 The use of SQLite allows for fast queries, reliable data storage, full-text search, and complex filtering (such as contact ignoring/blocking) without the risk of file corruption inherent to flat JSON files.
+
+### Retention scheduler
+
+Retention is enabled by default with `90 / 90 / 60 / 30` days for `channel_messages / direct_messages / advertisements / diagnostics`. The job runs daily at 03:30 local (`TZ` from `.env`) and `cleanup_old_messages()` also deletes from `echoes`, `paths`, and `acks` (the diagnostic tables — historically the bulk of DB size). When at least 1 000 rows are removed in a pass, the scheduler immediately runs `VACUUM` to reclaim file space (a SQLite `DELETE` only marks pages free).
+
+The retention/cleanup scheduler runs APScheduler jobs in worker threads, so each job is decorated with `@_with_app_context` and the Flask app is passed in via `set_flask_app()`; the `init_*_schedule()` callers also wrap themselves in `app.app_context()` so the boot-time read of `current_app.db` doesn't blow up with "Working outside of application context".
+
+The archiver builds the `.msgs` path from `device_name`, but the `meshcore` library strips non-ASCII when writing the file (so a device renamed to include an emoji breaks the strict path match). The archiver now falls back to globbing the data directory for a single non-archive `.msgs` file when the expected path is missing — mirroring `migrate_v1`.
+
+The channels API reads from the `channels` DB table rather than iterating device slots. `_load_channel_secrets()` syncs the table on every device connect (and prunes stale rows), `set_channel()` / `remove_channel()` update it synchronously with the device, and `_refresh_channel_secret()` refreshes individual rows on per-send refresh. This makes `/api/channels` a single sub-millisecond `SELECT` and unaffected by device responsiveness — the original symptom (only "Public" showing up after a refresh when the device briefly stalls) is gone.
 
 ---
 
@@ -188,6 +204,7 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 | PUT | `/api/contacts/<key>/paths/<id>` | Update path (star, label) |
 | DELETE | `/api/contacts/<key>/paths/<id>` | Delete path |
 | POST | `/api/contacts/<key>/paths/reorder` | Reorder paths |
+| POST | `/api/contacts/<key>/paths/<id>/apply` | Push a configured path to the firmware as the active route (mirrors `change_path`); invalidates the contacts cache |
 | POST | `/api/contacts/<key>/paths/reset_flood` | Reset to FLOOD routing |
 | POST | `/api/contacts/<key>/paths/clear` | Clear all paths |
 | GET | `/api/contacts/<key>/no_auto_flood` | Get "Keep path" flag |
@@ -218,6 +235,21 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 | DELETE | `/api/regions/<id>` | Delete region; CASCADE clears channel mappings; if it was the firmware default, clears it on device |
 | POST | `/api/regions/<id>/default` | Mark default in DB AND push to firmware (CMD_SET_DEFAULT_FLOOD_SCOPE = 63, requires firmware v1.15+) |
 | DELETE | `/api/regions/default` | Clear default region in DB and on firmware |
+
+The `PUT /api/channels/<index>/scope` endpoint accepts any `index` in `[0, device_manager._max_channels)` (40 on current firmwares; falls back to 8 if the DM is unreachable).
+
+### Analyzers
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/analyzers` | List configured analyzer services |
+| POST | `/api/analyzers` | Create analyzer (`{name, url_template}`); template must contain `{packetHash}` |
+| PUT | `/api/analyzers/<id>` | Update analyzer (name / url / is_disabled) |
+| DELETE | `/api/analyzers/<id>` | Delete analyzer |
+| POST | `/api/analyzers/<id>/default` | Mark as default (enforced single-default via partial unique index) |
+| DELETE | `/api/analyzers/default` | Clear the default analyzer |
+
+The backend no longer ships a pre-built `analyzer_url` per message — channel-message payloads include `packet_hash` instead, and the frontend substitutes `{packetHash}` in the chosen URL template at click time.
 
 ### Direct Messages
 
@@ -259,6 +291,18 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 | GET | `/api/backup/list` | List database backups |
 | POST | `/api/backup/create` | Create database backup |
 | GET | `/api/backup/download` | Download backup file |
+| GET | `/api/db/size` | Current DB file size (bytes) |
+| POST | `/api/db/vacuum` | Kick off SQLite `VACUUM` in a worker thread. Returns 202 immediately; 409 if already running. The kickoff endpoint deliberately splits from polling so reverse proxies with ~30 s idle timeouts can't kill it mid-rewrite |
+| GET | `/api/db/vacuum/status` | Poll vacuum progress: `{running, elapsed_seconds, size_before, size_after}` |
+
+### Health endpoints
+
+These are top-level routes (not under `/api/`), consumed by Docker's healthcheck and the host-level watchdog.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Lenient liveness check. Returns 503 only when BLE reconnection has permanently failed (so Docker triggers a container restart to clear BLE state). Returns 200 otherwise |
+| GET | `/health/strict` | Strict device-health check for the external watchdog. JSON response. Returns 503 when (a) BLE permanently failed, (b) `_consecutive_stats_failures` ≥ 5, or (c) transport is serial/usb/tcp and no RX event for > `HEALTH_STRICT_MAX_RX_STALE_SEC` (5 min). Returns 200 with the same counters when healthy |
 
 ### Other
 
@@ -283,6 +327,8 @@ The use of SQLite allows for fast queries, reliable data storage, full-text sear
 ---
 
 ## WebSocket API
+
+All Socket.IO clients (`/chat`, `/console`, `/logs`) are configured with `transports: ['polling']`. The Werkzeug dev server can't upgrade WebSockets, so every `io()` upgrade attempt previously returned HTTP 500 and clients fell into a polling/upgrade reconnect loop — visible as 10–15 s freezes on app load. Long-polling keeps real-time pushes working with ~1–2 s latency.
 
 ### Console Namespace (`/console`)
 

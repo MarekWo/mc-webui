@@ -5,13 +5,27 @@ The Container Watchdog is a systemd service that monitors the `mc-webui` Docker 
 ## Features
 
 - **Health monitoring** - Checks container status every 30 seconds
-- **Log monitoring** - Monitors `mc-webui` logs for specific "unresponsive LoRa device" errors
+- **Log monitoring** - Two pattern classes (see [Failure detection](#failure-detection))
 - **Automatic restart** - Restarts the container when issues are detected
 - **Auto-start stopped container** - Starts the container if it has stopped (configurable)
 - **Hardware USB reset** - Performs a low-level USB bus reset (unbind/bind or DTR/RTS) if the LoRa device freezes. *Note: USB reset is automatically skipped if a TCP connection is used.*
 - **Diagnostic logging** - Captures container logs before restart for troubleshooting
 - **HTTP status endpoint** - Query watchdog status via HTTP API
 - **Restart history** - Tracks all automatic restarts with timestamps
+
+## Failure detection
+
+`check_device_unresponsive()` scans the last 2 minutes of container logs against two pattern classes:
+
+- **Hard patterns** — any single occurrence triggers a restart. These are the long-standing "device clearly dead" messages: `No response from meshcore node, disconnecting`, `Device connected but self_info is empty`, `Failed to connect after 10 attempts`.
+- **Soft patterns** — any of these failing **5 or more times in the last 2 minutes** triggers a restart. Catches the "sluggish but not dead" mode where the firmware briefly stalls on `get_stats_*` / `get_battery` commands (empty-string `concurrent.futures.TimeoutError`) while passive RX still works: `get_stats_core failed:`, `get_stats_radio failed:`, `get_stats_packets failed:`, `Failed to get battery:`, `Failed to get channel`.
+
+In parallel, the app exposes [`/health/strict`](architecture.md#health-endpoints) — a stricter device-health check that the watchdog (or any external monitor) can consume to react before the soft-pattern threshold is reached.
+
+> **Deploy note:** the watchdog runs as a host-level systemd service and is **not** restarted by `mcupdate`. After deploying changes to `scripts/watchdog/`, run:
+> ```bash
+> sudo systemctl restart mc-webui-watchdog.service
+> ```
 
 ## Installation
 
