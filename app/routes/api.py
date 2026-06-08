@@ -4087,8 +4087,16 @@ def set_channel_scope_api(index):
     Body: {"region_id": int | null}.  null removes the mapping (firmware default applies).
     """
     try:
-        if index < 0 or index > 7:
-            return jsonify({'success': False, 'error': 'Channel index out of range (0-7)'}), 400
+        # Use the device-reported max so we don't reject valid slots on
+        # firmwares that expose more than 8 channels (current firmware reports
+        # max_channels=40). Fall back to 8 when the DM isn't reachable.
+        dm = _get_dm()
+        max_channels = getattr(dm, '_max_channels', 8) if dm else 8
+        if index < 0 or index >= max_channels:
+            return jsonify({
+                'success': False,
+                'error': f'Channel index out of range (0-{max_channels - 1})',
+            }), 400
 
         data = request.get_json() or {}
         if 'region_id' not in data:
