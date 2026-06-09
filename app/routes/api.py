@@ -608,6 +608,32 @@ def get_message_meta(msg_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/messages/<int:msg_id>/resend', methods=['POST'])
+def resend_channel_message(msg_id):
+    """Raw re-broadcast of an own channel message via CMD_SEND_RAW_PACKET.
+
+    Pushes the exact stored wire bytes again so repeaters that already saw
+    the original packet dedupe it (same Mesh::hasSeen hash), while any
+    repeaters that missed it can pick it up. Used for "I never heard echoes
+    back" and "I want better coverage" scenarios.
+    """
+    try:
+        result = cli.resend_channel_message(msg_id)
+        if result.get('success'):
+            return jsonify(result), 200
+        err = result.get('error', 'Resend failed')
+        # 404 for missing snapshot or unknown id, 400 for ownership/disconnect,
+        # 500 for unexpected device errors.
+        if 'not found' in err.lower():
+            return jsonify(result), 404
+        if 'no raw_packet' in err.lower() or 'own messages' in err.lower() or 'not connected' in err.lower():
+            return jsonify(result), 400
+        return jsonify(result), 500
+    except Exception as e:
+        logger.error(f"Error resending message #{msg_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/messages', methods=['POST'])
 def send_message():
     """

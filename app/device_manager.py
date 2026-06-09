@@ -1729,6 +1729,59 @@ class DeviceManager:
             logger.error(f"Failed to send channel message: {e}")
             return {'success': False, 'error': str(e)}
 
+    # CMD_SEND_RAW_PACKET (firmware MyMesh.cpp:1976) — companion command 0x41.
+    # Frame: [cmd=0x41, priority(1), raw_packet_bytes...]. Firmware parses
+    # the packet via Packet::readFrom and queues it through sendPacket(),
+    # bypassing the higher-level sendFlood path (no MSG_SENT event, just OK/ERR).
+    _CMD_SEND_RAW_PACKET = 0x41
+
+    def resend_channel_message(self, msg_id: int) -> Dict:
+        """Re-broadcast an own channel message verbatim so repeaters can dedupe.
+
+        Looks up channel_messages.raw_packet (captured at send time, refreshed
+        from echo correlation when clock drift is detected) and pushes the
+        full wire bytes through CMD_SEND_RAW_PACKET. Repeaters that already
+        forwarded the original packet ignore it via Mesh::hasSeen; repeaters
+        that missed it can now pick it up — so the only new echoes we see are
+        from previously-unreached nodes.
+        """
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+
+        msg = self.db.get_channel_message_by_id(msg_id)
+        if not msg:
+            return {'success': False, 'error': f'Message #{msg_id} not found'}
+        if not msg.get('is_own'):
+            return {'success': False, 'error': 'Can only resend own messages'}
+        raw_packet_hex = msg.get('raw_packet')
+        if not raw_packet_hex:
+            return {'success': False,
+                    'error': 'Message has no raw_packet snapshot (likely sent before this feature was deployed)'}
+
+        try:
+            raw_packet = bytes.fromhex(raw_packet_hex)
+        except ValueError as e:
+            return {'success': False, 'error': f'Corrupt raw_packet: {e}'}
+
+        cmd_frame = bytes([self._CMD_SEND_RAW_PACKET, 0]) + raw_packet  # priority 0
+        try:
+            from meshcore.events import EventType
+            event = self.execute(
+                self.mc.commands.send(cmd_frame, [EventType.OK, EventType.ERROR])
+            )
+            if event is None:
+                return {'success': False, 'error': 'No response from device'}
+            if event.type == EventType.ERROR:
+                err = getattr(event, 'payload', {}).get('reason') or \
+                      getattr(event, 'payload', {}).get('error') or 'unknown error'
+                logger.warning(f"Resend msg #{msg_id} failed: {err}")
+                return {'success': False, 'error': f'Device rejected resend: {err}'}
+            logger.info(f"Resent channel msg #{msg_id} via CMD_SEND_RAW_PACKET ({len(raw_packet)} bytes)")
+            return {'success': True, 'message': 'Resent', 'id': msg_id, 'bytes': len(raw_packet)}
+        except Exception as e:
+            logger.error(f"resend_channel_message #{msg_id} failed: {e}")
+            return {'success': False, 'error': str(e)}
+
     def send_dm(self, recipient_pubkey: str, text: str) -> Dict:
         """Send a direct message with background retry. Returns result dict."""
         if not self.is_connected:

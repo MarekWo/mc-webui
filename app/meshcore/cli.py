@@ -73,6 +73,16 @@ def send_message(text: str, reply_to: Optional[str] = None, channel_index: int =
         return {'success': False, 'error': str(e)}
 
 
+def resend_channel_message(msg_id: int) -> Dict:
+    """Re-broadcast an own channel message verbatim (raw resend with same packet hash)."""
+    try:
+        dm = _get_dm()
+        return dm.resend_channel_message(msg_id)
+    except Exception as e:
+        logger.error(f"resend_channel_message error: {e}")
+        return {'success': False, 'error': str(e)}
+
+
 # =============================================================================
 # Contacts
 # =============================================================================
