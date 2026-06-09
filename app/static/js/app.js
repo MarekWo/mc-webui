@@ -1354,7 +1354,7 @@ function createMessageElement(msg) {
                         <button class="btn btn-outline-secondary btn-msg-action" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Edit message">
                             <i class="bi bi-pencil-square"></i>
                         </button>
-                        ${window.deviceCaps?.supports_raw_resend ? `
+                        ${window.deviceCaps?.supports_raw_resend && typeof msg.id === 'number' ? `
                             <button class="btn btn-outline-secondary btn-msg-action btn-raw-resend" onclick="resendChannelMessageRaw(${msg.id}, this)" title="Resend (rebroadcast same packet so unreached repeaters can pick it up)">
                                 <i class="bi bi-arrow-repeat"></i>
                             </button>
@@ -1464,7 +1464,14 @@ async function sendMessage() {
             // Replace optimistic ID with real DB id so echo WebSocket updates work
             if (data.id) {
                 const wrapper = document.querySelector(`.message-wrapper[data-msg-id="${optimisticId}"]`);
-                if (wrapper) wrapper.dataset.msgId = data.id;
+                if (wrapper) {
+                    wrapper.dataset.msgId = data.id;
+                    // Inject the post-send action buttons (analyzer, raw resend)
+                    // now — refreshMessagesMeta would otherwise skip this message
+                    // until the first echo arrives, which never happens on
+                    // channels with no repeaters in range.
+                    refreshMessagesMeta([data.id]);
+                }
             }
             // Use server timestamp to prevent poll-triggered reload due to clock skew
             if (data.timestamp) {
