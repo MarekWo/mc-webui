@@ -204,6 +204,7 @@ class DeviceManager:
         self._subscriptions = []    # active event subscriptions
         self._channel_secrets = {}  # {channel_idx: secret_hex} for pkt_payload
         self._max_channels = 8     # updated from device_info at connect
+        self._fw_ver_code = None    # FIRMWARE_VER_CODE from DEVICE_INFO; gates feature support
         self._pending_echo = None   # {'timestamp': float, 'channel_idx': int, 'msg_id': int, 'pkt_payload': str|None}
         self._echo_lock = threading.Lock()
         self._send_lock = threading.Lock()  # serialize set-scope + send-channel-message pair (used in PR #4)
@@ -392,13 +393,17 @@ class DeviceManager:
                 self_info=json.dumps(self._self_info, default=str)
             )
 
-            # Fetch device_info for max_channels
+            # Fetch device_info for max_channels and FIRMWARE_VER_CODE.
+            # fw_ver_code gates feature support: CMD_SEND_RAW_PACKET needs ≥13
+            # (companion-v1.16.0), set_path_hash_mode needs ≥10, etc.
             try:
                 dev_info_event = await self.mc.commands.send_device_query()
                 if dev_info_event and hasattr(dev_info_event, 'payload'):
                     dev_info = dev_info_event.payload or {}
                     self._max_channels = dev_info.get('max_channels', 8)
-                    logger.info(f"Device max_channels: {self._max_channels}")
+                    self._fw_ver_code = dev_info.get('fw ver')
+                    logger.info(f"Device max_channels={self._max_channels}, "
+                                f"fw_ver_code={self._fw_ver_code}")
             except Exception as e:
                 logger.warning(f"Could not fetch device_info: {e}")
 
@@ -1734,6 +1739,13 @@ class DeviceManager:
     # the packet via Packet::readFrom and queues it through sendPacket(),
     # bypassing the higher-level sendFlood path (no MSG_SENT event, just OK/ERR).
     _CMD_SEND_RAW_PACKET = 0x41
+    # FIRMWARE_VER_CODE bumped to 13 in companion-v1.16.0 alongside the new
+    # CMD_SEND_RAW_PACKET. 1.14 → 10, 1.15 → 11, 1.16 → 13.
+    _MIN_FW_VER_RAW_RESEND = 13
+
+    @property
+    def supports_raw_resend(self) -> bool:
+        return (self._fw_ver_code or 0) >= self._MIN_FW_VER_RAW_RESEND
 
     def resend_channel_message(self, msg_id: int) -> Dict:
         """Re-broadcast an own channel message verbatim so repeaters can dedupe.
@@ -1747,6 +1759,10 @@ class DeviceManager:
         """
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
+        if not self.supports_raw_resend:
+            return {'success': False,
+                    'error': f'Firmware too old for raw resend (need ≥1.16, '
+                             f'device reports fw_ver_code={self._fw_ver_code})'}
 
         msg = self.db.get_channel_message_by_id(msg_id)
         if not msg:

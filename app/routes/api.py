@@ -626,7 +626,9 @@ def resend_channel_message(msg_id):
         # 500 for unexpected device errors.
         if 'not found' in err.lower():
             return jsonify(result), 404
-        if 'no raw_packet' in err.lower() or 'own messages' in err.lower() or 'not connected' in err.lower():
+        err_l = err.lower()
+        if ('no raw_packet' in err_l or 'own messages' in err_l
+                or 'not connected' in err_l or 'firmware too old' in err_l):
             return jsonify(result), 400
         return jsonify(result), 500
     except Exception as e:
@@ -742,6 +744,18 @@ def get_status():
         }
         if config.use_ble:
             status_data['ble_address'] = config.MC_BLE_ADDRESS
+
+        # Feature capabilities derived from firmware version. UI uses these
+        # to hide/disable controls that the connected device can't support.
+        try:
+            from flask import current_app
+            dm = getattr(current_app, 'device_manager', None)
+            if dm is not None:
+                status_data['fw_ver_code'] = getattr(dm, '_fw_ver_code', None)
+                status_data['supports_raw_resend'] = bool(getattr(dm, 'supports_raw_resend', False))
+        except Exception:
+            pass
+
         return jsonify(status_data), 200
 
     except Exception as e:
