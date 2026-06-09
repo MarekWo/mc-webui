@@ -1046,6 +1046,13 @@ function displayMessages(messages) {
         markChannelAsRead(currentChannelIdx, latestTimestamp);
     }
 
+    // Backfill raw-resend buttons on own messages — handles the case where
+    // displayMessages ran before window.deviceCaps was populated (initial
+    // page load race), and the channel-switch case where createMessageElement
+    // does render the button but we want belt-and-suspenders for any path
+    // (e.g. archive view) that might bypass it.
+    injectRawResendButtonsForVisibleMessages();
+
     // Re-apply filter if active
     clearFilterState();
 }
@@ -1760,10 +1767,40 @@ async function loadStatus() {
                 supports_raw_resend: !!data.supports_raw_resend,
                 fw_ver_code: data.fw_ver_code ?? null,
             };
+            // loadStatus and loadMessages run in parallel at page init, so
+            // any messages rendered before this point missed the deviceCaps
+            // check and have no raw-resend button. Walk visible own bubbles
+            // and inject the button where it's missing.
+            injectRawResendButtonsForVisibleMessages();
         }
     } catch (error) {
         console.error('Error loading status:', error);
         updateStatus('disconnected');
+    }
+}
+
+/**
+ * Walk the messagesList and inject the raw-resend button on any own message
+ * bubble that's missing it (e.g. rendered before window.deviceCaps was set,
+ * or re-rendered by displayMessages on channel switch). Safe to call any
+ * time — does nothing when the device doesn't support raw resend.
+ */
+function injectRawResendButtonsForVisibleMessages() {
+    if (!window.deviceCaps?.supports_raw_resend) return;
+    const container = document.getElementById('messagesList');
+    if (!container) return;
+    const wrappers = container.querySelectorAll('.message-wrapper.own[data-msg-id]');
+    for (const wrapper of wrappers) {
+        const msgId = wrapper.dataset.msgId;
+        if (!msgId || msgId.startsWith('_pending_')) continue;
+        const actionsEl = wrapper.querySelector('.message-actions');
+        if (!actionsEl || actionsEl.querySelector('.btn-raw-resend')) continue;
+        const rawBtn = document.createElement('button');
+        rawBtn.className = 'btn btn-outline-secondary btn-msg-action btn-raw-resend';
+        rawBtn.setAttribute('onclick', `resendChannelMessageRaw(${msgId}, this)`);
+        rawBtn.title = 'Resend (rebroadcast same packet so unreached repeaters can pick it up)';
+        rawBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+        actionsEl.appendChild(rawBtn);
     }
 }
 
