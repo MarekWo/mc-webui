@@ -69,6 +69,12 @@ class Database:
             conn.execute("ALTER TABLE read_status ADD COLUMN is_favorite INTEGER DEFAULT 0")
             logger.info("Migration: added read_status.is_favorite column")
 
+        # Add raw_packet column to channel_messages (raw resend support)
+        cm_columns = {r[1] for r in conn.execute("PRAGMA table_info(channel_messages)").fetchall()}
+        if 'raw_packet' not in cm_columns:
+            conn.execute("ALTER TABLE channel_messages ADD COLUMN raw_packet TEXT")
+            logger.info("Migration: added channel_messages.raw_packet column")
+
     @contextmanager
     def _connect(self):
         """Yield a connection with auto-commit/rollback."""

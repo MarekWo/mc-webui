@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS channel_messages (
     snr                 REAL,
     path_len            INTEGER,
     pkt_payload         TEXT,                               -- for echo matching
+    raw_packet          TEXT,                               -- full hex packet (header+codes+path_len+payload) for raw resend; NULL for received/legacy rows
     raw_json            TEXT,                               -- original JSON line
     created_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
