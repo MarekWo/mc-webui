@@ -1772,9 +1772,16 @@ class DeviceManager:
             if event is None:
                 return {'success': False, 'error': 'No response from device'}
             if event.type == EventType.ERROR:
-                err = getattr(event, 'payload', {}).get('reason') or \
-                      getattr(event, 'payload', {}).get('error') or 'unknown error'
-                logger.warning(f"Resend msg #{msg_id} failed: {err}")
+                payload = getattr(event, 'payload', {}) or {}
+                # meshcore lib's reader.py wraps device ERROR frames as
+                # {error_code: int, code_string: str}; commands.py wraps
+                # client-side failures as {reason: str} or {error: str}.
+                err = payload.get('code_string') or payload.get('reason') or payload.get('error')
+                if not err and payload.get('error_code') is not None:
+                    err = f"error_code={payload['error_code']}"
+                if not err:
+                    err = 'unknown error'
+                logger.warning(f"Resend msg #{msg_id} failed: payload={payload}")
                 return {'success': False, 'error': f'Device rejected resend: {err}'}
             logger.info(f"Resent channel msg #{msg_id} via CMD_SEND_RAW_PACKET ({len(raw_packet)} bytes)")
             return {'success': True, 'message': 'Resent', 'id': msg_id, 'bytes': len(raw_packet)}
