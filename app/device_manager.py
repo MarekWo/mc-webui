@@ -97,6 +97,49 @@ def _compute_pkt_payload(channel_secret_hex, sender_timestamp, txt_type, text, a
     return (chan_hash + mac + ciphertext).hex()
 
 
+# GRP_TXT raw-packet construction for raw resend (CMD_SEND_RAW_PACKET, 0x41).
+# Wire layout (Packet::writeTo in MeshCore Core/src/Packet.cpp):
+#   header(1) [transport_codes(4) if TRANSPORT_FLOOD] path_len(1) payload(N)
+# Packet hash (SHA256 over payload_type||payload) depends only on payload, so
+# resending identical bytes lets repeaters dedupe via Mesh::hasSeen.
+_PAYLOAD_TYPE_GRP_TXT = 0x05
+_ROUTE_TYPE_FLOOD = 0x01
+_ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
+
+
+def _build_grp_txt_raw_packet(pkt_payload_hex, scope_key_hex=None, path_hash_size=1):
+    """Build raw wire bytes for a GRP_TXT packet, suitable for CMD_SEND_RAW_PACKET.
+
+    Replicates the firmware's TransportKey::calcTransportCode when a region
+    scope key is provided (HMAC-SHA256 over payload_type||payload, first 2
+    bytes, with 0x0000 and 0xFFFF reserved per TransportKeyStore.cpp).
+
+    Returns hex string for storage in channel_messages.raw_packet, or None if
+    pkt_payload_hex is missing.
+    """
+    if not pkt_payload_hex:
+        return None
+    payload = bytes.fromhex(pkt_payload_hex)
+    use_transport = bool(scope_key_hex)
+    route_type = _ROUTE_TYPE_TRANSPORT_FLOOD if use_transport else _ROUTE_TYPE_FLOOD
+    header = ((_PAYLOAD_TYPE_GRP_TXT & 0x0F) << 2) | (route_type & 0x03)
+    path_len_byte = ((path_hash_size - 1) & 0x03) << 6  # hash_count = 0 on fresh send
+
+    out = bytes([header])
+    if use_transport:
+        mac_input = bytes([_PAYLOAD_TYPE_GRP_TXT]) + payload
+        digest = hmac_mod.new(bytes.fromhex(scope_key_hex), mac_input, hashlib.sha256).digest()
+        code = digest[:2]
+        if code == b'\x00\x00':
+            code = b'\x01\x00'
+        elif code == b'\xff\xff':
+            code = b'\xfe\xff'
+        out += code + b'\x00\x00'  # transport_codes[1] is always 0 (set by sendFloodScoped)
+    out += bytes([path_len_byte])
+    out += payload
+    return out.hex()
+
+
 def parse_meshcore_uri(uri: str) -> Optional[Dict]:
     """Parse meshcore://contact/add?name=...&public_key=...&type=... URI.
 
@@ -1182,6 +1225,35 @@ class DeviceManager:
         except Exception as e:
             logger.error(f"Error handling RX_LOG_DATA: {e}")
 
+    def _refresh_raw_packet_if_drifted(self, pe: dict, actual_pkt_payload: str) -> None:
+        """Rebuild raw_packet when the echo's pkt_payload doesn't match our ts+0 guess.
+
+        Called from _process_echo under _echo_lock once a sent message is
+        correlated with its echo. If firmware ended up using a different
+        sender_timestamp than our local clock predicted, the raw_packet stored
+        at send time would resend a packet with a different hash than the
+        original. We rebuild from the actual pkt_payload so resend dedupes
+        cleanly at the repeaters.
+        """
+        guess = pe.get('guess_pkt_payload')
+        if guess == actual_pkt_payload:
+            return  # ts+0 guess was correct, nothing to refresh
+        try:
+            scope = self.db.get_channel_scope(pe['channel_idx'])
+        except Exception as e:
+            logger.warning(f"Failed to fetch scope for raw_packet refresh: {e}")
+            return
+        try:
+            raw_packet = _build_grp_txt_raw_packet(
+                actual_pkt_payload,
+                scope_key_hex=scope['key_hex'] if scope else None,
+            )
+            if raw_packet:
+                self.db.update_message_raw_packet(pe['msg_id'], raw_packet)
+                logger.debug(f"Refreshed raw_packet for msg #{pe['msg_id']} (clock-drift correction)")
+        except Exception as e:
+            logger.warning(f"Failed to refresh raw_packet for msg #{pe['msg_id']}: {e}")
+
     def _get_channel_hash(self, channel_idx: int) -> str:
         """Get the expected channel hash byte (hex) for a channel index."""
         import hashlib
@@ -1217,6 +1289,7 @@ class DeviceManager:
                             pe['pkt_payload'] = pkt_payload
                             direction = 'sent'
                             self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
+                            self._refresh_raw_packet_if_drifted(pe, pkt_payload)
                             logger.info(f"Echo: matched pkt_payload with sent msg #{pe['msg_id']}, path={path}")
                         else:
                             logger.debug(f"Echo: pkt_payload doesn't match expected candidates — not our sent msg")
@@ -1228,6 +1301,7 @@ class DeviceManager:
                             pe['pkt_payload'] = pkt_payload
                             direction = 'sent'
                             self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
+                            self._refresh_raw_packet_if_drifted(pe, pkt_payload)
                             logger.info(f"Echo: correlated pkt_payload with sent msg #{pe['msg_id']} (channel hash fallback), path={path}")
                         elif expected_hash and echo_hash and expected_hash != echo_hash:
                             logger.debug(f"Echo: channel hash mismatch (expected {expected_hash}, got {echo_hash}) — not our sent msg")
@@ -1600,15 +1674,31 @@ class DeviceManager:
             # may map this idx to a different (or removed) channel.
             secret = self._refresh_channel_secret(channel_idx)
             expected_payloads = set()
+            guess_pkt_payload = None
             if secret and self.device_name:
                 full_text = f"{self.device_name}: {text}"
                 for dt in range(-3, 4):
                     try:
-                        expected_payloads.add(
-                            _compute_pkt_payload(secret, ts + dt, 0, full_text)
-                        )
+                        candidate = _compute_pkt_payload(secret, ts + dt, 0, full_text)
+                        expected_payloads.add(candidate)
+                        if dt == 0:
+                            guess_pkt_payload = candidate
                     except Exception:
                         pass
+
+            # Capture raw_packet for raw resend. We use the ts+0 guess up front;
+            # if echo correlation later matches a different ±dt candidate, the
+            # _process_echo path rebuilds raw_packet from the actual pkt_payload.
+            if guess_pkt_payload:
+                try:
+                    raw_packet = _build_grp_txt_raw_packet(
+                        guess_pkt_payload,
+                        scope_key_hex=scope['key_hex'] if scope else None,
+                    )
+                    if raw_packet:
+                        self.db.update_message_raw_packet(msg_id, raw_packet)
+                except Exception as e:
+                    logger.warning(f"Failed to build raw_packet for msg #{msg_id}: {e}")
 
             # Register for echo correlation
             with self._echo_lock:
@@ -1618,6 +1708,7 @@ class DeviceManager:
                     'msg_id': msg_id,
                     'pkt_payload': None,
                     'expected_payloads': expected_payloads or None,
+                    'guess_pkt_payload': guess_pkt_payload,
                 }
 
             # Emit SocketIO event so sender's UI updates immediately

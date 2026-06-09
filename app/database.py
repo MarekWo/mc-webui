@@ -993,6 +993,14 @@ class Database:
                 (pkt_payload, msg_id)
             )
 
+    def update_message_raw_packet(self, msg_id: int, raw_packet: str) -> None:
+        """Set raw_packet on a channel message (full wire bytes for raw resend)."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE channel_messages SET raw_packet = ? WHERE id = ?",
+                (raw_packet, msg_id)
+            )
+
     # ================================================================
     # Paths
     # ================================================================
