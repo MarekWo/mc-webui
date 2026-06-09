@@ -1325,15 +1325,26 @@ class DeviceManager:
 
             logger.debug(f"Echo ({direction}): path={path} snr={snr} hash_size={hash_size} pkt={pkt_payload[:16]}...")
 
+            # Carry msg_id when the echo was correlated to a sent message —
+            # the UI uses it to force-refresh that specific badge, bypassing
+            # the "already has route info, skip" guard in refreshMessagesMeta.
+            correlated_msg_id = (self._pending_echo.get('msg_id')
+                                 if self._pending_echo
+                                    and self._pending_echo.get('pkt_payload') == pkt_payload
+                                 else None)
+
             # Emit SocketIO event for real-time UI update
             if self.socketio:
-                self.socketio.emit('echo', {
+                payload = {
                     'pkt_payload': pkt_payload,
                     'path': path,
                     'snr': snr,
                     'direction': direction,
                     'hash_size': hash_size,
-                }, namespace='/chat')
+                }
+                if correlated_msg_id is not None:
+                    payload['msg_id'] = correlated_msg_id
+                self.socketio.emit('echo', payload, namespace='/chat')
 
     def _is_manual_approval_enabled(self) -> bool:
         """Check if manual contact approval is enabled (from database)."""
@@ -1800,6 +1811,23 @@ class DeviceManager:
                 logger.warning(f"Resend msg #{msg_id} failed: payload={payload}")
                 return {'success': False, 'error': f'Device rejected resend: {err}'}
             logger.info(f"Resent channel msg #{msg_id} via CMD_SEND_RAW_PACKET ({len(raw_packet)} bytes)")
+
+            # Re-arm echo correlation so the next 60s of incoming echoes for
+            # this packet hash get classified as 'sent' and carry msg_id in
+            # the SocketIO emit — that's what tells the UI to extend the
+            # repeater list on the existing badge instead of skipping it.
+            stored_pkt_payload = msg.get('pkt_payload')
+            if stored_pkt_payload:
+                with self._echo_lock:
+                    self._pending_echo = {
+                        'timestamp': time.time(),
+                        'channel_idx': msg.get('channel_idx', 0),
+                        'msg_id': msg_id,
+                        'pkt_payload': stored_pkt_payload,
+                        'expected_payloads': {stored_pkt_payload},
+                        'guess_pkt_payload': stored_pkt_payload,
+                    }
+
             return {'success': True, 'message': 'Resent', 'id': msg_id, 'bytes': len(raw_packet)}
         except Exception as e:
             logger.error(f"resend_channel_message #{msg_id} failed: {e}")

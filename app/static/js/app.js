@@ -455,13 +455,22 @@ function connectChatSocket() {
 
     // Real-time echo data — update metadata for specific messages (no full reload)
     let echoRefreshTimer = null;
+    const targetedRefreshIds = new Set();   // msg_ids that must bypass the "already has route" skip
     chatSocket.on('echo', (data) => {
         if (currentArchiveDate) return;  // Don't refresh archive view
+        // When the backend tags the echo with a specific msg_id (e.g. echoes
+        // arriving after a resend), record it so the debounced refresh
+        // re-fetches that message's meta even if its badge is already drawn.
+        if (data && typeof data.msg_id === 'number') {
+            targetedRefreshIds.add(data.msg_id);
+        }
         // Debounce: wait for echoes to settle, then update affected messages
         if (echoRefreshTimer) clearTimeout(echoRefreshTimer);
         echoRefreshTimer = setTimeout(() => {
             echoRefreshTimer = null;
-            refreshMessagesMeta();
+            const ids = Array.from(targetedRefreshIds);
+            targetedRefreshIds.clear();
+            refreshMessagesMeta(ids);
         }, 2000);
     });
 
@@ -1089,22 +1098,28 @@ function appendMessageFromSocket(data) {
  * Refresh metadata (SNR, hops, route, analyzer) for messages missing it.
  * Fetches /api/messages/<id>/meta for each incomplete message, updates DOM in-place.
  */
-async function refreshMessagesMeta() {
+async function refreshMessagesMeta(forceIds = []) {
     const container = document.getElementById('messagesList');
     if (!container) return;
+
+    const forced = new Set((forceIds || []).map(String));
 
     // Find message wrappers that don't have full metadata yet
     const wrappers = container.querySelectorAll('.message-wrapper[data-msg-id]');
     for (const wrapper of wrappers) {
-        // Skip messages that already have meta info with route/analyzer data
-        const metaEl = wrapper.querySelector('.message-meta');
-        const actionsEl = wrapper.querySelector('.message-actions');
-        const hasRoute = metaEl && metaEl.querySelector('.path-info');
-        const hasAnalyzer = actionsEl && actionsEl.querySelector('[title="View in Analyzer"]');
-        if (hasRoute && hasAnalyzer) continue;
-
         const msgId = wrapper.dataset.msgId;
         if (!msgId || msgId.startsWith('_pending_')) continue;
+
+        // Skip messages that already have meta info with route/analyzer data,
+        // unless this msg_id was explicitly forced (e.g. by post-resend echoes
+        // that need the existing badge re-fetched to extend the repeater list).
+        if (!forced.has(msgId)) {
+            const metaEl = wrapper.querySelector('.message-meta');
+            const actionsEl = wrapper.querySelector('.message-actions');
+            const hasRoute = metaEl && metaEl.querySelector('.path-info');
+            const hasAnalyzer = actionsEl && actionsEl.querySelector('[title="View in Analyzer"]');
+            if (hasRoute && hasAnalyzer) continue;
+        }
 
         try {
             const resp = await fetch(`/api/messages/${msgId}/meta`);
