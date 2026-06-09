@@ -1260,6 +1260,7 @@ class DeviceManager:
             raw_packet = _build_grp_txt_raw_packet(
                 actual_pkt_payload,
                 scope_key_hex=scope['key_hex'] if scope else None,
+                path_hash_size=self.path_hash_size,
             )
             if raw_packet:
                 self.db.update_message_raw_packet(pe['msg_id'], raw_packet)
