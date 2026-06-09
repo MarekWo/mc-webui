@@ -753,6 +753,8 @@ def get_status():
             if dm is not None:
                 status_data['fw_ver_code'] = getattr(dm, '_fw_ver_code', None)
                 status_data['supports_raw_resend'] = bool(getattr(dm, 'supports_raw_resend', False))
+                status_data['path_hash_mode'] = getattr(dm, '_path_hash_mode', None)
+                status_data['path_hash_size'] = getattr(dm, 'path_hash_size', None)
         except Exception:
             pass
 
