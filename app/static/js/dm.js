@@ -1293,11 +1293,15 @@ function displayMessages(messages) {
             retryInfo = `<div class="dm-delivery-meta dm-retry-info" data-dm-id="${msg.id || ''}">${initialText}</div>`;
         }
 
-        // Resend button for own messages
+        // Edit-message button for own messages. DM auto-retry handles the
+        // "true resend" case at the protocol level, so this button stays as
+        // a paste-to-composer helper. Renamed/icon-swapped to match the
+        // channel UI's distinction between "edit" (pencil) and the channel-
+        // only raw resend (arrow-repeat).
         const resendBtn = msg.is_own ? `
             <div class="dm-actions">
-                <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Resend">
-                    <i class="bi bi-arrow-repeat"></i>
+                <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Edit message">
+                    <i class="bi bi-pencil-square"></i>
                 </button>
             </div>
         ` : '';

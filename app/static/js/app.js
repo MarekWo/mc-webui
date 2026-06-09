@@ -1237,13 +1237,35 @@ function updateMessageMetaDOM(wrapper, meta) {
         if (meta.packet_hash) {
             const actionsEl = msgDiv.querySelector('.message-actions');
             if (actionsEl && !actionsEl.querySelector('[title="View in Analyzer"]')) {
-                const resendBtn = actionsEl.querySelector('[title="Resend"]');
+                // Anchor analyzer before whichever action button comes first
+                // (post-rename: "Edit message"; legacy renders may still say "Resend")
+                const anchor = actionsEl.querySelector('[title="Edit message"]')
+                    || actionsEl.querySelector('[title="Resend"]')
+                    || actionsEl.querySelector('[title^="Resend"]');
                 const analyzerBtn = document.createElement('button');
                 analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action';
                 analyzerBtn.setAttribute('onclick', `openMessageAnalyzer('${meta.packet_hash}')`);
                 analyzerBtn.title = 'View in Analyzer';
                 analyzerBtn.innerHTML = '<i class="bi bi-clipboard-data"></i>';
-                actionsEl.insertBefore(analyzerBtn, resendBtn);
+                if (anchor) actionsEl.insertBefore(analyzerBtn, anchor);
+                else actionsEl.appendChild(analyzerBtn);
+            }
+        }
+
+        // Add raw-resend button if supported and missing. The initial render
+        // path also injects this, but messages loaded from history before
+        // window.deviceCaps was populated by loadStatus get it here on the
+        // next echo-driven meta refresh.
+        const msgId = wrapper.dataset.msgId;
+        if (window.deviceCaps?.supports_raw_resend && msgId) {
+            const actionsEl = msgDiv.querySelector('.message-actions');
+            if (actionsEl && !actionsEl.querySelector('.btn-raw-resend')) {
+                const rawBtn = document.createElement('button');
+                rawBtn.className = 'btn btn-outline-secondary btn-msg-action btn-raw-resend';
+                rawBtn.setAttribute('onclick', `resendChannelMessageRaw(${msgId}, this)`);
+                rawBtn.title = 'Resend (rebroadcast same packet so unreached repeaters can pick it up)';
+                rawBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+                actionsEl.appendChild(rawBtn);
             }
         }
     }
@@ -1329,9 +1351,14 @@ function createMessageElement(msg) {
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
-                        <button class="btn btn-outline-secondary btn-msg-action" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Resend">
-                            <i class="bi bi-arrow-repeat"></i>
+                        <button class="btn btn-outline-secondary btn-msg-action" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Edit message">
+                            <i class="bi bi-pencil-square"></i>
                         </button>
+                        ${window.deviceCaps?.supports_raw_resend ? `
+                            <button class="btn btn-outline-secondary btn-msg-action btn-raw-resend" onclick="resendChannelMessageRaw(${msg.id}, this)" title="Resend (rebroadcast same packet so unreached repeaters can pick it up)">
+                                <i class="bi bi-arrow-repeat"></i>
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -1541,14 +1568,53 @@ function quoteTo(username, content) {
 }
 
 /**
- * Resend a message (paste content back to input)
- * @param {string} content - Message content to resend
+ * Edit-message helper: paste an own message's content back into the composer
+ * so the user can tweak it before sending. NOT a true resend — every press
+ * produces a new packet hash. The arrow-repeat button next to this one does
+ * the actual raw resend (resendChannelMessageRaw).
+ * @param {string} content - Message content to paste
  */
 function resendMessage(content) {
     const input = document.getElementById('messageInput');
     input.value = content;
     updateCharCounter();
     input.focus();
+}
+
+/**
+ * Raw resend: re-broadcast the exact same packet bytes so repeaters that
+ * already forwarded it dedupe via packet-hash, while unreached repeaters
+ * pick it up. Backend returns 400 if the message has no raw_packet snapshot
+ * (sent before this feature shipped) or if the firmware is too old.
+ *
+ * @param {number} msgId - channel_messages.id
+ * @param {HTMLElement} btn - the clicked button, used to spin the icon during the call
+ */
+async function resendChannelMessageRaw(msgId, btn) {
+    if (!msgId || btn?.dataset.busy === '1') return;
+    const icon = btn?.querySelector('i');
+    if (btn) {
+        btn.dataset.busy = '1';
+        btn.disabled = true;
+        if (icon) icon.classList.add('spin');
+    }
+    try {
+        const resp = await fetch(`/api/messages/${msgId}/resend`, { method: 'POST' });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data.success) {
+            showNotification(`Resent (${data.bytes ?? '?'} B) — waiting for echoes…`, 'info');
+        } else {
+            showNotification(`Resend failed: ${data.error || resp.statusText}`, 'danger');
+        }
+    } catch (err) {
+        showNotification(`Resend network error: ${err.message || err}`, 'danger');
+    } finally {
+        if (btn) {
+            btn.dataset.busy = '0';
+            btn.disabled = false;
+            if (icon) icon.classList.remove('spin');
+        }
+    }
 }
 
 async function ignoreContactFromChat(pubkey) {
@@ -1681,6 +1747,12 @@ async function loadStatus() {
 
         if (data.success) {
             updateStatus(data.connected ? 'connected' : 'disconnected');
+            // Cache device capabilities so the message renderer can decide
+            // whether to expose the raw-resend button (firmware ≥1.16 only).
+            window.deviceCaps = {
+                supports_raw_resend: !!data.supports_raw_resend,
+                fw_ver_code: data.fw_ver_code ?? null,
+            };
         }
     } catch (error) {
         console.error('Error loading status:', error);
