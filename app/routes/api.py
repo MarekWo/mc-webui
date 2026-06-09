@@ -470,6 +470,7 @@ def get_messages():
                     hop_count, path_hash_size, _ = decode_path_len(path_len_raw)
 
                 msg = {
+                    'id': row.get('id'),
                     'sender': row.get('sender', ''),
                     'content': row.get('content', ''),
                     'timestamp': row.get('timestamp', 0),
