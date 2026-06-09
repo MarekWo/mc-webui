@@ -205,6 +205,7 @@ class DeviceManager:
         self._channel_secrets = {}  # {channel_idx: secret_hex} for pkt_payload
         self._max_channels = 8     # updated from device_info at connect
         self._fw_ver_code = None    # FIRMWARE_VER_CODE from DEVICE_INFO; gates feature support
+        self._path_hash_mode = 0    # 0=1B, 1=2B, 2=3B per hop hash; refreshed on set_param
         self._pending_echo = None   # {'timestamp': float, 'channel_idx': int, 'msg_id': int, 'pkt_payload': str|None}
         self._echo_lock = threading.Lock()
         self._send_lock = threading.Lock()  # serialize set-scope + send-channel-message pair (used in PR #4)
@@ -402,8 +403,15 @@ class DeviceManager:
                     dev_info = dev_info_event.payload or {}
                     self._max_channels = dev_info.get('max_channels', 8)
                     self._fw_ver_code = dev_info.get('fw ver')
+                    # path_hash_mode in DEVICE_INFO requires fw_ver_code >= 10
+                    # (companion-v1.14+); older firmware omits it, leaving 0
+                    # (= 1-byte hashes) which is also the legacy default.
+                    phm = dev_info.get('path_hash_mode')
+                    if isinstance(phm, int) and phm >= 0:
+                        self._path_hash_mode = phm
                     logger.info(f"Device max_channels={self._max_channels}, "
-                                f"fw_ver_code={self._fw_ver_code}")
+                                f"fw_ver_code={self._fw_ver_code}, "
+                                f"path_hash_mode={self._path_hash_mode}")
             except Exception as e:
                 logger.warning(f"Could not fetch device_info: {e}")
 
@@ -1710,6 +1718,7 @@ class DeviceManager:
                     raw_packet = _build_grp_txt_raw_packet(
                         guess_pkt_payload,
                         scope_key_hex=scope['key_hex'] if scope else None,
+                        path_hash_size=self.path_hash_size,
                     )
                     if raw_packet:
                         self.db.update_message_raw_packet(msg_id, raw_packet)
@@ -1757,6 +1766,17 @@ class DeviceManager:
     @property
     def supports_raw_resend(self) -> bool:
         return (self._fw_ver_code or 0) >= self._MIN_FW_VER_RAW_RESEND
+
+    @property
+    def path_hash_size(self) -> int:
+        """Bytes per path-hop hash, derived from cached _path_hash_mode.
+
+        Matches firmware's `_prefs.path_hash_mode + 1` used by sendFlood —
+        so raw_packet snapshots have the same path_len byte the firmware
+        would have produced, and post-resend repeater echoes use the same
+        hash size as the original (no mixed 1B/2B entries on the badge).
+        """
+        return max(1, (self._path_hash_mode or 0) + 1)
 
     def resend_channel_message(self, msg_id: int) -> Dict:
         """Re-broadcast an own channel message verbatim so repeaters can dedupe.
@@ -3589,7 +3609,11 @@ class DeviceManager:
                 # Lib's internal default_timeout is 15s; give the outer wrapper
                 # enough headroom so we don't surface a bare TimeoutError when
                 # the device just needs a moment to acknowledge.
-                self.execute(self.mc.commands.set_path_hash_mode(int(value)), timeout=20)
+                phm = int(value)
+                self.execute(self.mc.commands.set_path_hash_mode(phm), timeout=20)
+                # Keep cache in sync so subsequent raw_packet snapshots use
+                # the new hash size without needing a reconnect.
+                self._path_hash_mode = phm
                 return {'success': True, 'message': f'Path hash mode set to: {value}'}
             elif param == 'help':
                 return {'success': True, 'help': 'set'}
