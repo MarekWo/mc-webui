@@ -720,6 +720,42 @@ class DeviceManager:
                 sender = 'Unknown'
                 content = raw_text
 
+            # Self-echo guard for raw resends.
+            #
+            # CMD_SEND_RAW_PACKET (used by /api/messages/<id>/resend) bypasses
+            # firmware's sendFlood() and therefore the _tables->hasSeen()
+            # self-mark. The 160-entry seen-table is RAM-only and rolls over
+            # in minutes on a busy mesh, so a resend issued after the original's
+            # hash got evicted comes back via repeater echo, passes hasSeen
+            # ("not seen"), and is delivered to companion as RESP_CODE_CHANNEL_MSG_RECV.
+            # Without this guard the user sees their own resend pop up as an
+            # incoming message from themselves.
+            #
+            # Compute the same pkt_payload we would have stored for the original
+            # send and ask the DB if we already have an own row with that hash.
+            sender_ts = data.get('sender_timestamp')
+            txt_type = data.get('txt_type', 0)
+            if sender_ts and sender == self.device_name:
+                try:
+                    secret = self._channel_secrets.get(channel_idx)
+                    if secret:
+                        expected_pkt_payload = _compute_pkt_payload(
+                            secret, sender_ts, txt_type, raw_text
+                        )
+                        if self.db.has_own_channel_message_with_pkt_payload(
+                            expected_pkt_payload
+                        ):
+                            logger.info(
+                                f"Self-echo of own ch{channel_idx} msg detected "
+                                f"(sender_ts={sender_ts}) — stale resend "
+                                f"firmware-loopback. Skipping insertion."
+                            )
+                            return
+                except Exception as e:
+                    # Don't let detection failures drop legitimate inbound
+                    # messages — fall through to normal handling.
+                    logger.debug(f"Self-echo check inconclusive: {e}")
+
             # Check if sender is blocked (store but don't emit)
             blocked_names = self.db.get_blocked_contact_names()
             is_blocked = sender in blocked_names

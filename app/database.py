@@ -1001,6 +1001,24 @@ class Database:
                 (raw_packet, msg_id)
             )
 
+    def has_own_channel_message_with_pkt_payload(self, pkt_payload: str) -> bool:
+        """Check if we sent a channel message with the given pkt_payload.
+
+        Used by the CHANNEL_MSG_RECV handler to detect self-echoes of raw
+        resends — when CMD_SEND_RAW_PACKET bypasses firmware's hasSeen mark
+        and an echo from a repeater is processed as a "new" incoming
+        message. Index `idx_cm_pkt` makes the lookup O(log n).
+        """
+        if not pkt_payload:
+            return False
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM channel_messages "
+                "WHERE pkt_payload = ? AND is_own = 1 LIMIT 1",
+                (pkt_payload,)
+            ).fetchone()
+            return row is not None
+
     # ================================================================
     # Paths
     # ================================================================
