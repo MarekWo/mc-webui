@@ -24,6 +24,14 @@ class MemoryLogHandler(logging.Handler):
 
     def emit(self, record):
         try:
+            # Skip werkzeug access logs for log/socket.io endpoints — they form a
+            # feedback loop: each polling request is logged → broadcast wakes the
+            # long-poll → client polls again → another log entry → ...
+            if record.name == 'werkzeug':
+                msg = record.getMessage()
+                if '/socket.io/' in msg or '/api/logs/' in msg:
+                    return
+
             entry = self._format_record(record)
             with self._lock:
                 self._seq += 1
