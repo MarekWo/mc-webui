@@ -1655,7 +1655,19 @@ class DeviceManager:
         try:
             while True:
                 await asyncio.sleep(CHECK_INTERVAL_SEC)
-                if not self._connected or self.config.use_ble:
+                if self.config.use_ble:
+                    continue
+                if not self._connected:
+                    # A previous force_reconnect() attempt (this one or a prior
+                    # iteration's) left us fully disconnected with no other
+                    # retry path active — keep trying instead of going quiet
+                    # forever. _connect()'s self_info-empty case in particular
+                    # returns without raising, so callers must poll _connected
+                    # rather than rely on an exception to know it failed.
+                    logger.warning("Liveness watcher: device not connected — forcing reconnect")
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, self.force_reconnect
+                    )
                     continue
                 stale = time.time() - (self._last_rx_at or 0.0)
                 if self._last_rx_at and stale > STALE_THRESHOLD_SEC:
