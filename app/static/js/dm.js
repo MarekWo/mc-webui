@@ -134,7 +134,6 @@ function connectChatSocket() {
 
     chatSocket.on('connect', () => {
         console.log('DM: SocketIO connected to /chat');
-        updateStatus('connected');
     });
 
     chatSocket.on('disconnect', () => {

@@ -482,11 +482,7 @@ function connectChatSocket() {
 
     // Real-time device status
     chatSocket.on('device_status', (data) => {
-        const statusEl = document.getElementById('connectionStatus');
-        if (statusEl) {
-            statusEl.className = data.connected ? 'connection-status connected' : 'connection-status disconnected';
-            statusEl.textContent = data.connected ? 'Connected' : 'Disconnected';
-        }
+        updateStatus(data.connected ? 'connected' : 'disconnected');
     });
 }
 
@@ -546,6 +542,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initial badge updates (fast, sync-ish)
     updatePendingContactsBadge();
     loadStatus();
+    // Re-poll periodically as a fallback to the 'device_status' socket push —
+    // a missed/late socket event would otherwise leave the badge stale
+    // indefinitely on a long-lived tab.
+    setInterval(loadStatus, 60000);
 
     // Map button in menu
     const mapBtn = document.getElementById('mapBtn');
@@ -972,7 +972,6 @@ async function loadMessages() {
 
         if (data.success) {
             displayMessages(data.messages);
-            updateStatus('connected');
             updateLastRefresh();
             updateRegionIndicator();
         } else {
