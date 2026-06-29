@@ -4,6 +4,16 @@
  */
 
 /**
+ * Detect whether the primary input is touch-based (phones/tablets), as opposed
+ * to a device with a precise pointer (mouse/trackpad). Used to decide whether
+ * Enter should send a message or just insert a newline.
+ * @returns {boolean}
+ */
+function isTouchPrimaryDevice() {
+    return window.matchMedia('(pointer: coarse)').matches;
+}
+
+/**
  * Process message content to handle mentions, URLs, and images
  * @param {string} content - Raw message content
  * @returns {string} - Processed HTML content

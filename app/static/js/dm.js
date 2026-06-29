@@ -437,9 +437,10 @@ function setupEventListeners() {
     if (input) {
         input.addEventListener('input', updateCharCounter);
 
-        // Enter key to send
+        // Enter key to send (desktop only - touch devices send via the button
+        // so an accidental Enter on the virtual keyboard doesn't fire a half-typed message)
         input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !isTouchPrimaryDevice()) {
                 e.preventDefault();
                 sendMessage();
             }

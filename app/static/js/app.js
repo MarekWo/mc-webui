@@ -636,9 +636,11 @@ function setupEventListeners() {
         sendMessage();
     });
 
-    // Handle Enter key (send) vs Shift+Enter (new line)
+    // Handle Enter key (send) vs Shift+Enter (new line) - desktop only.
+    // Touch devices send via the button so an accidental Enter on the virtual
+    // keyboard doesn't fire a half-typed message.
     input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && !e.shiftKey && !isTouchPrimaryDevice()) {
             e.preventDefault();
             sendMessage();
         }
