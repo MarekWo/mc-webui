@@ -820,6 +820,12 @@ main {
     border: 1px solid var(--msg-border);
 }
 
+.dm-content {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+
 /* DM Message Metadata */
 .dm-meta {
     font-size: 0.75rem;
