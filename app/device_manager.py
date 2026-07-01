@@ -20,7 +20,6 @@ from urllib.parse import urlparse, parse_qs
 
 from Crypto.Cipher import AES
 
-LETSMESH_ANALYZER_URL_TEMPLATE = 'https://analyzer.letsmesh.net/packets?packet_hash={packetHash}'
 GRP_TXT_TYPE_BYTE = 0x05
 
 logger = logging.getLogger(__name__)

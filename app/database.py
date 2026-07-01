@@ -558,6 +558,25 @@ class Database:
     # Analyzers (user-configured MeshCore Analyzer services)
     # ================================================================
 
+    LETSMESH_ANALYZER_URL_TEMPLATE = 'https://analyzer.letsmesh.net/packets?packet_hash={packetHash}'
+    LETSMESH_ANALYZER_NAME = 'Letsmesh Analyzer'
+    _LETSMESH_SEED_FLAG = 'analyzer_letsmesh_seeded'
+
+    def seed_default_analyzers(self) -> None:
+        """Seed the Letsmesh Analyzer row on first startup after this feature was added.
+
+        Uses an app_settings flag so the seed happens exactly once per installation.
+        If the user later renames, disables or deletes the row, we won't re-create it.
+        """
+        if self.get_setting(self._LETSMESH_SEED_FLAG) is not None:
+            return
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO analyzers (name, url_template) VALUES (?, ?)",
+                (self.LETSMESH_ANALYZER_NAME, self.LETSMESH_ANALYZER_URL_TEMPLATE)
+            )
+        self.set_setting(self._LETSMESH_SEED_FLAG, '1')
+
     def create_analyzer(self, name: str, url_template: str) -> int:
         """Insert a new analyzer. Raises sqlite3.IntegrityError on duplicate name."""
         with self._connect() as conn:

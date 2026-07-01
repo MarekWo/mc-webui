@@ -3160,7 +3160,6 @@ async function clearDefaultRegion() {
 const ANALYZER_PLACEHOLDER = '{packetHash}';
 window.analyzerCache = window.analyzerCache || {
     analyzers: [],
-    letsmesh_url_template: 'https://analyzer.letsmesh.net/packets?packet_hash={packetHash}',
     loaded: false,
 };
 
@@ -3185,9 +3184,6 @@ async function loadAnalyzers() {
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || 'Failed');
         window.analyzerCache.analyzers = data.analyzers || [];
-        if (data.letsmesh_url_template) {
-            window.analyzerCache.letsmesh_url_template = data.letsmesh_url_template;
-        }
         window.analyzerCache.loaded = true;
         renderAnalyzersList();
     } catch (e) {
@@ -3204,26 +3200,15 @@ function renderAnalyzersList() {
     if (!listEl) return;
     const analyzers = window.analyzerCache.analyzers || [];
 
-    const builtinRow = `
-        <div class="list-group-item d-flex align-items-center gap-2 py-2">
-            <span class="text-muted" title="Built-in default — not configurable">
-                <i class="bi bi-star"></i>
-            </span>
-            <div class="flex-grow-1" style="min-width: 0;">
-                <div><strong>Letsmesh Analyzer</strong> <span class="badge bg-light text-muted">built-in</span></div>
-                <code class="small text-muted text-break" style="word-break: break-all;">${escapeHtml(window.analyzerCache.letsmesh_url_template)}</code>
-            </div>
-        </div>
-    `;
-
     if (analyzers.length === 0) {
-        listEl.innerHTML = builtinRow +
-            '<div class="text-center text-muted small py-3">No custom analyzers. Click "Add analyzer" to add one.</div>';
+        listEl.innerHTML =
+            '<div class="text-center text-muted small py-3">No analyzers configured. Click "Add analyzer" to add one.</div>';
         return;
     }
 
     const rows = analyzers.map(a => {
         const disabled = !!a.is_disabled;
+        const enabled = !disabled;
         const isDefault = !!a.is_default;
         const starIcon = isDefault ? 'bi-star-fill text-warning' : 'bi-star';
         const disabledBadge = disabled
@@ -3241,10 +3226,10 @@ function renderAnalyzersList() {
                     <div class="${nameClass}"><strong>${safeName}</strong>${disabledBadge}</div>
                     <code class="small text-muted text-break" style="word-break: break-all;">${escapeHtml(a.url_template)}</code>
                 </div>
-                <div class="form-check form-switch mb-0" title="Disabled">
+                <div class="form-check form-switch mb-0" title="${enabled ? 'Enabled' : 'Disabled'}">
                     <input class="form-check-input" type="checkbox"
-                           id="analyzerDisabled_${a.id}" ${disabled ? 'checked' : ''}
-                           onchange="toggleAnalyzerDisabled(${a.id}, this.checked)">
+                           id="analyzerEnabled_${a.id}" ${enabled ? 'checked' : ''}
+                           onchange="toggleAnalyzerDisabled(${a.id}, !this.checked)">
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary"
                         onclick="openAnalyzerEditModal(${a.id})" title="Edit">
@@ -3258,7 +3243,7 @@ function renderAnalyzersList() {
         `;
     }).join('');
 
-    listEl.innerHTML = builtinRow + rows;
+    listEl.innerHTML = rows;
 }
 
 function openAnalyzerEditModal(id) {
@@ -3268,7 +3253,7 @@ function openAnalyzerEditModal(id) {
     const idEl = document.getElementById('analyzerEditId');
     const nameEl = document.getElementById('analyzerEditName');
     const urlEl = document.getElementById('analyzerEditUrl');
-    const disabledEl = document.getElementById('analyzerEditDisabled');
+    const enabledEl = document.getElementById('analyzerEditEnabled');
     const errorEl = document.getElementById('analyzerEditError');
 
     errorEl.classList.add('d-none');
@@ -3281,13 +3266,13 @@ function openAnalyzerEditModal(id) {
         idEl.value = String(a.id);
         nameEl.value = a.name || '';
         urlEl.value = a.url_template || '';
-        disabledEl.checked = !!a.is_disabled;
+        enabledEl.checked = !a.is_disabled;
     } else {
         titleEl.textContent = 'Add analyzer';
         idEl.value = '';
         nameEl.value = '';
         urlEl.value = '';
-        disabledEl.checked = false;
+        enabledEl.checked = true;
     }
 
     modalEl.addEventListener('shown.bs.modal', _bumpAnalyzerBackdrop, { once: true });
@@ -3298,13 +3283,13 @@ async function saveAnalyzerFromForm() {
     const idEl = document.getElementById('analyzerEditId');
     const nameEl = document.getElementById('analyzerEditName');
     const urlEl = document.getElementById('analyzerEditUrl');
-    const disabledEl = document.getElementById('analyzerEditDisabled');
+    const enabledEl = document.getElementById('analyzerEditEnabled');
     const errorEl = document.getElementById('analyzerEditError');
 
     const id = idEl.value ? parseInt(idEl.value, 10) : null;
     const name = (nameEl.value || '').trim();
     const url_template = (urlEl.value || '').trim();
-    const is_disabled = !!disabledEl.checked;
+    const is_disabled = !enabledEl.checked;
 
     if (!name) {
         showAnalyzerFormError('Name is required');
@@ -3428,11 +3413,10 @@ async function openMessageAnalyzer(packetHash) {
     await ensureAnalyzersLoaded();
 
     const enabled = getEnabledCustomAnalyzers();
-    const letsmeshTpl = window.analyzerCache.letsmesh_url_template;
 
-    // No custom analyzers — open Letsmesh directly.
+    // Nothing enabled — user has deliberately turned everything off or deleted it.
     if (enabled.length === 0) {
-        window.open(substituteAnalyzerUrl(letsmeshTpl, packetHash), 'meshcore-analyzer');
+        showNotification('No analyzer configured. Add one in Settings → Analyzer.', 'warning');
         return;
     }
 
@@ -3443,7 +3427,13 @@ async function openMessageAnalyzer(packetHash) {
         return;
     }
 
-    // Otherwise — show chooser modal (Letsmesh + enabled customs sorted by name).
+    // Only one enabled analyzer — open it directly, no need to ask.
+    if (enabled.length === 1) {
+        window.open(substituteAnalyzerUrl(enabled[0].url_template, packetHash), 'meshcore-analyzer');
+        return;
+    }
+
+    // Multiple enabled, no default — show chooser.
     openAnalyzerChooser(packetHash, enabled);
 }
 
@@ -3452,26 +3442,17 @@ function openAnalyzerChooser(packetHash, enabled) {
     const listEl = document.getElementById('analyzerChooserList');
     if (!modalEl || !listEl) return;
 
-    const letsmeshTpl = window.analyzerCache.letsmesh_url_template;
     const sorted = (enabled || []).slice().sort((a, b) =>
         (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
     );
 
-    const builtinItem = `
-        <button type="button" class="list-group-item list-group-item-action"
-                data-url="${escapeHtml(substituteAnalyzerUrl(letsmeshTpl, packetHash))}">
-            <i class="bi bi-clipboard-data"></i> Letsmesh Analyzer
-            <span class="badge bg-light text-muted ms-1">built-in</span>
-        </button>
-    `;
-    const customItems = sorted.map(a => `
+    listEl.innerHTML = sorted.map(a => `
         <button type="button" class="list-group-item list-group-item-action"
                 data-url="${escapeHtml(substituteAnalyzerUrl(a.url_template, packetHash))}">
             <i class="bi bi-clipboard-data"></i> ${escapeHtml(a.name)}
         </button>
     `).join('');
 
-    listEl.innerHTML = builtinItem + customItems;
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
     listEl.querySelectorAll('button[data-url]').forEach(btn => {

@@ -253,6 +253,9 @@ def create_app():
     db = Database(db_path)
     app.db = db
 
+    # One-time seed: add Letsmesh Analyzer row so it behaves like any other entry.
+    db.seed_default_analyzers()
+
     # Migrate settings from .webui_settings.json to DB (one-time)
     settings_file = Path(config.MC_CONFIG_DIR) / ".webui_settings.json"
     if settings_file.exists() and db.get_setting('manual_add_contacts') is None:

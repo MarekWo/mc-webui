@@ -20,7 +20,7 @@ from flask import Blueprint, jsonify, request, send_file, current_app
 from app.meshcore import cli, parser
 from app.meshcore.regions import derive_scope_key_hex, is_valid_region_name
 from app.config import config, runtime_config
-from app.device_manager import decode_path_len, LETSMESH_ANALYZER_URL_TEMPLATE
+from app.device_manager import decode_path_len
 from app.archiver import manager as archive_manager
 from app.contacts_cache import get_all_names, get_all_contacts
 
@@ -4257,7 +4257,7 @@ def _validate_analyzer_url_template(url_template: str):
 
 @api_bp.route('/analyzers', methods=['GET'])
 def list_analyzers_api():
-    """List user-configured analyzers and the built-in Letsmesh URL template."""
+    """List user-configured analyzers."""
     try:
         db = _get_db()
         if not db:
@@ -4265,7 +4265,6 @@ def list_analyzers_api():
         return jsonify({
             'success': True,
             'analyzers': db.list_analyzers(),
-            'letsmesh_url_template': LETSMESH_ANALYZER_URL_TEMPLATE,
         }), 200
     except Exception as e:
         logger.error(f"Error listing analyzers: {e}")
