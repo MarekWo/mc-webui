@@ -155,9 +155,18 @@ Archives are created automatically at midnight (00:00 UTC) each day. The live vi
 
 **Message limit:** 140 bytes (LoRa limitation)
 
+**On phones and tablets:** pressing Enter inserts a new line instead of sending — tap the **Send** button to publish. This prevents a mistapped Enter on the on-screen keyboard from firing off a half-typed message. On desktop, Enter still sends.
+
 ### Replying to Users
 
 Click the reply button on any message to insert `@[UserName]` into the text field, then type your reply.
+
+### Message Actions
+
+Your own messages carry a small row of action buttons:
+
+- **Edit message** (pencil icon) - Copies the message text back into the composer so you can tweak it and send it again as a new message.
+- **Resend** (repeat-arrow icon) - Re-broadcasts the *same* packet. Repeaters that already forwarded the original ignore the duplicate, but nodes that never heard it can still pick it up — so the resend extends the repeater list on the existing message's badge instead of creating a new message. Handy right after sending when the delivery badge shows only partial coverage. This button only appears when your device runs companion firmware **1.16 or newer**; on older firmware it is hidden.
 
 ---
 
@@ -209,7 +218,7 @@ Access the Direct Messages feature:
    - Use the (x) button to clear the search and select a different contact
 2. Type your message in the input field (max 140 bytes, same as channels)
 3. Use the emoji picker button to insert emojis
-4. Press Enter or click Send
+4. Press Enter or click Send (on phones and tablets, Enter inserts a new line — tap Send to deliver)
 5. Click "Back" button to return to the main chat view
 
 ### Persistence
@@ -679,16 +688,17 @@ Manage MeshCore region scopes (also called flood scopes). See [Region Scopes](#r
 
 ### Analyzer Tab
 
-Configure MeshCore Analyzer services used by the chart icon under each group-chat message. The icon resolves at click time depending on what you configure here:
+Configure MeshCore Analyzer services used by the chart icon under each group-chat message. The **Letsmesh Analyzer** is added for you on first startup as an ordinary entry — you can rename, disable, star, or delete it just like any service you add yourself. The chart icon resolves at click time depending on what you have enabled here:
 
-- **No custom analyzers (or all disabled)** → opens the built-in Letsmesh analyzer
-- **One default analyzer set** → opens that service directly
-- **Multiple enabled analyzers, no default** → opens a chooser modal
+- **Nothing enabled** (everything disabled or deleted) → a toast tells you "No analyzer configured" and points you back to this tab
+- **A default is set** → opens that service directly
+- **Exactly one enabled, no default** → opens it directly
+- **Several enabled, no default** → opens a chooser modal so you can pick
 
 Each row supports:
 
+- **Enabled switch** — the switch reads as **Enabled** when it is on (checked = active); flip it off to keep a service configured but out of the picker
 - **Star toggle** — mark this analyzer as the default. Only one default is allowed
-- **Enabled switch** — temporarily disable a service without deleting it
 - **Edit / Delete** buttons
 
 When adding or editing, the URL template must contain the placeholder `{packetHash}` — it is substituted with the message's packet hash at click time.

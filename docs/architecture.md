@@ -80,7 +80,8 @@ The `DeviceManager` handles the connection to the MeshCore device via a direct s
 - **Per-channel region scope** - Before each channel send, the channel's mapped region scope key (16 bytes) is pushed to the firmware via `CMD_SET_FLOOD_SCOPE_KEY` (54). The scope-set + send pair is serialised under a `_send_lock` so concurrent sends on different channels can't swap each other's scope. Channels without a mapping get an all-zero key so a previously-set scope doesn't leak across channels
 - **Per-send channel-secret refresh** - Channel indices on the device compact down after a deletion, so the boot-time `_load_channel_secrets()` cache can drift. `send_channel_message` calls `_refresh_channel_secret(idx)` first (one extra `get_channel(idx)` round-trip) to fetch the current secret straight from firmware, update the in-memory cache and DB if they had drifted, and use it for the `pkt_payload` echo correlation
 - **Liveness telemetry** - Tracks `_last_rx_at` (bumped on every `RX_LOG_DATA` event) and `_consecutive_stats_failures` (incremented on `get_stats_*` / `get_bat` exceptions, cleared on success). Surfaced via `/health/strict` for the external watchdog
-- **TCP self-heal** - A `_liveness_watcher_loop` task on the DM event loop calls `force_reconnect()` when no RX event has arrived for `HEALTH_STRICT_MAX_RX_STALE_SEC` (5 min). `send_channel_message` also detects empty-string `concurrent.futures.TimeoutError` from `set_flood_scope_key` (the symptom of a degraded long-lived TCP) and runs an in-place reconnect + one retry before failing. A 30 s cooldown and `_reconnect_lock` prevent churn; `_intentional_disconnect` keeps the DISCONNECTED handler from racing the reconnect
+- **TCP self-heal** - A `_liveness_watcher_loop` task on the DM event loop calls `force_reconnect()` when no RX event has arrived for `HEALTH_STRICT_MAX_RX_STALE_SEC` (5 min). `send_channel_message` also detects empty-string `concurrent.futures.TimeoutError` from `set_flood_scope_key` (the symptom of a degraded long-lived TCP) and runs an in-place reconnect + one retry before failing. A 30 s cooldown and `_reconnect_lock` prevent churn; `_intentional_disconnect` keeps the DISCONNECTED handler from racing the reconnect. The watcher keeps re-checking staleness even after `_connected` has gone False, so a single failed reconnect (e.g. an empty `self_info`) no longer silently stops all further healing for non-BLE transports
+- **Raw packet resend** - Own channel sends capture a full hex wire snapshot (`header + transport_codes + path_len + encrypted payload`) into `channel_messages.raw_packet`, rebuilt from the actual `pkt_payload` once echo correlation resolves it and honouring the device's cached `path_hash_mode`. `resend_channel_message()` re-broadcasts that snapshot verbatim via `CMD_SEND_RAW_PACKET` (0x41) so repeaters dedupe by packet hash (`Mesh::hasSeen`) and only previously-unreached nodes pick it up. Requires companion firmware ≥1.16 (`fw_ver_code` ≥ 13), gated via the cached `supports_raw_resend` flag captured from the connect-time `DEVICE_INFO` event. Self-echoes of a resend (the firmware seen-table can evict the hash within minutes on a busy mesh) are detected by recomputing the expected `pkt_payload` and matching an existing own row, so a resend never reappears as an inbound message from yourself
 
 ---
 
@@ -143,7 +144,7 @@ Key tables:
 - `read_status` - Per-channel read counters and favorites (`is_favorite` column; used to pin channels in the sidebar/dropdown sort order)
 - `analyzers` - User-configured MeshCore Analyzer services (`name`, `url_template` with `{packetHash}` placeholder, `is_default`, `is_disabled`; partial unique index enforces a single default)
 
-`direct_messages` gained a `delivery_path_hash_size` column (auto-migrated, defaults to 1) so reloaded DM bubbles render multi-byte routes correctly. The `path_len` column on `channel_messages`, `direct_messages`, and `paths` now stores the raw firmware byte (masked hop count plus path_hash_mode in the upper bits), recombined at write time via `pack_path_len()`; the API endpoints decode it back into `path_hash_size` on read.
+`direct_messages` gained a `delivery_path_hash_size` column (auto-migrated, defaults to 1) so reloaded DM bubbles render multi-byte routes correctly. The `path_len` column on `channel_messages`, `direct_messages`, and `paths` now stores the raw firmware byte (masked hop count plus path_hash_mode in the upper bits), recombined at write time via `pack_path_len()`; the API endpoints decode it back into `path_hash_size` on read. `channel_messages` also gained a `raw_packet` column (the full hex wire snapshot captured at send time, indexed by `idx_cm_pkt` on `pkt_payload` for fast self-echo lookups) that powers raw resend; it is `NULL` for received and pre-migration rows, so the resend button stays disabled there.
 
 The use of SQLite allows for fast queries, reliable data storage, full-text search, and complex filtering (such as contact ignoring/blocking) without the risk of file corruption inherent to flat JSON files.
 
@@ -169,6 +170,7 @@ The channels API reads from the `channels` DB table rather than iterating device
 | POST | `/api/messages` | Send message (`{text, channel_idx, reply_to?}`) |
 | GET | `/api/messages/updates` | Check for new messages (smart refresh) |
 | GET | `/api/messages/<id>/meta` | Get message metadata (echoes, paths) |
+| POST | `/api/messages/<id>/resend` | Re-broadcast an own channel message verbatim via `CMD_SEND_RAW_PACKET` (same packet hash, so unreached repeaters pick it up). 400 for not-own / missing `raw_packet` snapshot / disconnected / firmware < 1.16, 404 for unknown id |
 | GET | `/api/messages/search` | Full-text search (`?q=`, `?channel_idx=`, `?limit=`) |
 
 ### Contacts
@@ -249,7 +251,7 @@ The `PUT /api/channels/<index>/scope` endpoint accepts any `index` in `[0, devic
 | POST | `/api/analyzers/<id>/default` | Mark as default (enforced single-default via partial unique index) |
 | DELETE | `/api/analyzers/default` | Clear the default analyzer |
 
-The backend no longer ships a pre-built `analyzer_url` per message — channel-message payloads include `packet_hash` instead, and the frontend substitutes `{packetHash}` in the chosen URL template at click time.
+The backend no longer ships a pre-built `analyzer_url` per message — channel-message payloads include `packet_hash` instead, and the frontend substitutes `{packetHash}` in the chosen URL template at click time. The Letsmesh Analyzer is not a hardcoded pseudo-row: `seed_default_analyzers()` inserts it as an ordinary `analyzers` row exactly once per install (guarded by the `analyzer_letsmesh_seeded` flag in `app_settings`), so it can be renamed, disabled, or deleted like any user entry. The row stores `is_disabled` (not `is_enabled`); the UI inverts it on read/write so the switch reads "Enabled", which is why no data migration was needed.
 
 ### Direct Messages
 
@@ -266,7 +268,7 @@ The backend no longer ships a pre-built `analyzer_url` per message — channel-m
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/status` | Connection status (device name, transport type, serial port / BLE address) |
+| GET | `/api/status` | Connection status (device name, transport type, serial port / BLE address). When connected also surfaces `fw_ver_code`, `supports_raw_resend`, `path_hash_mode`, and `path_hash_size` so the frontend can show/hide the raw-resend button and verify the resend snapshot's hash size |
 | GET | `/api/device/info` | Device information |
 | GET | `/api/device/stats` | Device statistics |
 | GET | `/api/device/settings` | Get device settings |
@@ -361,6 +363,8 @@ Real-time log streaming via Socket.IO.
 
 **Server → Client:**
 - `log_line` - New log line
+
+The `MemoryLogHandler` filters werkzeug access-log records for `/socket.io/` and `/api/logs/` paths before buffering/broadcasting. With `async_mode='threading'` Socket.IO falls back to long-polling; without this filter every poll is logged, the broadcast wakes the pending poll, the client re-polls immediately, and an open System Log tab spins at 10+ requests/sec.
 
 ---
 

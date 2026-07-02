@@ -6,10 +6,31 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ---
 
-## Unreleased (since fd2b3d0)
+## Unreleased (since debb711)
+
+_Nothing yet — the next change to land on `dev` goes here._
+
+---
+
+## 2026-07-02
 
 ### New features
 
+- **Explicit Send on phones and tablets.** On touch devices, pressing Enter now inserts a new line instead of sending — you tap the **Send** button to publish. This stops a mistapped Enter on the on-screen keyboard from firing off a half-typed message. Desktop keeps Enter-to-send. Applies to both group chat and direct messages.
+- **Manage the Letsmesh analyzer like any other entry.** The built-in Letsmesh Analyzer is now a normal row in **Settings → Analyzer** — rename it, disable it, star it as the default, or delete it, just like a service you add yourself. The chart icon under a message resolves at click time: nothing enabled shows a "No analyzer configured" hint, a starred default (or a single enabled service) opens directly, and several enabled without a default show a chooser. The row's switch now reads **Enabled** when it's on.
+
+### Reliability & polish
+
+- **Multi-line direct messages keep their line breaks.** A DM you sent across several lines showed correctly to the recipient but collapsed to a single line in your own copy. Your own bubble now preserves the line breaks too.
+
+---
+
+## 2026-06-26
+
+### New features
+
+- **Resend a channel message (same packet).** Your own group-chat messages now carry a repeat-arrow button that re-broadcasts the *exact same* packet. Repeaters that already forwarded it stay quiet, but nodes that never heard it can still pick it up — so a resend fills in coverage on the existing message's delivery badge instead of posting a duplicate. Requires companion firmware 1.16 or newer; the button is hidden on older devices.
+- **Clearer "Edit message" button.** The button that copies a message back into the composer for hand-editing used to be mislabeled "Resend." It's now a pencil **Edit message** button on both channel and direct messages, clearly separate from the real Resend above.
 - **Custom Analyzer services.** A new **Settings → Analyzer** tab lets you register your own MeshCore Analyzer services. Each entry has an enable/disable switch, a "star" toggle to mark it as the default, and an Edit/Delete pair. The chart icon under each group-chat message now resolves at click time: built-in Letsmesh if you haven't configured anything, the default service when one is set, or a chooser modal when several are enabled. URL templates use `{packetHash}` as a placeholder.
 - **Apply a saved path straight from Contact Info.** Each entry in the **Paths** list inside the DM Contact Info modal gained an upload-arrow button. Click it to push that configured path to the device as the active route — no more switching to the console to run `change_path`.
 - **Database "Optimize now" button + live size.** The Backup modal now shows the current DB size and exposes an **Optimize now** button that runs SQLite `VACUUM` on demand. Useful after a big retention pass when you want to reclaim space without waiting for the nightly job.
@@ -18,6 +39,9 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ### Reliability & polish
 
+- **System Log tab no longer floods the server.** Opening the System Log could trigger a feedback loop that hammered the server with 10+ requests a second; the log noise that caused it is now filtered out, so the tab stays quiet.
+- **The connection badge stops lying about device state.** The status badge could flip back to "Connected" on a routine message refresh even while the device was actually disconnected. Device status is now driven only by real device connectivity, with a 60-second fallback check so a long-open tab stays accurate.
+- **Automatic recovery after a failed reconnect.** A reconnect that failed quietly used to leave the app stuck "disconnected" until the container was restarted by hand. The background liveness watcher now keeps retrying instead of giving up after a single failure.
 - **No more 10–15 s freezes on app load.** The realtime channel used a transport that the dev server couldn't upgrade; we now stay on long-polling, which keeps real-time pushes working without the reconnect loop.
 - **Channel list stays complete when the device is slow.** Channels are now read from the local cache rather than re-queried slot-by-slot, so a brief device stall no longer leaves you with just the Public channel after a refresh.
 - **Sending on a re-used channel slot now works after a deletion.** When you delete a channel, the device compacts the remaining slots — until now the app kept using the old keys for that slot. We refresh the secret from the device just before each send.
