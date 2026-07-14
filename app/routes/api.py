@@ -4391,6 +4391,233 @@ def set_default_analyzer_api(analyzer_id):
 
 
 # =============================================================================
+# Observer (MQTT packet capture) — Settings > Observer tab
+# =============================================================================
+
+def _get_observer():
+    """Get ObserverManager instance from app context."""
+    return getattr(current_app, 'observer_manager', None)
+
+
+def _observer_reload():
+    """Apply config changes without an app restart (runs on a daemon thread)."""
+    obs = _get_observer()
+    if obs:
+        obs.reload()
+
+
+def _observer_broker_view(row):
+    """Broker row for API responses — never exposes the stored password."""
+    return {
+        'id': row['id'],
+        'name': row['name'],
+        'host': row['host'],
+        'port': row['port'],
+        'username': row.get('username', ''),
+        'has_password': bool(row.get('password')),
+        'use_tls': bool(row.get('use_tls')),
+        'tls_verify': bool(row.get('tls_verify', 1)),
+        'is_disabled': bool(row.get('is_disabled')),
+    }
+
+
+def _validate_observer_broker_fields(data, partial=False):
+    """Return (fields, error). Validates and normalizes broker fields from JSON."""
+    fields = {}
+    if 'name' in data or not partial:
+        name = (data.get('name') or '').strip()
+        if not name:
+            return None, 'Name is required'
+        fields['name'] = name
+    if 'host' in data or not partial:
+        host = (data.get('host') or '').strip()
+        if not host:
+            return None, 'Host is required'
+        fields['host'] = host
+    if 'port' in data or not partial:
+        try:
+            port = int(data.get('port') or 1883)
+        except (TypeError, ValueError):
+            return None, 'Port must be a number'
+        if not 1 <= port <= 65535:
+            return None, 'Port must be between 1 and 65535'
+        fields['port'] = port
+    if 'username' in data:
+        fields['username'] = (data.get('username') or '').strip()
+    if 'password' in data:
+        # Present key with empty string clears the password; absent key
+        # leaves it unchanged (the API never returns passwords, so the
+        # edit form can't round-trip them).
+        fields['password'] = data.get('password') or ''
+    for flag in ('use_tls', 'tls_verify', 'is_disabled'):
+        if flag in data:
+            fields[flag] = bool(data.get(flag))
+    return fields, None
+
+
+@api_bp.route('/observer/settings', methods=['GET'])
+def get_observer_settings_api():
+    """Get observer settings {enabled, iata, advert_interval_hours}."""
+    try:
+        obs = _get_observer()
+        if not obs:
+            return jsonify({'success': False, 'error': 'Observer not available'}), 500
+        return jsonify({'success': True, 'settings': obs.get_settings()}), 200
+    except Exception as e:
+        logger.error(f"Error getting observer settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/observer/settings', methods=['POST'])
+def save_observer_settings_api():
+    """Update observer settings (partial). Body: {enabled?, iata?, advert_interval_hours?}."""
+    try:
+        obs = _get_observer()
+        db = _get_db()
+        if not obs or not db:
+            return jsonify({'success': False, 'error': 'Observer not available'}), 500
+
+        data = request.get_json() or {}
+        settings = obs.get_settings()
+
+        if 'enabled' in data:
+            settings['enabled'] = bool(data.get('enabled'))
+        if 'iata' in data:
+            iata = (data.get('iata') or '').strip().lower()
+            if iata and not re.fullmatch(r'[a-z]{3}', iata):
+                return jsonify({'success': False,
+                                'error': 'IATA must be empty or exactly 3 letters'}), 400
+            settings['iata'] = iata
+        if 'advert_interval_hours' in data:
+            try:
+                hours = int(data.get('advert_interval_hours') or 0)
+            except (TypeError, ValueError):
+                return jsonify({'success': False,
+                                'error': 'Advert interval must be a number'}), 400
+            if not 0 <= hours <= 8760:
+                return jsonify({'success': False,
+                                'error': 'Advert interval must be 0-8760 hours'}), 400
+            settings['advert_interval_hours'] = hours
+
+        db.set_setting_json(obs.SETTINGS_KEY, settings)
+        _observer_reload()
+        return jsonify({'success': True, 'settings': settings}), 200
+    except Exception as e:
+        logger.error(f"Error saving observer settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/observer/brokers', methods=['GET'])
+def list_observer_brokers_api():
+    """List configured MQTT brokers (passwords omitted)."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        brokers = [_observer_broker_view(r) for r in db.list_observer_brokers()]
+        return jsonify({'success': True, 'brokers': brokers}), 200
+    except Exception as e:
+        logger.error(f"Error listing observer brokers: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/observer/brokers', methods=['POST'])
+def create_observer_broker_api():
+    """Create a broker. Body: {name, host, port?, username?, password?, use_tls?, tls_verify?}."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        data = request.get_json() or {}
+        fields, err = _validate_observer_broker_fields(data, partial=False)
+        if err:
+            return jsonify({'success': False, 'error': err}), 400
+
+        import sqlite3
+        try:
+            bid = db.create_observer_broker(
+                fields['name'], fields['host'], fields['port'],
+                username=fields.get('username', ''),
+                password=fields.get('password', ''),
+                use_tls=fields.get('use_tls', False),
+                tls_verify=fields.get('tls_verify', True))
+        except sqlite3.IntegrityError:
+            return jsonify({'success': False,
+                            'error': f'Broker "{fields["name"]}" already exists'}), 409
+
+        _observer_reload()
+        return jsonify({'success': True,
+                        'broker': _observer_broker_view(db.get_observer_broker(bid))}), 201
+    except Exception as e:
+        logger.error(f"Error creating observer broker: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/observer/brokers/<int:broker_id>', methods=['PUT'])
+def update_observer_broker_api(broker_id):
+    """Update a broker (partial). Omitted password stays unchanged, '' clears it."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        if db.get_observer_broker(broker_id) is None:
+            return jsonify({'success': False, 'error': 'Broker not found'}), 404
+
+        data = request.get_json() or {}
+        fields, err = _validate_observer_broker_fields(data, partial=True)
+        if err:
+            return jsonify({'success': False, 'error': err}), 400
+
+        import sqlite3
+        try:
+            db.update_observer_broker(broker_id, **fields)
+        except sqlite3.IntegrityError:
+            return jsonify({'success': False,
+                            'error': f'Broker "{fields.get("name")}" already exists'}), 409
+
+        _observer_reload()
+        return jsonify({'success': True,
+                        'broker': _observer_broker_view(db.get_observer_broker(broker_id))}), 200
+    except Exception as e:
+        logger.error(f"Error updating observer broker: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/observer/brokers/<int:broker_id>', methods=['DELETE'])
+def delete_observer_broker_api(broker_id):
+    """Delete a broker."""
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        if db.get_observer_broker(broker_id) is None:
+            return jsonify({'success': False, 'error': 'Broker not found'}), 404
+
+        db.delete_observer_broker(broker_id)
+        _observer_reload()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"Error deleting observer broker: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/observer/status', methods=['GET'])
+def observer_status_api():
+    """Full observer status: settings, broker rows with live connection state, counters."""
+    try:
+        obs = _get_observer()
+        if not obs:
+            return jsonify({'success': False, 'error': 'Observer not available'}), 500
+        return jsonify({'success': True, 'status': obs.get_status()}), 200
+    except Exception as e:
+        logger.error(f"Error getting observer status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# =============================================================================
 # Message Retention Settings
 # =============================================================================
 
