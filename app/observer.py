@@ -311,6 +311,7 @@ class ObserverManager:
     def _stop_clients(self, clients, publish_offline=True):
         for ci in clients:
             client = ci['client']
+            ci['stopping'] = True  # silence the disconnect callback for this teardown
             try:
                 if publish_offline and client.is_connected():
                     msg = client.publish(ci['status_topic'],
@@ -458,6 +459,8 @@ class ObserverManager:
     def _on_disconnect_cb(self, client, userdata, disconnect_flags, reason_code,
                           properties=None):
         userdata['connected'] = False
+        if userdata.get('stopping'):
+            return  # deliberate teardown (reload/stop), not a lost connection
         reason = str(reason_code)
         if reason not in ('Success', '0'):
             userdata['last_error'] = reason
