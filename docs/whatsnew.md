@@ -8,7 +8,14 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased (since debb711)
 
-_Nothing yet — the next change to land on `dev` goes here._
+### New features
+
+- **Observer mode — feed packet analyzers straight from mc-webui.** The new **Settings → Observer** tab turns your node into a MeshCore observer: every packet the device overhears is published to one or more MQTT brokers in the standard `meshcore-packet-capture` format, so analyzer services (a self-hosted Corescope, letsmesh-style maps) see your local mesh traffic without a separate capture script or a dedicated second node. Configure brokers with host/port, optional username/password and TLS; each row shows a live connected/error badge, and the tab counts packets captured vs published in real time. Capture is completely passive — chat and direct messages are unaffected — and all changes apply immediately, no restart needed. (LetsMesh token-authenticated brokers are not supported yet.)
+- **Scheduled flood adverts.** The Observer tab includes an optional advert interval in hours: the app sends a flood advert on that schedule so your observer stays visible on analyzer maps. The timer survives restarts, so a redeploy won't send an extra advert early. Set it to 0 to keep adverts fully manual.
+
+### Deploy notes
+
+- This update adds a new Python dependency (`paho-mqtt`), so the Docker image must be rebuilt — the standard `mcupdate` flow does this automatically. Broker passwords entered in the Observer tab are stored in plain text in the app database; use dedicated MQTT credentials.
 
 ---
 

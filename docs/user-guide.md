@@ -602,7 +602,7 @@ Access the Settings modal to configure application behavior:
 1. Click the menu icon (☰) in the navbar (or tap the gear FAB button)
 2. Select "Settings" from the menu
 
-The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **Interface**, **Appearance**, **Contacts**, **Regions**, **Analyzer**, and **Notifications**. A global **Close** button at the bottom of the modal dismisses Settings from any tab.
+The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **Interface**, **Appearance**, **Contacts**, **Regions**, **Analyzer**, **Observer**, and **Notifications**. A global **Close** button at the bottom of the modal dismisses Settings from any tab.
 
 ### Device Tab
 
@@ -702,6 +702,25 @@ Each row supports:
 - **Edit / Delete** buttons
 
 When adding or editing, the URL template must contain the placeholder `{packetHash}` — it is substituted with the message's packet hash at click time.
+
+### Observer Tab
+
+Turn your node into a MeshCore *observer*: every packet the device overhears on the radio is forwarded to one or more MQTT brokers, in the same format used by the standard `meshcore-packet-capture` observer script. Packet analyzer services (a self-hosted Corescope, letsmesh-style maps) then see your local mesh traffic — without running a separate capture script or dedicating a second node. Capture is completely passive: chat and direct messages are unaffected.
+
+- **Enable observer** — master switch for the whole feature
+- **Location code (IATA)** — a 3-letter code (e.g. `KRK`) included in the MQTT topics so analyzers can group observers by area; leave it empty to publish on the plain `meshcore/...` topics
+- **Flood advert interval (h)** — when set above 0, the app automatically sends a flood advert every N hours so your observer stays visible on analyzer maps; 0 turns scheduled adverts off. The schedule survives restarts, so a redeploy won't send an extra advert early
+- **Status line** — shows whether the observer is running (it waits until the device is connected) plus live counters of packets captured and published
+- **MQTT Brokers** — the servers your packets are sent to. Each row shows a live connection badge (green **connected**, gray **offline**, red **error** — hover it for the reason), an Enabled switch, and Edit/Delete buttons
+
+Click **Add broker** to configure a server: name, host, port (1883 is the common plain port, 8883 with TLS), optional username and password, a TLS switch, and a certificate-verification switch (turn verification off only for brokers with self-signed certificates). When editing later, leave the password field blank to keep the stored password.
+
+Notes:
+
+- Settings and broker changes apply immediately — no restart needed
+- If a broker is temporarily unreachable, packets during the outage are skipped for that broker (there is no backlog); the observer reconnects automatically
+- Broker passwords are stored in plain text in the app's local database — use dedicated MQTT credentials, not ones shared with other systems
+- LetsMesh brokers that require token authentication are not supported yet
 
 ### Notifications Tab
 

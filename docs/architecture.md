@@ -83,6 +83,17 @@ The `DeviceManager` handles the connection to the MeshCore device via a direct s
 - **TCP self-heal** - A `_liveness_watcher_loop` task on the DM event loop calls `force_reconnect()` when no RX event has arrived for `HEALTH_STRICT_MAX_RX_STALE_SEC` (5 min). `send_channel_message` also detects empty-string `concurrent.futures.TimeoutError` from `set_flood_scope_key` (the symptom of a degraded long-lived TCP) and runs an in-place reconnect + one retry before failing. A 30 s cooldown and `_reconnect_lock` prevent churn; `_intentional_disconnect` keeps the DISCONNECTED handler from racing the reconnect. The watcher keeps re-checking staleness even after `_connected` has gone False, so a single failed reconnect (e.g. an empty `self_info`) no longer silently stops all further healing for non-BLE transports
 - **Raw packet resend** - Own channel sends capture a full hex wire snapshot (`header + transport_codes + path_len + encrypted payload`) into `channel_messages.raw_packet`, rebuilt from the actual `pkt_payload` once echo correlation resolves it and honouring the device's cached `path_hash_mode`. `resend_channel_message()` re-broadcasts that snapshot verbatim via `CMD_SEND_RAW_PACKET` (0x41) so repeaters dedupe by packet hash (`Mesh::hasSeen`) and only previously-unreached nodes pick it up. Requires companion firmware ≥1.16 (`fw_ver_code` ≥ 13), gated via the cached `supports_raw_resend` flag captured from the connect-time `DEVICE_INFO` event. Self-echoes of a resend (the firmware seen-table can evict the hash within minutes on a busy mesh) are detected by recomputing the expected `pkt_payload` and matching an existing own row, so a resend never reappears as an inbound message from yourself
 
+### Observer (MQTT packet capture)
+
+`app/observer.py` (`ObserverManager`) implements a meshcore-packet-capture-compatible observer on top of the existing device session — no second connection and no device-side enable command (the firmware pushes `RX_LOG_DATA` for every overheard frame):
+
+- **Hot path** — `_on_rx_log_data` hands every packet (all payload types, before the GRP_TXT echo gate) to `handle_raw_packet()`: pure CPU work (header/path decode, firmware-exact packet hash, JSON build) plus a non-blocking paho `publish()`, wrapped in its own try/except so observer failures can never affect chat
+- **One paho-mqtt client per enabled broker**, each with its own network thread (`loop_start`), auto-reconnect with backoff, QoS 0 (no backlog during outages), retained `online`/`offline` status plus an LWT on `meshcore[/IATA/PUBKEY]/status`; packets go to `.../packets` (flat `meshcore/packets|status` when IATA is unset)
+- **Wire-format fidelity** — the decode/hash/format functions are verbatim ports of upstream meshcore-packet-capture (including legacy path-length fallbacks and the publish-with-defaults quirk for unknown payload versions), validated byte-identical against live packets from the reference observer network
+- **Config** — `observer_brokers` table plus the `observer_settings` JSON key (`enabled`, `iata`, `advert_interval_hours`) in `app_settings`; every mutating API call triggers `reload()` on a daemon thread (the client list is swapped atomically and the hot path reads it lock-free), so changes apply without restart
+- **Advert scheduler** — an observer-owned daemon thread checks every 10 minutes and sends a flood advert once `advert_interval_hours` has elapsed since the `observer_last_advert_at` timestamp persisted in `app_settings` (restart-safe)
+- **Live status** — `observer_status` events on the `/chat` namespace (throttled to one per 2 s on the packet path) drive the Settings-tab badges and counters; `GET /api/observer/status` returns the full merged view
+
 ---
 
 ## Project Structure
@@ -97,6 +108,7 @@ mc-webui/
 │   ├── config.py                   # Configuration from env vars
 │   ├── database.py                 # SQLite database models and CRUD operations
 │   ├── device_manager.py           # Core logic for meshcore communication
+│   ├── observer.py                 # Observer: MQTT packet-capture publishing
 │   ├── contacts_cache.py           # Persistent contacts cache (DB-backed)
 │   ├── read_status.py              # Server-side read status manager (DB-backed)
 │   ├── version.py                  # Git-based version management
@@ -143,6 +155,7 @@ Key tables:
 - `channel_scopes` - Per-channel region mapping (`channel_idx` → `region_id`, CASCADE on region delete; absent row = no override → firmware default applies)
 - `read_status` - Per-channel read counters and favorites (`is_favorite` column; used to pin channels in the sidebar/dropdown sort order)
 - `analyzers` - User-configured MeshCore Analyzer services (`name`, `url_template` with `{packetHash}` placeholder, `is_default`, `is_disabled`; partial unique index enforces a single default)
+- `observer_brokers` - MQTT brokers for the Observer packet-capture feature (`name`, `host`, `port`, `username`, `password` — stored plaintext, `use_tls`, `tls_verify`, `is_disabled`)
 
 `direct_messages` gained a `delivery_path_hash_size` column (auto-migrated, defaults to 1) so reloaded DM bubbles render multi-byte routes correctly. The `path_len` column on `channel_messages`, `direct_messages`, and `paths` now stores the raw firmware byte (masked hop count plus path_hash_mode in the upper bits), recombined at write time via `pack_path_len()`; the API endpoints decode it back into `path_hash_size` on read. `channel_messages` also gained a `raw_packet` column (the full hex wire snapshot captured at send time, indexed by `idx_cm_pkt` on `pkt_payload` for fast self-echo lookups) that powers raw resend; it is `NULL` for received and pre-migration rows, so the resend button stays disabled there.
 
@@ -253,6 +266,20 @@ The `PUT /api/channels/<index>/scope` endpoint accepts any `index` in `[0, devic
 
 The backend no longer ships a pre-built `analyzer_url` per message — channel-message payloads include `packet_hash` instead, and the frontend substitutes `{packetHash}` in the chosen URL template at click time. The Letsmesh Analyzer is not a hardcoded pseudo-row: `seed_default_analyzers()` inserts it as an ordinary `analyzers` row exactly once per install (guarded by the `analyzer_letsmesh_seeded` flag in `app_settings`), so it can be renamed, disabled, or deleted like any user entry. The row stores `is_disabled` (not `is_enabled`); the UI inverts it on read/write so the switch reads "Enabled", which is why no data migration was needed.
 
+### Observer
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/observer/settings` | Get observer settings (`enabled`, `iata`, `advert_interval_hours`) |
+| POST | `/api/observer/settings` | Partial update; IATA must be empty or exactly 3 letters, interval 0-8760 h |
+| GET | `/api/observer/brokers` | List MQTT brokers (passwords never returned; a `has_password` flag instead) |
+| POST | `/api/observer/brokers` | Create broker (`{name, host, port?, username?, password?, use_tls?, tls_verify?}`) |
+| PUT | `/api/observer/brokers/<id>` | Partial update; omitted `password` keeps the stored one, empty string clears it |
+| DELETE | `/api/observer/brokers/<id>` | Delete broker |
+| GET | `/api/observer/status` | Settings + broker rows merged with live connection state and packet counters |
+
+Every mutating endpoint hot-reloads the `ObserverManager`, so broker and setting changes take effect without an app restart.
+
 ### Direct Messages
 
 | Method | Endpoint | Description |
@@ -356,6 +383,7 @@ Real-time message delivery via Socket.IO.
 - `dm_retry_failed` - All retry attempts exhausted (`dm_id`)
 - `dm_delivered_info` - Delivery details after ACK (`dm_id`, `attempt`, `max_attempts`, `path`, `hash_size`)
 - `path_changed` - Contact path discovered/updated (`public_key`)
+- `observer_status` - Observer live state (`enabled`, `running`, `reason`, packet counters, per-broker `connected`/`last_error`)
 
 ### Logs Namespace (`/logs`)
 
