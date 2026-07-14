@@ -187,6 +187,7 @@ class ObserverManager:
     LAST_ADVERT_KEY = 'observer_last_advert_at'
     DEFAULT_SETTINGS = {'enabled': False, 'iata': '', 'advert_interval_hours': 0}
     STATUS_EMIT_MIN_INTERVAL = 2.0  # seconds between observer_status socket emits
+    ADVERT_CHECK_INTERVAL_SEC = 600  # how often the advert loop re-checks the schedule
 
     def __init__(self, db, socketio=None):
         self.db = db
@@ -204,6 +205,8 @@ class ObserverManager:
         self._packets_seen = 0
         self._packets_published = 0
         self._last_status_emit = 0.0
+        self._advert_thread = None
+        self._advert_stop = None
 
     # ---------------- settings ----------------
 
@@ -537,13 +540,31 @@ class ObserverManager:
         except Exception as e:
             logger.debug(f"Observer: status emit failed: {e}")
 
-    # ---------------- advert scheduler (APScheduler job) ----------------
+    # ---------------- advert scheduler ----------------
+
+    def start_advert_scheduler(self):
+        """Start the periodic advert check thread (idempotent).
+
+        The thread always runs; maybe_send_advert() gates on the observer
+        being enabled and advert_interval_hours > 0, so settings changes
+        take effect on the next check without thread management.
+        """
+        if self._advert_thread and self._advert_thread.is_alive():
+            return
+        self._advert_stop = threading.Event()
+        self._advert_thread = threading.Thread(
+            target=self._advert_loop, name='observer-advert', daemon=True)
+        self._advert_thread.start()
+
+    def _advert_loop(self):
+        while not self._advert_stop.wait(self.ADVERT_CHECK_INTERVAL_SEC):
+            self.maybe_send_advert()
 
     def maybe_send_advert(self):
         """Send a flood advert when the configured interval has elapsed.
 
-        Called every few minutes by APScheduler; the last-advert timestamp
-        persists in app_settings so restarts don't re-advertise early.
+        The last-advert timestamp persists in app_settings so restarts
+        don't re-advertise early.
         """
         try:
             settings = self.get_settings()

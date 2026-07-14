@@ -300,6 +300,7 @@ def create_app():
     device_manager = DeviceManager(config, db, socketio, observer=observer_manager)
     app.device_manager = device_manager
     observer_manager.device_manager = device_manager
+    observer_manager.start_advert_scheduler()
 
     # Start device connection in background (non-blocking)
     device_manager.start()
