@@ -28,6 +28,9 @@ pycryptodome==3.21.0
 
 # WebSocket support for console (threading mode - no gevent needed)
 flask-socketio==5.3.6
+
+# Observer: MQTT packet publishing (meshcore-packet-capture compatible)
+paho-mqtt==2.1.0
 python-socketio==5.10.0
 python-engineio==4.8.1
 
