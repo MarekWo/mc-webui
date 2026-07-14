@@ -19,6 +19,7 @@ from app.config import config, runtime_config
 from app.database import Database
 from app.device_manager import DeviceManager, parse_meshcore_uri
 from app.log_handler import MemoryLogHandler
+from app.observer import ObserverManager
 from app.routes.views import views_bp
 from app.routes.api import api_bp
 from app.version import VERSION_STRING, GIT_BRANCH
@@ -291,9 +292,14 @@ def create_app():
         except Exception as e:
             logger.warning(f"Failed to migrate .read_status.json: {e}")
 
+    # Observer: MQTT packet capture (starts once the device connects)
+    observer_manager = ObserverManager(db, socketio)
+    app.observer_manager = observer_manager
+
     # v2: Initialize and start device manager
-    device_manager = DeviceManager(config, db, socketio)
+    device_manager = DeviceManager(config, db, socketio, observer=observer_manager)
     app.device_manager = device_manager
+    observer_manager.device_manager = device_manager
 
     # Start device connection in background (non-blocking)
     device_manager.start()

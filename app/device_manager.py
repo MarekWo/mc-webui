@@ -190,10 +190,11 @@ class DeviceManager:
         dm.stop()   # disconnect and stop background thread
     """
 
-    def __init__(self, config, db, socketio=None):
+    def __init__(self, config, db, socketio=None, observer=None):
         self.config = config
         self.db = db
         self.socketio = socketio
+        self.observer = observer    # ObserverManager (packet capture -> MQTT)
         self.mc = None              # meshcore.MeshCore instance
         self._loop = None           # asyncio event loop (in background thread)
         self._thread = None         # background thread
@@ -396,6 +397,7 @@ class DeviceManager:
             # Fetch device_info for max_channels and FIRMWARE_VER_CODE.
             # fw_ver_code gates feature support: CMD_SEND_RAW_PACKET needs ≥13
             # (companion-v1.16.0), set_path_hash_mode needs ≥10, etc.
+            dev_info = {}
             try:
                 dev_info_event = await self.mc.commands.send_device_query()
                 if dev_info_event and hasattr(dev_info_event, 'payload'):
@@ -413,6 +415,19 @@ class DeviceManager:
                                 f"path_hash_mode={self._path_hash_mode}")
             except Exception as e:
                 logger.warning(f"Could not fetch device_info: {e}")
+
+            # Hand device identity to the observer and start it if enabled
+            if self.observer:
+                try:
+                    self.observer.set_identity(
+                        self._device_name,
+                        self._self_info.get('public_key', ''),
+                        self_info=self._self_info,
+                        device_info=dev_info,
+                    )
+                    self.observer.ensure_started()
+                except Exception as e:
+                    logger.warning(f"Observer start failed (non-fatal): {e}")
 
             # Workaround: meshcore lib 2.2.21 has a bug where list.extend()
             # return value (None) corrupts reader.channels for idx >= 20.
@@ -1233,7 +1248,8 @@ class DeviceManager:
 
         Firmware sends LOG_DATA (0x88) packets for every repeated radio frame.
         Payload format: header(1) [transport_code(4)] path_len(1) path(N) pkt_payload(rest)
-        We only process GRP_TXT (payload_type=0x05) for channel message echoes.
+        Every packet is handed to the observer (MQTT capture) when active;
+        only GRP_TXT (payload_type=0x05) continues into echo detection.
         """
         try:
             import io
@@ -1243,6 +1259,15 @@ class DeviceManager:
             logger.debug(f"RX_LOG_DATA received: {len(payload_hex)//2} bytes, snr={data.get('snr')}")
             if not payload_hex:
                 return
+
+            if self.observer:
+                try:
+                    self.observer.handle_raw_packet(
+                        payload_hex, snr=data.get('snr'),
+                        rssi=data.get('rssi'),
+                        payload_length=data.get('payload_length'))
+                except Exception:
+                    logger.debug("Observer packet handling failed", exc_info=True)
 
             pkt = bytes.fromhex(payload_hex)
             pbuf = io.BytesIO(pkt)
