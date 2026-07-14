@@ -45,7 +45,7 @@ For detailed feature documentation, see the [User Guide](docs/user-guide.md).
 ### Prerequisites
 
 **1. Meshcore Device (tested on Heltec V4)**
-- Flash the device at [https://flasher.meshcore.co.uk/](https://flasher.meshcore.co.uk/). Choose the `Companion USB` role (or `Companion BLE` if you plan to use Bluetooth).
+- Flash the device at [https://flasher.meshcore.io/](https://flasher.meshcore.io/). Choose the `Companion USB` role (or `Companion BLE` if you plan to use Bluetooth).
 - Configure the device with the Meshcore mobile app (from Google Play Store / App Store): Name, Location (optional), Preset
 
 **2. Linux Server (or Raspberry Pi)**
