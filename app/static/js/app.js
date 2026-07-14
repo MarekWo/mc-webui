@@ -484,6 +484,11 @@ function connectChatSocket() {
     chatSocket.on('device_status', (data) => {
         updateStatus(data.connected ? 'connected' : 'disconnected');
     });
+
+    // Observer live status (Settings > Observer tab badges + counters)
+    chatSocket.on('observer_status', (data) => {
+        applyObserverLiveStatus(data || {});
+    });
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
@@ -2572,6 +2577,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadContactsSettings();
             loadRegions();
             loadAnalyzers();
+            loadObserverTab();
         });
         settingsModal.addEventListener('shown.bs.modal', () => {
             settingsModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
@@ -2630,6 +2636,29 @@ document.addEventListener('DOMContentLoaded', () => {
             saveAnalyzerFromForm();
         });
     }
+
+    // Observer tab: settings + broker add/edit form
+    document.getElementById('observerEnabledToggle')?.addEventListener('change', (e) => {
+        saveObserverSettings({ enabled: e.target.checked });
+    });
+    document.getElementById('observerIataInput')?.addEventListener('change', (e) => {
+        const iata = (e.target.value || '').trim();
+        if (iata && !/^[A-Za-z]{3}$/.test(iata)) {
+            showNotification('Location code must be empty or exactly 3 letters', 'warning');
+            return;
+        }
+        saveObserverSettings({ iata });
+    });
+    document.getElementById('observerAdvertIntervalInput')?.addEventListener('change', (e) => {
+        saveObserverSettings({ advert_interval_hours: parseInt(e.target.value || '0', 10) || 0 });
+    });
+    document.getElementById('addObserverBrokerBtn')?.addEventListener('click', () => {
+        openObserverBrokerModal(null);
+    });
+    document.getElementById('observerBrokerEditForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveObserverBrokerFromForm();
+    });
 
     // Preload analyzers so the first click on a chart icon doesn't need a round-trip.
     loadAnalyzers();
@@ -3464,6 +3493,283 @@ function openAnalyzerChooser(packetHash, enabled) {
 
     modalEl.addEventListener('shown.bs.modal', _bumpAnalyzerBackdrop, { once: true });
     modal.show();
+}
+
+// ================================================================
+// Observer (Settings > Observer): MQTT packet capture
+// ================================================================
+
+window.observerCache = window.observerCache || {
+    status: null,
+    brokers: [],
+};
+
+async function loadObserverTab() {
+    try {
+        const resp = await fetch('/api/observer/status');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        window.observerCache.status = data.status;
+        window.observerCache.brokers = data.status.brokers || [];
+        renderObserverSettings(data.status);
+        renderObserverBrokers();
+        renderObserverStatusLine(data.status);
+    } catch (e) {
+        console.error('Error loading observer status:', e);
+        const listEl = document.getElementById('observerBrokersList');
+        if (listEl) {
+            listEl.innerHTML = '<div class="text-center text-danger small py-2">Failed to load observer status</div>';
+        }
+    }
+}
+
+function renderObserverSettings(status) {
+    const s = status.settings || {};
+    const enabledEl = document.getElementById('observerEnabledToggle');
+    const iataEl = document.getElementById('observerIataInput');
+    const advertEl = document.getElementById('observerAdvertIntervalInput');
+    if (enabledEl) enabledEl.checked = !!s.enabled;
+    // Don't clobber a field the user is typing in
+    if (iataEl && document.activeElement !== iataEl) iataEl.value = (s.iata || '').toUpperCase();
+    if (advertEl && document.activeElement !== advertEl) advertEl.value = s.advert_interval_hours || 0;
+}
+
+function renderObserverStatusLine(status) {
+    const el = document.getElementById('observerStatusLine');
+    if (!el || !status) return;
+    if (!status.enabled) {
+        el.innerHTML = 'Observer is <strong>off</strong>.';
+        return;
+    }
+    const state = status.running
+        ? '<span class="badge bg-success">running</span>'
+        : `<span class="badge bg-warning text-dark">waiting</span> ${escapeHtml(status.reason || '')}`;
+    el.innerHTML = `${state} &mdash; packets captured: <strong>${status.packets_seen ?? 0}</strong>,`
+        + ` published: <strong>${status.packets_published ?? 0}</strong>`;
+}
+
+function observerBrokerBadgeParts(b) {
+    if (b.connected) return { cls: 'bg-success', txt: 'connected', title: '' };
+    if (b.last_error) return { cls: 'bg-danger', txt: 'error', title: b.last_error };
+    return { cls: 'bg-secondary', txt: 'offline', title: '' };
+}
+
+function renderObserverBrokers() {
+    const listEl = document.getElementById('observerBrokersList');
+    if (!listEl) return;
+    const brokers = window.observerCache.brokers || [];
+
+    if (brokers.length === 0) {
+        listEl.innerHTML =
+            '<div class="text-center text-muted small py-3">No brokers configured. Click "Add broker" to add one.</div>';
+        return;
+    }
+
+    const rows = brokers.map(b => {
+        const enabled = !b.is_disabled;
+        const nameClass = enabled ? '' : 'text-muted text-decoration-line-through';
+        const safeName = escapeHtml(b.name);
+        const tlsBadge = b.use_tls ? '<span class="badge bg-info text-dark ms-1">TLS</span>' : '';
+        const badge = b.is_disabled
+            ? '<span class="badge bg-secondary ms-1">Disabled</span>'
+            : (() => {
+                const p = observerBrokerBadgeParts(b);
+                return `<span class="badge ${p.cls} ms-1" id="observerBrokerBadge_${b.id}" title="${escapeHtml(p.title)}">${p.txt}</span>`;
+            })();
+        const userInfo = b.username ? `${escapeHtml(b.username)}@` : '';
+        return `
+            <div class="list-group-item d-flex align-items-center gap-2 py-2">
+                <div class="flex-grow-1" style="min-width: 0;">
+                    <div class="${nameClass}"><strong>${safeName}</strong>${tlsBadge}${badge}</div>
+                    <code class="small text-muted text-break" style="word-break: break-all;">${userInfo}${escapeHtml(b.host)}:${b.port}</code>
+                </div>
+                <div class="form-check form-switch mb-0" title="${enabled ? 'Enabled' : 'Disabled'}">
+                    <input class="form-check-input" type="checkbox" ${enabled ? 'checked' : ''}
+                           onchange="toggleObserverBrokerDisabled(${b.id}, !this.checked)">
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        onclick="openObserverBrokerModal(${b.id})" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        onclick="deleteObserverBroker(${b.id}, '${safeName.replace(/'/g, "\\'")}')" title="Delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    listEl.innerHTML = rows;
+}
+
+// Live updates pushed by the backend (observer_status socket event).
+// Payload has no settings/broker rows — only counters + per-client state.
+function applyObserverLiveStatus(live) {
+    renderObserverStatusLine({ ...live, settings: undefined });
+    (live.brokers || []).forEach(b => {
+        const badge = document.getElementById(`observerBrokerBadge_${b.id}`);
+        if (!badge) return;
+        const p = observerBrokerBadgeParts(b);
+        badge.className = `badge ${p.cls} ms-1`;
+        badge.textContent = p.txt;
+        badge.title = p.title;
+    });
+}
+
+function openObserverBrokerModal(id) {
+    const modalEl = document.getElementById('observerBrokerEditModal');
+    if (!modalEl) return;
+    const titleEl = document.getElementById('observerBrokerEditModalTitle');
+    const idEl = document.getElementById('observerBrokerEditId');
+    const nameEl = document.getElementById('observerBrokerEditName');
+    const hostEl = document.getElementById('observerBrokerEditHost');
+    const portEl = document.getElementById('observerBrokerEditPort');
+    const userEl = document.getElementById('observerBrokerEditUsername');
+    const passEl = document.getElementById('observerBrokerEditPassword');
+    const passHintEl = document.getElementById('observerBrokerPasswordHint');
+    const tlsEl = document.getElementById('observerBrokerEditTls');
+    const tlsVerifyEl = document.getElementById('observerBrokerEditTlsVerify');
+    const enabledEl = document.getElementById('observerBrokerEditEnabled');
+    const errorEl = document.getElementById('observerBrokerEditError');
+
+    errorEl.classList.add('d-none');
+    errorEl.textContent = '';
+    passEl.value = '';
+
+    if (id) {
+        const b = (window.observerCache.brokers || []).find(x => x.id === id);
+        if (!b) return;
+        titleEl.textContent = 'Edit broker';
+        idEl.value = String(b.id);
+        nameEl.value = b.name || '';
+        hostEl.value = b.host || '';
+        portEl.value = b.port || 1883;
+        userEl.value = b.username || '';
+        tlsEl.checked = !!b.use_tls;
+        tlsVerifyEl.checked = !!b.tls_verify;
+        enabledEl.checked = !b.is_disabled;
+        passHintEl.classList.toggle('d-none', !b.has_password);
+    } else {
+        titleEl.textContent = 'Add broker';
+        idEl.value = '';
+        nameEl.value = '';
+        hostEl.value = '';
+        portEl.value = 1883;
+        userEl.value = '';
+        tlsEl.checked = false;
+        tlsVerifyEl.checked = true;
+        enabledEl.checked = true;
+        passHintEl.classList.add('d-none');
+    }
+
+    modalEl.addEventListener('shown.bs.modal', _bumpAnalyzerBackdrop, { once: true });
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+function showObserverBrokerFormError(msg) {
+    const errorEl = document.getElementById('observerBrokerEditError');
+    if (!errorEl) return;
+    errorEl.textContent = msg;
+    errorEl.classList.remove('d-none');
+}
+
+async function saveObserverBrokerFromForm() {
+    const id = document.getElementById('observerBrokerEditId').value
+        ? parseInt(document.getElementById('observerBrokerEditId').value, 10) : null;
+    const name = (document.getElementById('observerBrokerEditName').value || '').trim();
+    const host = (document.getElementById('observerBrokerEditHost').value || '').trim();
+    const port = parseInt(document.getElementById('observerBrokerEditPort').value || '1883', 10);
+    const username = (document.getElementById('observerBrokerEditUsername').value || '').trim();
+    const password = document.getElementById('observerBrokerEditPassword').value;
+    const use_tls = document.getElementById('observerBrokerEditTls').checked;
+    const tls_verify = document.getElementById('observerBrokerEditTlsVerify').checked;
+    const is_disabled = !document.getElementById('observerBrokerEditEnabled').checked;
+
+    if (!name) { showObserverBrokerFormError('Name is required'); return; }
+    if (!host) { showObserverBrokerFormError('Host is required'); return; }
+    if (!(port >= 1 && port <= 65535)) { showObserverBrokerFormError('Port must be 1-65535'); return; }
+
+    const body = { name, host, port, username, use_tls, tls_verify, is_disabled };
+    // Edit mode: an empty password field means "keep the stored password"
+    if (!id || password !== '') body.password = password;
+
+    try {
+        const url = id ? `/api/observer/brokers/${id}` : '/api/observer/brokers';
+        const resp = await fetch(url, {
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showObserverBrokerFormError(data.error || 'Failed to save broker');
+            return;
+        }
+        bootstrap.Modal.getInstance(document.getElementById('observerBrokerEditModal'))?.hide();
+        // Reload once now and once after the reconnect settles
+        await loadObserverTab();
+        setTimeout(loadObserverTab, 1500);
+    } catch (e) {
+        console.error('Error saving observer broker:', e);
+        showObserverBrokerFormError('Network error saving broker');
+    }
+}
+
+async function deleteObserverBroker(id, name) {
+    if (!confirm(`Delete broker "${name}"?`)) return;
+    try {
+        const resp = await fetch(`/api/observer/brokers/${id}`, { method: 'DELETE' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to delete broker', 'danger');
+            return;
+        }
+        await loadObserverTab();
+    } catch (e) {
+        console.error('Error deleting observer broker:', e);
+        showNotification('Network error deleting broker', 'danger');
+    }
+}
+
+async function toggleObserverBrokerDisabled(id, disabled) {
+    try {
+        const resp = await fetch(`/api/observer/brokers/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_disabled: !!disabled }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to update broker', 'danger');
+        }
+    } catch (e) {
+        console.error('Error toggling observer broker:', e);
+        showNotification('Network error updating broker', 'danger');
+    }
+    await loadObserverTab();
+    setTimeout(loadObserverTab, 1500);
+}
+
+async function saveObserverSettings(patch) {
+    try {
+        const resp = await fetch('/api/observer/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || 'Failed to save observer settings', 'danger');
+            await loadObserverTab();
+            return;
+        }
+        // The reload runs on a backend thread; refresh after it settles
+        setTimeout(loadObserverTab, 1500);
+    } catch (e) {
+        console.error('Error saving observer settings:', e);
+        showNotification('Network error saving observer settings', 'danger');
+    }
 }
 
 // ================================================================
