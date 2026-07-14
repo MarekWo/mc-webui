@@ -66,6 +66,22 @@ CREATE TABLE IF NOT EXISTS analyzers (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_analyzers_one_default
     ON analyzers(is_default) WHERE is_default = 1;
 
+-- Observer: MQTT brokers that receive captured mesh packets
+-- (meshcore-packet-capture compatible publishing)
+CREATE TABLE IF NOT EXISTS observer_brokers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL UNIQUE,
+    host        TEXT NOT NULL,
+    port        INTEGER NOT NULL DEFAULT 1883,
+    username    TEXT NOT NULL DEFAULT '',
+    password    TEXT NOT NULL DEFAULT '',       -- plaintext (single-user LAN app)
+    use_tls     INTEGER NOT NULL DEFAULT 0,
+    tls_verify  INTEGER NOT NULL DEFAULT 1,     -- 0 = accept self-signed certs
+    is_disabled INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Per-channel region mapping (absent row = no override; firmware default applies)
 CREATE TABLE IF NOT EXISTS channel_scopes (
     channel_idx INTEGER PRIMARY KEY,

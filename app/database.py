@@ -648,6 +648,73 @@ class Database:
                     (analyzer_id,)
                 )
 
+    # ================================================================
+    # Observer brokers (MQTT targets for packet capture publishing)
+    # ================================================================
+
+    def create_observer_broker(self, name: str, host: str, port: int = 1883,
+                               username: str = '', password: str = '',
+                               use_tls: bool = False, tls_verify: bool = True) -> int:
+        """Insert a new observer broker. Raises sqlite3.IntegrityError on duplicate name."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """INSERT INTO observer_brokers
+                       (name, host, port, username, password, use_tls, tls_verify)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (name, host, port, username, password,
+                 1 if use_tls else 0, 1 if tls_verify else 0)
+            )
+            return cursor.lastrowid
+
+    def list_observer_brokers(self) -> List[Dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM observer_brokers ORDER BY name COLLATE NOCASE"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_observer_broker(self, broker_id: int) -> Optional[Dict]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM observer_brokers WHERE id = ?", (broker_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def update_observer_broker(self, broker_id: int, name: Optional[str] = None,
+                               host: Optional[str] = None, port: Optional[int] = None,
+                               username: Optional[str] = None, password: Optional[str] = None,
+                               use_tls: Optional[bool] = None,
+                               tls_verify: Optional[bool] = None,
+                               is_disabled: Optional[bool] = None) -> bool:
+        """Update fields on an observer broker. Pass None to leave a field unchanged."""
+        sets = []
+        params: List[Any] = []
+        for column, value in (("name", name), ("host", host), ("port", port),
+                              ("username", username), ("password", password)):
+            if value is not None:
+                sets.append(f"{column} = ?")
+                params.append(value)
+        for column, value in (("use_tls", use_tls), ("tls_verify", tls_verify),
+                              ("is_disabled", is_disabled)):
+            if value is not None:
+                sets.append(f"{column} = ?")
+                params.append(1 if value else 0)
+        if not sets:
+            return False
+        sets.append("updated_at = datetime('now')")
+        params.append(broker_id)
+        with self._connect() as conn:
+            cursor = conn.execute(
+                f"UPDATE observer_brokers SET {', '.join(sets)} WHERE id = ?",
+                params
+            )
+            return cursor.rowcount > 0
+
+    def delete_observer_broker(self, broker_id: int) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM observer_brokers WHERE id = ?", (broker_id,))
+            return cursor.rowcount > 0
+
     def set_channel_scope(self, channel_idx: int, region_id: Optional[int]) -> None:
         """Set or clear the region mapping for a channel.
 
