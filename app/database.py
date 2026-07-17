@@ -715,6 +715,55 @@ class Database:
             cursor = conn.execute("DELETE FROM observer_brokers WHERE id = ?", (broker_id,))
             return cursor.rowcount > 0
 
+    # ================================================================
+    # My Repeaters (saved repeater logins for the admin panel)
+    # ================================================================
+
+    def get_repeaters(self) -> List[Dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM repeaters ORDER BY added_at"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_repeater(self, public_key: str) -> Optional[Dict]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM repeaters WHERE public_key = ?", (public_key,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def add_repeater(self, public_key: str) -> bool:
+        """Add a repeater entry. Returns False if it already exists."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO repeaters (public_key) VALUES (?)",
+                (public_key,)
+            )
+            return cursor.rowcount > 0
+
+    def set_repeater_password(self, public_key: str, password: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "UPDATE repeaters SET password = ? WHERE public_key = ?",
+                (password, public_key)
+            )
+            return cursor.rowcount > 0
+
+    def update_repeater_login(self, public_key: str, role: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "UPDATE repeaters SET last_login_at = datetime('now'), "
+                "last_login_role = ? WHERE public_key = ?",
+                (role, public_key)
+            )
+            return cursor.rowcount > 0
+
+    def delete_repeater(self, public_key: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM repeaters WHERE public_key = ?", (public_key,))
+            return cursor.rowcount > 0
+
     def set_channel_scope(self, channel_idx: int, region_id: Optional[int]) -> None:
         """Set or clear the region mapping for a channel.
 

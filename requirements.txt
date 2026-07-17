@@ -35,4 +35,4 @@ python-socketio==5.10.0
 python-engineio==4.8.1
 
 # v2: Direct MeshCore device communication (replaces bridge subprocess)
-meshcore>=2.2.0
+meshcore>=2.3.7

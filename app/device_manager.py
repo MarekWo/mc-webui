@@ -220,6 +220,12 @@ class DeviceManager:
         self._last_rx_at: float = 0.0           # unix ts of last RX_LOG_DATA / event from device
         self._consecutive_stats_failures: int = 0  # incremented on get_stats_* / get_bat failures
 
+        # Repeater administration (My Repeaters panel + console commands).
+        # The companion firmware tracks a single pending remote request, so
+        # concurrent repeater operations would corrupt each other's matching.
+        self._repeater_lock = threading.Lock()
+        self._repeater_sessions = {}  # {public_key: {is_admin, permissions, logged_in_at}}
+
         # In-place reconnect (heals degraded long-lived TCP without container restart)
         self._reconnect_lock = threading.Lock()  # prevents concurrent force_reconnect calls
         self._last_force_reconnect_at: float = 0.0
@@ -3047,37 +3053,93 @@ class DeviceManager:
 
     # ── Repeater Management ──────────────────────────────────────────
 
+    REPEATER_BUSY_ERROR = 'Another repeater operation is in progress'
+
+    def _locked_repeater_execute(self, coro, timeout: int, error_label: str) -> Dict:
+        """Run one remote repeater request under the repeater lock.
+
+        The companion firmware tracks a single pending remote request
+        (each new send clears the previous one), so all repeater
+        operations must be serialized app-side.
+        """
+        if not self._repeater_lock.acquire(timeout=180):
+            coro.close()
+            return {'success': False, 'error': self.REPEATER_BUSY_ERROR, 'busy': True}
+        try:
+            result = self.execute(coro, timeout=timeout)
+            if result is not None:
+                return {'success': True, 'data': result}
+            return {'success': False, 'error': f'No {error_label} response (timeout)'}
+        finally:
+            self._repeater_lock.release()
+
     def repeater_login(self, name_or_key: str, password: str) -> Dict:
-        """Log into a repeater with given password."""
+        """Log into a repeater and capture the granted role.
+
+        A wrong password is indistinguishable from an unreachable
+        repeater: the firmware simply never replies, so both surface
+        as a timeout.
+        """
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
         contact = self.resolve_contact(name_or_key)
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        coro = self._repeater_login_async(contact, password)
+        if not self._repeater_lock.acquire(timeout=180):
+            coro.close()
+            return {'success': False, 'error': self.REPEATER_BUSY_ERROR, 'busy': True}
         try:
-            from meshcore.events import EventType
-            res = self.execute(
-                self.mc.commands.send_login(contact, password),
-                timeout=10
-            )
-            # Wait for LOGIN_SUCCESS or LOGIN_FAILED
-            timeout = 30
-            if res and hasattr(res, 'payload') and 'suggested_timeout' in res.payload:
-                timeout = res.payload['suggested_timeout'] / 800
-            timeout = max(timeout, contact.get('timeout', 0) or 30)
-            event = self.execute(
-                self.mc.wait_for_event(EventType.LOGIN_SUCCESS, timeout=timeout),
-                timeout=timeout + 5
-            )
-            if event and hasattr(event, 'type') and event.type == EventType.LOGIN_SUCCESS:
-                return {'success': True, 'message': f'Logged into {contact.get("adv_name", name_or_key)}'}
-            return {'success': False, 'error': 'Login failed (timeout)'}
+            result = self.execute(coro, timeout=75)
+            if result.get('success'):
+                pubkey = (contact.get('public_key') or '').lower()
+                self._repeater_sessions[pubkey] = {
+                    'is_admin': result.get('is_admin', False),
+                    'permissions': result.get('permissions'),
+                    'logged_in_at': time.time(),
+                }
+            return result
         except Exception as e:
-            err = str(e)
-            if 'LOGIN_FAILED' in err or 'login' in err.lower():
-                return {'success': False, 'error': 'Login failed (wrong password?)'}
             logger.error(f"Repeater login failed: {e}")
-            return {'success': False, 'error': err}
+            return {'success': False, 'error': str(e)}
+        finally:
+            self._repeater_lock.release()
+
+    async def _repeater_login_async(self, contact: Dict, password: str) -> Dict:
+        """Send login and wait for a LOGIN_SUCCESS from this repeater."""
+        from meshcore.events import EventType
+        res = await self.mc.commands.send_login(contact, password)
+        if res is None or getattr(res, 'type', None) == EventType.ERROR:
+            detail = getattr(res, 'payload', None) if res is not None else 'no response from device'
+            return {'success': False, 'error': f'Failed to send login: {detail}'}
+        timeout = 30.0
+        payload = getattr(res, 'payload', None) or {}
+        if isinstance(payload, dict) and 'suggested_timeout' in payload:
+            timeout = payload['suggested_timeout'] / 800
+        timeout = min(max(timeout, contact.get('timeout', 0) or 0, 15.0), 60.0)
+        prefix = (contact.get('public_key') or '')[:12]
+        event = await self.mc.wait_for_event(
+            EventType.LOGIN_SUCCESS,
+            attribute_filters={'pubkey_prefix': prefix},
+            timeout=timeout,
+        )
+        if event is None:
+            return {
+                'success': False,
+                'error': 'No response — repeater unreachable or wrong password',
+                'timeout': True,
+            }
+        ev_payload = getattr(event, 'payload', None) or {}
+        return {
+            'success': True,
+            'is_admin': bool(ev_payload.get('is_admin')),
+            'permissions': ev_payload.get('permissions'),
+            'name': contact.get('adv_name', ''),
+        }
+
+    def get_repeater_session(self, public_key: str) -> Optional[Dict]:
+        """Return the in-memory login session for a repeater, if any."""
+        return self._repeater_sessions.get((public_key or '').lower())
 
     def repeater_logout(self, name_or_key: str) -> Dict:
         """Log out of a repeater."""
@@ -3086,27 +3148,40 @@ class DeviceManager:
         contact = self.resolve_contact(name_or_key)
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        coro = self.mc.commands.send_logout(contact)
+        if not self._repeater_lock.acquire(timeout=180):
+            coro.close()
+            return {'success': False, 'error': self.REPEATER_BUSY_ERROR, 'busy': True}
         try:
-            self.execute(self.mc.commands.send_logout(contact), timeout=10)
+            self.execute(coro, timeout=15)
+            self._repeater_sessions.pop((contact.get('public_key') or '').lower(), None)
             return {'success': True, 'message': f'Logged out of {contact.get("adv_name", name_or_key)}'}
         except Exception as e:
             logger.error(f"Repeater logout failed: {e}")
             return {'success': False, 'error': str(e)}
+        finally:
+            self._repeater_lock.release()
 
     def repeater_cmd(self, name_or_key: str, cmd: str) -> Dict:
-        """Send a command to a repeater."""
+        """Send a command to a repeater (fire-and-forget; reply arrives as a DM)."""
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
         contact = self.resolve_contact(name_or_key)
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        coro = self.mc.commands.send_cmd(contact, cmd)
+        if not self._repeater_lock.acquire(timeout=180):
+            coro.close()
+            return {'success': False, 'error': self.REPEATER_BUSY_ERROR, 'busy': True}
         try:
-            res = self.execute(self.mc.commands.send_cmd(contact, cmd), timeout=10)
+            self.execute(coro, timeout=15)
             msg = f'Command sent to {contact.get("adv_name", name_or_key)}: {cmd}'
             return {'success': True, 'message': msg}
         except Exception as e:
             logger.error(f"Repeater cmd failed: {e}")
             return {'success': False, 'error': str(e)}
+        finally:
+            self._repeater_lock.release()
 
     def repeater_req_status(self, name_or_key: str) -> Dict:
         """Request status from a repeater."""
@@ -3117,13 +3192,11 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            result = self.execute(
+            return self._locked_repeater_execute(
                 self.mc.commands.req_status_sync(contact, contact_timeout, min_timeout=15),
-                timeout=120
+                timeout=120,
+                error_label='status',
             )
-            if result is not None:
-                return {'success': True, 'data': result}
-            return {'success': False, 'error': 'No status response (timeout)'}
         except Exception as e:
             logger.error(f"req_status failed: {e}")
             return {'success': False, 'error': str(e)}
@@ -3137,13 +3210,11 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            result = self.execute(
+            return self._locked_repeater_execute(
                 self.mc.commands.req_regions_sync(contact, contact_timeout),
-                timeout=120
+                timeout=120,
+                error_label='regions',
             )
-            if result is not None:
-                return {'success': True, 'data': result}
-            return {'success': False, 'error': 'No regions response (timeout)'}
         except Exception as e:
             logger.error(f"req_regions failed: {e}")
             return {'success': False, 'error': str(e)}
@@ -3157,13 +3228,11 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            result = self.execute(
+            return self._locked_repeater_execute(
                 self.mc.commands.req_owner_sync(contact, contact_timeout),
-                timeout=120
+                timeout=120,
+                error_label='owner',
             )
-            if result is not None:
-                return {'success': True, 'data': result}
-            return {'success': False, 'error': 'No owner response (timeout)'}
         except Exception as e:
             logger.error(f"req_owner failed: {e}")
             return {'success': False, 'error': str(e)}
@@ -3177,13 +3246,11 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            result = self.execute(
+            return self._locked_repeater_execute(
                 self.mc.commands.req_acl_sync(contact, contact_timeout, min_timeout=15),
-                timeout=120
+                timeout=120,
+                error_label='ACL',
             )
-            if result is not None:
-                return {'success': True, 'data': result}
-            return {'success': False, 'error': 'No ACL response (timeout)'}
         except Exception as e:
             logger.error(f"req_acl failed: {e}")
             return {'success': False, 'error': str(e)}
@@ -3197,13 +3264,11 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            result = self.execute(
+            return self._locked_repeater_execute(
                 self.mc.commands.req_basic_sync(contact, contact_timeout),
-                timeout=120
+                timeout=120,
+                error_label='clock',
             )
-            if result is not None:
-                return {'success': True, 'data': result}
-            return {'success': False, 'error': 'No clock response (timeout)'}
         except Exception as e:
             logger.error(f"req_clock failed: {e}")
             return {'success': False, 'error': str(e)}
@@ -3217,13 +3282,11 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            result = self.execute(
+            return self._locked_repeater_execute(
                 self.mc.commands.req_mma_sync(contact, from_secs, to_secs, contact_timeout, min_timeout=15),
-                timeout=120
+                timeout=120,
+                error_label='MMA',
             )
-            if result is not None:
-                return {'success': True, 'data': result}
-            return {'success': False, 'error': 'No MMA response (timeout)'}
         except Exception as e:
             logger.error(f"req_mma failed: {e}")
             return {'success': False, 'error': str(e)}
@@ -3237,13 +3300,11 @@ class DeviceManager:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
         try:
             contact_timeout = contact.get('timeout', 0) or 0
-            result = self.execute(
+            return self._locked_repeater_execute(
                 self.mc.commands.fetch_all_neighbours(contact, timeout=contact_timeout, min_timeout=15),
-                timeout=120
+                timeout=120,
+                error_label='neighbours',
             )
-            if result is not None:
-                return {'success': True, 'data': result}
-            return {'success': False, 'error': 'No neighbours response (timeout)'}
         except Exception as e:
             logger.error(f"req_neighbours failed: {e}")
             return {'success': False, 'error': str(e)}

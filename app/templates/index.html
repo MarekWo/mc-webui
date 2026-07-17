@@ -145,6 +145,9 @@
     <button class="fab fab-console d-none" id="fab-console" data-bs-toggle="modal" data-bs-target="#consoleModal" title="Console">
         <i class="bi bi-terminal"></i>
     </button>
+    <button class="fab fab-repeaters d-none" id="fab-repeaters" data-bs-toggle="modal" data-bs-target="#repeatersModal" title="My Repeaters">
+        <i class="bi bi-diagram-3"></i>
+    </button>
     <button class="fab fab-deviceinfo d-none" id="fab-deviceinfo" data-bs-toggle="modal" data-bs-target="#deviceInfoModal" title="Device Info">
         <i class="bi bi-cpu"></i>
     </button>
@@ -199,6 +202,23 @@
             </div>
             <div class="modal-body p-0">
                 <iframe id="consoleFrame" src="/console" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- My Repeaters Modal (Full Screen) -->
+<div class="modal fade" id="repeatersModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-diagram-3"></i> My Repeaters</h5>
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg"></i> Close
+                </button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="repeatersFrame" style="width: 100%; height: 100%; border: none;"></iframe>
             </div>
         </div>
     </div>
@@ -289,6 +309,17 @@
                 const consoleFrame = document.getElementById('consoleFrame');
                 if (consoleFrame) {
                     consoleFrame.src = '/console';
+                }
+            });
+        }
+
+        // My Repeaters modal - (re)load iframe on open for fresh data
+        const repeatersModal = document.getElementById('repeatersModal');
+        if (repeatersModal) {
+            repeatersModal.addEventListener('show.bs.modal', function () {
+                const repeatersFrame = document.getElementById('repeatersFrame');
+                if (repeatersFrame) {
+                    repeatersFrame.src = '/repeaters';
                 }
             });
         }

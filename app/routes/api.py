@@ -181,6 +181,27 @@ def invalidate_contacts_cache():
     logger.debug("Contacts cache invalidated")
 
 
+def _format_path_display(out_path_len, out_path, out_path_hash_mode):
+    """Format device out_path fields as 'Flood' / 'Direct' / 'AB→CD12…'.
+
+    meshcore lib 2.x: out_path_len already holds the hop count (6 LSB) and
+    the hash-size mode is stored separately in out_path_hash_mode. The raw
+    out_path is truncated to the meaningful bytes (firmware buffer may have
+    trailing garbage).
+    """
+    if out_path_len and out_path_len > 0 and out_path:
+        hash_mode = out_path_hash_mode or 0
+        hash_size = max(1, hash_mode + 1) if hash_mode >= 0 else 1
+        chunk = hash_size * 2
+        meaningful_hex = out_path[:out_path_len * chunk]
+        hops = [meaningful_hex[i:i + chunk].upper()
+                for i in range(0, len(meaningful_hex), chunk)]
+        return '→'.join(hops) if hops else out_path
+    if out_path_len == 0:
+        return 'Direct'
+    return 'Flood'
+
+
 # =============================================================================
 # Protected Contacts Management
 # =============================================================================
@@ -3018,25 +3039,10 @@ def get_contacts_detailed_api():
         blocked_keys = db.get_blocked_keys() if db else set()
 
         for public_key, details in contacts_detailed.items():
-            # Compute path display string.
-            # meshcore lib 2.x: out_path_len already holds the hop count (6 LSB)
-            # and the hash-size mode is stored separately in out_path_hash_mode.
             out_path_len = details.get('out_path_len', -1)
             out_path_raw = details.get('out_path', '')
             out_path_hash_mode = details.get('out_path_hash_mode', 0)
-            if out_path_len > 0 and out_path_raw:
-                hop_count = out_path_len
-                hash_size = max(1, out_path_hash_mode + 1) if out_path_hash_mode >= 0 else 1
-                chunk = hash_size * 2
-                # Truncate to meaningful bytes (firmware buffer may have trailing garbage)
-                meaningful_hex = out_path_raw[:hop_count * chunk]
-                # Format as HEX→HEX→HEX (each hop is hash_size*2 hex chars)
-                hops = [meaningful_hex[i:i+chunk].upper() for i in range(0, len(meaningful_hex), chunk)]
-                path_or_mode = '→'.join(hops) if hops else out_path_raw
-            elif out_path_len == 0:
-                path_or_mode = 'Direct'
-            else:
-                path_or_mode = 'Flood'
+            path_or_mode = _format_path_display(out_path_len, out_path_raw, out_path_hash_mode)
 
             contact = {
                 # All original fields from contact_info
@@ -5665,4 +5671,198 @@ def get_logs_api():
 
     except Exception as e:
         logger.error(f"Error getting logs: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# =============================================================================
+# My Repeaters API (repeater administration panel)
+# =============================================================================
+
+_PUBKEY_RE = re.compile(r'^[0-9a-f]{64}$')
+
+
+def _normalize_repeater_key(public_key):
+    """Lowercase and validate a full 64-hex repeater public key."""
+    pk = (public_key or '').strip().lower()
+    return pk if _PUBKEY_RE.match(pk) else None
+
+
+def _repeater_result_status(result):
+    """Map a device_manager repeater result to an HTTP status code."""
+    if result.get('success'):
+        return 200
+    if result.get('busy'):
+        return 429
+    if result.get('timeout'):
+        return 504
+    error = (result.get('error') or '').lower()
+    if 'not connected' in error:
+        return 503
+    if 'not found' in error:
+        return 404
+    return 500
+
+
+@api_bp.route('/repeaters', methods=['GET'])
+def list_my_repeaters():
+    """List saved repeaters merged with device contact truth."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        rows = db.get_repeaters()
+        device_by_key = {}
+        if rows:
+            force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+            success, contacts_detailed, _error = get_contacts_detailed_cached(force_refresh)
+            if success and contacts_detailed:
+                device_by_key = {k.lower(): v for k, v in contacts_detailed.items()}
+
+        repeaters = []
+        for row in rows:
+            pk = row['public_key'].lower()
+            details = device_by_key.get(pk)
+            entry = {
+                'public_key': pk,
+                'password_set': bool(row.get('password')),
+                'added_at': row.get('added_at'),
+                'last_login_at': row.get('last_login_at'),
+                'last_login_role': row.get('last_login_role'),
+                'on_device': details is not None,
+                'name': '',
+                'out_path_len': None,
+                'out_path': '',
+                'out_path_hash_mode': 0,
+                'path_or_mode': '',
+                'adv_lat': None,
+                'adv_lon': None,
+                'last_advert': None,
+            }
+            if details:
+                entry.update({
+                    'name': details.get('adv_name', ''),
+                    'out_path_len': details.get('out_path_len', -1),
+                    'out_path': details.get('out_path', ''),
+                    'out_path_hash_mode': details.get('out_path_hash_mode', 0),
+                    'path_or_mode': _format_path_display(
+                        details.get('out_path_len', -1),
+                        details.get('out_path', ''),
+                        details.get('out_path_hash_mode', 0)),
+                    'adv_lat': details.get('adv_lat'),
+                    'adv_lon': details.get('adv_lon'),
+                    'last_advert': details.get('last_advert'),
+                })
+            repeaters.append(entry)
+
+        return jsonify({'success': True, 'repeaters': repeaters}), 200
+    except Exception as e:
+        logger.error(f"Error listing repeaters: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters', methods=['POST'])
+def add_my_repeater():
+    """Add a device repeater contact to the My Repeaters list."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    data = request.get_json(silent=True) or {}
+    pk = _normalize_repeater_key(data.get('public_key'))
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key (expected 64 hex chars)'}), 400
+    try:
+        if not db.add_repeater(pk):
+            return jsonify({'success': False, 'error': 'Repeater already added'}), 409
+        return jsonify({'success': True}), 201
+    except Exception as e:
+        logger.error(f"Error adding repeater: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>', methods=['PUT'])
+def update_my_repeater(public_key):
+    """Set or clear the saved password for a repeater ('' clears)."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    data = request.get_json(silent=True) or {}
+    if 'password' not in data or not isinstance(data['password'], str):
+        return jsonify({'success': False, 'error': 'Missing password field'}), 400
+    try:
+        if not db.set_repeater_password(pk, data['password']):
+            return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+        return jsonify({'success': True, 'password_set': bool(data['password'])}), 200
+    except Exception as e:
+        logger.error(f"Error updating repeater: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>', methods=['DELETE'])
+def delete_my_repeater(public_key):
+    """Remove a repeater from the list (device contact is untouched)."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    try:
+        if not db.delete_repeater(pk):
+            return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"Error deleting repeater: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/login', methods=['POST'])
+def login_my_repeater(public_key):
+    """Log into a repeater using the provided or saved password.
+
+    Body: {password?: str, save?: bool}. When a password is provided with
+    save=true it is persisted (even if the login then times out — the
+    repeater may simply be offline while the password is correct).
+    """
+    db = _get_db()
+    dm = _get_dm()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    row = db.get_repeater(pk)
+    if not row:
+        return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+
+    data = request.get_json(silent=True) or {}
+    provided = data.get('password')
+    if provided is not None and not isinstance(provided, str):
+        return jsonify({'success': False, 'error': 'Invalid password'}), 400
+    password = provided if provided else row.get('password', '')
+    if not password:
+        return jsonify({'success': False, 'error': 'No password set for this repeater',
+                        'need_password': True}), 400
+    try:
+        if provided and data.get('save'):
+            db.set_repeater_password(pk, provided)
+
+        result = dm.repeater_login(pk, password)
+        if result.get('success'):
+            role = 'admin' if result.get('is_admin') else 'guest'
+            db.update_repeater_login(pk, role)
+            return jsonify({
+                'success': True,
+                'is_admin': result.get('is_admin', False),
+                'permissions': result.get('permissions'),
+                'name': result.get('name', ''),
+            }), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'Login failed')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error logging into repeater: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

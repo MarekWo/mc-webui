@@ -223,6 +223,16 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- My Repeaters: repeaters selected for administration, with saved login.
+-- No FK to contacts: a saved password must survive contact cleanup/re-add.
+CREATE TABLE IF NOT EXISTS repeaters (
+    public_key      TEXT PRIMARY KEY,               -- hex, lowercase (64 chars)
+    password        TEXT NOT NULL DEFAULT '',       -- plaintext (single-user LAN app)
+    added_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    last_login_at   TEXT,
+    last_login_role TEXT                            -- 'admin' | 'guest'
+);
+
 -- ============================================================
 -- Indexes
 -- ============================================================

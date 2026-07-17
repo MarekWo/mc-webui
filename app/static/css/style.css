@@ -1631,6 +1631,12 @@ main {
     color: white;
 }
 
+/* My Repeaters FAB button (REP green) */
+.fab-repeaters {
+    background: linear-gradient(135deg, #198754 0%, #146c43 100%);
+    color: white;
+}
+
 /* Filter bar overlay - slides down from top of chat area */
 .filter-bar {
     position: absolute;

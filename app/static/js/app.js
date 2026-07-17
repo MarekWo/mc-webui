@@ -6029,6 +6029,7 @@ const ITEM_PLACEMENT_DEFS = {
     floodadvert: { fab: '#fab-floodadvert', menu: '#floodadvBtn' },
     map:         { fab: '#fab-map',         menu: '#mapBtn' },
     console:     { fab: '#fab-console',     menu: '#consoleBtn' },
+    repeaters:   { fab: '#fab-repeaters',   menu: '#repeatersBtn' },
     deviceinfo:  { fab: '#fab-deviceinfo',  menu: '#deviceInfoBtn' },
     syslog:      { fab: '#fab-syslog',      menu: '#logsBtn' },
 };
@@ -6036,7 +6037,7 @@ const ITEM_PLACEMENT_DEFS = {
 const ITEM_PLACEMENT_DEFAULTS = {
     filter: 'fab', search: 'fab', dm: 'fab', contacts: 'fab', settings: 'fab',
     advert: 'menu', floodadvert: 'menu', map: 'menu',
-    console: 'menu', deviceinfo: 'menu', syslog: 'menu'
+    console: 'menu', repeaters: 'menu', deviceinfo: 'menu', syslog: 'menu'
 };
 
 function readItemPlacements() {
