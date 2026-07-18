@@ -24,6 +24,10 @@
     <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <!-- Bootstrap Icons (local) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+    <!-- Leaflet CSS (neighbors map view) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="" />
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <!-- Theme CSS (light/dark mode) -->
@@ -167,6 +171,22 @@
             padding: 1rem;
         }
 
+        /* SNR labels on neighbor map connection lines */
+        .nb-snr-tooltip {
+            background: rgba(13, 110, 253, 0.92);
+            color: #fff;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 1px 6px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .nb-snr-tooltip::before {
+            display: none;
+        }
+
         /* Centered state screens */
         .state-screen {
             text-align: center;
@@ -301,6 +321,10 @@
 
     <!-- Bootstrap JS Bundle (local) -->
     <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <!-- Leaflet JS (neighbors map view) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
     <!-- Repeater Management JS -->
     <script src="{{ url_for('static', filename='js/repeater-manage.js') }}"></script>
 </body>

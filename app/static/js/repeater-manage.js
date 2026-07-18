@@ -237,6 +237,10 @@ function openToolPane(tool) {
         renderTelemetryPane(body);
         return;
     }
+    if (tool.key === 'neighbors') {
+        renderNeighborsPane(body);
+        return;
+    }
     body.innerHTML = `
         <div class="text-center text-muted py-4">
             <i class="bi ${tool.icon}" style="font-size: 2rem;"></i>
@@ -567,6 +571,244 @@ function renderTelemetryCards(container, lpp) {
     });
     html += '</div>';
     container.innerHTML = html;
+}
+
+// ================================================================
+// Neighbors tool
+// ================================================================
+
+let _neighborsData = null;      // last successful response
+let _neighborsView = 'list';    // 'list' | 'map'
+let _nbMap = null;
+let _nbMapLayers = null;
+
+function renderNeighborsPane(body) {
+    _neighborsView = 'list';
+    _nbMap = null;   // pane body was rebuilt; force map re-init
+    body.innerHTML = `
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+            <span class="text-muted small flex-grow-1" id="neighborsCount"></span>
+            <div class="btn-group btn-group-sm" role="group" id="neighborsViewToggle" style="display: none;">
+                <button type="button" class="btn btn-outline-secondary active" id="nbListBtn">
+                    <i class="bi bi-list-ul"></i> List
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="nbMapBtn">
+                    <i class="bi bi-map"></i> Map
+                </button>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="neighborsRefreshBtn" title="Refresh neighbours">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+        <div id="neighborsContainer"></div>
+        <div id="neighborsMapWrap" style="display: none;">
+            <div id="nbLeafletMap" style="height: 420px; width: 100%;" class="rounded border"></div>
+            <div class="small text-muted mt-1" id="nbMapNote"></div>
+        </div>
+    `;
+    body.querySelector('#neighborsRefreshBtn').addEventListener('click', loadNeighbors);
+    body.querySelector('#nbListBtn').addEventListener('click', () => setNeighborsView('list'));
+    body.querySelector('#nbMapBtn').addEventListener('click', () => setNeighborsView('map'));
+    loadNeighbors();
+}
+
+async function loadNeighbors() {
+    const container = document.getElementById('neighborsContainer');
+    const btn = document.getElementById('neighborsRefreshBtn');
+    if (!container) return;
+    if (btn) btn.disabled = true;
+    setNeighborsView('list');
+    container.innerHTML = `
+        <div class="text-center text-muted py-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 mb-0">Requesting neighbours from the repeater…<br>
+            <span class="small">Long lists are fetched in pages and can take a while.</span></p>
+        </div>
+    `;
+
+    let data = null;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/neighbours`);
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: 'Request failed' };
+    }
+    if (btn) btn.disabled = false;
+
+    if (!data || !data.success) {
+        const countEl = document.getElementById('neighborsCount');
+        if (countEl) countEl.textContent = '';
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
+                <p class="mt-2 mb-2">${esc((data && data.error) || 'Failed to get neighbours')}</p>
+                <button type="button" class="btn btn-sm btn-primary" id="neighborsRetryBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Try again
+                </button>
+            </div>
+        `;
+        const retry = document.getElementById('neighborsRetryBtn');
+        if (retry) retry.addEventListener('click', loadNeighbors);
+        return;
+    }
+
+    _neighborsData = data;
+    renderNeighborsList();
+}
+
+function neighborLabel(n) {
+    return n.name || `[${n.pubkey_prefix}]`;
+}
+
+function renderNeighborsList() {
+    const container = document.getElementById('neighborsContainer');
+    const countEl = document.getElementById('neighborsCount');
+    const toggle = document.getElementById('neighborsViewToggle');
+    const data = _neighborsData;
+    if (!container || !data) return;
+
+    const entries = data.entries || [];
+    if (countEl) {
+        let label = `${data.total} neighbor${data.total === 1 ? '' : 's'}`;
+        if (data.fetched < data.total) label += ` (showing ${data.fetched})`;
+        countEl.textContent = label;
+    }
+
+    // Map view is offered when the repeater or any neighbour has a position
+    const mappable = entries.some(n => n.lat != null && n.lon != null)
+        || (_repeater && _repeater.adv_lat && _repeater.adv_lon);
+    if (toggle) toggle.style.display = mappable ? '' : 'none';
+
+    if (!entries.length) {
+        container.innerHTML = '<div class="text-muted text-center py-4">No neighbours reported yet.<br><small>Neighbours are learned from zero-hop repeater adverts.</small></div>';
+        return;
+    }
+
+    const rows = entries.map(n => `
+        <tr>
+            <td class="text-truncate" style="max-width: 220px;">
+                ${n.name ? esc(n.name) : `<span class="font-monospace text-muted">[${esc(n.pubkey_prefix)}]</span>`}
+                ${n.lat != null ? '<i class="bi bi-geo-alt text-muted small ms-1" title="Position known"></i>' : ''}
+            </td>
+            <td class="text-muted text-nowrap">${fmtHeardAgo(n.secs_ago)}</td>
+            <td class="text-end text-nowrap fw-medium">${n.snr != null ? n.snr + ' dB' : '—'}</td>
+        </tr>
+    `).join('');
+    container.innerHTML = `
+        <table class="table table-sm align-middle mb-0">
+            <thead><tr class="small text-muted">
+                <th class="fw-normal">Repeater</th>
+                <th class="fw-normal">Heard</th>
+                <th class="fw-normal text-end">SNR</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+    `;
+}
+
+function fmtHeardAgo(secs) {
+    if (secs == null) return '—';
+    if (secs < 60) return `${secs}s ago`;
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s ago`;
+    if (secs < 86400) return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m ago`;
+    return `${Math.floor(secs / 86400)}d ${Math.floor((secs % 86400) / 3600)}h ago`;
+}
+
+function setNeighborsView(view) {
+    _neighborsView = view;
+    const listWrap = document.getElementById('neighborsContainer');
+    const mapWrap = document.getElementById('neighborsMapWrap');
+    const listBtn = document.getElementById('nbListBtn');
+    const mapBtn = document.getElementById('nbMapBtn');
+    if (!listWrap || !mapWrap) return;
+    const isMap = view === 'map';
+    listWrap.style.display = isMap ? 'none' : '';
+    mapWrap.style.display = isMap ? '' : 'none';
+    if (listBtn) listBtn.classList.toggle('active', !isMap);
+    if (mapBtn) mapBtn.classList.toggle('active', isMap);
+    if (isMap) renderNeighborsMap();
+}
+
+function renderNeighborsMap() {
+    const data = _neighborsData;
+    if (!data) return;
+
+    if (!_nbMap) {
+        _nbMap = L.map('nbLeafletMap').setView([52.0, 19.0], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(_nbMap);
+        _nbMapLayers = L.layerGroup().addTo(_nbMap);
+    }
+    _nbMapLayers.clearLayers();
+
+    const hasCenter = _repeater && _repeater.adv_lat && _repeater.adv_lon;
+    const center = hasCenter ? [_repeater.adv_lat, _repeater.adv_lon] : null;
+    const bounds = [];
+
+    if (hasCenter) {
+        const centerMarker = L.circleMarker(center, {
+            radius: 11,
+            fillColor: '#dc3545',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.9
+        }).addTo(_nbMapLayers);
+        centerMarker.bindPopup(`<b>${esc(_repeater.name || 'This repeater')}</b><br>managed repeater`);
+        bounds.push(center);
+    }
+
+    let placed = 0;
+    let skipped = 0;
+    (data.entries || []).forEach(n => {
+        if (n.lat == null || n.lon == null) { skipped++; return; }
+        const pos = [n.lat, n.lon];
+        const marker = L.circleMarker(pos, {
+            radius: 9,
+            fillColor: '#198754',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.85
+        }).addTo(_nbMapLayers);
+        marker.bindPopup(
+            `<b>${esc(neighborLabel(n))}</b><br>` +
+            `SNR: ${n.snr != null ? n.snr + ' dB' : '—'}<br>` +
+            `Heard: ${fmtHeardAgo(n.secs_ago)}`
+        );
+        if (hasCenter) {
+            const line = L.polyline([center, pos], {
+                color: '#6c757d',
+                weight: 2,
+                dashArray: '6 6',
+                opacity: 0.8
+            }).addTo(_nbMapLayers);
+            line.bindTooltip(`${n.snr != null ? n.snr + ' dB' : '?'}`, {
+                permanent: true,
+                direction: 'center',
+                className: 'nb-snr-tooltip'
+            });
+        }
+        bounds.push(pos);
+        placed++;
+    });
+
+    const note = document.getElementById('nbMapNote');
+    if (note) {
+        const parts = [`${placed} neighbor${placed === 1 ? '' : 's'} with known position`];
+        if (skipped) parts.push(`${skipped} without position not shown`);
+        if (!hasCenter) parts.push('managed repeater has no position — connection lines unavailable');
+        note.textContent = parts.join(' · ');
+    }
+
+    // Leaflet needs a size recalc after the container becomes visible
+    setTimeout(() => {
+        _nbMap.invalidateSize();
+        if (bounds.length > 0) {
+            _nbMap.fitBounds(bounds, { padding: [30, 30] });
+        }
+    }, 50);
 }
 
 async function loadClock() {

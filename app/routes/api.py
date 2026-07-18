@@ -5889,6 +5889,72 @@ def repeater_telemetry(public_key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/repeaters/<public_key>/neighbours', methods=['GET'])
+def repeater_neighbours(public_key):
+    """Zero-hop neighbours of a repeater, enriched with contact names/coords.
+
+    Neighbour entries carry only a 4-byte pubkey prefix; names and GPS
+    positions are resolved by prefix-matching device contacts (with the
+    DB contact cache as fallback), so unknown repeaters stay prefix-only.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    login_error = _require_repeater_login(dm, pk)
+    if login_error:
+        return login_error
+    try:
+        result = dm.repeater_req_neighbours(pk)
+        if not result.get('success'):
+            return jsonify({'success': False,
+                            'error': result.get('error', 'No neighbours response')}), _repeater_result_status(result)
+
+        data = result['data'] or {}
+        db = _get_db()
+        entries = []
+        for n in data.get('neighbours', []):
+            prefix = (n.get('pubkey') or '').lower()
+            entry = {
+                'pubkey_prefix': prefix,
+                'secs_ago': n.get('secs_ago'),
+                'snr': n.get('snr'),
+                'name': '',
+                'lat': None,
+                'lon': None,
+            }
+            contact = dm.mc.get_contact_by_key_prefix(prefix) if dm.mc else None
+            if contact:
+                entry['name'] = contact.get('adv_name', '') or ''
+                lat = contact.get('adv_lat')
+                lon = contact.get('adv_lon')
+                if lat and lon and (lat != 0 or lon != 0):
+                    entry['lat'] = lat
+                    entry['lon'] = lon
+            elif db:
+                db_contact = db.get_contact_by_prefix(prefix)
+                if db_contact:
+                    entry['name'] = db_contact.get('name', '') or ''
+                    lat = db_contact.get('adv_lat')
+                    lon = db_contact.get('adv_lon')
+                    if lat and lon and (lat != 0 or lon != 0):
+                        entry['lat'] = lat
+                        entry['lon'] = lon
+            entries.append(entry)
+
+        return jsonify({
+            'success': True,
+            'total': data.get('neighbours_count', len(entries)),
+            'fetched': data.get('results_count', len(entries)),
+            'entries': entries,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting repeater neighbours: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/repeaters/<public_key>/clock', methods=['GET'])
 def repeater_clock(public_key):
     """Current clock of a repeater (unix seconds + formatted)."""
