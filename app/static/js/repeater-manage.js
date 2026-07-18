@@ -233,6 +233,10 @@ function openToolPane(tool) {
         renderStatusPane(body);
         return;
     }
+    if (tool.key === 'telemetry') {
+        renderTelemetryPane(body);
+        return;
+    }
     body.innerHTML = `
         <div class="text-center text-muted py-4">
             <i class="bi ${tool.icon}" style="font-size: 2rem;"></i>
@@ -393,6 +397,176 @@ function renderStatusTable(container, s) {
     ]);
 
     container.innerHTML = system + radio + packets;
+}
+
+// ================================================================
+// Telemetry tool
+// ================================================================
+
+// Cayenne LPP type name -> {unit, decimals, icon}
+const LPP_DISPLAY = {
+    'voltage':        { unit: 'V',   icon: 'bi-battery-half' },
+    'current':        { unit: 'A',   icon: 'bi-lightning-charge' },
+    'power':          { unit: 'W',   icon: 'bi-plug' },
+    'energy':         { unit: 'kWh', icon: 'bi-plug-fill' },
+    'temperature':    { unit: '°C',  icon: 'bi-thermometer-half' },
+    'humidity':       { unit: '%',   icon: 'bi-droplet' },
+    'percentage':     { unit: '%',   icon: 'bi-percent' },
+    'barometer':      { unit: 'hPa', icon: 'bi-speedometer2' },
+    'illuminance':    { unit: 'lx',  icon: 'bi-sun' },
+    'altitude':       { unit: 'm',   icon: 'bi-arrow-up-right' },
+    'distance':       { unit: 'm',   icon: 'bi-rulers' },
+    'frequency':      { unit: 'Hz',  icon: 'bi-soundwave' },
+    'concentration':  { unit: 'ppm', icon: 'bi-cloud-haze' },
+    'load':           { unit: 'kg',  icon: 'bi-box' },
+    'direction':      { unit: '°',   icon: 'bi-compass' },
+    'gps':            { unit: '',    icon: 'bi-geo-alt' },
+    'digital input':  { unit: '',    icon: 'bi-toggle-on' },
+    'digital output': { unit: '',    icon: 'bi-toggle-off' },
+    'analog input':   { unit: '',    icon: 'bi-sliders' },
+    'analog output':  { unit: '',    icon: 'bi-sliders' },
+    'generic sensor': { unit: '',    icon: 'bi-cpu' },
+    'presence':       { unit: '',    icon: 'bi-person-check' },
+    'switch':         { unit: '',    icon: 'bi-toggle2-on' },
+    'time':           { unit: '',    icon: 'bi-clock' },
+};
+
+function fmtLppValue(type, value) {
+    if (value == null) return '—';
+    if (type === 'gps' && typeof value === 'object') {
+        // lib returns {latitude, longitude, altitude}; tolerate array form too
+        const lat = value.latitude ?? value[0];
+        const lon = value.longitude ?? value[1];
+        const alt = value.altitude ?? value[2];
+        if (lat == null || lon == null) return esc(JSON.stringify(value));
+        let s = `${Number(lat).toFixed(5)}, ${Number(lon).toFixed(5)}`;
+        if (alt != null) s += ` (${Number(alt).toFixed(0)} m)`;
+        return esc(s);
+    }
+    if (Array.isArray(value)) return esc(value.join(', '));
+    if (typeof value === 'object') return esc(JSON.stringify(value));
+    if (typeof value === 'number' && !Number.isInteger(value)) {
+        // Trim float noise, keep up to 3 decimals
+        return esc(String(Math.round(value * 1000) / 1000));
+    }
+    return esc(String(value));
+}
+
+let _telemetryUpdatedAt = null;
+let _telemetryTimer = null;
+
+function renderTelemetryPane(body) {
+    body.innerHTML = `
+        <div class="d-flex align-items-center mb-2">
+            <span class="text-muted small flex-grow-1" id="telemetryUpdated"></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="telemetryRefreshBtn" title="Refresh telemetry">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+        <div id="telemetryContainer"></div>
+    `;
+    body.querySelector('#telemetryRefreshBtn').addEventListener('click', loadTelemetry);
+    loadTelemetry();
+}
+
+function setTelemetryUpdatedLabel() {
+    if (_telemetryTimer) { clearInterval(_telemetryTimer); _telemetryTimer = null; }
+    if (!_telemetryUpdatedAt) return;
+    const tick = () => {
+        const label = document.getElementById('telemetryUpdated');
+        if (!label) { clearInterval(_telemetryTimer); _telemetryTimer = null; return; }
+        const secs = Math.floor((Date.now() - _telemetryUpdatedAt) / 1000);
+        if (secs < 2) label.textContent = 'Updated just now';
+        else if (secs < 60) label.textContent = `Updated ${secs}s ago`;
+        else label.textContent = `Updated ${fmtDuration(secs)} ago`;
+    };
+    tick();
+    _telemetryTimer = setInterval(tick, 5000);
+}
+
+async function loadTelemetry() {
+    const container = document.getElementById('telemetryContainer');
+    const btn = document.getElementById('telemetryRefreshBtn');
+    if (!container) return;
+    if (btn) btn.disabled = true;
+    container.innerHTML = `
+        <div class="text-center text-muted py-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 mb-0">Requesting telemetry from the repeater…<br>
+            <span class="small">Multi-hop paths can take up to a minute.</span></p>
+        </div>
+    `;
+
+    let data = null;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/telemetry`);
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: 'Request failed' };
+    }
+    if (btn) btn.disabled = false;
+
+    if (!data || !data.success) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
+                <p class="mt-2 mb-2">${esc((data && data.error) || 'Failed to get telemetry')}</p>
+                <button type="button" class="btn btn-sm btn-primary" id="telemetryRetryBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Try again
+                </button>
+            </div>
+        `;
+        const retry = document.getElementById('telemetryRetryBtn');
+        if (retry) retry.addEventListener('click', loadTelemetry);
+        return;
+    }
+
+    renderTelemetryCards(container, data.lpp || []);
+    _telemetryUpdatedAt = Date.now();
+    setTelemetryUpdatedLabel();
+}
+
+function renderTelemetryCards(container, lpp) {
+    if (!lpp.length) {
+        container.innerHTML = '<div class="text-muted text-center py-4">No telemetry data reported.</div>';
+        return;
+    }
+
+    // Group entries by channel, keep entry order inside a channel
+    const byChannel = new Map();
+    lpp.forEach(entry => {
+        const ch = entry.channel ?? 0;
+        if (!byChannel.has(ch)) byChannel.set(ch, []);
+        byChannel.get(ch).push(entry);
+    });
+    const channels = [...byChannel.keys()].sort((a, b) => a - b);
+
+    let html = '<div class="row g-3">';
+    channels.forEach(ch => {
+        const rows = byChannel.get(ch).map(entry => {
+            const disp = LPP_DISPLAY[entry.type] || { unit: '', icon: 'bi-activity' };
+            const label = esc(entry.type.charAt(0).toUpperCase() + entry.type.slice(1));
+            const value = fmtLppValue(entry.type, entry.value);
+            return `
+                <tr>
+                    <td class="text-muted"><i class="bi ${disp.icon} me-1"></i>${label}</td>
+                    <td class="text-end fw-medium">${value}${disp.unit ? ' ' + disp.unit : ''}</td>
+                </tr>
+            `;
+        }).join('');
+        // Channel 1 carries the repeater's own vitals (battery, MCU temp)
+        const chLabel = ch === 1 ? `Channel ${ch} <span class="text-muted fw-normal">· device</span>` : `Channel ${ch}`;
+        html += `
+            <div class="col-12 col-md-6 col-xl-4">
+                <div class="border rounded p-2 h-100">
+                    <div class="small fw-bold mb-1">${chLabel}</div>
+                    <table class="table table-sm mb-0"><tbody>${rows}</tbody></table>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 async function loadClock() {

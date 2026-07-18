@@ -3291,6 +3291,24 @@ class DeviceManager:
             logger.error(f"req_mma failed: {e}")
             return {'success': False, 'error': str(e)}
 
+    def repeater_req_telemetry(self, name_or_key: str) -> Dict:
+        """Request telemetry (Cayenne LPP) from a repeater."""
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        try:
+            contact_timeout = contact.get('timeout', 0) or 0
+            return self._locked_repeater_execute(
+                self.mc.commands.req_telemetry_sync(contact, contact_timeout, min_timeout=15),
+                timeout=120,
+                error_label='telemetry',
+            )
+        except Exception as e:
+            logger.error(f"req_telemetry failed: {e}")
+            return {'success': False, 'error': str(e)}
+
     def repeater_req_neighbours(self, name_or_key: str) -> Dict:
         """Request neighbours from a repeater."""
         if not self.is_connected:

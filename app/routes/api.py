@@ -5866,6 +5866,29 @@ def repeater_status(public_key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/repeaters/<public_key>/telemetry', methods=['GET'])
+def repeater_telemetry(public_key):
+    """Telemetry request to a repeater (Cayenne LPP entries, all channels)."""
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    login_error = _require_repeater_login(dm, pk)
+    if login_error:
+        return login_error
+    try:
+        result = dm.repeater_req_telemetry(pk)
+        if result.get('success'):
+            return jsonify({'success': True, 'lpp': result['data']}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'No telemetry response')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error getting repeater telemetry: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/repeaters/<public_key>/clock', methods=['GET'])
 def repeater_clock(public_key):
     """Current clock of a repeater (unix seconds + formatted)."""
