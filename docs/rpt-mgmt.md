@@ -1,5 +1,7 @@
 # How to Manage Your Repeater
 
+> **Note:** mc-webui now ships a built-in repeater administration panel — **My Repeaters** in the main menu — with status, telemetry, neighbours, a remote CLI, settings, and actions. See [My Repeaters in the user guide](user-guide.md#my-repeaters-repeater-administration). The DM-based method below still works and remains useful as a fallback.
+
 This guide explains how to manage a MeshCore repeater device directly from the mc-webui interface using Direct Messages.
 
 ---

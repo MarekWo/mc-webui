@@ -94,6 +94,17 @@ The `DeviceManager` handles the connection to the MeshCore device via a direct s
 - **Advert scheduler** — an observer-owned daemon thread checks every 10 minutes and sends a flood advert once `advert_interval_hours` has elapsed since the `observer_last_advert_at` timestamp persisted in `app_settings` (restart-safe)
 - **Live status** — `observer_status` events on the `/chat` namespace (throttled to one per 2 s on the packet path) drive the Settings-tab badges and counters; `GET /api/observer/status` returns the full merged view
 
+### Repeater administration (My Repeaters)
+
+The `/repeaters` (list) and `/repeaters/manage` (per-repeater tools) panels are standalone iframe pages built on the companion protocol's remote-request commands plus the repeater text CLI:
+
+- **Serialization** — the companion firmware tracks a single pending remote request (each new send silently clears the previous one), so every repeater operation runs under `DeviceManager._repeater_lock` (180 s acquire timeout; a held lock returns `{'busy': True}` → HTTP 429). This also guards against two browser tabs operating at once
+- **Login sessions** — `repeater_login()` waits for `LOGIN_SUCCESS` filtered by the contact's `pubkey_prefix` and stores `{is_admin, permissions, logged_in_at}` in the in-memory `_repeater_sessions` dict (cleared on logout/app restart; the UI auto-relogs with the saved password). All remote endpoints fail fast with 401 `need_login` when no session exists — a repeater only answers pubkeys in its ACL, so requesting without a login would just burn a multi-minute timeout. A wrong password is indistinguishable from an unreachable repeater (the firmware never replies to failed logins), so timeout messages always name both causes
+- **CLI reply correlation** — `repeater_cmd_wait()` sends one text command and blocks for its reply. Replies arrive as `CONTACT_MSG_RECV` with `txt_type=1` (CLI_DATA) and carry no protocol-level correlation, so correlation = the repeater lock (single command in flight) + a single-slot waiter matched against the sender's 12-hex pubkey prefix at the top of `_on_dm_received`. Matched replies are consumed there and never stored as chat DMs; unmatched CLI replies keep the legacy behavior (stored as a DM) so the Console's fire-and-forget `cmd` flow is unchanged. Wait time derives from the device-suggested timeout (clamped 10–45 s)
+- **Settings batches** — reads run sequential `get <field>` commands per section and parse the firmware's `> value` replies, reporting per-field errors without failing the batch; writes send only dirty fields and classify each reply as `ok` (starts with `ok`/`password now`), `reboot_required` (reply mentions reboot — e.g. `set radio`), or `failed` (anything else, surfaced verbatim). Connection-level failures abort the rest of the batch
+- **Role gating** — the firmware silently drops text CLI from non-admin logins (which would surface as a timeout), so the CLI/Settings/Actions endpoints reject guest sessions with 403 up front instead
+- **Actions whitelist** — `advert.zerohop`, `advert` (flood), `clock sync`, `reboot`. `reboot` never replies (the firmware restarts immediately without building one), so a clean send followed by silence is reported as success. Text `erase` is firmware-gated to the USB serial console (`sender_timestamp == 0`), hence no erase in the UI
+
 ---
 
 ## Project Structure
@@ -156,6 +167,7 @@ Key tables:
 - `read_status` - Per-channel read counters and favorites (`is_favorite` column; used to pin channels in the sidebar/dropdown sort order)
 - `analyzers` - User-configured MeshCore Analyzer services (`name`, `url_template` with `{packetHash}` placeholder, `is_default`, `is_disabled`; partial unique index enforces a single default)
 - `observer_brokers` - MQTT brokers for the Observer packet-capture feature (`name`, `host`, `port`, `username`, `password` — stored plaintext, `use_tls`, `tls_verify`, `is_disabled`)
+- `repeaters` - Repeaters saved in the My Repeaters panel (`public_key` PK, `password` — stored plaintext per the observer_brokers precedent, `added_at`, `last_login_at`, `last_login_role`). Everything else about a repeater (name, path, position) comes from the device contact at read time
 
 `direct_messages` gained a `delivery_path_hash_size` column (auto-migrated, defaults to 1) so reloaded DM bubbles render multi-byte routes correctly. The `path_len` column on `channel_messages`, `direct_messages`, and `paths` now stores the raw firmware byte (masked hop count plus path_hash_mode in the upper bits), recombined at write time via `pack_path_len()`; the API endpoints decode it back into `path_hash_size` on read. `channel_messages` also gained a `raw_packet` column (the full hex wire snapshot captured at send time, indexed by `idx_cm_pkt` on `pkt_payload` for fast self-echo lookups) that powers raw resend; it is `NULL` for received and pre-migration rows, so the resend button stays disabled there.
 
@@ -279,6 +291,29 @@ The backend no longer ships a pre-built `analyzer_url` per message — channel-m
 | GET | `/api/observer/status` | Settings + broker rows merged with live connection state and packet counters |
 
 Every mutating endpoint hot-reloads the `ObserverManager`, so broker and setting changes take effect without an app restart.
+
+### My Repeaters (repeater administration)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/repeaters` | Saved repeaters merged with device contact truth (`?refresh=true` bypasses the contacts cache) |
+| POST | `/api/repeaters` | Add a repeater (`{public_key}`; 409 when already saved) |
+| GET | `/api/repeaters/<pk>` | Single merged entry + login session state |
+| PUT | `/api/repeaters/<pk>` | Set or clear the saved password (`{password}`; empty string clears) |
+| DELETE | `/api/repeaters/<pk>` | Remove from the list (device contact untouched) |
+| POST | `/api/repeaters/<pk>/login` | Log in with `{password?, save?}` — omitted password uses the saved one |
+| GET | `/api/repeaters/<pk>/session` | In-memory session state (`logged_in`, `is_admin`, `permissions`) |
+| POST | `/api/repeaters/<pk>/logout` | Log out and drop the session |
+| GET | `/api/repeaters/<pk>/status` | Binary status request (battery, radio, packet stats) |
+| GET | `/api/repeaters/<pk>/clock` | Repeater clock (LE epoch from `req_basic_sync`) |
+| GET | `/api/repeaters/<pk>/telemetry` | All Cayenne LPP channels |
+| GET | `/api/repeaters/<pk>/neighbours` | Zero-hop neighbours enriched with contact names/positions |
+| POST | `/api/repeaters/<pk>/cli` | Text CLI command (`{command}` → `{output, elapsed_ms}`); admin only |
+| GET | `/api/repeaters/<pk>/settings` | Read one settings section (`?section=basic\|radio\|location\|features\|network\|advert\|operator\|advanced`) as a `get` batch; admin only |
+| POST | `/api/repeaters/<pk>/settings` | Apply dirty fields (`{values}`) as a `set` batch with per-field `ok\|failed\|reboot_required` results; admin only |
+| POST | `/api/repeaters/<pk>/action` | One-shot action (`{action: zerohop_advert\|flood_advert\|clock_sync\|reboot}`); admin only |
+
+Error mapping is shared across the family: 401 `need_login` (no session), 403 (guest on an admin endpoint), 429 (another repeater operation in progress — single firmware request slot), 503 (device not connected), 504 (timeout: repeater unreachable *or* wrong password — indistinguishable by protocol). Passwords are never returned by any GET (`password_set` boolean only). The panels are served by `GET /repeaters` and `GET /repeaters/manage?pubkey=<64-hex>`.
 
 ### Direct Messages
 

@@ -10,12 +10,20 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ### New features
 
+- **My Repeaters — administer your repeaters from the browser.** A new full-screen panel (main menu → **My Repeaters**) for the MeshCore repeaters you hold the password to. Add repeaters from your device's contacts, save the admin password once, and from then on logging in is one click — the app shows whether the repeater granted you **ADMIN** or **GUEST** rights. Each entry also gets the same path editor as DMs, so you can pin a direct route to make logins and commands fast. Heads-up: repeaters never answer a bad login, so a wrong password looks exactly like an unreachable repeater — the app's error messages say so instead of guessing.
+- **Monitoring tools per repeater: Status, Telemetry, Neighbors.** After login you land in a management panel. **Status** shows battery, uptime, clock, RSSI/SNR/noise floor, packet counters, and channel utilization in one compact table. **Telemetry** lists every Cayenne LPP channel at once, with proper units. **Neighbors** shows every zero-hop node the repeater hears (name, last heard, SNR) — plus a map view that draws SNR-labeled links to the neighbours it can place. Works with guest logins too.
+- **Remote CLI, Settings, and Actions (admin logins).** **CLI** is a real terminal to the repeater — quick-command chips, per-repeater history, round-trip times. **Settings** edits the repeater configuration in collapsible sections (Basic, Radio, Location, Features, Network health, Advertisement, Operator info, Advanced): values load live from the repeater, only the fields you change are sent, and every field reports back individually — including a "reboot required" badge for radio parameters and the firmware's own error text for rejected values. **Actions** covers zero-hop advert, flood advert (marked "not recommended" — high network load), clock sync, and a confirmation-guarded reboot in a Danger zone. Erasing the file system stays USB-serial-only by firmware design, and the panel says so.
 - **Observer mode — feed packet analyzers straight from mc-webui.** The new **Settings → Observer** tab turns your node into a MeshCore observer: every packet the device overhears is published to one or more MQTT brokers in the standard `meshcore-packet-capture` format, so analyzer services (a self-hosted Corescope, letsmesh-style maps) see your local mesh traffic without a separate capture script or a dedicated second node. Configure brokers with host/port, optional username/password and TLS; each row shows a live connected/error badge, and the tab counts packets captured vs published in real time. Capture is completely passive — chat and direct messages are unaffected — and all changes apply immediately, no restart needed. (LetsMesh token-authenticated brokers are not supported yet.)
 - **Scheduled flood adverts.** The Observer tab includes an optional advert interval in hours: the app sends a flood advert on that schedule so your observer stays visible on analyzer maps. The timer survives restarts, so a redeploy won't send an extra advert early. Set it to 0 to keep adverts fully manual.
 
+### Reliability & polish
+
+- **Console `login` reports your role.** A successful repeater login in the Interactive Console now answers "Logged into X as admin" (or guest) instead of a bare success line.
+
 ### Deploy notes
 
-- This update adds a new Python dependency (`paho-mqtt`), so the Docker image must be rebuilt — the standard `mcupdate` flow does this automatically. Broker passwords entered in the Observer tab are stored in plain text in the app database; use dedicated MQTT credentials.
+- This update adds a new Python dependency (`paho-mqtt`) and raises the `meshcore` library requirement to 2.3.7, so the Docker image must be rebuilt — the standard `mcupdate` flow does this automatically.
+- Passwords you save in the app — MQTT broker credentials in the Observer tab and repeater admin passwords in My Repeaters — are stored in plain text in the app database. That's a deliberate trade-off for a private single-user LAN app; use dedicated credentials where you can.
 
 ---
 
