@@ -179,7 +179,8 @@
             font-size: 0.85rem;
             border-radius: 0.375rem;
             padding: 0.75rem;
-            height: 340px;
+            /* Fill the viewport below header card + pane chrome, never tiny */
+            height: max(260px, calc(100vh - 430px));
             overflow-y: auto;
         }
 
