@@ -1882,7 +1882,8 @@ emoji-picker {
 #dmModal .modal-dialog.modal-fullscreen,
 #contactsModal .modal-dialog.modal-fullscreen,
 #logsModal .modal-dialog.modal-fullscreen,
-#consoleModal .modal-dialog.modal-fullscreen {
+#consoleModal .modal-dialog.modal-fullscreen,
+#repeatersModal .modal-dialog.modal-fullscreen {
     margin: 0 !important;
     width: 100vw !important;
     max-width: 100vw !important;
@@ -1893,7 +1894,8 @@ emoji-picker {
 #dmModal .modal-content,
 #contactsModal .modal-content,
 #logsModal .modal-content,
-#consoleModal .modal-content {
+#consoleModal .modal-content,
+#repeatersModal .modal-content {
     border: none !important;
     border-radius: 0 !important;
     height: 100vh !important;
@@ -1902,7 +1904,8 @@ emoji-picker {
 #dmModal .modal-body,
 #contactsModal .modal-body,
 #logsModal .modal-body,
-#consoleModal .modal-body {
+#consoleModal .modal-body,
+#repeatersModal .modal-body {
     overflow: hidden !important;
 }
 
