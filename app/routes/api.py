@@ -5831,6 +5831,66 @@ def logout_my_repeater(public_key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _require_repeater_login(dm, pk):
+    """Return (None) if a session exists, else an (json, status) error tuple.
+
+    A remote request only succeeds if the repeater has us in its ACL, which
+    requires a prior login. Failing fast here avoids a pointless ~2 min
+    timeout when the panel is opened without a live session.
+    """
+    if not dm.get_repeater_session(pk):
+        return jsonify({'success': False, 'error': 'Not logged in', 'need_login': True}), 401
+    return None
+
+
+@api_bp.route('/repeaters/<public_key>/status', methods=['GET'])
+def repeater_status(public_key):
+    """Binary status request to a repeater (battery, radio and packet stats)."""
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    login_error = _require_repeater_login(dm, pk)
+    if login_error:
+        return login_error
+    try:
+        result = dm.repeater_req_status(pk)
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result['data']}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'No status response')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error getting repeater status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/clock', methods=['GET'])
+def repeater_clock(public_key):
+    """Current clock of a repeater (unix seconds + formatted)."""
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    login_error = _require_repeater_login(dm, pk)
+    if login_error:
+        return login_error
+    try:
+        result = dm.repeater_req_clock(pk)
+        if not result.get('success'):
+            return jsonify({'success': False,
+                            'error': result.get('error', 'No clock response')}), _repeater_result_status(result)
+        hex_data = (result['data'] or {}).get('data', '')
+        timestamp = int.from_bytes(bytes.fromhex(hex_data[0:8]), byteorder='little', signed=False)
+        return jsonify({'success': True, 'timestamp': timestamp}), 200
+    except Exception as e:
+        logger.error(f"Error getting repeater clock: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/repeaters', methods=['POST'])
 def add_my_repeater():
     """Add a device repeater contact to the My Repeaters list."""

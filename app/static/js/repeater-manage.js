@@ -229,12 +229,195 @@ function openToolPane(tool) {
     document.getElementById('paneTitle').textContent = tool.title;
 
     const body = document.getElementById('paneBody');
+    if (tool.key === 'status') {
+        renderStatusPane(body);
+        return;
+    }
     body.innerHTML = `
         <div class="text-center text-muted py-4">
             <i class="bi ${tool.icon}" style="font-size: 2rem;"></i>
             <p class="mt-2 mb-0">The <strong>${esc(tool.title)}</strong> tool is coming in a later stage.</p>
         </div>
     `;
+}
+
+// ================================================================
+// Formatting helpers
+// ================================================================
+
+function fmtDuration(seconds) {
+    if (seconds == null || isNaN(seconds)) return '—';
+    seconds = Math.floor(seconds);
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const parts = [];
+    if (d) parts.push(`${d}d`);
+    if (h || d) parts.push(`${h}h`);
+    parts.push(`${m}m`);
+    return parts.join(' ');
+}
+
+function fmtInt(n) {
+    if (n == null || isNaN(n)) return '—';
+    return Number(n).toLocaleString('en-US');
+}
+
+function batteryPercent(mv) {
+    if (mv == null || isNaN(mv)) return null;
+    // Simple linear LiPo estimate over 3.3–4.2 V.
+    const pct = ((mv / 1000) - 3.3) / (4.2 - 3.3) * 100;
+    return Math.max(0, Math.min(100, Math.round(pct)));
+}
+
+// ================================================================
+// Status tool
+// ================================================================
+
+let _statusUpdatedAt = null;
+let _statusTimer = null;
+
+function renderStatusPane(body) {
+    body.innerHTML = `
+        <div class="d-flex align-items-center mb-2">
+            <span class="text-muted small flex-grow-1" id="statusUpdated"></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="statusRefreshBtn" title="Refresh status">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+        <div id="statusContainer"></div>
+    `;
+    body.querySelector('#statusRefreshBtn').addEventListener('click', loadStatus);
+    loadStatus();
+}
+
+function setStatusUpdatedLabel() {
+    const el = document.getElementById('statusUpdated');
+    if (!el) return;
+    if (_statusTimer) { clearInterval(_statusTimer); _statusTimer = null; }
+    if (!_statusUpdatedAt) { el.textContent = ''; return; }
+    const tick = () => {
+        const label = document.getElementById('statusUpdated');
+        if (!label) { clearInterval(_statusTimer); _statusTimer = null; return; }
+        const secs = Math.floor((Date.now() - _statusUpdatedAt) / 1000);
+        if (secs < 2) label.textContent = 'Updated just now';
+        else if (secs < 60) label.textContent = `Updated ${secs}s ago`;
+        else label.textContent = `Updated ${fmtDuration(secs)} ago`;
+    };
+    tick();
+    _statusTimer = setInterval(tick, 5000);
+}
+
+async function loadStatus() {
+    const container = document.getElementById('statusContainer');
+    const btn = document.getElementById('statusRefreshBtn');
+    if (!container) return;
+    if (btn) btn.disabled = true;
+    container.innerHTML = `
+        <div class="text-center text-muted py-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 mb-0">Requesting status from the repeater…</p>
+        </div>
+    `;
+
+    let data = null;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/status`);
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: 'Request failed' };
+    }
+    if (btn) btn.disabled = false;
+
+    if (!data || !data.success) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
+                <p class="mt-2 mb-2">${esc((data && data.error) || 'Failed to get status')}</p>
+                <button type="button" class="btn btn-sm btn-primary" id="statusRetryBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Try again
+                </button>
+            </div>
+        `;
+        const retry = document.getElementById('statusRetryBtn');
+        if (retry) retry.addEventListener('click', loadStatus);
+        return;
+    }
+
+    renderStatusTable(container, data.data);
+    _statusUpdatedAt = Date.now();
+    setStatusUpdatedLabel();
+    loadClock();
+}
+
+function statusSection(title, rows) {
+    const body = rows.map(([label, value]) =>
+        `<tr><td class="text-muted">${esc(label)}</td><td class="text-end fw-medium">${value}</td></tr>`
+    ).join('');
+    return `
+        <div class="text-muted text-uppercase small fw-bold mt-3 mb-1">${esc(title)}</div>
+        <table class="table table-sm mb-0"><tbody>${body}</tbody></table>
+    `;
+}
+
+function renderStatusTable(container, s) {
+    const bat = s.bat;
+    const pct = batteryPercent(bat);
+    const batStr = bat != null
+        ? `${pct != null ? pct + '% / ' : ''}${(bat / 1000).toFixed(2)} V`
+        : '—';
+    const util = (s.airtime != null && s.rx_airtime != null && s.uptime)
+        ? (((s.airtime + s.rx_airtime) / s.uptime) * 100).toFixed(2) + '%'
+        : '—';
+
+    const system = statusSection('System Information', [
+        ['Battery', batStr],
+        ['Uptime', fmtDuration(s.uptime)],
+        ['Clock', '<span id="statusClock" class="text-muted">…</span>'],
+        ['Queue length', fmtInt(s.tx_queue_len)],
+        ['Debug / error events', fmtInt(s.full_evts)],
+    ]);
+    const radio = statusSection('Radio Statistics', [
+        ['Last RSSI', s.last_rssi != null ? `${s.last_rssi} dBm` : '—'],
+        ['Last SNR', s.last_snr != null ? `${s.last_snr} dB` : '—'],
+        ['Noise floor', s.noise_floor != null ? `${s.noise_floor} dBm` : '—'],
+        ['TX airtime', fmtDuration(s.airtime)],
+        ['RX airtime', fmtDuration(s.rx_airtime)],
+    ]);
+    const packets = statusSection('Packet Statistics', [
+        ['Sent', `${fmtInt(s.nb_sent)} <span class="text-muted small">(flood ${fmtInt(s.sent_flood)} · direct ${fmtInt(s.sent_direct)})</span>`],
+        ['Received', `${fmtInt(s.nb_recv)} <span class="text-muted small">(flood ${fmtInt(s.recv_flood)} · direct ${fmtInt(s.recv_direct)})</span>`],
+        ['Duplicates', `<span class="text-muted small">flood</span> ${fmtInt(s.flood_dups)} · <span class="text-muted small">direct</span> ${fmtInt(s.direct_dups)}`],
+        ...(s.recv_errors != null ? [['RX errors', fmtInt(s.recv_errors)]] : []),
+        ['Channel utilization', util],
+    ]);
+
+    container.innerHTML = system + radio + packets;
+}
+
+async function loadClock() {
+    const el = document.getElementById('statusClock');
+    if (!el) return;
+    el.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/clock`);
+        const data = await resp.json();
+        if (data.success && data.timestamp) {
+            const d = new Date(data.timestamp * 1000);
+            el.classList.remove('text-muted');
+            el.textContent = d.toLocaleString();
+        } else {
+            el.className = '';
+            el.innerHTML = `<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="clockRetryBtn">fetch</button>`;
+            const b = document.getElementById('clockRetryBtn');
+            if (b) b.addEventListener('click', loadClock);
+        }
+    } catch (e) {
+        el.className = '';
+        el.innerHTML = `<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="clockRetryBtn">fetch</button>`;
+        const b = document.getElementById('clockRetryBtn');
+        if (b) b.addEventListener('click', loadClock);
+    }
 }
 
 // ================================================================
