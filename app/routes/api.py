@@ -5843,6 +5843,21 @@ def _require_repeater_login(dm, pk):
     return None
 
 
+def _require_repeater_admin(dm, pk):
+    """Like _require_repeater_login, but also demands an admin session.
+
+    The firmware silently drops text CLI commands from non-admin clients
+    (which would surface as a pointless timeout), so guest sessions are
+    rejected up front.
+    """
+    session = dm.get_repeater_session(pk)
+    if not session:
+        return jsonify({'success': False, 'error': 'Not logged in', 'need_login': True}), 401
+    if not session.get('is_admin'):
+        return jsonify({'success': False, 'error': 'Admin login required'}), 403
+    return None
+
+
 @api_bp.route('/repeaters/<public_key>/status', methods=['GET'])
 def repeater_status(public_key):
     """Binary status request to a repeater (battery, radio and packet stats)."""
@@ -5891,23 +5906,16 @@ def repeater_telemetry(public_key):
 
 @api_bp.route('/repeaters/<public_key>/cli', methods=['POST'])
 def repeater_cli(public_key):
-    """Send a CLI text command to a repeater and return its reply.
-
-    Admin-only: the firmware silently ignores text commands from
-    non-admin clients (which would surface as a pointless timeout),
-    so guest sessions are rejected up front.
-    """
+    """Send a CLI text command to a repeater and return its reply. Admin-only."""
     dm = _get_dm()
     if not dm:
         return jsonify({'success': False, 'error': 'Device not connected'}), 503
     pk = _normalize_repeater_key(public_key)
     if not pk:
         return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
-    session = dm.get_repeater_session(pk)
-    if not session:
-        return jsonify({'success': False, 'error': 'Not logged in', 'need_login': True}), 401
-    if not session.get('is_admin'):
-        return jsonify({'success': False, 'error': 'Admin login required'}), 403
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
     data = request.get_json(silent=True) or {}
     command = (data.get('command') or '').strip()
     if not command:
@@ -5922,6 +5930,146 @@ def repeater_cli(public_key):
                         'error': result.get('error', 'Command failed')}), _repeater_result_status(result)
     except Exception as e:
         logger.error(f"Error running repeater CLI command: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Settings section → ordered CLI-readable fields (`get <field>`), mirrored by
+# SETTINGS_SECTIONS in repeater-manage.js. The admin password is write-only
+# (`password <pw>`, no get), so it is POST-able but never part of a GET batch.
+_REPEATER_SETTINGS_FIELDS = {
+    'basic':    ('name', 'guest.password'),
+    'radio':    ('radio', 'tx', 'radio.rxgain'),
+    'location': ('lat', 'lon'),
+    'features': ('repeat', 'allow.read.only', 'multi.acks'),
+    'network':  ('loop.detect', 'dutycycle'),
+    'advert':   ('advert.interval', 'flood.advert.interval', 'flood.max'),
+    'operator': ('owner.info',),
+    'advanced': ('path.hash.mode', 'txdelay', 'direct.txdelay', 'int.thresh',
+                 'agc.reset.interval'),
+}
+
+_REPEATER_SETTINGS_WRITABLE = frozenset(
+    field for fields in _REPEATER_SETTINGS_FIELDS.values() for field in fields
+) | {'password'}
+
+# Per CLI round-trip; a lost packet should not stall the batch for long.
+_SETTINGS_FIELD_TIMEOUT = 30.0
+
+
+def _settings_batch_fatal(result):
+    """True when a repeater_cmd_wait failure will also hit every remaining field."""
+    error = (result.get('error') or '').lower()
+    return bool(result.get('busy')) or 'not connected' in error
+
+
+@api_bp.route('/repeaters/<public_key>/settings', methods=['GET'])
+def repeater_settings_get(public_key):
+    """Read one settings section from a repeater as a sequential `get` batch.
+
+    Every field is a full mesh round-trip, so sections are fetched lazily
+    by the UI. One failed field only marks that field ({errors}) — the
+    rest of the section still loads. Admin-gated like all text CLI traffic.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    section = request.args.get('section', '')
+    fields = _REPEATER_SETTINGS_FIELDS.get(section)
+    if fields is None:
+        return jsonify({'success': False, 'error': f'Unknown section: {section}'}), 400
+
+    values = {}
+    errors = {}
+    abort_error = None
+    try:
+        for field in fields:
+            if abort_error:
+                errors[field] = abort_error
+                continue
+            result = dm.repeater_cmd_wait(pk, f'get {field}',
+                                          timeout=_SETTINGS_FIELD_TIMEOUT)
+            if not result.get('success'):
+                errors[field] = result.get('error') or 'Request failed'
+                if _settings_batch_fatal(result):
+                    abort_error = errors[field]
+                continue
+            reply = (result.get('reply') or '').strip()
+            if reply.startswith('>'):
+                values[field] = reply[1:].strip()
+            else:
+                errors[field] = f'Unexpected reply: {reply}' if reply else 'Empty reply'
+        return jsonify({'success': True, 'section': section,
+                        'values': values, 'errors': errors}), 200
+    except Exception as e:
+        logger.error(f"Error reading repeater settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/settings', methods=['POST'])
+def repeater_settings_post(public_key):
+    """Apply changed settings to a repeater as a sequential `set` batch.
+
+    Body: {'values': {field: value}} — dirty fields only. Per-field result
+    status: 'ok' | 'failed' | 'reboot_required', classified from the CLI
+    reply text (`ok`/`password now` = ok, mention of reboot = stored but
+    applied after a reboot, anything else = failed).
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    values = data.get('values')
+    if not isinstance(values, dict) or not values:
+        return jsonify({'success': False, 'error': 'No values to apply'}), 400
+    unknown = sorted(set(values) - _REPEATER_SETTINGS_WRITABLE)
+    if unknown:
+        return jsonify({'success': False,
+                        'error': f"Unknown fields: {', '.join(unknown)}"}), 400
+
+    results = {}
+    abort_error = None
+    try:
+        for field, raw in values.items():
+            if abort_error:
+                results[field] = {'status': 'failed', 'error': abort_error}
+                continue
+            value = str('' if raw is None else raw)
+            value = value.replace('\r', ' ').replace('\n', ' ').strip()
+            if not value and field != 'owner.info':
+                results[field] = {'status': 'failed', 'error': 'Empty value not allowed'}
+                continue
+            cmd = f'password {value}' if field == 'password' else f'set {field} {value}'
+            result = dm.repeater_cmd_wait(pk, cmd, timeout=_SETTINGS_FIELD_TIMEOUT)
+            if not result.get('success'):
+                results[field] = {'status': 'failed',
+                                  'error': result.get('error') or 'Request failed'}
+                if _settings_batch_fatal(result):
+                    abort_error = results[field]['error']
+                continue
+            reply = (result.get('reply') or '').strip()
+            low = reply.lower()
+            if 'reboot' in low:
+                results[field] = {'status': 'reboot_required', 'reply': reply}
+            elif low.startswith('ok') or low.startswith('password now'):
+                results[field] = {'status': 'ok', 'reply': reply}
+            else:
+                results[field] = {'status': 'failed', 'reply': reply,
+                                  'error': reply or 'Empty reply'}
+        return jsonify({'success': True, 'results': results}), 200
+    except Exception as e:
+        logger.error(f"Error applying repeater settings: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

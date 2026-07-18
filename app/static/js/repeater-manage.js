@@ -245,6 +245,10 @@ function openToolPane(tool) {
         renderCliPane(body);
         return;
     }
+    if (tool.key === 'settings') {
+        renderSettingsPane(body);
+        return;
+    }
     body.innerHTML = `
         <div class="text-center text-muted py-4">
             <i class="bi ${tool.icon}" style="font-size: 2rem;"></i>
@@ -978,6 +982,484 @@ async function loadClock() {
         el.innerHTML = `<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="clockRetryBtn">fetch</button>`;
         const b = document.getElementById('clockRetryBtn');
         if (b) b.addEventListener('click', loadClock);
+    }
+}
+
+// ================================================================
+// Settings tool
+// ================================================================
+
+// Sections and fields mirror _REPEATER_SETTINGS_FIELDS in api.py.
+// Values travel as raw CLI strings (`get X` → `> value`, `set X value`).
+const SETTINGS_SECTIONS = [
+    { key: 'basic', title: 'Basic', icon: 'bi-tag', fields: [
+        { key: 'name', label: 'Repeater name', type: 'text' },
+        { key: 'password', label: 'Admin password', type: 'password', writeOnly: true,
+          help: 'Write-only — the current password is never shown. Changing it does not log out already active sessions.' },
+        { key: 'guest.password', label: 'Guest password', type: 'text',
+          help: 'Password for read-only guest logins.' },
+    ]},
+    { key: 'radio', title: 'Radio', icon: 'bi-broadcast',
+      note: 'Frequency, bandwidth, SF and CR are applied after a reboot. TX power applies immediately.',
+      fields: [
+        { key: 'radio', label: 'Radio parameters', type: 'radio4' },
+        { key: 'tx', label: 'TX power (dBm)', type: 'number', min: 0, max: 30, step: 1 },
+        { key: 'radio.rxgain', label: 'RX boosted gain', type: 'onoff' },
+    ]},
+    { key: 'location', title: 'Location', icon: 'bi-geo-alt', fields: [
+        { key: 'lat', label: 'Latitude', type: 'text' },
+        { key: 'lon', label: 'Longitude', type: 'text' },
+    ]},
+    { key: 'features', title: 'Features', icon: 'bi-toggles', fields: [
+        { key: 'repeat', label: 'Repeat packets', type: 'onoff' },
+        { key: 'allow.read.only', label: 'Allow read-only (guest) access', type: 'onoff' },
+        { key: 'multi.acks', label: 'Send multiple ACKs', type: 'zeroone' },
+    ]},
+    { key: 'network', title: 'Network health', icon: 'bi-heart-pulse', fields: [
+        { key: 'loop.detect', label: 'Loop detection', type: 'select',
+          options: ['off', 'minimal', 'moderate', 'strict'] },
+        { key: 'dutycycle', label: 'Duty cycle (%)', type: 'number', min: 1, max: 100, step: 1 },
+    ]},
+    { key: 'advert', title: 'Advertisement', icon: 'bi-megaphone', fields: [
+        { key: 'advert.interval', label: 'Local advert interval (minutes)', type: 'number', min: 0, max: 240, step: 1,
+          help: 'Firmware accepts 60–240 minutes, or 0 to disable.' },
+        { key: 'flood.advert.interval', label: 'Flood advert interval (hours)', type: 'number', min: 0, step: 1 },
+        { key: 'flood.max', label: 'Max flood hops', type: 'number', min: 0, max: 64, step: 1 },
+    ]},
+    { key: 'operator', title: 'Operator info', icon: 'bi-person-vcard', fields: [
+        { key: 'owner.info', label: 'Owner info', type: 'textarea',
+          help: 'Free-form operator / contact info shown to clients. Multiple lines allowed.' },
+    ]},
+    { key: 'advanced', title: 'Advanced', icon: 'bi-sliders', fields: [
+        { key: 'path.hash.mode', label: 'Path hash mode (0–2)', type: 'number', min: 0, max: 2, step: 1 },
+        { key: 'txdelay', label: 'TX delay factor (0–2)', type: 'number', min: 0, max: 2, step: 'any' },
+        { key: 'direct.txdelay', label: 'Direct TX delay factor (0–2)', type: 'number', min: 0, max: 2, step: 'any' },
+        { key: 'int.thresh', label: 'Interference threshold', type: 'number', step: 1 },
+        { key: 'agc.reset.interval', label: 'AGC reset interval', type: 'number', min: 0, step: 4,
+          help: 'Multiple of 4; 0 disables periodic AGC resets.' },
+    ]},
+];
+
+let _settingsState = {};   // section key → {loaded, loadedOnce, loading, applying}
+
+function settingsSection(secKey) {
+    return SETTINGS_SECTIONS.find(s => s.key === secKey);
+}
+
+function settingsSectionEl(secKey) {
+    return document.querySelector(`#settingsAccordion .accordion-item[data-section="${secKey}"]`);
+}
+
+function sfControl(item, fieldKey) {
+    return item.querySelector(`[data-field="${fieldKey}"]`);
+}
+
+function settingsControlHtml(f) {
+    const df = `data-field="${esc(f.key)}"`;
+    if (f.type === 'onoff' || f.type === 'zeroone') {
+        return `<div class="form-check form-switch mb-0">
+                    <input class="form-check-input sf-input" type="checkbox" role="switch" ${df} disabled>
+                </div>`;
+    }
+    if (f.type === 'select') {
+        const opts = (f.options || []).map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+        return `<select class="form-select form-select-sm sf-input" ${df} disabled>${opts}</select>`;
+    }
+    if (f.type === 'textarea') {
+        return `<textarea class="form-control form-control-sm sf-input" rows="3" ${df} disabled></textarea>`;
+    }
+    if (f.type === 'password') {
+        // Write-only: usable without loading, never prefilled
+        return `<input type="password" class="form-control form-control-sm sf-input" ${df}
+                       placeholder="(unchanged)" autocomplete="new-password">`;
+    }
+    if (f.type === 'radio4') {
+        const subs = [
+            ['Frequency (MHz)', 'any'],
+            ['Bandwidth (kHz)', 'any'],
+            ['Spreading factor', '1'],
+            ['Coding rate', '1'],
+        ].map(([lbl, step], i) => `
+            <div class="col-6 col-lg-3">
+                <label class="form-label small text-muted mb-0">${lbl}</label>
+                <input type="number" step="${step}" class="form-control form-control-sm sf-sub" data-sub="${i}" disabled>
+            </div>`).join('');
+        return `<div class="row g-2" ${df}>${subs}</div>`;
+    }
+    const attrs = [
+        f.min != null ? `min="${f.min}"` : '',
+        f.max != null ? `max="${f.max}"` : '',
+        f.step != null ? `step="${f.step}"` : '',
+    ].filter(Boolean).join(' ');
+    const type = f.type === 'number' ? 'number' : 'text';
+    return `<input type="${type}" ${attrs} class="form-control form-control-sm sf-input" ${df} disabled>`;
+}
+
+function settingsFieldHtml(f) {
+    return `
+        <div class="sf-row mb-3" data-field-row="${esc(f.key)}">
+            <label class="form-label small fw-semibold mb-1">${esc(f.label)} <span class="sf-badge ms-1"></span></label>
+            ${settingsControlHtml(f)}
+            <div class="sf-msg small text-danger d-none"></div>
+            ${f.help ? `<div class="form-text small mb-0">${esc(f.help)}</div>` : ''}
+        </div>`;
+}
+
+function renderSettingsPane(body) {
+    _settingsState = {};
+    const items = SETTINGS_SECTIONS.map(sec => {
+        _settingsState[sec.key] = { loaded: {}, loadedOnce: false, loading: false, applying: false };
+        return `
+        <div class="accordion-item" data-section="${sec.key}">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#secCollapse-${sec.key}">
+                    <i class="bi ${sec.icon} me-2"></i>${esc(sec.title)}
+                    <span class="badge bg-warning text-dark ms-2 sec-dirty-badge d-none"></span>
+                </button>
+            </h2>
+            <div id="secCollapse-${sec.key}" class="accordion-collapse collapse">
+                <div class="accordion-body pt-2">
+                    ${sec.note ? `<div class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>${esc(sec.note)}</div>` : ''}
+                    <div class="sec-status small text-muted mb-2 d-none"></div>
+                    <div class="sec-reboot alert alert-warning py-1 px-2 small d-none mb-2">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Some changes take effect after a reboot — use Actions → Reboot.
+                    </div>
+                    <div class="sec-fields">${sec.fields.map(settingsFieldHtml).join('')}</div>
+                    <div class="d-flex align-items-center gap-2 mt-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary sec-refresh">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                        <button type="button" class="btn btn-sm btn-success sec-apply" disabled>
+                            <i class="bi bi-check-lg"></i> Apply
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    body.innerHTML = `
+        <p class="text-muted small mb-2">
+            Settings are read live from the repeater. Expand a section to load it —
+            every field is one mesh round-trip, so a section can take a few seconds.
+        </p>
+        <div class="accordion" id="settingsAccordion">${items}</div>
+    `;
+
+    SETTINGS_SECTIONS.forEach(sec => {
+        const item = settingsSectionEl(sec.key);
+        const collapse = item.querySelector('.accordion-collapse');
+        collapse.addEventListener('show.bs.collapse', () => {
+            if (!_settingsState[sec.key].loadedOnce) loadSettingsSection(sec.key);
+        });
+        item.querySelector('.sec-refresh').addEventListener('click', () => loadSettingsSection(sec.key));
+        item.querySelector('.sec-apply').addEventListener('click', () => applySettingsSection(sec.key));
+        item.querySelectorAll('.sf-input, .sf-sub').forEach(inp => {
+            const evt = (inp.type === 'checkbox' || inp.tagName === 'SELECT') ? 'change' : 'input';
+            inp.addEventListener(evt, () => updateSectionDirty(sec.key));
+        });
+    });
+}
+
+function setSettingsFieldValue(item, f, raw) {
+    const el = sfControl(item, f.key);
+    if (!el) return;
+    const v = String(raw ?? '');
+    if (f.type === 'onoff' || f.type === 'zeroone') {
+        const low = v.trim().toLowerCase();
+        el.checked = (low === 'on' || low === '1' || low === 'true' || low === 'yes');
+    } else if (f.type === 'select') {
+        const val = v.trim();
+        if (![...el.options].some(o => o.value === val)) {
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = val;
+            el.appendChild(opt);
+        }
+        el.value = val;
+    } else if (f.type === 'radio4') {
+        const parts = v.split(',').map(s => s.trim());
+        el.querySelectorAll('.sf-sub').forEach((inp, i) => { inp.value = parts[i] ?? ''; });
+    } else if (f.type === 'textarea') {
+        el.value = v.split('|').join('\n');
+    } else if (f.type === 'number') {
+        // Some replies carry a unit suffix (e.g. `get dutycycle` → "70.0%")
+        // that a number input would reject wholesale.
+        el.value = v.trim().replace(/%$/, '');
+    } else {
+        el.value = v;
+    }
+}
+
+function getSettingsFieldValue(item, f) {
+    const el = sfControl(item, f.key);
+    if (!el) return '';
+    if (f.type === 'onoff') return el.checked ? 'on' : 'off';
+    if (f.type === 'zeroone') return el.checked ? '1' : '0';
+    if (f.type === 'radio4') {
+        return [...el.querySelectorAll('.sf-sub')].map(inp => inp.value.trim()).join(',');
+    }
+    if (f.type === 'textarea') {
+        return el.value.replace(/\r/g, '').split('\n').map(s => s.trim()).join('|').replace(/\|+$/, '');
+    }
+    return el.value.trim();
+}
+
+function disableSettingsField(item, f, disabled) {
+    const el = sfControl(item, f.key);
+    if (!el) return;
+    if (f.type === 'radio4') {
+        el.querySelectorAll('.sf-sub').forEach(inp => { inp.disabled = disabled; });
+    } else {
+        el.disabled = disabled;
+    }
+}
+
+function setFieldBadge(item, fieldKey, kind, text) {
+    const row = item.querySelector(`[data-field-row="${fieldKey}"]`);
+    if (!row) return;
+    const badge = row.querySelector('.sf-badge');
+    const msg = row.querySelector('.sf-msg');
+    msg.classList.add('d-none');
+    msg.textContent = '';
+    if (kind === 'pending') {
+        badge.innerHTML = '<span class="spinner-border spinner-border-sm text-muted"></span>';
+    } else if (kind === 'ok') {
+        badge.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
+    } else if (kind === 'reboot') {
+        badge.innerHTML = '<span class="badge bg-warning text-dark">reboot required</span>';
+    } else if (kind === 'error') {
+        badge.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-danger"></i>';
+        if (text) {
+            msg.textContent = text;
+            msg.classList.remove('d-none');
+        }
+    } else {
+        badge.innerHTML = '';
+    }
+}
+
+function isFieldDirty(item, st, f) {
+    if (f.writeOnly) {
+        const el = sfControl(item, f.key);
+        return !!(el && el.value);
+    }
+    if (!(f.key in st.loaded)) return false;   // never loaded → not editable
+    return getSettingsFieldValue(item, f) !== st.loaded[f.key];
+}
+
+function updateSectionDirty(secKey) {
+    const item = settingsSectionEl(secKey);
+    const st = _settingsState[secKey];
+    const sec = settingsSection(secKey);
+    if (!item || !st || !sec) return 0;
+    let count = 0;
+    sec.fields.forEach(f => {
+        const dirty = isFieldDirty(item, st, f);
+        if (dirty) count++;
+        const row = item.querySelector(`[data-field-row="${f.key}"]`);
+        if (row) row.classList.toggle('sf-dirty', dirty);
+    });
+    const applyBtn = item.querySelector('.sec-apply');
+    applyBtn.disabled = count === 0 || st.loading || st.applying;
+    applyBtn.innerHTML = `<i class="bi bi-check-lg"></i> Apply${count ? ` (${count})` : ''}`;
+    const badge = item.querySelector('.sec-dirty-badge');
+    badge.classList.toggle('d-none', count === 0);
+    badge.textContent = count;
+    return count;
+}
+
+async function loadSettingsSection(secKey) {
+    const st = _settingsState[secKey];
+    const item = settingsSectionEl(secKey);
+    const sec = settingsSection(secKey);
+    if (!st || !item || !sec || st.loading || st.applying) return;
+    st.loading = true;
+
+    const statusEl = item.querySelector('.sec-status');
+    statusEl.classList.remove('d-none', 'text-danger');
+    statusEl.classList.add('text-muted');
+    statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' +
+        'Reading from repeater… (one mesh round-trip per field)';
+    item.querySelector('.sec-refresh').disabled = true;
+    item.querySelector('.sec-apply').disabled = true;
+    sec.fields.forEach(f => {
+        if (f.writeOnly) return;
+        setFieldBadge(item, f.key, 'clear');
+        disableSettingsField(item, f, true);
+    });
+
+    let data = null;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/settings?section=${encodeURIComponent(secKey)}`);
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: 'Request failed' };
+    }
+
+    st.loading = false;
+    item.querySelector('.sec-refresh').disabled = false;
+
+    if (!data || !data.success) {
+        statusEl.classList.remove('text-muted');
+        statusEl.classList.add('text-danger');
+        statusEl.textContent = (data && data.error) || 'Failed to read settings';
+        updateSectionDirty(secKey);
+        return;
+    }
+
+    const values = data.values || {};
+    const errors = data.errors || {};
+    st.loaded = {};
+    let errCount = 0;
+    sec.fields.forEach(f => {
+        if (f.writeOnly) return;
+        if (f.key in values) {
+            setSettingsFieldValue(item, f, values[f.key]);
+            disableSettingsField(item, f, false);
+            // Baseline = the value as the control round-trips it, so
+            // firmware formatting quirks never show up as dirty fields.
+            st.loaded[f.key] = getSettingsFieldValue(item, f);
+            setFieldBadge(item, f.key, 'clear');
+        } else {
+            errCount++;
+            disableSettingsField(item, f, true);
+            setFieldBadge(item, f.key, 'error', errors[f.key] || 'Failed to read');
+        }
+    });
+    st.loadedOnce = true;
+
+    if (errCount) {
+        statusEl.classList.remove('text-muted');
+        statusEl.classList.add('text-danger');
+        statusEl.textContent = `${errCount} field${errCount > 1 ? 's' : ''} failed to load — Refresh retries the whole section.`;
+    } else {
+        statusEl.classList.add('d-none');
+    }
+    updateSectionDirty(secKey);
+}
+
+async function applySettingsSection(secKey) {
+    const st = _settingsState[secKey];
+    const item = settingsSectionEl(secKey);
+    const sec = settingsSection(secKey);
+    if (!st || !item || !sec || st.loading || st.applying) return;
+
+    const dirty = {};
+    sec.fields.forEach(f => {
+        if (isFieldDirty(item, st, f)) {
+            dirty[f.key] = f.writeOnly ? sfControl(item, f.key).value : getSettingsFieldValue(item, f);
+        }
+    });
+    const keys = Object.keys(dirty);
+    if (!keys.length) return;
+
+    const emptyKey = keys.find(k => dirty[k] === '' && k !== 'owner.info');
+    if (emptyKey) {
+        showNotification(`"${emptyKey}" cannot be empty`, 'warning');
+        return;
+    }
+
+    if ('radio' in dirty && !window.confirm(
+        `Change radio parameters to ${dirty.radio}?\n\n` +
+        'Wrong values can make the repeater unreachable over the mesh. ' +
+        'The change takes effect after a reboot.')) {
+        return;
+    }
+
+    st.applying = true;
+    item.querySelector('.sec-refresh').disabled = true;
+    item.querySelector('.sec-apply').disabled = true;
+    keys.forEach(k => setFieldBadge(item, k, 'pending'));
+
+    let data = null;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: dirty })
+        });
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: 'Request failed' };
+    }
+
+    st.applying = false;
+    item.querySelector('.sec-refresh').disabled = false;
+
+    if (!data || !data.success) {
+        keys.forEach(k => setFieldBadge(item, k, 'error'));
+        showNotification((data && data.error) || 'Failed to apply settings', 'danger');
+        updateSectionDirty(secKey);
+        return;
+    }
+
+    const results = data.results || {};
+    let okCount = 0, failCount = 0, rebootCount = 0;
+    for (const f of sec.fields) {
+        if (!(f.key in dirty)) continue;
+        const res = results[f.key] || { status: 'failed', error: 'No result' };
+        if (res.status === 'ok' || res.status === 'reboot_required') {
+            if (res.status === 'reboot_required') {
+                rebootCount++;
+                setFieldBadge(item, f.key, 'reboot');
+            } else {
+                okCount++;
+                setFieldBadge(item, f.key, 'ok');
+            }
+            if (f.writeOnly) {
+                sfControl(item, f.key).value = '';
+                if (f.key === 'password') await syncSavedPassword(dirty[f.key]);
+            } else {
+                st.loaded[f.key] = dirty[f.key];
+                if (f.key === 'name' && _repeater) {
+                    _repeater.name = dirty[f.key];
+                    renderHeader();
+                }
+            }
+        } else {
+            failCount++;
+            setFieldBadge(item, f.key, 'error', res.error || res.reply || 'Failed');
+        }
+    }
+
+    if (rebootCount) item.querySelector('.sec-reboot').classList.remove('d-none');
+    updateSectionDirty(secKey);
+
+    if (failCount === 0) {
+        showNotification(rebootCount ? 'Applied — reboot required for some changes' : 'Settings applied', 'success');
+    } else {
+        showNotification(`${failCount} setting${failCount > 1 ? 's' : ''} failed to apply`, 'danger');
+    }
+    if (okCount) {
+        setTimeout(() => {
+            sec.fields.forEach(f => {
+                const row = item.querySelector(`[data-field-row="${f.key}"]`);
+                if (row && row.querySelector('.sf-badge .bi-check-circle-fill')) {
+                    setFieldBadge(item, f.key, 'clear');
+                }
+            });
+        }, 4000);
+    }
+}
+
+async function syncSavedPassword(newPassword) {
+    // Keep auto-login working: when a password is saved for this repeater,
+    // replace it with the one just set on the repeater itself.
+    if (!_repeater || !_repeater.password_set) return;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: newPassword })
+        });
+        const data = await resp.json();
+        if (data && data.success) {
+            showNotification('Saved password updated to the new one', 'success');
+        }
+    } catch (e) {
+        console.error('Failed to update saved password:', e);
     }
 }
 
