@@ -249,6 +249,10 @@ function openToolPane(tool) {
         renderSettingsPane(body);
         return;
     }
+    if (tool.key === 'actions') {
+        renderActionsPane(body);
+        return;
+    }
     body.innerHTML = `
         <div class="text-center text-muted py-4">
             <i class="bi ${tool.icon}" style="font-size: 2rem;"></i>
@@ -1460,6 +1464,121 @@ async function syncSavedPassword(newPassword) {
         }
     } catch (e) {
         console.error('Failed to update saved password:', e);
+    }
+}
+
+// ================================================================
+// Actions tool
+// ================================================================
+
+// Keys mirror _REPEATER_ACTIONS in api.py.
+const REPEATER_ACTIONS = [
+    { key: 'zerohop_advert', icon: 'bi-megaphone', iconClass: 'text-primary',
+      title: 'Send zero-hop advert', btn: 'Send', btnClass: 'btn-outline-primary',
+      desc: 'Announce this repeater to its direct neighbours only.' },
+    { key: 'flood_advert', icon: 'bi-broadcast-pin', iconClass: 'text-warning',
+      title: 'Send flood advert', btn: 'Send', btnClass: 'btn-outline-warning',
+      desc: 'Not recommended — the advert is flooded across the whole mesh (high network load).' },
+    { key: 'clock_sync', icon: 'bi-clock-history', iconClass: 'text-primary',
+      title: 'Sync clock', btn: 'Sync', btnClass: 'btn-outline-primary',
+      desc: "Set the repeater's clock from this device's current time. The firmware refuses to move the clock backwards." },
+];
+
+let _actionPending = false;
+
+function actionRowHtml(a) {
+    return `
+        <div class="d-flex align-items-start gap-3 py-2 action-row" data-action="${a.key}">
+            <i class="bi ${a.icon} fs-4 ${a.iconClass || ''}"></i>
+            <div class="flex-grow-1" style="min-width: 0;">
+                <div class="fw-semibold">${esc(a.title)}</div>
+                <div class="small text-muted">${esc(a.desc)}</div>
+                <div class="small action-result d-none mt-1"></div>
+            </div>
+            <button type="button" class="btn btn-sm ${a.btnClass} action-btn" style="min-width: 84px;">
+                ${esc(a.btn)}
+            </button>
+        </div>`;
+}
+
+function renderActionsPane(body) {
+    _actionPending = false;
+    body.innerHTML = `
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                ${REPEATER_ACTIONS.map(actionRowHtml).join('<hr class="my-1">')}
+            </div>
+        </div>
+        <div class="card border-danger">
+            <div class="card-header py-2 text-danger">
+                <i class="bi bi-exclamation-octagon me-1"></i>Danger zone
+            </div>
+            <div class="card-body py-2">
+                ${actionRowHtml({
+                    key: 'reboot', icon: 'bi-arrow-clockwise', iconClass: 'text-danger',
+                    title: 'Reboot repeater', btn: 'Reboot', btnClass: 'btn-danger',
+                    desc: 'The repeater drops off the mesh for a few seconds while it restarts.',
+                })}
+                <div class="small text-muted mt-2">
+                    <i class="bi bi-info-circle me-1"></i>Erase file system is not available over the mesh —
+                    the firmware only accepts it on the USB serial console (use the MeshCore flasher instead).
+                </div>
+            </div>
+        </div>
+    `;
+
+    body.querySelectorAll('.action-row .action-btn').forEach(btn => {
+        const row = btn.closest('.action-row');
+        btn.addEventListener('click', () => runRepeaterAction(row.dataset.action));
+    });
+}
+
+async function runRepeaterAction(action) {
+    if (_actionPending) return;
+    if (action === 'reboot' && !window.confirm(
+        `Reboot ${(_repeater && _repeater.name) || 'this repeater'}?\n\n` +
+        'It will drop off the mesh for a few seconds. The firmware does not reply to this command.')) {
+        return;
+    }
+
+    const row = document.querySelector(`.action-row[data-action="${action}"]`);
+    const btn = row ? row.querySelector('.action-btn') : null;
+    const resultEl = row ? row.querySelector('.action-result') : null;
+    _actionPending = true;
+    document.querySelectorAll('.action-row .action-btn').forEach(b => { b.disabled = true; });
+    const btnLabel = btn ? btn.innerHTML : '';
+    if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    if (resultEl) resultEl.classList.add('d-none');
+
+    let data = null;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        });
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: 'Request failed' };
+    }
+
+    _actionPending = false;
+    document.querySelectorAll('.action-row .action-btn').forEach(b => { b.disabled = false; });
+    if (btn) btn.innerHTML = btnLabel;
+
+    if (resultEl) {
+        resultEl.classList.remove('d-none', 'text-success', 'text-danger');
+        if (data && data.success) {
+            resultEl.classList.add(data.ok ? 'text-success' : 'text-danger');
+            const elapsed = data.elapsed_ms != null ? ` (${(data.elapsed_ms / 1000).toFixed(1)} s)` : '';
+            resultEl.textContent = (data.reply || 'Done') + elapsed;
+        } else {
+            resultEl.classList.add('text-danger');
+            resultEl.textContent = (data && data.error) || 'Action failed';
+        }
+    }
+    if (!data || !data.success) {
+        showNotification((data && data.error) || 'Action failed', 'danger');
     }
 }
 

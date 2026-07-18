@@ -6073,6 +6073,58 @@ def repeater_settings_post(public_key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# Action key → CLI command. `advert` alone floods the whole mesh;
+# `advert.zerohop` reaches direct neighbours only. `reboot` never
+# replies: the firmware restarts immediately without building one.
+_REPEATER_ACTIONS = {
+    'zerohop_advert': {'cmd': 'advert.zerohop'},
+    'flood_advert':   {'cmd': 'advert'},
+    'clock_sync':     {'cmd': 'clock sync'},
+    'reboot':         {'cmd': 'reboot', 'no_reply': True},
+}
+
+
+@api_bp.route('/repeaters/<public_key>/action', methods=['POST'])
+def repeater_action(public_key):
+    """Run a one-shot action on a repeater (adverts, clock sync, reboot).
+
+    Body: {'action': key}. Replies are surfaced verbatim with an `ok`
+    flag (reply starts with OK). For `reboot`, a clean send followed by
+    silence is reported as success — the firmware never replies to it.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    action = data.get('action') or ''
+    spec = _REPEATER_ACTIONS.get(action)
+    if not spec:
+        return jsonify({'success': False, 'error': f'Unknown action: {action}'}), 400
+    try:
+        timeout = 15.0 if spec.get('no_reply') else 45.0
+        result = dm.repeater_cmd_wait(pk, spec['cmd'], timeout=timeout)
+        if result.get('success'):
+            reply = (result.get('reply') or '').strip()
+            return jsonify({'success': True, 'reply': reply,
+                            'ok': reply.lower().startswith('ok'),
+                            'elapsed_ms': result.get('elapsed_ms')}), 200
+        if spec.get('no_reply') and result.get('timeout'):
+            return jsonify({'success': True, 'ok': True, 'no_reply': True,
+                            'reply': 'Reboot command sent — the repeater should be '
+                                     'restarting (no reply is expected)'}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'Action failed')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error running repeater action: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/repeaters/<public_key>/neighbours', methods=['GET'])
 def repeater_neighbours(public_key):
     """Zero-hop neighbours of a repeater, enriched with contact names/coords.
