@@ -5718,45 +5718,116 @@ def list_my_repeaters():
             if success and contacts_detailed:
                 device_by_key = {k.lower(): v for k, v in contacts_detailed.items()}
 
-        repeaters = []
-        for row in rows:
-            pk = row['public_key'].lower()
-            details = device_by_key.get(pk)
-            entry = {
-                'public_key': pk,
-                'password_set': bool(row.get('password')),
-                'added_at': row.get('added_at'),
-                'last_login_at': row.get('last_login_at'),
-                'last_login_role': row.get('last_login_role'),
-                'on_device': details is not None,
-                'name': '',
-                'out_path_len': None,
-                'out_path': '',
-                'out_path_hash_mode': 0,
-                'path_or_mode': '',
-                'adv_lat': None,
-                'adv_lon': None,
-                'last_advert': None,
-            }
-            if details:
-                entry.update({
-                    'name': details.get('adv_name', ''),
-                    'out_path_len': details.get('out_path_len', -1),
-                    'out_path': details.get('out_path', ''),
-                    'out_path_hash_mode': details.get('out_path_hash_mode', 0),
-                    'path_or_mode': _format_path_display(
-                        details.get('out_path_len', -1),
-                        details.get('out_path', ''),
-                        details.get('out_path_hash_mode', 0)),
-                    'adv_lat': details.get('adv_lat'),
-                    'adv_lon': details.get('adv_lon'),
-                    'last_advert': details.get('last_advert'),
-                })
-            repeaters.append(entry)
-
+        repeaters = [_merged_repeater_entry(row, device_by_key) for row in rows]
         return jsonify({'success': True, 'repeaters': repeaters}), 200
     except Exception as e:
         logger.error(f"Error listing repeaters: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _merged_repeater_entry(row, device_by_key):
+    """Merge a repeaters DB row with device contact truth for API output."""
+    pk = row['public_key'].lower()
+    details = device_by_key.get(pk)
+    entry = {
+        'public_key': pk,
+        'password_set': bool(row.get('password')),
+        'added_at': row.get('added_at'),
+        'last_login_at': row.get('last_login_at'),
+        'last_login_role': row.get('last_login_role'),
+        'on_device': details is not None,
+        'name': '',
+        'out_path_len': None,
+        'out_path': '',
+        'out_path_hash_mode': 0,
+        'path_or_mode': '',
+        'adv_lat': None,
+        'adv_lon': None,
+        'last_advert': None,
+    }
+    if details:
+        entry.update({
+            'name': details.get('adv_name', ''),
+            'out_path_len': details.get('out_path_len', -1),
+            'out_path': details.get('out_path', ''),
+            'out_path_hash_mode': details.get('out_path_hash_mode', 0),
+            'path_or_mode': _format_path_display(
+                details.get('out_path_len', -1),
+                details.get('out_path', ''),
+                details.get('out_path_hash_mode', 0)),
+            'adv_lat': details.get('adv_lat'),
+            'adv_lon': details.get('adv_lon'),
+            'last_advert': details.get('last_advert'),
+        })
+    return entry
+
+
+def _repeater_session_payload(dm, pk):
+    """Session dict for API output ({'logged_in': False} when absent)."""
+    session = dm.get_repeater_session(pk) if dm else None
+    if not session:
+        return {'logged_in': False}
+    return {
+        'logged_in': True,
+        'is_admin': session.get('is_admin', False),
+        'permissions': session.get('permissions'),
+        'logged_in_at': session.get('logged_in_at'),
+    }
+
+
+@api_bp.route('/repeaters/<public_key>', methods=['GET'])
+def get_my_repeater(public_key):
+    """Single saved repeater merged with device truth + login session state."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    try:
+        row = db.get_repeater(pk)
+        if not row:
+            return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+        device_by_key = {}
+        success, contacts_detailed, _error = get_contacts_detailed_cached()
+        if success and contacts_detailed:
+            device_by_key = {k.lower(): v for k, v in contacts_detailed.items()}
+        return jsonify({
+            'success': True,
+            'repeater': _merged_repeater_entry(row, device_by_key),
+            'session': _repeater_session_payload(_get_dm(), pk),
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting repeater: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/session', methods=['GET'])
+def get_my_repeater_session(public_key):
+    """Login session state for a repeater (in-memory; cleared on app restart)."""
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    return jsonify({'success': True, **_repeater_session_payload(_get_dm(), pk)}), 200
+
+
+@api_bp.route('/repeaters/<public_key>/logout', methods=['POST'])
+def logout_my_repeater(public_key):
+    """Log out of a repeater and drop the in-memory session."""
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    try:
+        result = dm.repeater_logout(pk)
+        if result.get('success'):
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'Logout failed')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error logging out of repeater: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

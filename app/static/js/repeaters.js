@@ -273,8 +273,8 @@ async function doLogin(pubkey, password, save) {
     if (data && data.success) {
         const role = data.is_admin ? 'ADMIN' : 'GUEST';
         showNotification(`Logged in to ${r.name || 'repeater'} as ${role}`, 'success');
-        // Stage 2 will navigate to the management panel here.
-        await loadRepeaters();
+        window.location.href = `/repeaters/manage?pubkey=${encodeURIComponent(pubkey)}`;
+        return;
     } else {
         await loadRepeaters();
         const error = (data && data.error) || 'Login failed';
