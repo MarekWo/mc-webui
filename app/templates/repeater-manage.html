@@ -171,6 +171,57 @@
             padding: 1rem;
         }
 
+        /* CLI terminal (dark regardless of theme, like the Console module) */
+        .cli-terminal {
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            font-family: 'Courier New', Consolas, monospace;
+            font-size: 0.85rem;
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+            height: 340px;
+            overflow-y: auto;
+        }
+
+        .cli-line {
+            margin-bottom: 0.4rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .cli-line.cmd { color: #00ff88; }
+        .cli-line.cmd::before { content: '> '; color: #888; }
+
+        .cli-line.reply {
+            background-color: #16213e;
+            padding: 0.4rem 0.5rem;
+            border-radius: 0.25rem;
+            border-left: 3px solid #0f3460;
+        }
+
+        .cli-line.error { color: #ff6b6b; }
+
+        .cli-line.meta {
+            color: #4ecdc4;
+            font-style: italic;
+            font-size: 0.75rem;
+        }
+
+        .cli-pending::after {
+            content: '';
+            display: inline-block;
+            width: 11px;
+            height: 11px;
+            border: 2px solid #4ecdc4;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: cli-spin 1s linear infinite;
+            margin-left: 0.4rem;
+            vertical-align: middle;
+        }
+
+        @keyframes cli-spin { to { transform: rotate(360deg); } }
+
         /* SNR labels on neighbor map connection lines */
         .nb-snr-tooltip {
             background: rgba(13, 110, 253, 0.92);

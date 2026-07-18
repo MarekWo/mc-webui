@@ -225,6 +225,9 @@ class DeviceManager:
         # concurrent repeater operations would corrupt each other's matching.
         self._repeater_lock = threading.Lock()
         self._repeater_sessions = {}  # {public_key: {is_admin, permissions, logged_in_at}}
+        # Single-slot waiter for a repeater CLI text reply (guarded by
+        # _repeater_lock: only one remote command is ever in flight).
+        self._cli_waiter = None  # {'prefix': 12-hex, 'event': threading.Event, 'reply': str|None}
 
         # In-place reconnect (heals degraded long-lived TCP without container restart)
         self._reconnect_lock = threading.Lock()  # prevents concurrent force_reconnect calls
@@ -844,6 +847,20 @@ class DeviceManager:
         """Handle incoming direct message."""
         try:
             data = getattr(event, 'payload', {})
+
+            # Repeater CLI replies (txt_type=1 CLI_DATA) awaited by
+            # repeater_cmd_wait() are consumed here and never stored as
+            # chat DMs. Unmatched CLI replies (e.g. console fire-and-forget
+            # `cmd`) keep the legacy behavior and land in the DM panel.
+            if data.get('txt_type') == 1:
+                waiter = self._cli_waiter
+                prefix = (data.get('pubkey_prefix') or '').lower()
+                if waiter and prefix and waiter['prefix'] == prefix:
+                    waiter['reply'] = data.get('text', '')
+                    waiter['event'].set()
+                    logger.debug(f"CLI reply consumed from {prefix}")
+                    return
+
             ts = data.get('timestamp', int(time.time()))
             content = data.get('text', '')
             sender_key = data.get('public_key', data.get('pubkey_prefix', ''))
@@ -3181,6 +3198,49 @@ class DeviceManager:
             logger.error(f"Repeater cmd failed: {e}")
             return {'success': False, 'error': str(e)}
         finally:
+            self._repeater_lock.release()
+
+    def repeater_cmd_wait(self, name_or_key: str, cmd: str, timeout: float = 45.0) -> Dict:
+        """Send a CLI command to a repeater and wait for its text reply.
+
+        The reply arrives asynchronously as a CONTACT_MSG_RECV with
+        txt_type=1 and carries no protocol-level correlation, so we rely
+        on serialization (repeater lock = single command in flight) plus
+        a sender-prefix match in _on_dm_received.
+        """
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        contact = self.resolve_contact(name_or_key)
+        if not contact:
+            return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        coro = self.mc.commands.send_cmd(contact, cmd)
+        if not self._repeater_lock.acquire(timeout=180):
+            coro.close()
+            return {'success': False, 'error': self.REPEATER_BUSY_ERROR, 'busy': True}
+        try:
+            prefix = (contact.get('public_key') or '')[:12].lower()
+            waiter = {'prefix': prefix, 'event': threading.Event(), 'reply': None}
+            self._cli_waiter = waiter
+            started = time.time()
+
+            res = self.execute(coro, timeout=15)
+            wait_s = 30.0
+            payload = getattr(res, 'payload', None) or {}
+            if isinstance(payload, dict) and 'suggested_timeout' in payload:
+                wait_s = payload['suggested_timeout'] / 800
+            wait_s = min(max(wait_s, 10.0), float(timeout))
+
+            if waiter['event'].wait(timeout=wait_s):
+                elapsed_ms = int((time.time() - started) * 1000)
+                return {'success': True, 'reply': waiter['reply'] or '', 'elapsed_ms': elapsed_ms}
+            return {'success': False,
+                    'error': f'No reply from repeater within {wait_s:.0f}s',
+                    'timeout': True}
+        except Exception as e:
+            logger.error(f"repeater_cmd_wait failed: {e}")
+            return {'success': False, 'error': str(e)}
+        finally:
+            self._cli_waiter = None
             self._repeater_lock.release()
 
     def repeater_req_status(self, name_or_key: str) -> Dict:

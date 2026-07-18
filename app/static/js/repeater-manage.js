@@ -241,6 +241,10 @@ function openToolPane(tool) {
         renderNeighborsPane(body);
         return;
     }
+    if (tool.key === 'cli') {
+        renderCliPane(body);
+        return;
+    }
     body.innerHTML = `
         <div class="text-center text-muted py-4">
             <i class="bi ${tool.icon}" style="font-size: 2rem;"></i>
@@ -571,6 +575,147 @@ function renderTelemetryCards(container, lpp) {
     });
     html += '</div>';
     container.innerHTML = html;
+}
+
+// ================================================================
+// CLI tool
+// ================================================================
+
+const CLI_QUICK_COMMANDS = ['get name', 'get radio', 'get tx', 'ver', 'clock', 'neighbors'];
+let _cliHistory = [];
+let _cliHistoryIndex = -1;
+let _cliPending = false;
+
+function cliHistoryKey() {
+    return `mc-webui-rpt-cli-history-${_pubkey}`;
+}
+
+function loadCliHistory() {
+    try {
+        _cliHistory = JSON.parse(localStorage.getItem(cliHistoryKey()) || '[]');
+    } catch (e) {
+        _cliHistory = [];
+    }
+    _cliHistoryIndex = -1;
+}
+
+function pushCliHistory(cmd) {
+    _cliHistory = _cliHistory.filter(c => c !== cmd);
+    _cliHistory.push(cmd);
+    if (_cliHistory.length > 50) _cliHistory = _cliHistory.slice(-50);
+    localStorage.setItem(cliHistoryKey(), JSON.stringify(_cliHistory));
+    _cliHistoryIndex = -1;
+}
+
+function renderCliPane(body) {
+    loadCliHistory();
+    _cliPending = false;
+    const chips = CLI_QUICK_COMMANDS.map(c =>
+        `<button type="button" class="btn btn-outline-secondary btn-sm cli-chip font-monospace" data-cmd="${esc(c)}">${esc(c)}</button>`
+    ).join('');
+    body.innerHTML = `
+        <div class="cli-terminal" id="cliOutput">
+            <div class="cli-line meta">Commands go to ${esc(_repeater ? _repeater.name : 'the repeater')}. One command at a time — replies travel over the mesh.</div>
+        </div>
+        <div class="d-flex flex-wrap gap-1 mt-2">${chips}</div>
+        <form id="cliForm" class="d-flex gap-2 mt-2">
+            <input type="text" id="cliInput" class="form-control form-control-sm font-monospace"
+                   placeholder="Enter command (e.g. get name)" autocomplete="off"
+                   autocapitalize="off" spellcheck="false">
+            <button type="submit" class="btn btn-sm btn-success" id="cliSendBtn">
+                <i class="bi bi-send"></i>
+            </button>
+        </form>
+    `;
+
+    const form = body.querySelector('#cliForm');
+    const input = body.querySelector('#cliInput');
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        sendCliCommand(input.value);
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!_cliHistory.length) return;
+            if (_cliHistoryIndex === -1) _cliHistoryIndex = _cliHistory.length;
+            if (_cliHistoryIndex > 0) _cliHistoryIndex--;
+            input.value = _cliHistory[_cliHistoryIndex] || '';
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (_cliHistoryIndex === -1) return;
+            _cliHistoryIndex++;
+            if (_cliHistoryIndex >= _cliHistory.length) {
+                _cliHistoryIndex = -1;
+                input.value = '';
+            } else {
+                input.value = _cliHistory[_cliHistoryIndex] || '';
+            }
+        }
+    });
+
+    body.querySelectorAll('.cli-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            input.value = chip.dataset.cmd;
+            input.focus();
+        });
+    });
+
+    setTimeout(() => input.focus(), 200);
+}
+
+function cliAppend(cls, text) {
+    const out = document.getElementById('cliOutput');
+    if (!out) return null;
+    const line = document.createElement('div');
+    line.className = `cli-line ${cls}`;
+    line.textContent = text;
+    out.appendChild(line);
+    out.scrollTop = out.scrollHeight;
+    return line;
+}
+
+async function sendCliCommand(raw) {
+    const command = (raw || '').trim();
+    const input = document.getElementById('cliInput');
+    const sendBtn = document.getElementById('cliSendBtn');
+    if (!command || _cliPending) return;
+
+    _cliPending = true;
+    if (input) { input.value = ''; input.disabled = true; }
+    if (sendBtn) sendBtn.disabled = true;
+    pushCliHistory(command);
+
+    cliAppend('cmd', command);
+    const pendingLine = cliAppend('meta cli-pending', 'Waiting for reply…');
+
+    let data = null;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/cli`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command })
+        });
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: 'Request failed' };
+    }
+
+    if (pendingLine) pendingLine.remove();
+    if (data && data.success) {
+        cliAppend('reply', data.output || '(empty reply)');
+        if (data.elapsed_ms != null) {
+            cliAppend('meta', `(${(data.elapsed_ms / 1000).toFixed(1)} s)`);
+        }
+    } else {
+        cliAppend('error', (data && data.error) || 'Command failed');
+    }
+
+    _cliPending = false;
+    if (input) { input.disabled = false; input.focus(); }
+    if (sendBtn) sendBtn.disabled = false;
 }
 
 // ================================================================

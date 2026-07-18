@@ -5889,6 +5889,42 @@ def repeater_telemetry(public_key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/repeaters/<public_key>/cli', methods=['POST'])
+def repeater_cli(public_key):
+    """Send a CLI text command to a repeater and return its reply.
+
+    Admin-only: the firmware silently ignores text commands from
+    non-admin clients (which would surface as a pointless timeout),
+    so guest sessions are rejected up front.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    session = dm.get_repeater_session(pk)
+    if not session:
+        return jsonify({'success': False, 'error': 'Not logged in', 'need_login': True}), 401
+    if not session.get('is_admin'):
+        return jsonify({'success': False, 'error': 'Admin login required'}), 403
+    data = request.get_json(silent=True) or {}
+    command = (data.get('command') or '').strip()
+    if not command:
+        return jsonify({'success': False, 'error': 'Missing command'}), 400
+    try:
+        result = dm.repeater_cmd_wait(pk, command)
+        if result.get('success'):
+            return jsonify({'success': True,
+                            'output': result.get('reply', ''),
+                            'elapsed_ms': result.get('elapsed_ms')}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'Command failed')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error running repeater CLI command: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/repeaters/<public_key>/neighbours', methods=['GET'])
 def repeater_neighbours(public_key):
     """Zero-hop neighbours of a repeater, enriched with contact names/coords.
