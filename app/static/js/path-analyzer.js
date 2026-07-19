@@ -84,6 +84,28 @@ function showNotification(message, type = 'info') {
 
 let paMessages = [];
 let paFilters = { hops: 'any', token: '', sender: '' };
+let paCurrentView = 'messages';   // 'messages' | 'stats'
+let paContacts = [];              // /api/contacts/cached?format=full
+let paStatsSort = { key: 'relayed', dir: -1 };
+
+async function paLoadContacts() {
+    try {
+        const resp = await fetch('/api/contacts/cached?format=full');
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.success) paContacts = data.contacts || [];
+        }
+    } catch (e) {
+        console.error('Failed to load contacts:', e);
+    }
+}
+
+// Match a repeater hash token against contacts by public key prefix.
+// 1-byte hashes can collide - callers must handle multiple candidates.
+function paMatchContacts(token) {
+    const prefix = token.toLowerCase();
+    return paContacts.filter(c => (c.public_key || '').toLowerCase().startsWith(prefix));
+}
 
 // Split an echo's path hex into per-hop tokens using that echo's own
 // hash_size (same logic as showPathsPopup in app.js; trailing partial kept)
@@ -282,6 +304,139 @@ function paSetView(state) {
     document.getElementById('paLoading').classList.toggle('d-none', state !== 'loading');
     document.getElementById('paEmpty').classList.toggle('d-none', state !== 'empty');
     document.getElementById('paTableWrap').classList.toggle('d-none', state !== 'table');
+    document.getElementById('paStatsWrap').classList.toggle('d-none', state !== 'stats');
+}
+
+// ================================================================
+// Per-repeater statistics
+// ================================================================
+
+function paComputeStats(filtered) {
+    const stats = new Map();  // exact token -> aggregate
+    for (const msg of filtered) {
+        for (const e of msg.echoView) {
+            e.tokens.forEach((tok, i) => {
+                let s = stats.get(tok);
+                if (!s) {
+                    s = { token: tok, relayed: 0, msgIds: new Set(), lastHop: 0, snrSum: 0, snrCount: 0 };
+                    stats.set(tok, s);
+                }
+                s.relayed++;
+                s.msgIds.add(msg.id);
+                if (i === e.tokens.length - 1) {
+                    // SNR is measured at our receiver - attribute it to the
+                    // final hop only, never to intermediate hops
+                    s.lastHop++;
+                    if (e.snr !== null && e.snr !== undefined) {
+                        s.snrSum += Number(e.snr);
+                        s.snrCount++;
+                    }
+                }
+            });
+        }
+    }
+    return [...stats.values()].map(s => ({
+        token: s.token,
+        relayed: s.relayed,
+        messages: s.msgIds.size,
+        lastHop: s.lastHop,
+        avgSnr: s.snrCount > 0 ? s.snrSum / s.snrCount : null,
+    }));
+}
+
+function paRenderStats() {
+    const body = document.getElementById('paStatsBody');
+    body.innerHTML = '';
+
+    const filtered = paMessages.filter(paMessageMatchesFilters);
+    const rows = paComputeStats(filtered);
+
+    const { key, dir } = paStatsSort;
+    rows.sort((a, b) => {
+        const av = a[key], bv = b[key];
+        if (av === null && bv === null) return 0;
+        if (av === null) return 1;   // nulls (never last hop) always last
+        if (bv === null) return -1;
+        return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
+    });
+
+    // Show sort direction on the active header
+    document.querySelectorAll('.pa-sortable').forEach(th => {
+        th.textContent = th.textContent.replace(/ [▲▼]$/, '')
+            + (th.dataset.sort === key ? (dir === -1 ? ' ▼' : ' ▲') : '');
+    });
+
+    for (const s of rows) {
+        const tr = document.createElement('tr');
+        tr.className = 'pa-stats-row';
+        tr.title = `Filter messages by ${s.token}`;
+
+        const tdToken = document.createElement('td');
+        tdToken.innerHTML = `<span class="pa-hash">${s.token}</span>`;
+        tr.appendChild(tdToken);
+
+        const tdContact = document.createElement('td');
+        const candidates = paMatchContacts(s.token);
+        if (candidates.length === 1) {
+            tdContact.textContent = candidates[0].name || '—';
+        } else if (candidates.length > 1) {
+            tdContact.innerHTML = `<span class="pa-ambiguous" title="${candidates.map(c => c.name).join(', ')}">ambiguous (${candidates.length})</span>`;
+        } else {
+            tdContact.textContent = '—';
+        }
+        tr.appendChild(tdContact);
+
+        for (const val of [s.relayed, s.messages, s.lastHop]) {
+            const td = document.createElement('td');
+            td.className = 'text-end';
+            td.textContent = val;
+            tr.appendChild(td);
+        }
+
+        const tdSnr = document.createElement('td');
+        tdSnr.className = 'text-end';
+        tdSnr.textContent = s.avgSnr === null ? '—' : `${s.avgSnr.toFixed(1)} dB`;
+        tr.appendChild(tdSnr);
+
+        // Click -> apply this token as the filter and jump to the message list
+        tr.addEventListener('click', () => {
+            document.getElementById('paTokenFilter').value = s.token;
+            paSwitchView('messages');
+        });
+
+        body.appendChild(tr);
+    }
+
+    const counter = document.getElementById('paCounter');
+    counter.textContent = paFiltersActive()
+        ? `${rows.length} repeaters (${filtered.length} of ${paMessages.length} messages)`
+        : `${rows.length} repeaters (${paMessages.length} messages)`;
+
+    if (rows.length === 0) {
+        document.getElementById('paEmptyText').textContent =
+            filtered.length === 0 ? 'No messages match the current filters.'
+                                  : 'No routed echoes in the current selection.';
+        paSetView('empty');
+    } else {
+        paSetView('stats');
+    }
+}
+
+function paRender() {
+    if (paCurrentView === 'stats') {
+        paRenderStats();
+    } else {
+        paRenderTable();
+    }
+}
+
+function paSwitchView(view) {
+    paCurrentView = view;
+    const msgBtn = document.getElementById('paViewMessagesBtn');
+    const statsBtn = document.getElementById('paViewStatsBtn');
+    msgBtn.className = 'btn ' + (view === 'messages' ? 'btn-primary' : 'btn-outline-primary');
+    statsBtn.className = 'btn ' + (view === 'stats' ? 'btn-primary' : 'btn-outline-primary');
+    paApplyFilters();
 }
 
 async function paLoadMessages() {
@@ -310,7 +465,7 @@ async function paLoadMessages() {
         document.getElementById('paEmptyText').textContent = 'No messages in the selected time range.';
         paSetView('empty');
     } else {
-        paRenderTable();
+        paRender();
     }
 }
 
@@ -330,7 +485,7 @@ function paReadFilters() {
 function paApplyFilters() {
     paReadFilters();
     if (paMessages.length > 0) {
-        paRenderTable();
+        paRender();
     }
 }
 
@@ -360,5 +515,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('paSenderFilter').addEventListener('input', debouncedApply);
     document.getElementById('paClearFiltersBtn').addEventListener('click', paClearFilters);
 
+    document.getElementById('paViewMessagesBtn').addEventListener('click', () => paSwitchView('messages'));
+    document.getElementById('paViewStatsBtn').addEventListener('click', () => paSwitchView('stats'));
+    document.querySelectorAll('.pa-sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const k = th.dataset.sort;
+            if (paStatsSort.key === k) {
+                paStatsSort.dir = -paStatsSort.dir;
+            } else {
+                paStatsSort = { key: k, dir: -1 };
+            }
+            paRenderStats();
+        });
+    });
+
+    paLoadContacts();
     paLoadMessages();
 });

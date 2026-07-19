@@ -178,6 +178,24 @@
             color: var(--text-secondary, #6c757d);
         }
 
+        .pa-sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .pa-sortable:hover {
+            text-decoration: underline;
+        }
+
+        .pa-stats-row {
+            cursor: pointer;
+        }
+
+        .pa-ambiguous {
+            color: var(--text-secondary, #6c757d);
+            font-style: italic;
+        }
+
         .empty-state {
             text-align: center;
             color: var(--text-secondary, #6c757d);
@@ -194,6 +212,15 @@
 <body>
     <!-- Toolbar -->
     <div class="pa-toolbar">
+        <div class="btn-group btn-group-sm" role="group" aria-label="View">
+            <button id="paViewMessagesBtn" class="btn btn-primary" title="Message list">
+                <i class="bi bi-list-ul"></i> Messages
+            </button>
+            <button id="paViewStatsBtn" class="btn btn-outline-primary" title="Per-repeater statistics">
+                <i class="bi bi-bar-chart"></i> Repeaters
+            </button>
+        </div>
+        <div class="vr d-none d-sm-block"></div>
         <label for="paDaysSelect" class="form-label mb-0 small text-muted">Time range:</label>
         <select id="paDaysSelect" class="form-select form-select-sm" style="width: auto;">
             <option value="1">Last 1 day</option>
@@ -248,6 +275,25 @@
                     </tr>
                 </thead>
                 <tbody id="paTableBody"></tbody>
+            </table>
+        </div>
+        <div id="paStatsWrap" class="pa-table-wrap d-none">
+            <table class="table table-hover pa-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Repeater</th>
+                        <th>Contact</th>
+                        <th class="text-end pa-sortable" data-sort="relayed"
+                            title="Echoes whose path contains this hash (anywhere)">Relayed</th>
+                        <th class="text-end pa-sortable" data-sort="messages"
+                            title="Distinct messages relayed through this hash">Messages</th>
+                        <th class="text-end pa-sortable" data-sort="lastHop"
+                            title="Echoes where this hash is the final hop (heard directly by us)">As last hop</th>
+                        <th class="text-end pa-sortable" data-sort="avgSnr"
+                            title="Average echo SNR, counted only when this hash is the final hop - SNR is measured at our receiver for the last hop">Avg SNR (last hop)</th>
+                    </tr>
+                </thead>
+                <tbody id="paStatsBody"></tbody>
             </table>
         </div>
     </div>
