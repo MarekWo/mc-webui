@@ -527,17 +527,22 @@ def get_messages():
                     'pkt_payload': pkt_payload,
                 }
 
-                # Enrich with echo data and packet hash (frontend builds analyzer URL)
                 if pkt_payload:
                     msg['packet_hash'] = compute_packet_hash(pkt_payload)
-                    echoes = db.get_echoes_for_message(pkt_payload)
-                    if echoes:
-                        msg['echo_count'] = len(echoes)
-                        msg['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
-                        msg['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
-                        msg['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
 
                 messages.append(msg)
+
+            # Enrich with echo data in one batch query (per-message queries are
+            # prohibitively slow on connection-per-call over bind mounts)
+            payloads = [m['pkt_payload'] for m in messages if m.get('pkt_payload')]
+            echoes_by_payload = db.get_echoes_for_payloads(payloads)
+            for msg in messages:
+                echoes = echoes_by_payload.get(msg.get('pkt_payload'))
+                if echoes:
+                    msg['echo_count'] = len(echoes)
+                    msg['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
+                    msg['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
+                    msg['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
 
             # Filter out blocked contacts' messages
             blocked_names = db.get_blocked_contact_names()
