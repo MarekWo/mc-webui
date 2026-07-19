@@ -263,7 +263,10 @@ function paRenderTable() {
 
         const tdTime = document.createElement('td');
         tdTime.className = 'pa-time';
-        tdTime.textContent = paFormatTime(msg);
+        const full = paFormatTime(msg);
+        tdTime.innerHTML = `<span class="pa-time-full"></span><span class="pa-time-short"></span>`;
+        tdTime.querySelector('.pa-time-full').textContent = full;
+        tdTime.querySelector('.pa-time-short').textContent = full === '—' ? '—' : full.slice(5, 16);
         tr.appendChild(tdTime);
 
         const tdChannel = document.createElement('td');
@@ -283,6 +286,7 @@ function paRenderTable() {
         tr.appendChild(tdContent);
 
         const tdHash = document.createElement('td');
+        tdHash.className = 'pa-col-hash';
         if (msg.packet_hash) {
             const span = document.createElement('span');
             span.className = 'pa-hash';
@@ -304,13 +308,13 @@ function paRenderTable() {
         tr.appendChild(tdHops);
 
         const tdHb = document.createElement('td');
-        tdHb.className = 'text-end';
+        tdHb.className = 'text-end pa-col-hb';
         const hbSizes = [...new Set(msg.echoView.filter(e => e.hops > 0).map(e => e.hash_size || 1))].sort();
         tdHb.textContent = hbSizes.length > 0 ? hbSizes.join(',') : '—';
         tr.appendChild(tdHb);
 
         const tdEchoes = document.createElement('td');
-        tdEchoes.className = 'text-end';
+        tdEchoes.className = 'text-end pa-col-echoes';
         tdEchoes.textContent = msg.echoView.length;
         tr.appendChild(tdEchoes);
 
@@ -322,6 +326,23 @@ function paRenderTable() {
             const detailTd = document.createElement('td');
             detailTd.className = 'pa-echo-cell';
             detailTd.colSpan = 9;
+            if (msg.packet_hash) {
+                // Narrow screens hide the Hash/HB columns - surface both here
+                const hashLine = document.createElement('div');
+                hashLine.className = 'pa-detail-hash';
+                const hashSpan = document.createElement('span');
+                hashSpan.className = 'pa-hash';
+                hashSpan.textContent = msg.packet_hash;
+                hashSpan.title = 'Click to copy';
+                hashSpan.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    paCopyText(msg.packet_hash, 'Packet hash');
+                });
+                hashLine.append('Hash: ');
+                hashLine.appendChild(hashSpan);
+                if (hbSizes.length > 0) hashLine.append(` | HB: ${hbSizes.join(',')}`);
+                detailTd.appendChild(hashLine);
+            }
             msg.echoView.forEach((echo, echoIdx) => {
                 detailTd.appendChild(paBuildEchoLine(msg, echo, echoIdx));
             });
@@ -438,9 +459,9 @@ function paRenderStats() {
         }
         tr.appendChild(tdContact);
 
-        for (const val of [s.relayed, s.messages, s.lastHop]) {
+        for (const [val, cls] of [[s.relayed, ''], [s.messages, ' pa-col-msgs'], [s.lastHop, ' pa-col-lasthop']]) {
             const td = document.createElement('td');
-            td.className = 'text-end';
+            td.className = 'text-end' + cls;
             td.textContent = val;
             tr.appendChild(td);
         }

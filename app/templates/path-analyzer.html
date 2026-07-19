@@ -166,6 +166,18 @@
             color: #212529;
         }
 
+        /* Packet hash inside the expanded detail row - narrow screens only,
+           where the Hash column is hidden */
+        .pa-detail-hash {
+            display: none;
+            font-size: 0.75rem;
+            padding-bottom: 0.2rem;
+        }
+
+        .pa-time-short {
+            display: none;
+        }
+
         .pa-table-wrap {
             overflow-x: auto;
         }
@@ -324,6 +336,91 @@
             display: block;
             margin-bottom: 0.75rem;
         }
+
+        /* Narrow screens: drop secondary columns so rows fit the viewport
+           and echo paths can wrap (keeps the jump-to-map button reachable).
+           Hash and HB move into the expanded detail row. Must stay LAST in
+           this stylesheet so it overrides the base rules above. */
+        @media (max-width: 576px) {
+            .pa-col-hash,
+            .pa-col-hb,
+            .pa-col-msgs,
+            .pa-col-lasthop {
+                display: none;
+            }
+
+            .pa-content-preview {
+                max-width: 9rem;
+            }
+
+            .pa-time-full {
+                display: none;
+            }
+
+            .pa-time-short {
+                display: inline;
+            }
+
+            .pa-detail-hash {
+                display: block;
+            }
+
+            .pa-echo-cell {
+                padding-left: 0.75rem;
+            }
+
+            /* Long contact names must not push the SNR column off-screen */
+            #paStatsBody td:nth-child(2) {
+                max-width: 8rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .pa-col-echoes {
+                display: none;
+            }
+
+            .pa-table td,
+            .pa-table th {
+                padding: 0.3rem 0.2rem;
+            }
+
+            /* Truncate long channel names */
+            #paTableBody td:nth-child(3) {
+                max-width: 3.8rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            /* Let long headers (Avg SNR...) wrap instead of widening columns */
+            .pa-table th {
+                white-space: normal;
+            }
+
+            /* Truncate long sender names */
+            #paTableBody td:nth-child(4) {
+                max-width: 5.5rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .pa-content-preview {
+                max-width: 5.2rem;
+            }
+
+            /* Date and time stack into two lines */
+            .pa-time {
+                white-space: normal;
+            }
+
+            .pa-time-short {
+                display: inline-block;
+                width: 3.2rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -399,10 +496,10 @@
                         <th>Channel</th>
                         <th>Sender</th>
                         <th>Message</th>
-                        <th>Hash</th>
+                        <th class="pa-col-hash">Hash</th>
                         <th class="text-end">Hops</th>
-                        <th class="text-end" title="Path hash size in bytes per hop (from routed echoes)">HB</th>
-                        <th class="text-end">Echoes</th>
+                        <th class="text-end pa-col-hb" title="Path hash size in bytes per hop (from routed echoes)">HB</th>
+                        <th class="text-end pa-col-echoes">Echoes</th>
                     </tr>
                 </thead>
                 <tbody id="paTableBody"></tbody>
@@ -416,9 +513,9 @@
                         <th>Contact</th>
                         <th class="text-end pa-sortable" data-sort="relayed"
                             title="Echoes whose path contains this hash (anywhere)">Relayed</th>
-                        <th class="text-end pa-sortable" data-sort="messages"
+                        <th class="text-end pa-sortable pa-col-msgs" data-sort="messages"
                             title="Distinct messages relayed through this hash">Messages</th>
-                        <th class="text-end pa-sortable" data-sort="lastHop"
+                        <th class="text-end pa-sortable pa-col-lasthop" data-sort="lastHop"
                             title="Echoes where this hash is the final hop (heard directly by us)">As last hop</th>
                         <th class="text-end pa-sortable" data-sort="avgSnr"
                             title="Average echo SNR, counted only when this hash is the final hop - SNR is measured at our receiver for the last hop">Avg SNR (last hop)</th>
