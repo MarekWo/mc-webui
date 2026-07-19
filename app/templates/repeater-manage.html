@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Repeater Management - mc-webui</title>
+
+    <!-- Theme: apply saved preference before CSS loads to prevent flash -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('mc-webui-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-bs-theme', t);
+        })();
+    </script>
+
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/favicon-16x16.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <!-- Bootstrap 5 CSS (local) -->
+    <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+    <!-- Bootstrap Icons (local) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+    <!-- Leaflet CSS (neighbors map view) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Theme CSS (light/dark mode) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+
+    <style>
+        /* Standalone page: allow normal scrolling (style.css sets overflow hidden) */
+        html, body {
+            overflow: auto !important;
+            height: 100%;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+        }
+
+        .manage-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .manage-content {
+            flex: 1 1 0;
+            min-height: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 1rem;
+        }
+
+        /* Header card */
+        .rpt-header-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .rpt-header-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(25, 135, 84, 0.12);
+            border: 2px solid #198754;
+            color: #198754;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            flex-shrink: 0;
+        }
+
+        .rpt-header-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary, #6c757d);
+        }
+
+        .rpt-pubkey {
+            font-family: var(--bs-font-monospace, monospace);
+            font-size: 0.8rem;
+        }
+
+        /* Tools grid */
+        .tool-tile {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            cursor: pointer;
+            transition: box-shadow 0.15s;
+            height: 100%;
+        }
+
+        .tool-tile:hover {
+            box-shadow: var(--card-shadow-hover, 0 2px 8px rgba(0, 0, 0, 0.15));
+        }
+
+        .tool-tile.disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .tool-tile.disabled:hover {
+            box-shadow: none;
+        }
+
+        .tool-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+
+        .tool-icon.status    { background: rgba(13, 110, 253, 0.12);  color: #0d6efd; }
+        .tool-icon.telemetry { background: rgba(111, 66, 193, 0.12);  color: #6f42c1; }
+        .tool-icon.neighbors { background: rgba(25, 135, 84, 0.12);   color: #198754; }
+        .tool-icon.cli       { background: rgba(255, 143, 0, 0.12);   color: #e65100; }
+        .tool-icon.settings  { background: rgba(220, 53, 69, 0.12);   color: #dc3545; }
+        .tool-icon.actions   { background: rgba(13, 202, 240, 0.12);  color: #0aa2c0; }
+
+        .tool-tile h6 {
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .tool-tile .tool-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary, #6c757d);
+            margin: 0;
+        }
+
+        /* Tool pane */
+        .tool-pane-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .tool-pane-body {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        /* CLI terminal (dark regardless of theme, like the Console module) */
+        .cli-terminal {
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            font-family: 'Courier New', Consolas, monospace;
+            font-size: 0.85rem;
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+            /* Fill the viewport below header card + pane chrome, never tiny */
+            height: max(260px, calc(100vh - 430px));
+            overflow-y: auto;
+        }
+
+        .cli-line {
+            margin-bottom: 0.4rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .cli-line.cmd { color: #00ff88; }
+        .cli-line.cmd::before { content: '> '; color: #888; }
+
+        .cli-line.reply {
+            background-color: #16213e;
+            padding: 0.4rem 0.5rem;
+            border-radius: 0.25rem;
+            border-left: 3px solid #0f3460;
+        }
+
+        .cli-line.error { color: #ff6b6b; }
+
+        .cli-line.meta {
+            color: #4ecdc4;
+            font-style: italic;
+            font-size: 0.75rem;
+        }
+
+        .cli-pending::after {
+            content: '';
+            display: inline-block;
+            width: 11px;
+            height: 11px;
+            border: 2px solid #4ecdc4;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: cli-spin 1s linear infinite;
+            margin-left: 0.4rem;
+            vertical-align: middle;
+        }
+
+        @keyframes cli-spin { to { transform: rotate(360deg); } }
+
+        /* SNR labels on neighbor map connection lines */
+        .nb-snr-tooltip {
+            background: rgba(13, 110, 253, 0.92);
+            color: #fff;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 1px 6px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .nb-snr-tooltip::before {
+            display: none;
+        }
+
+        /* Settings tool */
+        #settingsAccordion .accordion-button {
+            padding: 0.6rem 0.9rem;
+            font-size: 0.95rem;
+        }
+
+        .sf-row.sf-dirty .sf-input,
+        .sf-row.sf-dirty .sf-sub {
+            border-color: var(--bs-warning);
+        }
+
+        .sf-badge .spinner-border {
+            width: 0.8rem;
+            height: 0.8rem;
+        }
+
+        /* Centered state screens */
+        .state-screen {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-secondary, #6c757d);
+        }
+
+        .state-screen i {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toolbar -->
+    <div class="manage-toolbar">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="backBtn" title="Back to My Repeaters">
+            <i class="bi bi-arrow-left"></i>
+        </button>
+        <span class="fw-semibold flex-grow-1">Repeater Management</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="logoutBtn" title="Log out of this repeater">
+            <i class="bi bi-box-arrow-right"></i> Logout
+        </button>
+    </div>
+
+    <div class="manage-content">
+        <!-- Loading / logging-in state -->
+        <div class="state-screen" id="loadingState">
+            <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
+            <p class="mt-3 mb-0" id="loadingText">Loading…</p>
+        </div>
+
+        <!-- Error state -->
+        <div class="state-screen" id="errorState" style="display: none;">
+            <i class="bi bi-exclamation-triangle text-warning"></i>
+            <p class="mb-3" id="errorText">Something went wrong.</p>
+            <div class="d-flex gap-2 justify-content-center">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="errorBackBtn">
+                    <i class="bi bi-arrow-left"></i> Back to list
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" id="errorRetryBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Try again
+                </button>
+            </div>
+        </div>
+
+        <!-- Panel content (after login) -->
+        <div id="panelContent" style="display: none;">
+            <!-- Header card -->
+            <div class="rpt-header-card">
+                <div class="rpt-header-icon"><i class="bi bi-diagram-3"></i></div>
+                <div class="flex-grow-1" style="min-width: 0;">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <h5 class="mb-0 text-truncate" id="rptName"></h5>
+                        <span class="badge" id="roleBadge"></span>
+                    </div>
+                    <div class="rpt-pubkey text-muted mt-1">
+                        <span id="rptPubkey"></span>
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" id="copyPubkeyBtn" title="Copy full public key">
+                            <i class="bi bi-copy"></i>
+                        </button>
+                    </div>
+                    <div class="rpt-header-meta mt-1">
+                        <i class="bi bi-signpost-split"></i> <span class="font-monospace" id="rptPath">—</span>
+                        <span class="ms-2"><i class="bi bi-geo-alt"></i> <span id="rptLocation">—</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tools grid -->
+            <div id="toolsGrid">
+                <div class="text-muted small text-uppercase fw-bold mb-2">Management Tools</div>
+                <div class="row g-3" id="toolsRow"></div>
+            </div>
+
+            <!-- Tool pane (shown instead of the grid when a tool is open) -->
+            <div id="toolPane" style="display: none;">
+                <div class="tool-pane-header">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="paneBackBtn" title="Back to tools">
+                        <i class="bi bi-arrow-left"></i>
+                    </button>
+                    <span class="tool-icon" id="paneIcon" style="width: 32px; height: 32px; font-size: 1rem;"></span>
+                    <h6 class="mb-0" id="paneTitle"></h6>
+                </div>
+                <div class="tool-pane-body" id="paneBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Modal (login prompt) -->
+    <div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title"><i class="bi bi-key"></i> <span id="passwordModalTitle">Log in</span></h6>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2 small text-muted" id="passwordModalInfo"></div>
+                    <div class="input-group input-group-sm mb-2">
+                        <input type="password" class="form-control" id="passwordInput"
+                               placeholder="Repeater password" autocomplete="off">
+                        <button type="button" class="btn btn-outline-secondary" id="togglePasswordBtn" title="Show/hide password">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="savePasswordCheck" checked>
+                        <label class="form-check-label small" for="savePasswordCheck">
+                            Remember password (stored in the app database)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" id="passwordCancelBtn">Back to list</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="passwordSubmitBtn">Log in</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container for notifications (position applied by JS from ui_settings) -->
+    <div class="toast-container position-fixed top-0 start-0 p-3" data-toast-container>
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">Repeater Management</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle (local) -->
+    <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <!-- Leaflet JS (neighbors map view) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <!-- Repeater Management JS -->
+    <script src="{{ url_for('static', filename='js/repeater-manage.js') }}"></script>
+</body>
+</html>

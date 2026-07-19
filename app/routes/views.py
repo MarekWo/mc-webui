@@ -103,6 +103,24 @@ def console():
     )
 
 
+@views_bp.route('/repeaters')
+def repeaters():
+    """My Repeaters - repeater administration panel (list + login)."""
+    return render_template(
+        'repeaters.html',
+        device_name=runtime_config.get_device_name()
+    )
+
+
+@views_bp.route('/repeaters/manage')
+def repeater_manage():
+    """Repeater Management panel for one repeater (?pubkey=<64 hex>)."""
+    return render_template(
+        'repeater-manage.html',
+        device_name=runtime_config.get_device_name()
+    )
+
+
 @views_bp.route('/logs')
 def logs():
     """System log viewer - real-time log streaming with filters."""

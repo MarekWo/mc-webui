@@ -16,6 +16,7 @@ This guide covers all features and functionality of mc-webui. For installation i
 - [Adding Contacts](#adding-contacts)
 - [DM Path Management](#dm-path-management)
 - [Interactive Console](#interactive-console)
+- [My Repeaters (Repeater Administration)](#my-repeaters-repeater-administration)
 - [Device Dashboard](#device-dashboard)
 - [Quick-Access FAB Buttons](#quick-access-fab-buttons)
 - [Settings](#settings)
@@ -504,6 +505,8 @@ The console supports a comprehensive set of MeshCore commands organized into cat
 - `set_regions <name> <value>` - Set repeater regions
 - `set_clock <name>` - Sync repeater clock
 
+For a graphical alternative to these commands, see [My Repeaters](#my-repeaters-repeater-administration).
+
 **Contact Management:**
 - `contacts` - List all device contacts (paths shown with commas, e.g. `D1,90,05,54`)
 - `.contacts` - List contacts (JSON format)
@@ -531,6 +534,82 @@ The console supports a comprehensive set of MeshCore commands organized into cat
 - **Auto-reconnect** - WebSocket reconnects automatically on disconnect
 - **Status indicator** - Green/yellow/red dot shows connection status
 - **Human-readable output** - Clock times, statistics, and telemetry formatted for readability
+
+---
+
+## My Repeaters (Repeater Administration)
+
+Administer MeshCore repeaters you hold the password to — check status and telemetry, browse neighbours, run CLI commands, change settings, and trigger actions like adverts or a reboot, all over the mesh:
+
+1. Click the menu icon (☰) in the navbar
+2. Select **My Repeaters** from the menu
+
+The panel opens full-screen, like Contact Management, and lists the repeaters you have added with their current routing path. (The menu item can be moved to the Quick Access FAB cluster in Settings → Appearance.)
+
+### Adding a Repeater
+
+Click **Add repeater**. The picker lists repeater contacts stored **on your device** — if the one you need is missing, it has to be heard and approved first (see [Contact Management](#contact-management)). Use the search box to filter, then click a repeater to add it. Adding is purely local: nothing is sent over the mesh yet.
+
+### Passwords and Logging In
+
+Click a repeater row to log in. The first time, you are asked for the repeater password; leave **Save password** checked and the app remembers it per repeater, so future logins are one click.
+
+- The repeater decides your role from the password: **ADMIN** (full access) or **GUEST** (read-only: Status, Telemetry, Neighbors).
+- **Important:** a wrong password and an unreachable repeater look identical — MeshCore repeaters simply never answer a bad login. When a login times out, check reachability first (is the repeater several flood hops away?) before assuming the password is wrong.
+- Logins can take up to a minute on flood paths. Pinning a direct path (below) makes them much faster.
+
+### Row Actions
+
+- **Set path** - Configure the routing path used to reach the repeater, with the same editor as DM Contact Info: saved paths, apply to device, reset to flood, and a map-based repeater picker
+- **Set password** (key icon; filled when a password is saved) - Save, change, or clear the stored password
+- **Remove** - Remove the repeater from your list and delete its saved password. The device contact is untouched
+
+### Repeater Management Panel
+
+After a successful login the management panel opens. The header shows the repeater's name, shortened public key (with a copy button), current path, location, and your role badge (ADMIN / GUEST). Six tools are available; with a guest login, CLI, Settings, and Actions are locked.
+
+#### Status
+
+Fetched automatically when opened. A compact table in three groups:
+
+- **System** - Battery (estimated % and volts), uptime, on-board clock, TX queue length, error events
+- **Radio** - Last RSSI / SNR, noise floor, TX and RX airtime
+- **Packets** - Sent and received counts (flood/direct split), duplicates, RX errors, and channel utilization (TX+RX airtime as a percentage of uptime)
+
+#### Telemetry
+
+Shows **all** Cayenne LPP channels at once — no channel picker. Each channel renders as a card with typed, unit-formatted rows (voltage, temperature, humidity, GPS position, and so on). Channel 1 is the repeater's own vitals.
+
+#### Neighbors
+
+Lists every zero-hop neighbour the repeater hears: resolved contact name (or the raw pubkey prefix for unknown nodes), how long ago it was heard, and SNR. When at least one neighbour has a known position, a **Map** toggle appears: the managed repeater is shown as a red marker, positioned neighbours in green, and the dashed connection lines carry SNR labels. A footnote counts neighbours that could not be placed on the map.
+
+#### CLI (admin only)
+
+A remote text console for the repeater, styled like the Interactive Console. Type a command (e.g. `get name`, `ver`, `clock`) and the reply comes back into the terminal together with the round-trip time. Quick-command chips, Enter to send, and per-repeater command history (arrow keys) are built in.
+
+Replies travel over LoRa, so an occasional lost reply (timeout) is normal — just send the command again.
+
+#### Settings (admin only)
+
+Repeater configuration organized into collapsible sections: **Basic** (name, admin and guest passwords), **Radio** (frequency / bandwidth / SF / CR, TX power, RX gain), **Location**, **Features** (repeat, read-only access, multiple ACKs), **Network health** (loop detection, duty cycle), **Advertisement** (advert intervals, max flood hops), **Operator info**, and **Advanced**.
+
+- Each section loads its values live from the repeater when you first expand it (every field is one mesh round-trip, so a section takes a few seconds) and has its own **Refresh** and **Apply** buttons
+- Changed fields are highlighted and counted on the Apply button; only those fields are sent
+- Every field reports back individually: a green check (applied), a **reboot required** badge (stored, takes effect after a reboot — radio parameters work this way), or a red error showing the repeater's own reply (e.g. an out-of-range value). Failed fields stay marked so you can correct and re-apply
+- Changing radio parameters asks for confirmation first — wrong values can make the repeater unreachable over the mesh
+- The admin password is write-only (the current one is never displayed). After a successful change, the password saved in mc-webui is updated automatically so one-click login keeps working. Changing it does **not** log out sessions that are already active
+
+#### Actions (admin only)
+
+One-click operations:
+
+- **Send zero-hop advert** - Announce the repeater to its direct neighbours. The recommended way to make it visible
+- **Send flood advert** - Advert flooded across the whole mesh. Not recommended — high network load; use sparingly
+- **Sync clock** - Set the repeater clock from your device's current time. The firmware refuses to move a clock backwards and says so
+- **Danger zone: Reboot** - Restarts the repeater after a confirmation prompt. The firmware does not reply to this command; the repeater simply drops off the mesh for a few seconds and comes back
+
+Erasing the repeater's file system is **not** available over the mesh — the firmware only accepts it on the USB serial console (use the MeshCore flasher for that).
 
 ---
 
@@ -586,7 +665,7 @@ Tap the toggle button (short click, no drag) to hide or show the rest of the FAB
 
 Open Settings → **Appearance** tab to adjust:
 - **Hide Quick Access** - Master switch: hides the FAB cluster entirely and moves all actions to the Main Menu
-- **Per-item placement** - Choose whether each of the 11 actions appears in the FAB or in the Main Menu. Changes take effect immediately
+- **Per-item placement** - Choose whether each of the 12 actions appears in the FAB or in the Main Menu. Changes take effect immediately
 - **Button size** - 28 to 72 pixels (default: 56)
 - **Spacing** - 2 to 24 pixels between buttons (default: 12)
 - **Reset position** - Reset both main chat and DM FAB positions to their defaults
@@ -672,7 +751,7 @@ Controls small notification toasts shown after actions (e.g. "Advert Sent", erro
 
 **Quick Access Buttons:**
 - **Hide Quick Access** - Master switch that hides the entire floating FAB cluster and moves all items to the Main Menu (slide-out)
-- **Per-item placement** - A table of all 11 configurable actions (Filter, Search, Direct Messages, Contacts, Settings, Send Advert, Flood Advert, Backup, Cleanup Contacts, System Log, Repeater Mgmt). Each row has two radio buttons: **Quick Access** (shows in FAB) and **Main Menu** (shows in the slide-out). Changes take effect immediately
+- **Per-item placement** - A table of all 12 configurable actions (Filter messages, Search messages, Direct Messages, Contact Management, Settings, Send Advert, Flood Advert, Map, Console, My Repeaters, Device Info, System Log). Each row has two radio buttons: **Quick Access** (shows in FAB) and **Main Menu** (shows in the slide-out). Changes take effect immediately
 - **Button size (px)** - Adjust the size of FAB buttons (default: 56)
 - **Spacing (px)** - Space between FAB buttons (default: 12)
 - **Position** - Reset FAB position to default (top-right)

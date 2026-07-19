@@ -198,6 +198,13 @@
                         <small class="d-block text-muted">Direct meshcli commands</small>
                     </div>
                 </button>
+                <button id="repeatersBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#repeatersModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-diagram-3" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <span>My Repeaters</span>
+                        <small class="d-block text-muted">Repeater administration</small>
+                    </div>
+                </button>
 
                 <!-- System -->
                 <div class="list-group-item py-2 mt-2">
@@ -873,6 +880,17 @@
                                                     <label class="btn btn-outline-primary" for="place-console-fab">Quick Access</label>
                                                     <input type="radio" class="btn-check" name="place-console" id="place-console-menu" value="menu" autocomplete="off">
                                                     <label class="btn btn-outline-primary" for="place-console-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="repeaters">
+                                            <td class="ps-0">My Repeaters</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="My Repeaters placement">
+                                                    <input type="radio" class="btn-check" name="place-repeaters" id="place-repeaters-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-repeaters-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-repeaters" id="place-repeaters-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-repeaters-menu">Main Menu</label>
                                                 </div>
                                             </td>
                                         </tr>

@@ -181,6 +181,27 @@ def invalidate_contacts_cache():
     logger.debug("Contacts cache invalidated")
 
 
+def _format_path_display(out_path_len, out_path, out_path_hash_mode):
+    """Format device out_path fields as 'Flood' / 'Direct' / 'AB→CD12…'.
+
+    meshcore lib 2.x: out_path_len already holds the hop count (6 LSB) and
+    the hash-size mode is stored separately in out_path_hash_mode. The raw
+    out_path is truncated to the meaningful bytes (firmware buffer may have
+    trailing garbage).
+    """
+    if out_path_len and out_path_len > 0 and out_path:
+        hash_mode = out_path_hash_mode or 0
+        hash_size = max(1, hash_mode + 1) if hash_mode >= 0 else 1
+        chunk = hash_size * 2
+        meaningful_hex = out_path[:out_path_len * chunk]
+        hops = [meaningful_hex[i:i + chunk].upper()
+                for i in range(0, len(meaningful_hex), chunk)]
+        return '→'.join(hops) if hops else out_path
+    if out_path_len == 0:
+        return 'Direct'
+    return 'Flood'
+
+
 # =============================================================================
 # Protected Contacts Management
 # =============================================================================
@@ -3018,25 +3039,10 @@ def get_contacts_detailed_api():
         blocked_keys = db.get_blocked_keys() if db else set()
 
         for public_key, details in contacts_detailed.items():
-            # Compute path display string.
-            # meshcore lib 2.x: out_path_len already holds the hop count (6 LSB)
-            # and the hash-size mode is stored separately in out_path_hash_mode.
             out_path_len = details.get('out_path_len', -1)
             out_path_raw = details.get('out_path', '')
             out_path_hash_mode = details.get('out_path_hash_mode', 0)
-            if out_path_len > 0 and out_path_raw:
-                hop_count = out_path_len
-                hash_size = max(1, out_path_hash_mode + 1) if out_path_hash_mode >= 0 else 1
-                chunk = hash_size * 2
-                # Truncate to meaningful bytes (firmware buffer may have trailing garbage)
-                meaningful_hex = out_path_raw[:hop_count * chunk]
-                # Format as HEX→HEX→HEX (each hop is hash_size*2 hex chars)
-                hops = [meaningful_hex[i:i+chunk].upper() for i in range(0, len(meaningful_hex), chunk)]
-                path_or_mode = '→'.join(hops) if hops else out_path_raw
-            elif out_path_len == 0:
-                path_or_mode = 'Direct'
-            else:
-                path_or_mode = 'Flood'
+            path_or_mode = _format_path_display(out_path_len, out_path_raw, out_path_hash_mode)
 
             contact = {
                 # All original fields from contact_info
@@ -5665,4 +5671,654 @@ def get_logs_api():
 
     except Exception as e:
         logger.error(f"Error getting logs: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# =============================================================================
+# My Repeaters API (repeater administration panel)
+# =============================================================================
+
+_PUBKEY_RE = re.compile(r'^[0-9a-f]{64}$')
+
+
+def _normalize_repeater_key(public_key):
+    """Lowercase and validate a full 64-hex repeater public key."""
+    pk = (public_key or '').strip().lower()
+    return pk if _PUBKEY_RE.match(pk) else None
+
+
+def _repeater_result_status(result):
+    """Map a device_manager repeater result to an HTTP status code."""
+    if result.get('success'):
+        return 200
+    if result.get('busy'):
+        return 429
+    if result.get('timeout'):
+        return 504
+    error = (result.get('error') or '').lower()
+    if 'not connected' in error:
+        return 503
+    if 'not found' in error:
+        return 404
+    return 500
+
+
+@api_bp.route('/repeaters', methods=['GET'])
+def list_my_repeaters():
+    """List saved repeaters merged with device contact truth."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    try:
+        rows = db.get_repeaters()
+        device_by_key = {}
+        if rows:
+            force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+            success, contacts_detailed, _error = get_contacts_detailed_cached(force_refresh)
+            if success and contacts_detailed:
+                device_by_key = {k.lower(): v for k, v in contacts_detailed.items()}
+
+        repeaters = [_merged_repeater_entry(row, device_by_key) for row in rows]
+        return jsonify({'success': True, 'repeaters': repeaters}), 200
+    except Exception as e:
+        logger.error(f"Error listing repeaters: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _merged_repeater_entry(row, device_by_key):
+    """Merge a repeaters DB row with device contact truth for API output."""
+    pk = row['public_key'].lower()
+    details = device_by_key.get(pk)
+    entry = {
+        'public_key': pk,
+        'password_set': bool(row.get('password')),
+        'added_at': row.get('added_at'),
+        'last_login_at': row.get('last_login_at'),
+        'last_login_role': row.get('last_login_role'),
+        'on_device': details is not None,
+        'name': '',
+        'out_path_len': None,
+        'out_path': '',
+        'out_path_hash_mode': 0,
+        'path_or_mode': '',
+        'adv_lat': None,
+        'adv_lon': None,
+        'last_advert': None,
+    }
+    if details:
+        entry.update({
+            'name': details.get('adv_name', ''),
+            'out_path_len': details.get('out_path_len', -1),
+            'out_path': details.get('out_path', ''),
+            'out_path_hash_mode': details.get('out_path_hash_mode', 0),
+            'path_or_mode': _format_path_display(
+                details.get('out_path_len', -1),
+                details.get('out_path', ''),
+                details.get('out_path_hash_mode', 0)),
+            'adv_lat': details.get('adv_lat'),
+            'adv_lon': details.get('adv_lon'),
+            'last_advert': details.get('last_advert'),
+        })
+    return entry
+
+
+def _repeater_session_payload(dm, pk):
+    """Session dict for API output ({'logged_in': False} when absent)."""
+    session = dm.get_repeater_session(pk) if dm else None
+    if not session:
+        return {'logged_in': False}
+    return {
+        'logged_in': True,
+        'is_admin': session.get('is_admin', False),
+        'permissions': session.get('permissions'),
+        'logged_in_at': session.get('logged_in_at'),
+    }
+
+
+@api_bp.route('/repeaters/<public_key>', methods=['GET'])
+def get_my_repeater(public_key):
+    """Single saved repeater merged with device truth + login session state."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    try:
+        row = db.get_repeater(pk)
+        if not row:
+            return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+        device_by_key = {}
+        success, contacts_detailed, _error = get_contacts_detailed_cached()
+        if success and contacts_detailed:
+            device_by_key = {k.lower(): v for k, v in contacts_detailed.items()}
+        return jsonify({
+            'success': True,
+            'repeater': _merged_repeater_entry(row, device_by_key),
+            'session': _repeater_session_payload(_get_dm(), pk),
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting repeater: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/session', methods=['GET'])
+def get_my_repeater_session(public_key):
+    """Login session state for a repeater (in-memory; cleared on app restart)."""
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    return jsonify({'success': True, **_repeater_session_payload(_get_dm(), pk)}), 200
+
+
+@api_bp.route('/repeaters/<public_key>/logout', methods=['POST'])
+def logout_my_repeater(public_key):
+    """Log out of a repeater and drop the in-memory session."""
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    try:
+        result = dm.repeater_logout(pk)
+        if result.get('success'):
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'Logout failed')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error logging out of repeater: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _require_repeater_login(dm, pk):
+    """Return (None) if a session exists, else an (json, status) error tuple.
+
+    A remote request only succeeds if the repeater has us in its ACL, which
+    requires a prior login. Failing fast here avoids a pointless ~2 min
+    timeout when the panel is opened without a live session.
+    """
+    if not dm.get_repeater_session(pk):
+        return jsonify({'success': False, 'error': 'Not logged in', 'need_login': True}), 401
+    return None
+
+
+def _require_repeater_admin(dm, pk):
+    """Like _require_repeater_login, but also demands an admin session.
+
+    The firmware silently drops text CLI commands from non-admin clients
+    (which would surface as a pointless timeout), so guest sessions are
+    rejected up front.
+    """
+    session = dm.get_repeater_session(pk)
+    if not session:
+        return jsonify({'success': False, 'error': 'Not logged in', 'need_login': True}), 401
+    if not session.get('is_admin'):
+        return jsonify({'success': False, 'error': 'Admin login required'}), 403
+    return None
+
+
+@api_bp.route('/repeaters/<public_key>/status', methods=['GET'])
+def repeater_status(public_key):
+    """Binary status request to a repeater (battery, radio and packet stats)."""
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    login_error = _require_repeater_login(dm, pk)
+    if login_error:
+        return login_error
+    try:
+        result = dm.repeater_req_status(pk)
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result['data']}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'No status response')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error getting repeater status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/telemetry', methods=['GET'])
+def repeater_telemetry(public_key):
+    """Telemetry request to a repeater (Cayenne LPP entries, all channels)."""
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    login_error = _require_repeater_login(dm, pk)
+    if login_error:
+        return login_error
+    try:
+        result = dm.repeater_req_telemetry(pk)
+        if result.get('success'):
+            return jsonify({'success': True, 'lpp': result['data']}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'No telemetry response')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error getting repeater telemetry: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/cli', methods=['POST'])
+def repeater_cli(public_key):
+    """Send a CLI text command to a repeater and return its reply. Admin-only."""
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    command = (data.get('command') or '').strip()
+    if not command:
+        return jsonify({'success': False, 'error': 'Missing command'}), 400
+    try:
+        result = dm.repeater_cmd_wait(pk, command)
+        if result.get('success'):
+            return jsonify({'success': True,
+                            'output': result.get('reply', ''),
+                            'elapsed_ms': result.get('elapsed_ms')}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'Command failed')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error running repeater CLI command: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Settings section → ordered CLI-readable fields (`get <field>`), mirrored by
+# SETTINGS_SECTIONS in repeater-manage.js. The admin password is write-only
+# (`password <pw>`, no get), so it is POST-able but never part of a GET batch.
+_REPEATER_SETTINGS_FIELDS = {
+    'basic':    ('name', 'guest.password'),
+    'radio':    ('radio', 'tx', 'radio.rxgain'),
+    'location': ('lat', 'lon'),
+    'features': ('repeat', 'allow.read.only', 'multi.acks'),
+    'network':  ('loop.detect', 'dutycycle'),
+    'advert':   ('advert.interval', 'flood.advert.interval', 'flood.max'),
+    'operator': ('owner.info',),
+    'advanced': ('path.hash.mode', 'txdelay', 'direct.txdelay', 'int.thresh',
+                 'agc.reset.interval'),
+}
+
+_REPEATER_SETTINGS_WRITABLE = frozenset(
+    field for fields in _REPEATER_SETTINGS_FIELDS.values() for field in fields
+) | {'password'}
+
+# Per CLI round-trip; a lost packet should not stall the batch for long.
+_SETTINGS_FIELD_TIMEOUT = 30.0
+
+
+def _settings_batch_fatal(result):
+    """True when a repeater_cmd_wait failure will also hit every remaining field."""
+    error = (result.get('error') or '').lower()
+    return bool(result.get('busy')) or 'not connected' in error
+
+
+@api_bp.route('/repeaters/<public_key>/settings', methods=['GET'])
+def repeater_settings_get(public_key):
+    """Read one settings section from a repeater as a sequential `get` batch.
+
+    Every field is a full mesh round-trip, so sections are fetched lazily
+    by the UI. One failed field only marks that field ({errors}) — the
+    rest of the section still loads. Admin-gated like all text CLI traffic.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    section = request.args.get('section', '')
+    fields = _REPEATER_SETTINGS_FIELDS.get(section)
+    if fields is None:
+        return jsonify({'success': False, 'error': f'Unknown section: {section}'}), 400
+
+    values = {}
+    errors = {}
+    abort_error = None
+    try:
+        for field in fields:
+            if abort_error:
+                errors[field] = abort_error
+                continue
+            result = dm.repeater_cmd_wait(pk, f'get {field}',
+                                          timeout=_SETTINGS_FIELD_TIMEOUT)
+            if not result.get('success'):
+                errors[field] = result.get('error') or 'Request failed'
+                if _settings_batch_fatal(result):
+                    abort_error = errors[field]
+                continue
+            reply = (result.get('reply') or '').strip()
+            if reply.startswith('>'):
+                values[field] = reply[1:].strip()
+            else:
+                errors[field] = f'Unexpected reply: {reply}' if reply else 'Empty reply'
+        return jsonify({'success': True, 'section': section,
+                        'values': values, 'errors': errors}), 200
+    except Exception as e:
+        logger.error(f"Error reading repeater settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/settings', methods=['POST'])
+def repeater_settings_post(public_key):
+    """Apply changed settings to a repeater as a sequential `set` batch.
+
+    Body: {'values': {field: value}} — dirty fields only. Per-field result
+    status: 'ok' | 'failed' | 'reboot_required', classified from the CLI
+    reply text (`ok`/`password now` = ok, mention of reboot = stored but
+    applied after a reboot, anything else = failed).
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    values = data.get('values')
+    if not isinstance(values, dict) or not values:
+        return jsonify({'success': False, 'error': 'No values to apply'}), 400
+    unknown = sorted(set(values) - _REPEATER_SETTINGS_WRITABLE)
+    if unknown:
+        return jsonify({'success': False,
+                        'error': f"Unknown fields: {', '.join(unknown)}"}), 400
+
+    results = {}
+    abort_error = None
+    try:
+        for field, raw in values.items():
+            if abort_error:
+                results[field] = {'status': 'failed', 'error': abort_error}
+                continue
+            value = str('' if raw is None else raw)
+            value = value.replace('\r', ' ').replace('\n', ' ').strip()
+            if not value and field != 'owner.info':
+                results[field] = {'status': 'failed', 'error': 'Empty value not allowed'}
+                continue
+            cmd = f'password {value}' if field == 'password' else f'set {field} {value}'
+            result = dm.repeater_cmd_wait(pk, cmd, timeout=_SETTINGS_FIELD_TIMEOUT)
+            if not result.get('success'):
+                results[field] = {'status': 'failed',
+                                  'error': result.get('error') or 'Request failed'}
+                if _settings_batch_fatal(result):
+                    abort_error = results[field]['error']
+                continue
+            reply = (result.get('reply') or '').strip()
+            low = reply.lower()
+            if 'reboot' in low:
+                results[field] = {'status': 'reboot_required', 'reply': reply}
+            elif low.startswith('ok') or low.startswith('password now'):
+                results[field] = {'status': 'ok', 'reply': reply}
+            else:
+                results[field] = {'status': 'failed', 'reply': reply,
+                                  'error': reply or 'Empty reply'}
+        return jsonify({'success': True, 'results': results}), 200
+    except Exception as e:
+        logger.error(f"Error applying repeater settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Action key → CLI command. `advert` alone floods the whole mesh;
+# `advert.zerohop` reaches direct neighbours only. `reboot` never
+# replies: the firmware restarts immediately without building one.
+_REPEATER_ACTIONS = {
+    'zerohop_advert': {'cmd': 'advert.zerohop'},
+    'flood_advert':   {'cmd': 'advert'},
+    'clock_sync':     {'cmd': 'clock sync'},
+    'reboot':         {'cmd': 'reboot', 'no_reply': True},
+}
+
+
+@api_bp.route('/repeaters/<public_key>/action', methods=['POST'])
+def repeater_action(public_key):
+    """Run a one-shot action on a repeater (adverts, clock sync, reboot).
+
+    Body: {'action': key}. Replies are surfaced verbatim with an `ok`
+    flag (reply starts with OK). For `reboot`, a clean send followed by
+    silence is reported as success — the firmware never replies to it.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    action = data.get('action') or ''
+    spec = _REPEATER_ACTIONS.get(action)
+    if not spec:
+        return jsonify({'success': False, 'error': f'Unknown action: {action}'}), 400
+    try:
+        timeout = 15.0 if spec.get('no_reply') else 45.0
+        result = dm.repeater_cmd_wait(pk, spec['cmd'], timeout=timeout)
+        if result.get('success'):
+            reply = (result.get('reply') or '').strip()
+            return jsonify({'success': True, 'reply': reply,
+                            'ok': reply.lower().startswith('ok'),
+                            'elapsed_ms': result.get('elapsed_ms')}), 200
+        if spec.get('no_reply') and result.get('timeout'):
+            return jsonify({'success': True, 'ok': True, 'no_reply': True,
+                            'reply': 'Reboot command sent — the repeater should be '
+                                     'restarting (no reply is expected)'}), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'Action failed')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error running repeater action: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/neighbours', methods=['GET'])
+def repeater_neighbours(public_key):
+    """Zero-hop neighbours of a repeater, enriched with contact names/coords.
+
+    Neighbour entries carry only a 4-byte pubkey prefix; names and GPS
+    positions are resolved by prefix-matching device contacts (with the
+    DB contact cache as fallback), so unknown repeaters stay prefix-only.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    login_error = _require_repeater_login(dm, pk)
+    if login_error:
+        return login_error
+    try:
+        result = dm.repeater_req_neighbours(pk)
+        if not result.get('success'):
+            return jsonify({'success': False,
+                            'error': result.get('error', 'No neighbours response')}), _repeater_result_status(result)
+
+        data = result['data'] or {}
+        db = _get_db()
+        entries = []
+        for n in data.get('neighbours', []):
+            prefix = (n.get('pubkey') or '').lower()
+            entry = {
+                'pubkey_prefix': prefix,
+                'secs_ago': n.get('secs_ago'),
+                'snr': n.get('snr'),
+                'name': '',
+                'lat': None,
+                'lon': None,
+            }
+            contact = dm.mc.get_contact_by_key_prefix(prefix) if dm.mc else None
+            if contact:
+                entry['name'] = contact.get('adv_name', '') or ''
+                lat = contact.get('adv_lat')
+                lon = contact.get('adv_lon')
+                if lat and lon and (lat != 0 or lon != 0):
+                    entry['lat'] = lat
+                    entry['lon'] = lon
+            elif db:
+                db_contact = db.get_contact_by_prefix(prefix)
+                if db_contact:
+                    entry['name'] = db_contact.get('name', '') or ''
+                    lat = db_contact.get('adv_lat')
+                    lon = db_contact.get('adv_lon')
+                    if lat and lon and (lat != 0 or lon != 0):
+                        entry['lat'] = lat
+                        entry['lon'] = lon
+            entries.append(entry)
+
+        return jsonify({
+            'success': True,
+            'total': data.get('neighbours_count', len(entries)),
+            'fetched': data.get('results_count', len(entries)),
+            'entries': entries,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting repeater neighbours: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/clock', methods=['GET'])
+def repeater_clock(public_key):
+    """Current clock of a repeater (unix seconds + formatted)."""
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    login_error = _require_repeater_login(dm, pk)
+    if login_error:
+        return login_error
+    try:
+        result = dm.repeater_req_clock(pk)
+        if not result.get('success'):
+            return jsonify({'success': False,
+                            'error': result.get('error', 'No clock response')}), _repeater_result_status(result)
+        hex_data = (result['data'] or {}).get('data', '')
+        timestamp = int.from_bytes(bytes.fromhex(hex_data[0:8]), byteorder='little', signed=False)
+        return jsonify({'success': True, 'timestamp': timestamp}), 200
+    except Exception as e:
+        logger.error(f"Error getting repeater clock: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters', methods=['POST'])
+def add_my_repeater():
+    """Add a device repeater contact to the My Repeaters list."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    data = request.get_json(silent=True) or {}
+    pk = _normalize_repeater_key(data.get('public_key'))
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key (expected 64 hex chars)'}), 400
+    try:
+        if not db.add_repeater(pk):
+            return jsonify({'success': False, 'error': 'Repeater already added'}), 409
+        return jsonify({'success': True}), 201
+    except Exception as e:
+        logger.error(f"Error adding repeater: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>', methods=['PUT'])
+def update_my_repeater(public_key):
+    """Set or clear the saved password for a repeater ('' clears)."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    data = request.get_json(silent=True) or {}
+    if 'password' not in data or not isinstance(data['password'], str):
+        return jsonify({'success': False, 'error': 'Missing password field'}), 400
+    try:
+        if not db.set_repeater_password(pk, data['password']):
+            return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+        return jsonify({'success': True, 'password_set': bool(data['password'])}), 200
+    except Exception as e:
+        logger.error(f"Error updating repeater: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>', methods=['DELETE'])
+def delete_my_repeater(public_key):
+    """Remove a repeater from the list (device contact is untouched)."""
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    try:
+        if not db.delete_repeater(pk):
+            return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"Error deleting repeater: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/login', methods=['POST'])
+def login_my_repeater(public_key):
+    """Log into a repeater using the provided or saved password.
+
+    Body: {password?: str, save?: bool}. When a password is provided with
+    save=true it is persisted (even if the login then times out — the
+    repeater may simply be offline while the password is correct).
+    """
+    db = _get_db()
+    dm = _get_dm()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    row = db.get_repeater(pk)
+    if not row:
+        return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+
+    data = request.get_json(silent=True) or {}
+    provided = data.get('password')
+    if provided is not None and not isinstance(provided, str):
+        return jsonify({'success': False, 'error': 'Invalid password'}), 400
+    password = provided if provided else row.get('password', '')
+    if not password:
+        return jsonify({'success': False, 'error': 'No password set for this repeater',
+                        'need_password': True}), 400
+    try:
+        if provided and data.get('save'):
+            db.set_repeater_password(pk, provided)
+
+        result = dm.repeater_login(pk, password)
+        if result.get('success'):
+            role = 'admin' if result.get('is_admin') else 'guest'
+            db.update_repeater_login(pk, role)
+            return jsonify({
+                'success': True,
+                'is_admin': result.get('is_admin', False),
+                'permissions': result.get('permissions'),
+                'name': result.get('name', ''),
+            }), 200
+        return jsonify({'success': False,
+                        'error': result.get('error', 'Login failed')}), _repeater_result_status(result)
+    except Exception as e:
+        logger.error(f"Error logging into repeater: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

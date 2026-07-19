@@ -675,7 +675,8 @@ def _execute_console_command(args: list) -> str:
         password = ' '.join(args[2:])
         result = device_manager.repeater_login(name, password)
         if result.get('success'):
-            return result.get('message', 'OK')
+            role = 'admin' if result.get('is_admin') else 'guest'
+            return f"Logged into {result.get('name') or name} as {role}"
         return f"Error: {result.get('error')}"
 
     elif cmd == 'login':
