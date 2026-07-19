@@ -163,7 +163,7 @@ function paCopyText(text, label) {
     );
 }
 
-function paBuildEchoLine(echo) {
+function paBuildEchoLine(msg, echo, echoIdx) {
     const line = document.createElement('div');
     line.className = 'pa-echo-line';
     line.title = 'Click to copy route';
@@ -202,6 +202,18 @@ function paBuildEchoLine(echo) {
     const snr = (echo.snr === null || echo.snr === undefined) ? '?' : `${Number(echo.snr).toFixed(1)} dB`;
     meta.textContent = `SNR: ${snr} | ${echo.received_at || ''}`;
     line.appendChild(meta);
+
+    if (echo.hops > 0) {
+        const mapBtn = document.createElement('i');
+        mapBtn.className = 'bi bi-map pa-echo-mapbtn';
+        mapBtn.title = 'Show this path on the map';
+        mapBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            paMapSelection = { msgId: msg.id, echoIdx: echoIdx };
+            paSwitchView('map');
+        });
+        line.appendChild(mapBtn);
+    }
 
     line.addEventListener('click', () => {
         paCopyText(echo.tokens.join(','), 'Route');
@@ -284,9 +296,9 @@ function paRenderTable() {
             const detailTd = document.createElement('td');
             detailTd.className = 'pa-echo-cell';
             detailTd.colSpan = 9;
-            for (const echo of msg.echoView) {
-                detailTd.appendChild(paBuildEchoLine(echo));
-            }
+            msg.echoView.forEach((echo, echoIdx) => {
+                detailTd.appendChild(paBuildEchoLine(msg, echo, echoIdx));
+            });
             detailTr.appendChild(detailTd);
             body.appendChild(detailTr);
 
@@ -603,19 +615,37 @@ function paRenderMapView() {
     }
 
     for (const msg of filtered) {
+        const selected = msg.id === paMapSelection.msgId;
         const entry = document.createElement('div');
-        entry.className = 'pa-map-msg' + (msg.id === paMapSelection.msgId ? ' pa-selected' : '');
-        entry.innerHTML =
-            `<div class="d-flex justify-content-between gap-2">
-                <strong class="text-truncate">${msg.sender || '—'}</strong>
-                <span class="text-muted text-nowrap">${paFormatTime(msg).slice(5, 16)}</span>
-            </div>`;
+        entry.className = 'pa-map-msg' + (selected ? ' pa-selected' : '');
+
+        const head = document.createElement('div');
+        head.className = 'd-flex justify-content-between gap-2';
+        const senderEl = document.createElement('strong');
+        senderEl.className = 'text-truncate';
+        senderEl.textContent = msg.sender || '—';
+        const timeEl = document.createElement('span');
+        timeEl.className = 'text-muted text-nowrap';
+        timeEl.textContent = paFormatTime(msg).slice(5, 16);
+        head.appendChild(senderEl);
+        head.appendChild(timeEl);
+        entry.appendChild(head);
+
+        // Content preview: one truncated line; full text when selected
+        if (msg.content) {
+            const preview = document.createElement('div');
+            preview.className = 'pa-map-msg-preview' + (selected ? '' : ' text-truncate');
+            preview.textContent = msg.content;
+            preview.title = msg.content;
+            entry.appendChild(preview);
+        }
+
         entry.addEventListener('click', () => {
             paMapSelection = { msgId: msg.id, echoIdx: null };
             paRenderMapView();
         });
 
-        if (msg.id === paMapSelection.msgId) {
+        if (selected) {
             msg.echoView.forEach((echo, idx) => {
                 if (echo.hops === 0) return;
                 const eEl = document.createElement('div');
@@ -638,9 +668,17 @@ function paRenderMapView() {
     }
 
     paSetView('map');
-    // Leaflet cannot size itself while the container was display:none
-    setTimeout(() => paMap.invalidateSize(), 60);
-    paDrawSelectedEcho();
+    // Leaflet cannot size itself while the container was display:none -
+    // and fitBounds in paDrawSelectedEcho needs the corrected size, so
+    // drawing must happen after invalidateSize in the same deferred step
+    setTimeout(() => {
+        paMap.invalidateSize();
+        paDrawSelectedEcho();
+    }, 60);
+
+    // Keep the selected message visible (e.g. after jumping from the table)
+    const selectedEl = list.querySelector('.pa-map-msg.pa-selected');
+    if (selectedEl) selectedEl.scrollIntoView({ block: 'nearest' });
 
     const counter = document.getElementById('paCounter');
     counter.textContent = paFiltersActive()
