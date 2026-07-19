@@ -344,6 +344,13 @@
             <option value="3">3 hops</option>
             <option value="4+">4+ hops</option>
         </select>
+        <select id="paHashSizeFilter" class="form-select form-select-sm" style="width: auto;"
+                title="Filter by path hash size (bytes per hop, any routed echo)">
+            <option value="any" selected>Any HB</option>
+            <option value="1">1-byte</option>
+            <option value="2">2-byte</option>
+            <option value="3">3-byte</option>
+        </select>
         <input id="paTokenFilter" type="text" class="form-control form-control-sm" style="width: 9.5rem;"
                placeholder="Repeater hash (3B)" title="Match a repeater hash anywhere in a path (prefix match)">
         <input id="paSenderFilter" type="text" class="form-control form-control-sm" style="width: 9.5rem;"
@@ -375,6 +382,7 @@
                         <th>Message</th>
                         <th>Hash</th>
                         <th class="text-end">Hops</th>
+                        <th class="text-end" title="Path hash size in bytes per hop (from routed echoes)">HB</th>
                         <th class="text-end">Echoes</th>
                     </tr>
                 </thead>

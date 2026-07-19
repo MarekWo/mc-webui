@@ -83,7 +83,7 @@ function showNotification(message, type = 'info') {
 // ================================================================
 
 let paMessages = [];
-let paFilters = { hops: 'any', token: '', sender: '' };
+let paFilters = { hops: 'any', hashSize: 'any', token: '', sender: '' };
 let paCurrentView = 'messages';   // 'messages' | 'stats'
 let paContacts = [];              // /api/contacts/cached?format=full
 let paStatsSort = { key: 'relayed', dir: -1 };
@@ -126,6 +126,12 @@ function paMessageMatchesFilters(msg) {
             want === '4+' ? e.hops >= 4 : e.hops === parseInt(want, 10));
         if (!ok) return false;
     }
+    if (paFilters.hashSize !== 'any') {
+        const want = parseInt(paFilters.hashSize, 10);
+        // Only routed echoes carry a meaningful hash size
+        const ok = msg.echoView.some(e => e.hops > 0 && (e.hash_size || 1) === want);
+        if (!ok) return false;
+    }
     if (paFilters.token) {
         const t = paFilters.token;
         const ok = msg.echoView.some(e => e.tokens.some(tok => tok.startsWith(t)));
@@ -138,7 +144,8 @@ function paMessageMatchesFilters(msg) {
 }
 
 function paFiltersActive() {
-    return paFilters.hops !== 'any' || paFilters.token !== '' || paFilters.sender !== '';
+    return paFilters.hops !== 'any' || paFilters.hashSize !== 'any'
+        || paFilters.token !== '' || paFilters.sender !== '';
 }
 
 function paFormatTime(msg) {
@@ -258,6 +265,12 @@ function paRenderTable() {
         tdHops.textContent = (msg.hop_count === null || msg.hop_count === undefined) ? '—' : msg.hop_count;
         tr.appendChild(tdHops);
 
+        const tdHb = document.createElement('td');
+        tdHb.className = 'text-end';
+        const hbSizes = [...new Set(msg.echoView.filter(e => e.hops > 0).map(e => e.hash_size || 1))].sort();
+        tdHb.textContent = hbSizes.length > 0 ? hbSizes.join(',') : '—';
+        tr.appendChild(tdHb);
+
         const tdEchoes = document.createElement('td');
         tdEchoes.className = 'text-end';
         tdEchoes.textContent = msg.echoView.length;
@@ -270,7 +283,7 @@ function paRenderTable() {
             detailTr.className = 'd-none';
             const detailTd = document.createElement('td');
             detailTd.className = 'pa-echo-cell';
-            detailTd.colSpan = 8;
+            detailTd.colSpan = 9;
             for (const echo of msg.echoView) {
                 detailTd.appendChild(paBuildEchoLine(echo));
             }
@@ -699,6 +712,7 @@ async function paLoadMessages() {
 
 function paReadFilters() {
     paFilters.hops = document.getElementById('paHopsFilter').value;
+    paFilters.hashSize = document.getElementById('paHashSizeFilter').value;
     // Normalize token input to hex characters only (matches chip display casing)
     paFilters.token = document.getElementById('paTokenFilter').value
         .replace(/[^0-9a-fA-F]/g, '').toUpperCase();
@@ -715,6 +729,7 @@ function paApplyFilters() {
 
 function paClearFilters() {
     document.getElementById('paHopsFilter').value = 'any';
+    document.getElementById('paHashSizeFilter').value = 'any';
     document.getElementById('paTokenFilter').value = '';
     document.getElementById('paSenderFilter').value = '';
     paApplyFilters();
@@ -735,6 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
         filterDebounce = setTimeout(paApplyFilters, 150);
     };
     document.getElementById('paHopsFilter').addEventListener('change', paApplyFilters);
+    document.getElementById('paHashSizeFilter').addEventListener('change', paApplyFilters);
     document.getElementById('paTokenFilter').addEventListener('input', debouncedApply);
     document.getElementById('paSenderFilter').addEventListener('input', debouncedApply);
     document.getElementById('paClearFiltersBtn').addEventListener('click', paClearFilters);
