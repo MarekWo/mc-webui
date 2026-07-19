@@ -93,7 +93,10 @@ async function paLoadContacts() {
         const resp = await fetch('/api/contacts/cached?format=full');
         if (resp.ok) {
             const data = await resp.json();
-            if (data.success) paContacts = data.contacts || [];
+            if (data.success) {
+                paContacts = data.contacts || [];
+                paTokenNameCache = new Map();
+            }
         }
     } catch (e) {
         console.error('Failed to load contacts:', e);
@@ -105,6 +108,19 @@ async function paLoadContacts() {
 function paMatchContacts(token) {
     const prefix = token.toLowerCase();
     return paContacts.filter(c => (c.public_key || '').toLowerCase().startsWith(prefix));
+}
+
+// token -> lowercase candidate contact names, memoized (contacts are
+// static per page load; cache is rebuilt when they arrive)
+let paTokenNameCache = new Map();
+
+function paTokenNames(token) {
+    let names = paTokenNameCache.get(token);
+    if (!names) {
+        names = paMatchContacts(token).map(c => (c.name || '').toLowerCase());
+        paTokenNameCache.set(token, names);
+    }
+    return names;
 }
 
 // Split an echo's path hex into per-hop tokens using that echo's own
@@ -133,8 +149,15 @@ function paMessageMatchesFilters(msg) {
         if (!ok) return false;
     }
     if (paFilters.token) {
-        const t = paFilters.token;
-        const ok = msg.echoView.some(e => e.tokens.some(tok => tok.startsWith(t)));
+        const raw = paFilters.token;                 // lowercase
+        const isHex = /^[0-9a-f]+$/.test(raw);
+        const hexPrefix = raw.toUpperCase();
+        // Hex input matches hash tokens by prefix; any input also matches
+        // the names of contacts the token resolves to
+        const ok = msg.echoView.some(e => e.tokens.some(tok =>
+            (isHex && tok.startsWith(hexPrefix)) ||
+            paTokenNames(tok).some(n => n.includes(raw))
+        ));
         if (!ok) return false;
     }
     if (paFilters.sender) {
@@ -754,9 +777,7 @@ async function paLoadMessages() {
 function paReadFilters() {
     paFilters.hops = document.getElementById('paHopsFilter').value;
     paFilters.hashSize = document.getElementById('paHashSizeFilter').value;
-    // Normalize token input to hex characters only (matches chip display casing)
-    paFilters.token = document.getElementById('paTokenFilter').value
-        .replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+    paFilters.token = document.getElementById('paTokenFilter').value.trim().toLowerCase();
     paFilters.sender = document.getElementById('paSenderFilter').value.trim().toLowerCase();
     paFilters.content = document.getElementById('paContentFilter').value.trim().toLowerCase();
     document.getElementById('paClearFiltersBtn').classList.toggle('d-none', !paFiltersActive());
