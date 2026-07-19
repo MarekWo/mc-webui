@@ -103,6 +103,15 @@ def console():
     )
 
 
+@views_bp.route('/path-analyzer')
+def path_analyzer():
+    """Path Analyzer - routing path analysis for channel messages."""
+    return render_template(
+        'path-analyzer.html',
+        device_name=runtime_config.get_device_name()
+    )
+
+
 @views_bp.route('/repeaters')
 def repeaters():
     """My Repeaters - repeater administration panel (list + login)."""

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Path Analyzer - mc-webui</title>
+
+    <!-- Theme: apply saved preference before CSS loads to prevent flash -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('mc-webui-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-bs-theme', t);
+        })();
+    </script>
+
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/favicon-16x16.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <!-- Bootstrap 5 CSS (local) -->
+    <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+    <!-- Bootstrap Icons (local) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+    <!-- Leaflet CSS (for the map view, stage 5) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Theme CSS (light/dark mode) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+
+    <style>
+        /* Standalone page: allow normal scrolling (style.css sets overflow hidden) */
+        html, body {
+            overflow: auto !important;
+            height: 100%;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+        }
+
+        .pa-toolbar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .pa-content {
+            flex: 1 1 0;
+            min-height: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 0.75rem 1rem;
+        }
+
+        .pa-table-wrap {
+            overflow-x: auto;
+        }
+
+        .pa-table {
+            font-size: 0.85rem;
+        }
+
+        .pa-table th {
+            white-space: nowrap;
+        }
+
+        .pa-table td {
+            vertical-align: middle;
+        }
+
+        .pa-hash {
+            font-family: var(--bs-font-monospace, monospace);
+            font-size: 0.8rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .pa-hash:hover {
+            text-decoration: underline;
+        }
+
+        .pa-content-preview {
+            max-width: 22rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pa-time {
+            white-space: nowrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-secondary, #6c757d);
+            padding: 3rem 1rem;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toolbar -->
+    <div class="pa-toolbar">
+        <label for="paDaysSelect" class="form-label mb-0 small text-muted">Time range:</label>
+        <select id="paDaysSelect" class="form-select form-select-sm" style="width: auto;">
+            <option value="1">Last 1 day</option>
+            <option value="3" selected>Last 3 days</option>
+            <option value="5">Last 5 days</option>
+            <option value="7">Last 7 days</option>
+        </select>
+        <button id="paRefreshBtn" class="btn btn-sm btn-outline-secondary" title="Reload">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        <span id="paCounter" class="small text-muted ms-auto"></span>
+    </div>
+
+    <!-- Content -->
+    <div class="pa-content">
+        <div id="paLoading" class="empty-state">
+            <div class="spinner-border text-secondary" role="status"></div>
+            <div class="mt-2">Loading messages…</div>
+        </div>
+        <div id="paEmpty" class="empty-state d-none">
+            <i class="bi bi-signpost-split"></i>
+            No messages in the selected time range.
+        </div>
+        <div id="paTableWrap" class="pa-table-wrap d-none">
+            <table class="table table-hover pa-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Channel</th>
+                        <th>Sender</th>
+                        <th>Message</th>
+                        <th>Hash</th>
+                        <th class="text-end">Hops</th>
+                        <th class="text-end">Echoes</th>
+                    </tr>
+                </thead>
+                <tbody id="paTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Toast container for notifications (position applied by JS from ui_settings) -->
+    <div class="toast-container position-fixed top-0 start-0 p-3" data-toast-container>
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">Path Analyzer</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle (local) -->
+    <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <!-- Leaflet JS (for the map view, stage 5) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <!-- Path Analyzer JS -->
+    <script src="{{ url_for('static', filename='js/path-analyzer.js') }}"></script>
+</body>
+</html>

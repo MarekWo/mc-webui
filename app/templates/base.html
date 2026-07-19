@@ -205,6 +205,13 @@
                         <small class="d-block text-muted">Repeater administration</small>
                     </div>
                 </button>
+                <button id="pathAnalyzerBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#pathAnalyzerModal" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-signpost-split" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <span>Path Analyzer</span>
+                        <small class="d-block text-muted">Routing path analysis</small>
+                    </div>
+                </button>
 
                 <!-- System -->
                 <div class="list-group-item py-2 mt-2">
@@ -891,6 +898,17 @@
                                                     <label class="btn btn-outline-primary" for="place-repeaters-fab">Quick Access</label>
                                                     <input type="radio" class="btn-check" name="place-repeaters" id="place-repeaters-menu" value="menu" autocomplete="off">
                                                     <label class="btn btn-outline-primary" for="place-repeaters-menu">Main Menu</label>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr data-placement-key="pathanalyzer">
+                                            <td class="ps-0">Path Analyzer</td>
+                                            <td class="pe-0 text-end">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Path Analyzer placement">
+                                                    <input type="radio" class="btn-check" name="place-pathanalyzer" id="place-pathanalyzer-fab" value="fab" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-pathanalyzer-fab">Quick Access</label>
+                                                    <input type="radio" class="btn-check" name="place-pathanalyzer" id="place-pathanalyzer-menu" value="menu" autocomplete="off">
+                                                    <label class="btn btn-outline-primary" for="place-pathanalyzer-menu">Main Menu</label>
                                                 </div>
                                             </td>
                                         </tr>
