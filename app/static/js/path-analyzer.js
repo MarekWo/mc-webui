@@ -83,7 +83,7 @@ function showNotification(message, type = 'info') {
 // ================================================================
 
 let paMessages = [];
-let paFilters = { hops: 'any', hashSize: 'any', token: '', sender: '' };
+let paFilters = { hops: 'any', hashSize: 'any', token: '', sender: '', content: '' };
 let paCurrentView = 'messages';   // 'messages' | 'stats'
 let paContacts = [];              // /api/contacts/cached?format=full
 let paStatsSort = { key: 'relayed', dir: -1 };
@@ -140,12 +140,15 @@ function paMessageMatchesFilters(msg) {
     if (paFilters.sender) {
         if (!(msg.sender || '').toLowerCase().includes(paFilters.sender)) return false;
     }
+    if (paFilters.content) {
+        if (!(msg.content || '').toLowerCase().includes(paFilters.content)) return false;
+    }
     return true;
 }
 
 function paFiltersActive() {
     return paFilters.hops !== 'any' || paFilters.hashSize !== 'any'
-        || paFilters.token !== '' || paFilters.sender !== '';
+        || paFilters.token !== '' || paFilters.sender !== '' || paFilters.content !== '';
 }
 
 function paFormatTime(msg) {
@@ -755,6 +758,7 @@ function paReadFilters() {
     paFilters.token = document.getElementById('paTokenFilter').value
         .replace(/[^0-9a-fA-F]/g, '').toUpperCase();
     paFilters.sender = document.getElementById('paSenderFilter').value.trim().toLowerCase();
+    paFilters.content = document.getElementById('paContentFilter').value.trim().toLowerCase();
     document.getElementById('paClearFiltersBtn').classList.toggle('d-none', !paFiltersActive());
 }
 
@@ -770,6 +774,7 @@ function paClearFilters() {
     document.getElementById('paHashSizeFilter').value = 'any';
     document.getElementById('paTokenFilter').value = '';
     document.getElementById('paSenderFilter').value = '';
+    document.getElementById('paContentFilter').value = '';
     paApplyFilters();
 }
 
@@ -791,6 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('paHashSizeFilter').addEventListener('change', paApplyFilters);
     document.getElementById('paTokenFilter').addEventListener('input', debouncedApply);
     document.getElementById('paSenderFilter').addEventListener('input', debouncedApply);
+    document.getElementById('paContentFilter').addEventListener('input', debouncedApply);
     document.getElementById('paClearFiltersBtn').addEventListener('click', paClearFilters);
 
     document.getElementById('paViewMessagesBtn').addEventListener('click', () => paSwitchView('messages'));
