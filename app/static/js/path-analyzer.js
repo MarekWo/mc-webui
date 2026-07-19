@@ -83,6 +83,41 @@ function showNotification(message, type = 'info') {
 // ================================================================
 
 let paMessages = [];
+let paFilters = { hops: 'any', token: '', sender: '' };
+
+// Split an echo's path hex into per-hop tokens using that echo's own
+// hash_size (same logic as showPathsPopup in app.js; trailing partial kept)
+function paDecodeEcho(echo) {
+    const chunkLen = (echo.hash_size || 1) * 2;
+    const tokens = [];
+    const hex = echo.path || '';
+    for (let i = 0; i < hex.length; i += chunkLen) {
+        tokens.push(hex.substring(i, i + chunkLen).toUpperCase());
+    }
+    return { ...echo, tokens: tokens, hops: tokens.length };
+}
+
+function paMessageMatchesFilters(msg) {
+    if (paFilters.hops !== 'any') {
+        const want = paFilters.hops;
+        const ok = msg.echoView.some(e =>
+            want === '4+' ? e.hops >= 4 : e.hops === parseInt(want, 10));
+        if (!ok) return false;
+    }
+    if (paFilters.token) {
+        const t = paFilters.token;
+        const ok = msg.echoView.some(e => e.tokens.some(tok => tok.startsWith(t)));
+        if (!ok) return false;
+    }
+    if (paFilters.sender) {
+        if (!(msg.sender || '').toLowerCase().includes(paFilters.sender)) return false;
+    }
+    return true;
+}
+
+function paFiltersActive() {
+    return paFilters.hops !== 'any' || paFilters.token !== '' || paFilters.sender !== '';
+}
 
 function paFormatTime(msg) {
     if (!msg.timestamp) return '—';
@@ -99,12 +134,65 @@ function paCopyText(text, label) {
     );
 }
 
+function paBuildEchoLine(echo) {
+    const line = document.createElement('div');
+    line.className = 'pa-echo-line';
+    line.title = 'Click to copy route';
+
+    const dirBadge = document.createElement('span');
+    dirBadge.className = 'badge ' + (echo.direction === 'outgoing' ? 'text-bg-primary' : 'text-bg-secondary');
+    dirBadge.textContent = echo.direction === 'outgoing' ? 'out' : 'in';
+    line.appendChild(dirBadge);
+
+    if (echo.hops === 0) {
+        const direct = document.createElement('span');
+        direct.className = 'pa-direct';
+        direct.textContent = 'Direct (flood, 0 hops)';
+        line.appendChild(direct);
+    } else {
+        echo.tokens.forEach((tok, i) => {
+            if (i > 0) {
+                const arrow = document.createElement('i');
+                arrow.className = 'bi bi-arrow-right pa-chip-arrow';
+                line.appendChild(arrow);
+            }
+            const chip = document.createElement('span');
+            chip.className = 'pa-chip';
+            chip.textContent = tok;
+            chip.title = `Copy repeater hash ${tok}`;
+            chip.addEventListener('click', (e) => {
+                e.stopPropagation();
+                paCopyText(tok, 'Repeater hash');
+            });
+            line.appendChild(chip);
+        });
+    }
+
+    const meta = document.createElement('span');
+    meta.className = 'pa-echo-meta ms-1';
+    const snr = (echo.snr === null || echo.snr === undefined) ? '?' : `${Number(echo.snr).toFixed(1)} dB`;
+    meta.textContent = `SNR: ${snr} | ${echo.received_at || ''}`;
+    line.appendChild(meta);
+
+    line.addEventListener('click', () => {
+        paCopyText(echo.tokens.join(','), 'Route');
+    });
+    return line;
+}
+
 function paRenderTable() {
     const body = document.getElementById('paTableBody');
     body.innerHTML = '';
 
-    for (const msg of paMessages) {
+    const filtered = paMessages.filter(paMessageMatchesFilters);
+
+    for (const msg of filtered) {
         const tr = document.createElement('tr');
+        tr.className = 'pa-msg-row' + (msg.echoView.length === 0 ? ' pa-no-echoes' : '');
+
+        const tdCaret = document.createElement('td');
+        tdCaret.innerHTML = '<i class="bi bi-chevron-right pa-caret"></i>';
+        tr.appendChild(tdCaret);
 
         const tdTime = document.createElement('td');
         tdTime.className = 'pa-time';
@@ -133,7 +221,10 @@ function paRenderTable() {
             span.className = 'pa-hash';
             span.textContent = msg.packet_hash;
             span.title = 'Click to copy';
-            span.addEventListener('click', () => paCopyText(msg.packet_hash, 'Packet hash'));
+            span.addEventListener('click', (e) => {
+                e.stopPropagation();
+                paCopyText(msg.packet_hash, 'Packet hash');
+            });
             tdHash.appendChild(span);
         } else {
             tdHash.innerHTML = '<span class="text-muted small">no path data</span>';
@@ -147,14 +238,44 @@ function paRenderTable() {
 
         const tdEchoes = document.createElement('td');
         tdEchoes.className = 'text-end';
-        tdEchoes.textContent = msg.echoes.length;
+        tdEchoes.textContent = msg.echoView.length;
         tr.appendChild(tdEchoes);
 
         body.appendChild(tr);
+
+        if (msg.echoView.length > 0) {
+            const detailTr = document.createElement('tr');
+            detailTr.className = 'd-none';
+            const detailTd = document.createElement('td');
+            detailTd.className = 'pa-echo-cell';
+            detailTd.colSpan = 8;
+            for (const echo of msg.echoView) {
+                detailTd.appendChild(paBuildEchoLine(echo));
+            }
+            detailTr.appendChild(detailTd);
+            body.appendChild(detailTr);
+
+            tr.addEventListener('click', () => {
+                tr.classList.toggle('pa-open');
+                detailTr.classList.toggle('d-none');
+            });
+        }
     }
 
-    document.getElementById('paCounter').textContent =
-        `${paMessages.length} message${paMessages.length === 1 ? '' : 's'}`;
+    const counter = document.getElementById('paCounter');
+    counter.textContent = paFiltersActive()
+        ? `${filtered.length} of ${paMessages.length} messages`
+        : `${paMessages.length} message${paMessages.length === 1 ? '' : 's'}`;
+
+    // Empty state when filters exclude everything
+    if (paMessages.length > 0) {
+        if (filtered.length === 0) {
+            document.getElementById('paEmptyText').textContent = 'No messages match the current filters.';
+            paSetView('empty');
+        } else {
+            paSetView('table');
+        }
+    }
 }
 
 function paSetView(state) {
@@ -176,6 +297,9 @@ async function paLoadMessages() {
         }
         // Newest first for the analysis table (API returns ascending)
         paMessages = (data.messages || []).slice().reverse();
+        paMessages.forEach(msg => {
+            msg.echoView = (msg.echoes || []).map(paDecodeEcho);
+        });
     } catch (e) {
         console.error('Failed to load messages:', e);
         showNotification(`Failed to load messages: ${e.message}`, 'danger');
@@ -183,11 +307,38 @@ async function paLoadMessages() {
     }
 
     if (paMessages.length === 0) {
+        document.getElementById('paEmptyText').textContent = 'No messages in the selected time range.';
         paSetView('empty');
     } else {
         paRenderTable();
-        paSetView('table');
     }
+}
+
+// ================================================================
+// Filters
+// ================================================================
+
+function paReadFilters() {
+    paFilters.hops = document.getElementById('paHopsFilter').value;
+    // Normalize token input to hex characters only (matches chip display casing)
+    paFilters.token = document.getElementById('paTokenFilter').value
+        .replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+    paFilters.sender = document.getElementById('paSenderFilter').value.trim().toLowerCase();
+    document.getElementById('paClearFiltersBtn').classList.toggle('d-none', !paFiltersActive());
+}
+
+function paApplyFilters() {
+    paReadFilters();
+    if (paMessages.length > 0) {
+        paRenderTable();
+    }
+}
+
+function paClearFilters() {
+    document.getElementById('paHopsFilter').value = 'any';
+    document.getElementById('paTokenFilter').value = '';
+    document.getElementById('paSenderFilter').value = '';
+    paApplyFilters();
 }
 
 // ================================================================
@@ -198,5 +349,16 @@ document.addEventListener('DOMContentLoaded', () => {
     loadUiSettings();
     document.getElementById('paDaysSelect').addEventListener('change', paLoadMessages);
     document.getElementById('paRefreshBtn').addEventListener('click', paLoadMessages);
+
+    let filterDebounce = null;
+    const debouncedApply = () => {
+        clearTimeout(filterDebounce);
+        filterDebounce = setTimeout(paApplyFilters, 150);
+    };
+    document.getElementById('paHopsFilter').addEventListener('change', paApplyFilters);
+    document.getElementById('paTokenFilter').addEventListener('input', debouncedApply);
+    document.getElementById('paSenderFilter').addEventListener('input', debouncedApply);
+    document.getElementById('paClearFiltersBtn').addEventListener('click', paClearFilters);
+
     paLoadMessages();
 });

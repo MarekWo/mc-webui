@@ -103,6 +103,81 @@
             white-space: nowrap;
         }
 
+        .pa-caret {
+            display: inline-block;
+            transition: transform 0.15s;
+            font-size: 0.7rem;
+            width: 1rem;
+        }
+
+        tr.pa-open .pa-caret {
+            transform: rotate(90deg);
+        }
+
+        .pa-msg-row {
+            cursor: pointer;
+        }
+
+        .pa-msg-row.pa-no-echoes {
+            cursor: default;
+        }
+
+        .pa-msg-row.pa-no-echoes .pa-caret {
+            visibility: hidden;
+        }
+
+        .pa-echo-cell {
+            background-color: var(--bg-surface, rgba(0, 0, 0, 0.03));
+            padding: 0.35rem 0.75rem 0.35rem 2rem;
+        }
+
+        .pa-echo-line {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            padding: 0.2rem 0;
+            cursor: pointer;
+            border-radius: 0.25rem;
+        }
+
+        .pa-echo-line:hover {
+            background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+        }
+
+        .pa-echo-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary, #6c757d);
+            white-space: nowrap;
+        }
+
+        .pa-chip {
+            font-family: var(--bs-font-monospace, monospace);
+            font-size: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.25rem;
+            padding: 0.05rem 0.35rem;
+            cursor: pointer;
+            background-color: var(--card-bg, transparent);
+        }
+
+        .pa-chip:hover {
+            background-color: #6f42c1;
+            border-color: #6f42c1;
+            color: #fff;
+        }
+
+        .pa-chip-arrow {
+            font-size: 0.7rem;
+            color: var(--text-secondary, #6c757d);
+        }
+
+        .pa-direct {
+            font-size: 0.75rem;
+            font-style: italic;
+            color: var(--text-secondary, #6c757d);
+        }
+
         .empty-state {
             text-align: center;
             color: var(--text-secondary, #6c757d);
@@ -129,6 +204,22 @@
         <button id="paRefreshBtn" class="btn btn-sm btn-outline-secondary" title="Reload">
             <i class="bi bi-arrow-clockwise"></i>
         </button>
+        <div class="vr d-none d-sm-block"></div>
+        <select id="paHopsFilter" class="form-select form-select-sm" style="width: auto;" title="Filter by hop count (any echo)">
+            <option value="any" selected>Any hops</option>
+            <option value="0">0 hops</option>
+            <option value="1">1 hop</option>
+            <option value="2">2 hops</option>
+            <option value="3">3 hops</option>
+            <option value="4+">4+ hops</option>
+        </select>
+        <input id="paTokenFilter" type="text" class="form-control form-control-sm" style="width: 9.5rem;"
+               placeholder="Repeater hash (3B)" title="Match a repeater hash anywhere in a path (prefix match)">
+        <input id="paSenderFilter" type="text" class="form-control form-control-sm" style="width: 9.5rem;"
+               placeholder="Sender" title="Filter by sender name">
+        <button id="paClearFiltersBtn" class="btn btn-sm btn-outline-secondary d-none" title="Clear filters">
+            <i class="bi bi-x-lg"></i> Clear
+        </button>
         <span id="paCounter" class="small text-muted ms-auto"></span>
     </div>
 
@@ -140,12 +231,13 @@
         </div>
         <div id="paEmpty" class="empty-state d-none">
             <i class="bi bi-signpost-split"></i>
-            No messages in the selected time range.
+            <span id="paEmptyText">No messages in the selected time range.</span>
         </div>
         <div id="paTableWrap" class="pa-table-wrap d-none">
             <table class="table table-hover pa-table mb-0">
                 <thead>
                     <tr>
+                        <th style="width: 1.5rem;"></th>
                         <th>Time</th>
                         <th>Channel</th>
                         <th>Sender</th>
