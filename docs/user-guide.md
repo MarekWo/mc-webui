@@ -17,6 +17,7 @@ This guide covers all features and functionality of mc-webui. For installation i
 - [DM Path Management](#dm-path-management)
 - [Interactive Console](#interactive-console)
 - [My Repeaters (Repeater Administration)](#my-repeaters-repeater-administration)
+- [Path Analyzer](#path-analyzer)
 - [Device Dashboard](#device-dashboard)
 - [Quick-Access FAB Buttons](#quick-access-fab-buttons)
 - [Settings](#settings)
@@ -613,6 +614,65 @@ Erasing the repeater's file system is **not** available over the mesh — the fi
 
 ---
 
+## Path Analyzer
+
+A full-screen tool for analyzing how channel messages travel through the mesh: which repeaters relayed them, how strong the signal was, and what the routes look like on a map.
+
+To open:
+1. Tap the hamburger menu (☰)
+2. Select **Path Analyzer** from the menu
+
+Pick a time range at the top (last 1, 3, 5, or 7 days) — the tool loads every channel message from **all** your channels in that window, together with every copy (echo) of each message your node overheard. Everything below works on that data set; no extra loading.
+
+### Filters
+
+The filter bar applies to all three views at once and updates as you type:
+
+- **Hops** - Only messages that arrived over exactly that many hops (0 = heard directly, 4+ = long routes). A message matches when *any* of its echoes has that hop count
+- **HB (path hash size)** - Only messages whose route was recorded with 1-, 2-, or 3-byte repeater hashes
+- **Repeater** - Type a repeater hash (e.g. `3B`) or part of a repeater's **name** (e.g. `wegrzce`); matches messages whose route passed through it. Note that with short 1-byte hashes two repeaters can share a hash, so a name search includes routes where the named repeater *might* be one of the candidates
+- **Sender** - Part of the sender's name
+- **Message text** - Part of the message content
+
+A counter shows how much of the data set matches ("38 of 412 messages"), and **Clear** resets everything.
+
+### Messages view
+
+A table of messages: time, channel, sender, text, packet hash (click to copy — the same hash analyzer services use), hop count, hash size, and echo count. Click a row to expand its routes:
+
+- Every echo is shown as a chain of repeater hashes (`5A → F0 → 90`) with its SNR and receive time
+- Click a single hash chip to copy that hash; click the rest of the line to copy the whole route
+- The small map icon at the end of each route jumps straight to the **Map** view with that route drawn
+- Echoes with an empty route show as "Direct (flood, 0 hops)"
+
+On phones the Hash, HB, and Echoes columns fold away to keep the table readable — the packet hash and hash size appear at the top of the expanded row instead, and long routes wrap across multiple lines.
+
+### Repeaters view
+
+Per-repeater statistics computed from the currently filtered messages:
+
+- **Relayed** - How many echoes passed through this repeater hash (anywhere in the route)
+- **Messages** - How many distinct messages that was
+- **As last hop** - How often this repeater was the final hop, i.e. the one your node heard directly
+- **Avg SNR (last hop)** - Average signal quality, counted *only* when the repeater was the final hop. Your node can only measure the radio link it actually receives on, so SNR is never attributed to repeaters in the middle of a route — that's why some rows show "—"
+
+Columns are sortable, and the **Contact** column matches each hash to your contact list (showing "ambiguous (n)" when several contacts share a short hash). Click any row to jump back to the Messages view filtered to that repeater.
+
+### Map view
+
+Repeaters from your contact list that have a position are plotted as dots. Pick a message in the side list (it shows sender, time, and the message text), then pick one of its routes — the path is drawn hop by hop:
+
+- Hops that resolve to exactly one known repeater become solid points connected by a line
+- When a short hash matches several contacts, all candidates are marked in amber and the legend lists them — tap the right one and the path redraws with your choice
+- Unknown hops (no matching contact, or no position) are listed in the legend and the line is drawn dashed across the gap, so you can see which parts of the route are certain
+- If the sender is in your contacts with a position, it is added as a green origin point
+
+The eraser button clears the drawn path. On phones the message list moves above the map.
+
+Everything in the Path Analyzer is based on what **your node** overheard — it's a local view of the mesh, not a global one. A route you don't see here may still exist; it just never reached your radio.
+
+---
+
 ## Device Dashboard
 
 Access device information and statistics:
@@ -665,7 +725,7 @@ Tap the toggle button (short click, no drag) to hide or show the rest of the FAB
 
 Open Settings → **Appearance** tab to adjust:
 - **Hide Quick Access** - Master switch: hides the FAB cluster entirely and moves all actions to the Main Menu
-- **Per-item placement** - Choose whether each of the 12 actions appears in the FAB or in the Main Menu. Changes take effect immediately
+- **Per-item placement** - Choose whether each of the 13 actions appears in the FAB or in the Main Menu. Changes take effect immediately
 - **Button size** - 28 to 72 pixels (default: 56)
 - **Spacing** - 2 to 24 pixels between buttons (default: 12)
 - **Reset position** - Reset both main chat and DM FAB positions to their defaults
@@ -751,7 +811,7 @@ Controls small notification toasts shown after actions (e.g. "Advert Sent", erro
 
 **Quick Access Buttons:**
 - **Hide Quick Access** - Master switch that hides the entire floating FAB cluster and moves all items to the Main Menu (slide-out)
-- **Per-item placement** - A table of all 12 configurable actions (Filter messages, Search messages, Direct Messages, Contact Management, Settings, Send Advert, Flood Advert, Map, Console, My Repeaters, Device Info, System Log). Each row has two radio buttons: **Quick Access** (shows in FAB) and **Main Menu** (shows in the slide-out). Changes take effect immediately
+- **Per-item placement** - A table of all 13 configurable actions (Filter messages, Search messages, Direct Messages, Contact Management, Settings, Send Advert, Flood Advert, Map, Console, My Repeaters, Path Analyzer, Device Info, System Log). Each row has two radio buttons: **Quick Access** (shows in FAB) and **Main Menu** (shows in the slide-out). Changes take effect immediately
 - **Button size (px)** - Adjust the size of FAB buttons (default: 56)
 - **Spacing (px)** - Space between FAB buttons (default: 12)
 - **Position** - Reset FAB position to default (top-right)
