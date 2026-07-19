@@ -60,9 +60,110 @@
         .pa-content {
             flex: 1 1 0;
             min-height: 0;
+            display: flex;
+            flex-direction: column;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             padding: 0.75rem 1rem;
+        }
+
+        #paMapWrap {
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        #paMapSidebar {
+            width: 340px;
+            min-width: 280px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        #paMap {
+            flex: 1 1 0;
+            min-height: 300px;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        @media (max-width: 768px) {
+            #paMapWrap {
+                flex-direction: column;
+            }
+
+            #paMapSidebar {
+                width: auto;
+                min-width: 0;
+                max-height: 40%;
+                flex-shrink: 1;
+            }
+        }
+
+        .pa-map-msg {
+            border: 1px solid var(--border-color);
+            border-radius: 0.4rem;
+            padding: 0.4rem 0.6rem;
+            margin-bottom: 0.4rem;
+            cursor: pointer;
+            font-size: 0.82rem;
+        }
+
+        .pa-map-msg:hover {
+            background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+        }
+
+        .pa-map-msg.pa-selected {
+            border-color: #6f42c1;
+        }
+
+        .pa-map-echo {
+            border-top: 1px dashed var(--border-color);
+            margin-top: 0.35rem;
+            padding: 0.25rem 0.15rem 0;
+            cursor: pointer;
+            font-size: 0.78rem;
+        }
+
+        .pa-map-echo:hover {
+            background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+        }
+
+        .pa-map-echo.pa-selected {
+            color: #6f42c1;
+            font-weight: 600;
+        }
+
+        .pa-legend {
+            margin-top: 0.4rem;
+            padding: 0.4rem 0.5rem;
+            background-color: var(--bg-surface, rgba(0, 0, 0, 0.03));
+            border-radius: 0.4rem;
+            font-size: 0.78rem;
+        }
+
+        .pa-legend-hop {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+            padding: 0.15rem 0;
+        }
+
+        .pa-pick-chip {
+            border: 1px solid #d39e00;
+            color: #b58900;
+            border-radius: 0.25rem;
+            padding: 0 0.3rem;
+            cursor: pointer;
+            font-size: 0.72rem;
+        }
+
+        .pa-pick-chip:hover,
+        .pa-pick-chip.pa-picked {
+            background-color: #ffc107;
+            color: #212529;
         }
 
         .pa-table-wrap {
@@ -219,6 +320,9 @@
             <button id="paViewStatsBtn" class="btn btn-outline-primary" title="Per-repeater statistics">
                 <i class="bi bi-bar-chart"></i> Repeaters
             </button>
+            <button id="paViewMapBtn" class="btn btn-outline-primary" title="Map view">
+                <i class="bi bi-map"></i> Map
+            </button>
         </div>
         <div class="vr d-none d-sm-block"></div>
         <label for="paDaysSelect" class="form-label mb-0 small text-muted">Time range:</label>
@@ -295,6 +399,18 @@
                 </thead>
                 <tbody id="paStatsBody"></tbody>
             </table>
+        </div>
+        <div id="paMapWrap" class="d-none">
+            <div id="paMapSidebar">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="small text-muted">Click a message, then an echo to draw its path.</span>
+                    <button id="paMapClearBtn" class="btn btn-sm btn-outline-secondary d-none" title="Clear drawn path">
+                        <i class="bi bi-eraser"></i>
+                    </button>
+                </div>
+                <div id="paMapMsgList"></div>
+            </div>
+            <div id="paMap"></div>
         </div>
     </div>
 

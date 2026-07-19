@@ -305,6 +305,7 @@ function paSetView(state) {
     document.getElementById('paEmpty').classList.toggle('d-none', state !== 'empty');
     document.getElementById('paTableWrap').classList.toggle('d-none', state !== 'table');
     document.getElementById('paStatsWrap').classList.toggle('d-none', state !== 'stats');
+    document.getElementById('paMapWrap').classList.toggle('d-none', state !== 'map');
 }
 
 // ================================================================
@@ -422,9 +423,230 @@ function paRenderStats() {
     }
 }
 
+// ================================================================
+// Map view
+// ================================================================
+
+let paMap = null;
+let paBaseLayer = null;   // repeater contact markers
+let paPathLayer = null;   // drawn path for the selected echo
+let paMapSelection = { msgId: null, echoIdx: null };
+let paPicks = {};         // token -> public_key chosen by the user (collision disambiguation)
+
+function paGeoContact(c) {
+    return c.adv_lat !== null && c.adv_lat !== undefined &&
+           c.adv_lon !== null && c.adv_lon !== undefined &&
+           !(Number(c.adv_lat) === 0 && Number(c.adv_lon) === 0);
+}
+
+function paInitMap() {
+    if (paMap) return;
+    paMap = L.map('paMap').setView([52.0, 19.0], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(paMap);
+    paBaseLayer = L.layerGroup().addTo(paMap);
+    paPathLayer = L.layerGroup().addTo(paMap);
+}
+
+function paPlotBaseMarkers() {
+    paBaseLayer.clearLayers();
+    paContacts.filter(c => c.type_label === 'REP' && paGeoContact(c)).forEach(c => {
+        L.circleMarker([c.adv_lat, c.adv_lon], {
+            radius: 5, color: '#6f42c1', weight: 1.5, fillOpacity: 0.5
+        }).bindPopup(`<strong>${c.name || '?'}</strong><br><code>${(c.public_key || '').slice(0, 12)}</code>`)
+          .addTo(paBaseLayer);
+    });
+}
+
+// Resolve a hop token to a contact: manual pick wins, else the single
+// geo-located candidate. Returns {contact, candidates} - contact null
+// when unknown or ambiguous.
+function paResolveHop(token) {
+    const candidates = paMatchContacts(token);
+    const geoCandidates = candidates.filter(paGeoContact);
+    if (paPicks[token]) {
+        const picked = geoCandidates.find(c => c.public_key === paPicks[token]);
+        if (picked) return { contact: picked, candidates: geoCandidates };
+    }
+    if (geoCandidates.length === 1) return { contact: geoCandidates[0], candidates: geoCandidates };
+    return { contact: null, candidates: geoCandidates };
+}
+
+function paDrawSelectedEcho() {
+    paPathLayer.clearLayers();
+    const msg = paMessages.find(m => m.id === paMapSelection.msgId);
+    if (!msg || paMapSelection.echoIdx === null) return;
+    const echo = msg.echoView[paMapSelection.echoIdx];
+    if (!echo) return;
+
+    const points = [];   // {latlng, gapBefore}
+    let gapPending = false;
+
+    // Origin: sender name -> contact with geo (channel messages carry no sender pubkey)
+    const origin = paContacts.find(c => c.name === msg.sender && paGeoContact(c));
+    if (origin) {
+        L.circleMarker([origin.adv_lat, origin.adv_lon], {
+            radius: 7, color: '#198754', weight: 2, fillOpacity: 0.8
+        }).bindPopup(`<strong>${origin.name}</strong><br>Origin (sender)`).addTo(paPathLayer);
+        points.push({ latlng: [origin.adv_lat, origin.adv_lon], gapBefore: false });
+    }
+
+    echo.tokens.forEach((tok, i) => {
+        const { contact, candidates } = paResolveHop(tok);
+        if (contact) {
+            L.circleMarker([contact.adv_lat, contact.adv_lon], {
+                radius: 7, color: '#6f42c1', weight: 2, fillOpacity: 0.9
+            }).bindPopup(`<strong>${contact.name}</strong><br>Hop ${i + 1}: <code>${tok}</code>`).addTo(paPathLayer);
+            points.push({ latlng: [contact.adv_lat, contact.adv_lon], gapBefore: gapPending });
+            gapPending = false;
+        } else {
+            // Ambiguous: show all geo candidates as amber markers, excluded from the line
+            candidates.forEach(c => {
+                L.circleMarker([c.adv_lat, c.adv_lon], {
+                    radius: 6, color: '#d39e00', weight: 2, fillOpacity: 0.5, dashArray: '3'
+                }).bindPopup(`<strong>${c.name}</strong><br>Candidate for hop ${i + 1}: <code>${tok}</code>`).addTo(paPathLayer);
+            });
+            gapPending = true;
+        }
+    });
+
+    // Polyline: solid between consecutive resolved hops, dashed across skipped ones
+    for (let i = 1; i < points.length; i++) {
+        L.polyline([points[i - 1].latlng, points[i].latlng], {
+            color: '#6f42c1', weight: 3, opacity: 0.8,
+            dashArray: points[i].gapBefore ? '6 8' : null
+        }).addTo(paPathLayer);
+    }
+
+    const allLatLngs = points.map(p => p.latlng);
+    if (allLatLngs.length > 0) {
+        paMap.fitBounds(L.latLngBounds(allLatLngs).pad(0.25), { maxZoom: 13 });
+    }
+
+    document.getElementById('paMapClearBtn').classList.remove('d-none');
+}
+
+function paBuildLegend(echo) {
+    const legend = document.createElement('div');
+    legend.className = 'pa-legend';
+    echo.tokens.forEach((tok, i) => {
+        const row = document.createElement('div');
+        row.className = 'pa-legend-hop';
+        const { contact, candidates } = paResolveHop(tok);
+        const label = document.createElement('span');
+        label.innerHTML = `${i + 1}. <span class="pa-hash">${tok}</span>`;
+        row.appendChild(label);
+        if (contact) {
+            const name = document.createElement('span');
+            name.textContent = '— ' + contact.name;
+            row.appendChild(name);
+        } else if (candidates.length > 1) {
+            const amb = document.createElement('span');
+            amb.className = 'pa-ambiguous';
+            amb.textContent = `— ${candidates.length} candidates:`;
+            row.appendChild(amb);
+            candidates.forEach(c => {
+                const chip = document.createElement('span');
+                chip.className = 'pa-pick-chip' + (paPicks[tok] === c.public_key ? ' pa-picked' : '');
+                chip.textContent = c.name || c.public_key.slice(0, 8);
+                chip.title = 'Use this contact for the hop';
+                chip.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    paPicks[tok] = c.public_key;
+                    paRenderMapView();
+                });
+                row.appendChild(chip);
+            });
+        } else {
+            const unk = document.createElement('span');
+            unk.className = 'pa-ambiguous';
+            unk.textContent = '— unknown / no position';
+            row.appendChild(unk);
+        }
+        legend.appendChild(row);
+    });
+    return legend;
+}
+
+function paRenderMapView() {
+    paInitMap();
+    paPlotBaseMarkers();
+
+    const list = document.getElementById('paMapMsgList');
+    list.innerHTML = '';
+    const filtered = paMessages.filter(paMessageMatchesFilters)
+        .filter(m => m.echoView.some(e => e.hops > 0));
+
+    // Drop a stale selection (filters changed underneath it)
+    if (paMapSelection.msgId !== null && !filtered.some(m => m.id === paMapSelection.msgId)) {
+        paMapSelection = { msgId: null, echoIdx: null };
+        paPathLayer.clearLayers();
+        document.getElementById('paMapClearBtn').classList.add('d-none');
+    }
+
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="small text-muted p-2">No messages with routed echoes match the current filters.</div>';
+    }
+
+    for (const msg of filtered) {
+        const entry = document.createElement('div');
+        entry.className = 'pa-map-msg' + (msg.id === paMapSelection.msgId ? ' pa-selected' : '');
+        entry.innerHTML =
+            `<div class="d-flex justify-content-between gap-2">
+                <strong class="text-truncate">${msg.sender || '—'}</strong>
+                <span class="text-muted text-nowrap">${paFormatTime(msg).slice(5, 16)}</span>
+            </div>`;
+        entry.addEventListener('click', () => {
+            paMapSelection = { msgId: msg.id, echoIdx: null };
+            paRenderMapView();
+        });
+
+        if (msg.id === paMapSelection.msgId) {
+            msg.echoView.forEach((echo, idx) => {
+                if (echo.hops === 0) return;
+                const eEl = document.createElement('div');
+                eEl.className = 'pa-map-echo' + (idx === paMapSelection.echoIdx ? ' pa-selected' : '');
+                const snr = (echo.snr === null || echo.snr === undefined) ? '?' : `${Number(echo.snr).toFixed(1)} dB`;
+                eEl.textContent = `${echo.tokens.join(' → ')} (${snr})`;
+                eEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    paMapSelection.echoIdx = idx;
+                    paRenderMapView();
+                });
+                entry.appendChild(eEl);
+
+                if (idx === paMapSelection.echoIdx) {
+                    entry.appendChild(paBuildLegend(echo));
+                }
+            });
+        }
+        list.appendChild(entry);
+    }
+
+    paSetView('map');
+    // Leaflet cannot size itself while the container was display:none
+    setTimeout(() => paMap.invalidateSize(), 60);
+    paDrawSelectedEcho();
+
+    const counter = document.getElementById('paCounter');
+    counter.textContent = paFiltersActive()
+        ? `${filtered.length} of ${paMessages.length} messages`
+        : `${filtered.length} routed message${filtered.length === 1 ? '' : 's'}`;
+}
+
+function paClearMapSelection() {
+    paMapSelection = { msgId: null, echoIdx: null };
+    paPathLayer.clearLayers();
+    document.getElementById('paMapClearBtn').classList.add('d-none');
+    paRenderMapView();
+}
+
 function paRender() {
     if (paCurrentView === 'stats') {
         paRenderStats();
+    } else if (paCurrentView === 'map') {
+        paRenderMapView();
     } else {
         paRenderTable();
     }
@@ -432,10 +654,12 @@ function paRender() {
 
 function paSwitchView(view) {
     paCurrentView = view;
-    const msgBtn = document.getElementById('paViewMessagesBtn');
-    const statsBtn = document.getElementById('paViewStatsBtn');
-    msgBtn.className = 'btn ' + (view === 'messages' ? 'btn-primary' : 'btn-outline-primary');
-    statsBtn.className = 'btn ' + (view === 'stats' ? 'btn-primary' : 'btn-outline-primary');
+    for (const [btnId, v] of [['paViewMessagesBtn', 'messages'],
+                              ['paViewStatsBtn', 'stats'],
+                              ['paViewMapBtn', 'map']]) {
+        document.getElementById(btnId).className =
+            'btn ' + (view === v ? 'btn-primary' : 'btn-outline-primary');
+    }
     paApplyFilters();
 }
 
@@ -517,6 +741,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('paViewMessagesBtn').addEventListener('click', () => paSwitchView('messages'));
     document.getElementById('paViewStatsBtn').addEventListener('click', () => paSwitchView('stats'));
+    document.getElementById('paViewMapBtn').addEventListener('click', () => paSwitchView('map'));
+    document.getElementById('paMapClearBtn').addEventListener('click', paClearMapSelection);
     document.querySelectorAll('.pa-sortable').forEach(th => {
         th.addEventListener('click', () => {
             const k = th.dataset.sort;
