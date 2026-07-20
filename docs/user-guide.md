@@ -629,7 +629,7 @@ Pick a time range at the top (last 1, 3, 5, or 7 days) — the tool loads every 
 The filter bar applies to all three views at once and updates as you type:
 
 - **Hops** - Only messages that arrived over exactly that many hops (0 = heard directly, 4+ = long routes). A message matches when *any* of its echoes has that hop count
-- **HB (path hash size)** - Only messages whose route was recorded with 1-, 2-, or 3-byte repeater hashes
+- **HB (path hash size)** - Only messages whose route was recorded with 1-, 2-, or 3-byte repeater hashes; a combined **2/3-byte** option covers both larger sizes at once
 - **Repeater** - Type a repeater hash (e.g. `3B`) or part of a repeater's **name** (e.g. `wegrzce`); matches messages whose route passed through it. Note that with short 1-byte hashes two repeaters can share a hash, so a name search includes routes where the named repeater *might* be one of the candidates
 - **Sender** - Part of the sender's name
 - **Message text** - Part of the message content
