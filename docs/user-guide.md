@@ -662,8 +662,8 @@ Columns are sortable, and the **Contact** column matches each hash to your conta
 
 Repeaters from your contact list that have a position are plotted as dots. Pick a message in the side list (it shows sender, time, and the message text), then pick one of its routes — the path is drawn hop by hop:
 
-- Hops that resolve to exactly one known repeater become solid points connected by a line
-- When a short hash matches several contacts, all candidates are marked in amber and the legend lists them — tap the right one and the path redraws with your choice
+- Hops that resolve to exactly one known repeater become red numbered points (the number matches the legend order) labeled with the repeater's name, connected by a red line — clearly distinct from the purple background dots of uninvolved repeaters
+- When a short hash matches several contacts, all candidates are marked in amber and the legend lists them — tap the right one and the path redraws with your choice. Assignments are reversible: an undo icon next to a manually assigned hop reverts just that hop, and **Reset picks** clears every manual assignment on the current path
 - Unknown hops (no matching contact, or no position) are listed in the legend and the line is drawn dashed across the gap, so you can see which parts of the route are certain
 - If the sender is in your contacts with a position, it is added as a green origin point
 
