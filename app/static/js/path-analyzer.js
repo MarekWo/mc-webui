@@ -143,9 +143,10 @@ function paMessageMatchesFilters(msg) {
         if (!ok) return false;
     }
     if (paFilters.hashSize !== 'any') {
-        const want = parseInt(paFilters.hashSize, 10);
-        // Only routed echoes carry a meaningful hash size
-        const ok = msg.echoView.some(e => e.hops > 0 && (e.hash_size || 1) === want);
+        // Value is a comma list of accepted sizes (e.g. "2" or "2,3");
+        // only routed echoes carry a meaningful hash size
+        const wanted = paFilters.hashSize.split(',').map(Number);
+        const ok = msg.echoView.some(e => e.hops > 0 && wanted.includes(e.hash_size || 1));
         if (!ok) return false;
     }
     if (paFilters.token) {
