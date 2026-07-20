@@ -502,6 +502,19 @@ function paRenderStats() {
 let paMap = null;
 let paBaseLayer = null;   // repeater contact markers
 let paPathLayer = null;   // drawn path for the selected echo
+
+// Path drawing color - distinct from the purple base markers so the
+// route stands out (origin stays green, ambiguous candidates amber)
+const PA_PATH_COLOR = '#dc3545';
+
+function paHopIcon(n) {
+    return L.divIcon({
+        className: 'pa-hop-icon',
+        html: `<div class="pa-hop-badge">${n}</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+    });
+}
 let paMapSelection = { msgId: null, echoIdx: null };
 let paPicks = {};         // token -> public_key chosen by the user (collision disambiguation)
 
@@ -560,16 +573,19 @@ function paDrawSelectedEcho() {
     if (origin) {
         L.circleMarker([origin.adv_lat, origin.adv_lon], {
             radius: 7, color: '#198754', weight: 2, fillOpacity: 0.8
-        }).bindPopup(`<strong>${origin.name}</strong><br>Origin (sender)`).addTo(paPathLayer);
+        }).bindPopup(`<strong>${origin.name}</strong><br>Origin (sender)`)
+          .bindTooltip(origin.name, { permanent: true, direction: 'right', offset: [8, 0], className: 'pa-hop-label' })
+          .addTo(paPathLayer);
         points.push({ latlng: [origin.adv_lat, origin.adv_lon], gapBefore: false });
     }
 
     echo.tokens.forEach((tok, i) => {
         const { contact, candidates } = paResolveHop(tok);
         if (contact) {
-            L.circleMarker([contact.adv_lat, contact.adv_lon], {
-                radius: 7, color: '#6f42c1', weight: 2, fillOpacity: 0.9
-            }).bindPopup(`<strong>${contact.name}</strong><br>Hop ${i + 1}: <code>${tok}</code>`).addTo(paPathLayer);
+            L.marker([contact.adv_lat, contact.adv_lon], { icon: paHopIcon(i + 1) })
+                .bindPopup(`<strong>${contact.name}</strong><br>Hop ${i + 1}: <code>${tok}</code>`)
+                .bindTooltip(contact.name, { permanent: true, direction: 'right', offset: [13, 0], className: 'pa-hop-label' })
+                .addTo(paPathLayer);
             points.push({ latlng: [contact.adv_lat, contact.adv_lon], gapBefore: gapPending });
             gapPending = false;
         } else {
@@ -586,7 +602,7 @@ function paDrawSelectedEcho() {
     // Polyline: solid between consecutive resolved hops, dashed across skipped ones
     for (let i = 1; i < points.length; i++) {
         L.polyline([points[i - 1].latlng, points[i].latlng], {
-            color: '#6f42c1', weight: 3, opacity: 0.8,
+            color: PA_PATH_COLOR, weight: 3, opacity: 0.85,
             dashArray: points[i].gapBefore ? '6 8' : null
         }).addTo(paPathLayer);
     }
@@ -602,6 +618,24 @@ function paDrawSelectedEcho() {
 function paBuildLegend(echo) {
     const legend = document.createElement('div');
     legend.className = 'pa-legend';
+
+    // Path-level reset for manual candidate assignments
+    if (echo.tokens.some(tok => paPicks[tok])) {
+        const resetRow = document.createElement('div');
+        resetRow.className = 'text-end';
+        const resetBtn = document.createElement('button');
+        resetBtn.className = 'btn btn-sm btn-outline-warning py-0 pa-reset-picks';
+        resetBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> Reset picks';
+        resetBtn.title = 'Clear all manual repeater assignments on this path';
+        resetBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            echo.tokens.forEach(tok => { delete paPicks[tok]; });
+            paRenderMapView();
+        });
+        resetRow.appendChild(resetBtn);
+        legend.appendChild(resetRow);
+    }
+
     echo.tokens.forEach((tok, i) => {
         const row = document.createElement('div');
         row.className = 'pa-legend-hop';
@@ -613,6 +647,18 @@ function paBuildLegend(echo) {
             const name = document.createElement('span');
             name.textContent = '— ' + contact.name;
             row.appendChild(name);
+            if (paPicks[tok]) {
+                // Manually assigned - allow undoing just this hop
+                const undo = document.createElement('i');
+                undo.className = 'bi bi-x-circle pa-unpick';
+                undo.title = 'Undo this manual assignment';
+                undo.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    delete paPicks[tok];
+                    paRenderMapView();
+                });
+                row.appendChild(undo);
+            }
         } else if (candidates.length > 1) {
             const amb = document.createElement('span');
             amb.className = 'pa-ambiguous';
