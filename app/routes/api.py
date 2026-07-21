@@ -6395,6 +6395,28 @@ def delete_my_repeater(public_key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/repeaters/<public_key>/password', methods=['GET'])
+def get_my_repeater_password(public_key):
+    """Return the saved password for a repeater (empty string when none).
+
+    Used to prefill the login-retry prompt: a wrong stored password and an
+    unreachable repeater are indistinguishable, so on a failed auto-login we
+    hand the (correct) saved password back to the same trusted local UI rather
+    than force the user to retype it. Passwords are already stored so the app
+    can log in on the user's behalf, so this stays within the local-app scope.
+    """
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    row = db.get_repeater(pk)
+    if not row:
+        return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+    return jsonify({'success': True, 'password': row.get('password') or ''}), 200
+
+
 @api_bp.route('/repeaters/<public_key>/login', methods=['POST'])
 def login_my_repeater(public_key):
     """Log into a repeater using the provided or saved password.
