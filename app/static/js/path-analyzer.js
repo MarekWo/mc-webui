@@ -688,6 +688,18 @@ function paBuildLegend(echo) {
     return legend;
 }
 
+// Default echo selection: the routed echo with the fewest hops
+// (ties -> first in arrival order)
+function paShortestEchoIdx(msg) {
+    let best = null;
+    msg.echoView.forEach((echo, idx) => {
+        if (echo.hops > 0 && (best === null || echo.hops < msg.echoView[best].hops)) {
+            best = idx;
+        }
+    });
+    return best;
+}
+
 function paRenderMapView() {
     paInitMap();
     paPlotBaseMarkers();
@@ -715,13 +727,21 @@ function paRenderMapView() {
 
         const head = document.createElement('div');
         head.className = 'd-flex justify-content-between gap-2';
+        const left = document.createElement('div');
+        left.className = 'd-flex align-items-baseline gap-1';
+        left.style.minWidth = '0';
         const senderEl = document.createElement('strong');
         senderEl.className = 'text-truncate';
         senderEl.textContent = msg.sender || '—';
+        const chanEl = document.createElement('span');
+        chanEl.className = 'pa-map-msg-chan';
+        chanEl.textContent = msg.channel_name || `#${msg.channel_idx}`;
+        left.appendChild(senderEl);
+        left.appendChild(chanEl);
         const timeEl = document.createElement('span');
         timeEl.className = 'text-muted text-nowrap';
         timeEl.textContent = paFormatTime(msg).slice(5, 16);
-        head.appendChild(senderEl);
+        head.appendChild(left);
         head.appendChild(timeEl);
         entry.appendChild(head);
 
@@ -735,7 +755,9 @@ function paRenderMapView() {
         }
 
         entry.addEventListener('click', () => {
-            paMapSelection = { msgId: msg.id, echoIdx: null };
+            // Re-clicking the selected message keeps the user's echo choice
+            if (paMapSelection.msgId === msg.id) return;
+            paMapSelection = { msgId: msg.id, echoIdx: paShortestEchoIdx(msg) };
             paRenderMapView();
         });
 
