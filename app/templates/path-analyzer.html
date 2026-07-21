@@ -511,13 +511,16 @@
     <div class="pa-toolbar">
         <div class="btn-group btn-group-sm" role="group" aria-label="View">
             <button id="paViewMessagesBtn" class="btn btn-primary" title="Message list">
-                <i class="bi bi-list-ul"></i> Messages
+                <i class="bi bi-list-ul"></i><span class="d-none d-sm-inline"> Messages</span>
             </button>
             <button id="paViewStatsBtn" class="btn btn-outline-primary" title="Per-repeater statistics">
-                <i class="bi bi-bar-chart"></i> Repeaters
+                <i class="bi bi-bar-chart"></i><span class="d-none d-sm-inline"> Repeaters</span>
+            </button>
+            <button id="paViewRoutesBtn" class="btn btn-outline-primary" title="Route segment statistics">
+                <i class="bi bi-signpost-2"></i><span class="d-none d-sm-inline"> Routes</span>
             </button>
             <button id="paViewMapBtn" class="btn btn-outline-primary" title="Map view">
-                <i class="bi bi-map"></i> Map
+                <i class="bi bi-map"></i><span class="d-none d-sm-inline"> Map</span>
             </button>
         </div>
         <button id="paFiltersToggleBtn" class="btn btn-sm btn-outline-secondary d-md-none" type="button"
@@ -557,7 +560,7 @@
             </select>
             <input id="paTokenFilter" type="text" class="form-control form-control-sm" style="width: 10.5rem;"
                    placeholder="Repeater (3B or name)"
-                   title="Match a repeater anywhere in a path: hash prefix (hex) or contact name">
+                   title="Match a repeater anywhere in a path: hash prefix (hex) or contact name. Chain with '>' for a consecutive sequence, e.g. AFE6>6E9A">
             <input id="paSenderFilter" type="text" class="form-control form-control-sm" style="width: 9.5rem;"
                    placeholder="Sender" title="Filter by sender name">
             <input id="paContentFilter" type="text" class="form-control form-control-sm" style="width: 11rem;"
@@ -615,6 +618,33 @@
                 </thead>
                 <tbody id="paStatsBody"></tbody>
             </table>
+        </div>
+        <div id="paRoutesWrap" class="d-none">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <label for="paSegLenSelect" class="form-label small text-muted mb-0">Segment length:</label>
+                <select id="paSegLenSelect" class="form-select form-select-sm" style="width: auto;"
+                        title="Number of consecutive hops per counted segment">
+                    <option value="2" selected>2 hops</option>
+                    <option value="3">3 hops</option>
+                    <option value="4">4 hops</option>
+                </select>
+            </div>
+            <div class="pa-table-wrap">
+                <table class="table table-hover pa-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Route</th>
+                            <th class="text-end pa-sortable" data-sort="echoes"
+                                title="Echoes whose path contains this segment (anywhere)">Echoes</th>
+                            <th class="text-end pa-sortable pa-col-msgs" data-sort="messages"
+                                title="Distinct messages whose path contains this segment">Messages</th>
+                            <th class="text-end pa-sortable" data-sort="pathEnd"
+                                title="Echoes where this segment is the end of the path - the route the message took to reach us">As path end</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paRoutesBody"></tbody>
+                </table>
+            </div>
         </div>
         <div id="paMapWrap" class="d-none">
             <div id="paMapSidebar">

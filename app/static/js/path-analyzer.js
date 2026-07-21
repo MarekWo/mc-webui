@@ -84,9 +84,10 @@ function showNotification(message, type = 'info') {
 
 let paMessages = [];
 let paFilters = { hops: 'any', hashSize: 'any', token: '', sender: '', content: '' };
-let paCurrentView = 'messages';   // 'messages' | 'stats'
+let paCurrentView = 'messages';   // 'messages' | 'stats' | 'routes' | 'map'
 let paContacts = [];              // /api/contacts/cached?format=full
 let paStatsSort = { key: 'relayed', dir: -1 };
+let paRoutesSort = { key: 'echoes', dir: -1 };
 
 async function paLoadContacts() {
     try {
@@ -135,6 +136,13 @@ function paDecodeEcho(echo) {
     return { ...echo, tokens: tokens, hops: tokens.length };
 }
 
+// One filter element (lowercase) vs one path token: hex input matches the
+// hash by prefix; any input also matches resolved contact names
+function paTokenMatchesElement(tok, el) {
+    return (/^[0-9a-f]+$/.test(el) && tok.startsWith(el.toUpperCase()))
+        || paTokenNames(tok).some(n => n.includes(el));
+}
+
 function paMessageMatchesFilters(msg) {
     if (paFilters.hops !== 'any') {
         const want = paFilters.hops;
@@ -150,15 +158,16 @@ function paMessageMatchesFilters(msg) {
         if (!ok) return false;
     }
     if (paFilters.token) {
-        const raw = paFilters.token;                 // lowercase
-        const isHex = /^[0-9a-f]+$/.test(raw);
-        const hexPrefix = raw.toUpperCase();
-        // Hex input matches hash tokens by prefix; any input also matches
-        // the names of contacts the token resolves to
-        const ok = msg.echoView.some(e => e.tokens.some(tok =>
-            (isHex && tok.startsWith(hexPrefix)) ||
-            paTokenNames(tok).some(n => n.includes(raw))
-        ));
+        // '>' (or '→') chains elements into a consecutive-sequence match;
+        // a single element behaves as before. Spaces are NOT separators -
+        // contact names may contain them.
+        const els = paFilters.token.split(/[>→]/).map(s => s.trim()).filter(Boolean);
+        const ok = els.length > 0 && msg.echoView.some(e => {
+            for (let i = 0; i + els.length <= e.tokens.length; i++) {
+                if (els.every((el, j) => paTokenMatchesElement(e.tokens[i + j], el))) return true;
+            }
+            return false;
+        });
         if (!ok) return false;
     }
     if (paFilters.sender) {
@@ -378,6 +387,7 @@ function paSetView(state) {
     document.getElementById('paEmpty').classList.toggle('d-none', state !== 'empty');
     document.getElementById('paTableWrap').classList.toggle('d-none', state !== 'table');
     document.getElementById('paStatsWrap').classList.toggle('d-none', state !== 'stats');
+    document.getElementById('paRoutesWrap').classList.toggle('d-none', state !== 'routes');
     document.getElementById('paMapWrap').classList.toggle('d-none', state !== 'map');
 }
 
@@ -435,7 +445,7 @@ function paRenderStats() {
     });
 
     // Show sort direction on the active header
-    document.querySelectorAll('.pa-sortable').forEach(th => {
+    document.querySelectorAll('#paStatsWrap .pa-sortable').forEach(th => {
         th.textContent = th.textContent.replace(/ [▲▼]$/, '')
             + (th.dataset.sort === key ? (dir === -1 ? ' ▼' : ' ▲') : '');
     });
@@ -493,6 +503,113 @@ function paRenderStats() {
         paSetView('empty');
     } else {
         paSetView('stats');
+    }
+}
+
+// ================================================================
+// Route segment statistics (consecutive hop n-grams)
+// ================================================================
+
+function paComputeRoutes(filtered, n) {
+    const routes = new Map();  // 'A→B→...' -> aggregate
+    for (const msg of filtered) {
+        for (const e of msg.echoView) {
+            const seen = new Set();  // count each segment once per echo
+            for (let i = 0; i + n <= e.tokens.length; i++) {
+                const key = e.tokens.slice(i, i + n).join('→');
+                let r = routes.get(key);
+                if (!r) {
+                    r = { tokens: e.tokens.slice(i, i + n), echoes: 0, msgIds: new Set(), pathEnd: 0 };
+                    routes.set(key, r);
+                }
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    r.echoes++;
+                    r.msgIds.add(msg.id);
+                }
+                if (i + n === e.tokens.length) r.pathEnd++;
+            }
+        }
+    }
+    return [...routes.values()].map(r => ({
+        tokens: r.tokens,
+        echoes: r.echoes,
+        messages: r.msgIds.size,
+        pathEnd: r.pathEnd,
+    }));
+}
+
+function paRenderRoutes() {
+    const body = document.getElementById('paRoutesBody');
+    body.innerHTML = '';
+
+    const n = parseInt(document.getElementById('paSegLenSelect').value, 10);
+    const filtered = paMessages.filter(paMessageMatchesFilters);
+    const rows = paComputeRoutes(filtered, n);
+
+    const { key, dir } = paRoutesSort;
+    rows.sort((a, b) => (a[key] - b[key]) * dir || b.echoes - a.echoes);
+
+    // Show sort direction on the active header
+    document.querySelectorAll('#paRoutesWrap .pa-sortable').forEach(th => {
+        th.textContent = th.textContent.replace(/ [▲▼]$/, '')
+            + (th.dataset.sort === key ? (dir === -1 ? ' ▼' : ' ▲') : '');
+    });
+
+    for (const r of rows) {
+        const tr = document.createElement('tr');
+        tr.className = 'pa-stats-row';
+        tr.title = 'Filter messages by this segment';
+
+        const tdRoute = document.createElement('td');
+        const hashLine = document.createElement('div');
+        hashLine.innerHTML = r.tokens
+            .map(t => `<span class="pa-hash">${t}</span>`)
+            .join(' <span class="pa-chip-arrow">→</span> ');
+        tdRoute.appendChild(hashLine);
+
+        // Resolved contact names beneath the hashes (skipped when nothing resolves)
+        const names = r.tokens.map(tok => {
+            const cands = paMatchContacts(tok);
+            if (cands.length === 1) return cands[0].name || '—';
+            return cands.length > 1 ? `ambiguous (${cands.length})` : '—';
+        });
+        if (names.some(nm => nm !== '—')) {
+            const nameLine = document.createElement('div');
+            nameLine.className = 'small text-muted';
+            nameLine.textContent = names.join(' → ');
+            tdRoute.appendChild(nameLine);
+        }
+        tr.appendChild(tdRoute);
+
+        for (const [val, cls] of [[r.echoes, ''], [r.messages, ' pa-col-msgs'], [r.pathEnd, '']]) {
+            const td = document.createElement('td');
+            td.className = 'text-end' + cls;
+            td.textContent = val;
+            tr.appendChild(td);
+        }
+
+        // Click -> apply this segment as a sequence filter and jump to the list
+        tr.addEventListener('click', () => {
+            document.getElementById('paTokenFilter').value = r.tokens.join('>');
+            paSwitchView('messages');
+        });
+
+        body.appendChild(tr);
+    }
+
+    const counter = document.getElementById('paCounter');
+    counter.textContent = paFiltersActive()
+        ? `${rows.length} segments (${filtered.length} of ${paMessages.length} messages)`
+        : `${rows.length} segments (${paMessages.length} messages)`;
+
+    if (rows.length === 0) {
+        document.getElementById('paEmptyText').textContent =
+            filtered.length === 0 ? 'No messages match the current filters.'
+                                  : `No paths with at least ${n} hops in the current selection.`;
+        paSetView('empty');
+    } else {
+        paSetView('routes');
     }
 }
 
@@ -812,6 +929,8 @@ function paClearMapSelection() {
 function paRender() {
     if (paCurrentView === 'stats') {
         paRenderStats();
+    } else if (paCurrentView === 'routes') {
+        paRenderRoutes();
     } else if (paCurrentView === 'map') {
         paRenderMapView();
     } else {
@@ -823,6 +942,7 @@ function paSwitchView(view) {
     paCurrentView = view;
     for (const [btnId, v] of [['paViewMessagesBtn', 'messages'],
                               ['paViewStatsBtn', 'stats'],
+                              ['paViewRoutesBtn', 'routes'],
                               ['paViewMapBtn', 'map']]) {
         document.getElementById(btnId).className =
             'btn ' + (view === v ? 'btn-primary' : 'btn-outline-primary');
@@ -921,9 +1041,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('paViewMessagesBtn').addEventListener('click', () => paSwitchView('messages'));
     document.getElementById('paViewStatsBtn').addEventListener('click', () => paSwitchView('stats'));
+    document.getElementById('paViewRoutesBtn').addEventListener('click', () => paSwitchView('routes'));
     document.getElementById('paViewMapBtn').addEventListener('click', () => paSwitchView('map'));
     document.getElementById('paMapClearBtn').addEventListener('click', paClearMapSelection);
-    document.querySelectorAll('.pa-sortable').forEach(th => {
+    document.getElementById('paSegLenSelect').addEventListener('change', paApplyFilters);
+    document.querySelectorAll('#paStatsWrap .pa-sortable').forEach(th => {
         th.addEventListener('click', () => {
             const k = th.dataset.sort;
             if (paStatsSort.key === k) {
@@ -932,6 +1054,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 paStatsSort = { key: k, dir: -1 };
             }
             paRenderStats();
+        });
+    });
+    document.querySelectorAll('#paRoutesWrap .pa-sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const k = th.dataset.sort;
+            if (paRoutesSort.key === k) {
+                paRoutesSort.dir = -paRoutesSort.dir;
+            } else {
+                paRoutesSort = { key: k, dir: -1 };
+            }
+            paRenderRoutes();
         });
     });
 
