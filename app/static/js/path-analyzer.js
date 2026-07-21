@@ -849,6 +849,15 @@ function paReadFilters() {
     paFilters.sender = document.getElementById('paSenderFilter').value.trim().toLowerCase();
     paFilters.content = document.getElementById('paContentFilter').value.trim().toLowerCase();
     document.getElementById('paClearFiltersBtn').classList.toggle('d-none', !paFiltersActive());
+
+    // Active-filter count on the mobile Filters toggle, so filters applied
+    // while the panel is collapsed stay visible
+    const activeCount = [paFilters.hops !== 'any', paFilters.hashSize !== 'any',
+                         paFilters.token !== '', paFilters.sender !== '',
+                         paFilters.content !== ''].filter(Boolean).length;
+    const badge = document.getElementById('paFiltersBadge');
+    badge.textContent = activeCount;
+    badge.classList.toggle('d-none', activeCount === 0);
 }
 
 function paApplyFilters() {

@@ -57,6 +57,38 @@
             flex-shrink: 0;
         }
 
+        /* Collapsible filter group. On >=768px it renders as if its children
+           sat directly in the toolbar (display: contents), so the desktop
+           layout is unchanged and the collapse state is ignored. Below 768px
+           it is a Bootstrap collapse spanning the full toolbar width,
+           toggled by the Filters button. Keep these rules on the class (not
+           the #id) so Bootstrap's .collapse:not(.show) still wins. */
+        .pa-filters {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        @media (min-width: 768px) {
+            .pa-filters {
+                display: contents !important;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            .pa-filters {
+                width: 100%;
+                order: 10; /* keep the counter on the first toolbar line */
+            }
+
+            .pa-filters input.form-control {
+                flex: 1 1 42%;
+                width: auto !important;
+                min-width: 0;
+            }
+        }
+
         .pa-content {
             flex: 1 1 0;
             min-height: 0;
@@ -474,44 +506,52 @@
                 <i class="bi bi-map"></i> Map
             </button>
         </div>
-        <div class="vr d-none d-sm-block"></div>
-        <label for="paDaysSelect" class="form-label mb-0 small text-muted">Time range:</label>
-        <select id="paDaysSelect" class="form-select form-select-sm" style="width: auto;">
-            <option value="1">Last 1 day</option>
-            <option value="3" selected>Last 3 days</option>
-            <option value="5">Last 5 days</option>
-            <option value="7">Last 7 days</option>
-        </select>
-        <button id="paRefreshBtn" class="btn btn-sm btn-outline-secondary" title="Reload">
-            <i class="bi bi-arrow-clockwise"></i>
+        <button id="paFiltersToggleBtn" class="btn btn-sm btn-outline-secondary d-md-none" type="button"
+                data-bs-toggle="collapse" data-bs-target="#paFiltersPanel"
+                aria-expanded="false" aria-controls="paFiltersPanel" title="Show/hide filters">
+            <i class="bi bi-funnel"></i> Filters
+            <span id="paFiltersBadge" class="badge text-bg-primary d-none"></span>
         </button>
-        <div class="vr d-none d-sm-block"></div>
-        <select id="paHopsFilter" class="form-select form-select-sm" style="width: auto;" title="Filter by hop count (any echo)">
-            <option value="any" selected>Any hops</option>
-            <option value="0">0 hops</option>
-            <option value="1">1 hop</option>
-            <option value="2">2 hops</option>
-            <option value="3">3 hops</option>
-            <option value="4+">4+ hops</option>
-        </select>
-        <select id="paHashSizeFilter" class="form-select form-select-sm" style="width: auto;"
-                title="Filter by path hash size (bytes per hop, any routed echo)">
-            <option value="any" selected>Any HB</option>
-            <option value="1">1-byte</option>
-            <option value="2">2-byte</option>
-            <option value="3">3-byte</option>
-            <option value="2,3">2/3-byte</option>
-        </select>
-        <input id="paTokenFilter" type="text" class="form-control form-control-sm" style="width: 10.5rem;"
-               placeholder="Repeater (3B or name)"
-               title="Match a repeater anywhere in a path: hash prefix (hex) or contact name">
-        <input id="paSenderFilter" type="text" class="form-control form-control-sm" style="width: 9.5rem;"
-               placeholder="Sender" title="Filter by sender name">
-        <input id="paContentFilter" type="text" class="form-control form-control-sm" style="width: 11rem;"
-               placeholder="Message text" title="Filter by message content">
-        <button id="paClearFiltersBtn" class="btn btn-sm btn-outline-secondary d-none" title="Clear filters">
-            <i class="bi bi-x-lg"></i> Clear
-        </button>
+        <div id="paFiltersPanel" class="pa-filters collapse">
+            <div class="vr d-none d-sm-block"></div>
+            <label for="paDaysSelect" class="form-label mb-0 small text-muted">Time range:</label>
+            <select id="paDaysSelect" class="form-select form-select-sm" style="width: auto;">
+                <option value="1">Last 1 day</option>
+                <option value="3" selected>Last 3 days</option>
+                <option value="5">Last 5 days</option>
+                <option value="7">Last 7 days</option>
+            </select>
+            <button id="paRefreshBtn" class="btn btn-sm btn-outline-secondary" title="Reload">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <div class="vr d-none d-sm-block"></div>
+            <select id="paHopsFilter" class="form-select form-select-sm" style="width: auto;" title="Filter by hop count (any echo)">
+                <option value="any" selected>Any hops</option>
+                <option value="0">0 hops</option>
+                <option value="1">1 hop</option>
+                <option value="2">2 hops</option>
+                <option value="3">3 hops</option>
+                <option value="4+">4+ hops</option>
+            </select>
+            <select id="paHashSizeFilter" class="form-select form-select-sm" style="width: auto;"
+                    title="Filter by path hash size (bytes per hop, any routed echo)">
+                <option value="any" selected>Any HB</option>
+                <option value="1">1-byte</option>
+                <option value="2">2-byte</option>
+                <option value="3">3-byte</option>
+                <option value="2,3">2/3-byte</option>
+            </select>
+            <input id="paTokenFilter" type="text" class="form-control form-control-sm" style="width: 10.5rem;"
+                   placeholder="Repeater (3B or name)"
+                   title="Match a repeater anywhere in a path: hash prefix (hex) or contact name">
+            <input id="paSenderFilter" type="text" class="form-control form-control-sm" style="width: 9.5rem;"
+                   placeholder="Sender" title="Filter by sender name">
+            <input id="paContentFilter" type="text" class="form-control form-control-sm" style="width: 11rem;"
+                   placeholder="Message text" title="Filter by message content">
+            <button id="paClearFiltersBtn" class="btn btn-sm btn-outline-secondary d-none" title="Clear filters">
+                <i class="bi bi-x-lg"></i> Clear
+            </button>
+        </div>
         <span id="paCounter" class="small text-muted ms-auto"></span>
     </div>
 
