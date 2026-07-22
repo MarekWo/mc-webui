@@ -557,6 +557,7 @@ Click a repeater row to log in. The first time, you are asked for the repeater p
 
 - The repeater decides your role from the password: **ADMIN** (full access) or **GUEST** (read-only: Status, Telemetry, Neighbors).
 - **Important:** a wrong password and an unreachable repeater look identical — MeshCore repeaters simply never answer a bad login. When a login times out, check reachability first (is the repeater several flood hops away?) before assuming the password is wrong.
+- Because of that ambiguity, when a one-click login fails the retry prompt comes back with your **saved password already filled in** — a failure is far more often a flaky connection than a wrong password, so you can just retry without retyping it.
 - Logins can take up to a minute on flood paths. Pinning a direct path (below) makes them much faster.
 
 ### Row Actions
@@ -599,6 +600,7 @@ Repeater configuration organized into collapsible sections: **Basic** (name, adm
 - Changed fields are highlighted and counted on the Apply button; only those fields are sent
 - Every field reports back individually: a green check (applied), a **reboot required** badge (stored, takes effect after a reboot — radio parameters work this way), or a red error showing the repeater's own reply (e.g. an out-of-range value). Failed fields stay marked so you can correct and re-apply
 - Changing radio parameters asks for confirmation first — wrong values can make the repeater unreachable over the mesh
+- The **Location** section has a **Pick from map** button (enabled once the section has loaded): it opens a map, and clicking a point fills the latitude and longitude fields for you and marks the section changed, ready to Apply — handy when you know where the repeater is but not its exact coordinates
 - The admin password is write-only (the current one is never displayed). After a successful change, the password saved in mc-webui is updated automatically so one-click login keeps working. Changing it does **not** log out sessions that are already active
 
 #### Actions (admin only)
@@ -626,15 +628,15 @@ Pick a time range at the top (last 1, 3, 5, or 7 days) — the tool loads every 
 
 ### Filters
 
-The filter bar applies to all three views at once and updates as you type:
+The filter bar applies to all four views at once and updates as you type:
 
 - **Hops** - Only messages that arrived over exactly that many hops (0 = heard directly, 4+ = long routes). A message matches when *any* of its echoes has that hop count
 - **HB (path hash size)** - Only messages whose route was recorded with 1-, 2-, or 3-byte repeater hashes; a combined **2/3-byte** option covers both larger sizes at once
-- **Repeater** - Type a repeater hash (e.g. `3B`) or part of a repeater's **name** (e.g. `wegrzce`); matches messages whose route passed through it. Note that with short 1-byte hashes two repeaters can share a hash, so a name search includes routes where the named repeater *might* be one of the candidates
+- **Repeater** - Type a repeater hash (e.g. `3B`) or part of a repeater's **name** (e.g. `wegrzce`); matches messages whose route passed through it. Chain several with `>` (e.g. `AFE6>6E9A` or `barbarka>wegrzce`) to match a route that passed through them **in that order, consecutively** — mixing hashes and names is fine. Note that with short 1-byte hashes two repeaters can share a hash, so a name search includes routes where the named repeater *might* be one of the candidates
 - **Sender** - Part of the sender's name
 - **Message text** - Part of the message content
 
-A counter shows how much of the data set matches ("38 of 412 messages"), and **Clear** resets everything.
+A counter shows how much of the data set matches ("38 of 412 messages"), and **Clear** resets everything. On phones the whole filter bar collapses behind a **Filters** button (with a badge counting the filters you have set) so the results get the full screen — the view switcher and match counter stay visible.
 
 ### Messages view
 
@@ -658,16 +660,27 @@ Per-repeater statistics computed from the currently filtered messages:
 
 Columns are sortable, and the **Contact** column matches each hash to your contact list (showing "ambiguous (n)" when several contacts share a short hash). Click any row to jump back to the Messages view filtered to that repeater.
 
+### Routes view
+
+Where the Repeaters view counts single hops, the Routes view counts **sequences** of consecutive hops — so you can see which stretches of the mesh carry the most traffic to you, wherever they sit in a route. Pick a **Segment length** (2, 3, or 4 hops) and the table lists every such sequence found across the filtered messages:
+
+- **Route** - The hop sequence (e.g. `AFE6 → 6E9A`), with the matching contact names underneath
+- **Echoes** - How many overheard copies contained this exact sequence
+- **Messages** - How many distinct messages that was
+- **As path end** - How often the sequence was the *end* of a route — i.e. the final stretch that actually reached your node. Sort by this to see which approaches deliver to you most often
+
+Columns are sortable (echo count first by default). Click any row to jump to the Messages view filtered to that sequence.
+
 ### Map view
 
-Repeaters from your contact list that have a position are plotted as dots. Pick a message in the side list (it shows sender, time, and the message text), then pick one of its routes — the path is drawn hop by hop:
+Repeaters from your contact list that have a position are plotted as dots. Pick a message in the side list — each tile shows the sender, the channel it came from (dimmed, next to the sender), the time, and the message text. Its **shortest** route is drawn automatically the moment you pick the message, so you see a path with one tap; pick a different route from the list to redraw. The path is drawn hop by hop:
 
 - Hops that resolve to exactly one known repeater become red numbered points (the number matches the legend order) labeled with the repeater's name, connected by a red line — clearly distinct from the purple background dots of uninvolved repeaters
 - When a short hash matches several contacts, all candidates are marked in amber and the legend lists them — tap the right one and the path redraws with your choice. Assignments are reversible: an undo icon next to a manually assigned hop reverts just that hop, and **Reset picks** clears every manual assignment on the current path
 - Unknown hops (no matching contact, or no position) are listed in the legend and the line is drawn dashed across the gap, so you can see which parts of the route are certain
 - If the sender is in your contacts with a position, it is added as a green origin point
 
-The eraser button clears the drawn path. On phones the message list moves above the map.
+The eraser button clears the drawn path. On phones the map takes a fixed share of the screen (about 45%) and the message list gets the rest, so scrolling through routes is comfortable.
 
 Everything in the Path Analyzer is based on what **your node** overheard — it's a local view of the mesh, not a global one. A route you don't see here may still exist; it just never reached your radio.
 
