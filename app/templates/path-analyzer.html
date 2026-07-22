@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Path Analyzer - mc-webui</title>
+
+    <!-- Theme: apply saved preference before CSS loads to prevent flash -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('mc-webui-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-bs-theme', t);
+        })();
+    </script>
+
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/favicon-16x16.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <!-- Bootstrap 5 CSS (local) -->
+    <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+    <!-- Bootstrap Icons (local) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+    <!-- Leaflet CSS (for the map view, stage 5) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Theme CSS (light/dark mode) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+
+    <style>
+        /* Standalone page: allow normal scrolling (style.css sets overflow hidden) */
+        html, body {
+            overflow: auto !important;
+            height: 100%;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+        }
+
+        .pa-toolbar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        /* Collapsible filter group. On >=768px it renders as if its children
+           sat directly in the toolbar (display: contents), so the desktop
+           layout is unchanged and the collapse state is ignored. Below 768px
+           it is a Bootstrap collapse spanning the full toolbar width,
+           toggled by the Filters button. Keep these rules on the class (not
+           the #id) so Bootstrap's .collapse:not(.show) still wins. */
+        .pa-filters {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        @media (min-width: 768px) {
+            .pa-filters {
+                display: contents !important;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            .pa-filters {
+                width: 100%;
+                order: 10; /* keep the counter on the first toolbar line */
+            }
+
+            .pa-filters input.form-control {
+                flex: 1 1 42%;
+                width: auto !important;
+                min-width: 0;
+            }
+        }
+
+        .pa-content {
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 0.75rem 1rem;
+        }
+
+        #paMapWrap {
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        #paMapSidebar {
+            width: 340px;
+            min-width: 280px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        #paMap {
+            flex: 1 1 0;
+            min-height: 300px;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        @media (max-width: 768px) {
+            #paMapWrap {
+                flex-direction: column;
+            }
+
+            /* Message/path list gets the remaining space, the map keeps a
+               fixed ~45% of the viewport height */
+            #paMapSidebar {
+                width: auto;
+                min-width: 0;
+                max-height: none;
+                flex: 1 1 0;
+                min-height: 0;
+            }
+
+            #paMap {
+                flex: 0 0 45vh;
+                min-height: 0;
+            }
+        }
+
+        .pa-map-msg {
+            border: 1px solid var(--border-color);
+            border-radius: 0.4rem;
+            padding: 0.4rem 0.6rem;
+            margin-bottom: 0.4rem;
+            cursor: pointer;
+            font-size: 0.82rem;
+        }
+
+        .pa-map-msg:hover {
+            background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+        }
+
+        .pa-map-msg.pa-selected {
+            border-color: #6f42c1;
+        }
+
+        .pa-map-echo {
+            border-top: 1px dashed var(--border-color);
+            margin-top: 0.35rem;
+            padding: 0.25rem 0.15rem 0;
+            cursor: pointer;
+            font-size: 0.78rem;
+        }
+
+        .pa-map-echo:hover {
+            background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+        }
+
+        .pa-map-echo.pa-selected {
+            color: #6f42c1;
+            font-weight: 600;
+        }
+
+        .pa-legend {
+            margin-top: 0.4rem;
+            padding: 0.4rem 0.5rem;
+            background-color: var(--bg-surface, rgba(0, 0, 0, 0.03));
+            border-radius: 0.4rem;
+            font-size: 0.78rem;
+        }
+
+        .pa-legend-hop {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+            padding: 0.15rem 0;
+        }
+
+        .pa-pick-chip {
+            border: 1px solid #d39e00;
+            color: #b58900;
+            border-radius: 0.25rem;
+            padding: 0 0.3rem;
+            cursor: pointer;
+            font-size: 0.72rem;
+        }
+
+        .pa-pick-chip:hover,
+        .pa-pick-chip.pa-picked {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .pa-unpick {
+            cursor: pointer;
+            color: var(--text-secondary, #6c757d);
+        }
+
+        .pa-unpick:hover {
+            color: #dc3545;
+        }
+
+        .pa-reset-picks {
+            font-size: 0.72rem;
+        }
+
+        /* Numbered hop markers + name labels on the drawn path */
+        .pa-hop-badge {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background-color: #dc3545;
+            color: #fff;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .pa-hop-label {
+            font-size: 0.7rem;
+            padding: 0 4px;
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            box-shadow: none;
+        }
+
+        /* Packet hash inside the expanded detail row - narrow screens only,
+           where the Hash column is hidden */
+        .pa-detail-hash {
+            display: none;
+            font-size: 0.75rem;
+            padding-bottom: 0.2rem;
+        }
+
+        .pa-time-short {
+            display: none;
+        }
+
+        .pa-table-wrap {
+            overflow-x: auto;
+        }
+
+        .pa-table {
+            font-size: 0.85rem;
+        }
+
+        .pa-table th {
+            white-space: nowrap;
+        }
+
+        .pa-table td {
+            vertical-align: middle;
+        }
+
+        .pa-hash {
+            font-family: var(--bs-font-monospace, monospace);
+            font-size: 0.8rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .pa-hash:hover {
+            text-decoration: underline;
+        }
+
+        .pa-content-preview {
+            max-width: 22rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pa-time {
+            white-space: nowrap;
+        }
+
+        .pa-caret {
+            display: inline-block;
+            transition: transform 0.15s;
+            font-size: 0.7rem;
+            width: 1rem;
+        }
+
+        tr.pa-open .pa-caret {
+            transform: rotate(90deg);
+        }
+
+        .pa-msg-row {
+            cursor: pointer;
+        }
+
+        .pa-msg-row.pa-no-echoes {
+            cursor: default;
+        }
+
+        .pa-msg-row.pa-no-echoes .pa-caret {
+            visibility: hidden;
+        }
+
+        .pa-echo-cell {
+            background-color: var(--bg-surface, rgba(0, 0, 0, 0.03));
+            padding: 0.35rem 0.75rem 0.35rem 2rem;
+        }
+
+        .pa-echo-line {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            padding: 0.2rem 0;
+            cursor: pointer;
+            border-radius: 0.25rem;
+        }
+
+        .pa-echo-line:hover {
+            background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+        }
+
+        .pa-echo-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary, #6c757d);
+            white-space: nowrap;
+        }
+
+        .pa-chip {
+            font-family: var(--bs-font-monospace, monospace);
+            font-size: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.25rem;
+            padding: 0.05rem 0.35rem;
+            cursor: pointer;
+            background-color: var(--card-bg, transparent);
+        }
+
+        .pa-chip:hover {
+            background-color: #6f42c1;
+            border-color: #6f42c1;
+            color: #fff;
+        }
+
+        .pa-chip-arrow {
+            font-size: 0.7rem;
+            color: var(--text-secondary, #6c757d);
+        }
+
+        .pa-echo-mapbtn {
+            cursor: pointer;
+            padding: 0 0.3rem;
+            color: var(--text-secondary, #6c757d);
+        }
+
+        .pa-echo-mapbtn:hover {
+            color: #6f42c1;
+        }
+
+        .pa-map-msg-chan {
+            font-size: 0.72rem;
+            color: var(--text-secondary, #6c757d);
+            white-space: nowrap;
+        }
+
+        .pa-map-msg-preview {
+            font-size: 0.75rem;
+            color: var(--text-secondary, #6c757d);
+            margin-top: 0.1rem;
+        }
+
+        .pa-direct {
+            font-size: 0.75rem;
+            font-style: italic;
+            color: var(--text-secondary, #6c757d);
+        }
+
+        .pa-sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .pa-sortable:hover {
+            text-decoration: underline;
+        }
+
+        .pa-stats-row {
+            cursor: pointer;
+        }
+
+        .pa-ambiguous {
+            color: var(--text-secondary, #6c757d);
+            font-style: italic;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-secondary, #6c757d);
+            padding: 3rem 1rem;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Narrow screens: drop secondary columns so rows fit the viewport
+           and echo paths can wrap (keeps the jump-to-map button reachable).
+           Hash and HB move into the expanded detail row. Must stay LAST in
+           this stylesheet so it overrides the base rules above. */
+        @media (max-width: 576px) {
+            .pa-col-hash,
+            .pa-col-hb,
+            .pa-col-msgs,
+            .pa-col-lasthop {
+                display: none;
+            }
+
+            .pa-content-preview {
+                max-width: 9rem;
+            }
+
+            .pa-time-full {
+                display: none;
+            }
+
+            .pa-time-short {
+                display: inline;
+            }
+
+            .pa-detail-hash {
+                display: block;
+            }
+
+            .pa-echo-cell {
+                padding-left: 0.75rem;
+            }
+
+            /* Long contact names must not push the SNR column off-screen */
+            #paStatsBody td:nth-child(2) {
+                max-width: 8rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .pa-col-echoes {
+                display: none;
+            }
+
+            .pa-table td,
+            .pa-table th {
+                padding: 0.3rem 0.2rem;
+            }
+
+            /* Truncate long channel names */
+            #paTableBody td:nth-child(3) {
+                max-width: 3.8rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            /* Let long headers (Avg SNR...) wrap instead of widening columns */
+            .pa-table th {
+                white-space: normal;
+            }
+
+            /* Truncate long sender names */
+            #paTableBody td:nth-child(4) {
+                max-width: 5.5rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .pa-content-preview {
+                max-width: 5.2rem;
+            }
+
+            /* Date and time stack into two lines */
+            .pa-time {
+                white-space: normal;
+            }
+
+            .pa-time-short {
+                display: inline-block;
+                width: 3.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Toolbar -->
+    <div class="pa-toolbar">
+        <div class="btn-group btn-group-sm" role="group" aria-label="View">
+            <button id="paViewMessagesBtn" class="btn btn-primary" title="Message list">
+                <i class="bi bi-list-ul"></i><span class="d-none d-sm-inline"> Messages</span>
+            </button>
+            <button id="paViewStatsBtn" class="btn btn-outline-primary" title="Per-repeater statistics">
+                <i class="bi bi-bar-chart"></i><span class="d-none d-sm-inline"> Repeaters</span>
+            </button>
+            <button id="paViewRoutesBtn" class="btn btn-outline-primary" title="Route segment statistics">
+                <i class="bi bi-signpost-2"></i><span class="d-none d-sm-inline"> Routes</span>
+            </button>
+            <button id="paViewMapBtn" class="btn btn-outline-primary" title="Map view">
+                <i class="bi bi-map"></i><span class="d-none d-sm-inline"> Map</span>
+            </button>
+        </div>
+        <button id="paFiltersToggleBtn" class="btn btn-sm btn-outline-secondary d-md-none" type="button"
+                data-bs-toggle="collapse" data-bs-target="#paFiltersPanel"
+                aria-expanded="false" aria-controls="paFiltersPanel" title="Show/hide filters">
+            <i class="bi bi-funnel"></i> Filters
+            <span id="paFiltersBadge" class="badge text-bg-primary d-none"></span>
+        </button>
+        <div id="paFiltersPanel" class="pa-filters collapse">
+            <div class="vr d-none d-sm-block"></div>
+            <label for="paDaysSelect" class="form-label mb-0 small text-muted">Time range:</label>
+            <select id="paDaysSelect" class="form-select form-select-sm" style="width: auto;">
+                <option value="1">Last 1 day</option>
+                <option value="3" selected>Last 3 days</option>
+                <option value="5">Last 5 days</option>
+                <option value="7">Last 7 days</option>
+            </select>
+            <button id="paRefreshBtn" class="btn btn-sm btn-outline-secondary" title="Reload">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <div class="vr d-none d-sm-block"></div>
+            <select id="paHopsFilter" class="form-select form-select-sm" style="width: auto;" title="Filter by hop count (any echo)">
+                <option value="any" selected>Any hops</option>
+                <option value="0">0 hops</option>
+                <option value="1">1 hop</option>
+                <option value="2">2 hops</option>
+                <option value="3">3 hops</option>
+                <option value="4+">4+ hops</option>
+            </select>
+            <select id="paHashSizeFilter" class="form-select form-select-sm" style="width: auto;"
+                    title="Filter by path hash size (bytes per hop, any routed echo)">
+                <option value="any" selected>Any HB</option>
+                <option value="1">1-byte</option>
+                <option value="2">2-byte</option>
+                <option value="3">3-byte</option>
+                <option value="2,3">2/3-byte</option>
+            </select>
+            <input id="paTokenFilter" type="text" class="form-control form-control-sm" style="width: 10.5rem;"
+                   placeholder="Repeater (3B or name)"
+                   title="Match a repeater anywhere in a path: hash prefix (hex) or contact name. Chain with '>' for a consecutive sequence, e.g. AFE6>6E9A">
+            <input id="paSenderFilter" type="text" class="form-control form-control-sm" style="width: 9.5rem;"
+                   placeholder="Sender" title="Filter by sender name">
+            <input id="paContentFilter" type="text" class="form-control form-control-sm" style="width: 11rem;"
+                   placeholder="Message text" title="Filter by message content">
+            <button id="paClearFiltersBtn" class="btn btn-sm btn-outline-secondary d-none" title="Clear filters">
+                <i class="bi bi-x-lg"></i> Clear
+            </button>
+        </div>
+        <span id="paCounter" class="small text-muted ms-auto"></span>
+    </div>
+
+    <!-- Content -->
+    <div class="pa-content">
+        <div id="paLoading" class="empty-state">
+            <div class="spinner-border text-secondary" role="status"></div>
+            <div class="mt-2">Loading messages…</div>
+        </div>
+        <div id="paEmpty" class="empty-state d-none">
+            <i class="bi bi-signpost-split"></i>
+            <span id="paEmptyText">No messages in the selected time range.</span>
+        </div>
+        <div id="paTableWrap" class="pa-table-wrap d-none">
+            <table class="table table-hover pa-table mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 1.5rem;"></th>
+                        <th>Time</th>
+                        <th>Channel</th>
+                        <th>Sender</th>
+                        <th>Message</th>
+                        <th class="pa-col-hash">Hash</th>
+                        <th class="text-end">Hops</th>
+                        <th class="text-end pa-col-hb" title="Path hash size in bytes per hop (from routed echoes)">HB</th>
+                        <th class="text-end pa-col-echoes">Echoes</th>
+                    </tr>
+                </thead>
+                <tbody id="paTableBody"></tbody>
+            </table>
+        </div>
+        <div id="paStatsWrap" class="pa-table-wrap d-none">
+            <table class="table table-hover pa-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Repeater</th>
+                        <th>Contact</th>
+                        <th class="text-end pa-sortable" data-sort="relayed"
+                            title="Echoes whose path contains this hash (anywhere)">Relayed</th>
+                        <th class="text-end pa-sortable pa-col-msgs" data-sort="messages"
+                            title="Distinct messages relayed through this hash">Messages</th>
+                        <th class="text-end pa-sortable pa-col-lasthop" data-sort="lastHop"
+                            title="Echoes where this hash is the final hop (heard directly by us)">As last hop</th>
+                        <th class="text-end pa-sortable" data-sort="avgSnr"
+                            title="Average echo SNR, counted only when this hash is the final hop - SNR is measured at our receiver for the last hop">Avg SNR (last hop)</th>
+                    </tr>
+                </thead>
+                <tbody id="paStatsBody"></tbody>
+            </table>
+        </div>
+        <div id="paRoutesWrap" class="d-none">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <label for="paSegLenSelect" class="form-label small text-muted mb-0">Segment length:</label>
+                <select id="paSegLenSelect" class="form-select form-select-sm" style="width: auto;"
+                        title="Number of consecutive hops per counted segment">
+                    <option value="2" selected>2 hops</option>
+                    <option value="3">3 hops</option>
+                    <option value="4">4 hops</option>
+                </select>
+            </div>
+            <div class="pa-table-wrap">
+                <table class="table table-hover pa-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Route</th>
+                            <th class="text-end pa-sortable" data-sort="echoes"
+                                title="Echoes whose path contains this segment (anywhere)">Echoes</th>
+                            <th class="text-end pa-sortable pa-col-msgs" data-sort="messages"
+                                title="Distinct messages whose path contains this segment">Messages</th>
+                            <th class="text-end pa-sortable" data-sort="pathEnd"
+                                title="Echoes where this segment is the end of the path - the route the message took to reach us">As path end</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paRoutesBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div id="paMapWrap" class="d-none">
+            <div id="paMapSidebar">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="small text-muted">Click a message, then an echo to draw its path.</span>
+                    <button id="paMapClearBtn" class="btn btn-sm btn-outline-secondary d-none" title="Clear drawn path">
+                        <i class="bi bi-eraser"></i>
+                    </button>
+                </div>
+                <div id="paMapMsgList"></div>
+            </div>
+            <div id="paMap"></div>
+        </div>
+    </div>
+
+    <!-- Toast container for notifications (position applied by JS from ui_settings) -->
+    <div class="toast-container position-fixed top-0 start-0 p-3" data-toast-container>
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">Path Analyzer</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle (local) -->
+    <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <!-- Leaflet JS (for the map view, stage 5) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <!-- Path Analyzer JS -->
+    <script src="{{ url_for('static', filename='js/path-analyzer.js') }}"></script>
+</body>
+</html>

@@ -390,6 +390,57 @@ def save_ui_settings(settings: dict) -> bool:
         return False
 
 
+def _build_channel_secrets(db) -> dict:
+    """Build {channel_idx: secret_hex} lookup for pkt_payload computation.
+
+    Uses DB channels (fast) instead of get_channels_cached() which can block
+    on device communication when cache is cold."""
+    channel_secrets = {}
+    for ch_info in (db.get_channels() if db else []):
+        ch_key = ch_info.get('secret', ch_info.get('key', ''))
+        ch_idx = ch_info.get('idx', ch_info.get('index'))
+        if ch_key and ch_idx is not None:
+            channel_secrets[ch_idx] = ch_key
+    return channel_secrets
+
+
+def _get_row_pkt_payload(row: dict, channel_secrets: dict):
+    """Return pkt_payload for a channel message row, computing it when not
+    stored (v2: meshcore doesn't provide it). Returns None when it cannot
+    be computed (legacy row or missing channel secret)."""
+    pkt_payload = row.get('pkt_payload')
+    if pkt_payload:
+        return pkt_payload
+
+    ch_idx = row.get('channel_idx', 0)
+    sender_ts = row.get('sender_timestamp')
+    txt_type = row.get('txt_type', 0)
+    if not sender_ts or ch_idx not in channel_secrets:
+        return None
+
+    # Use original text from raw_json (preserves trailing whitespace)
+    raw_text = None
+    raw_json_str = row.get('raw_json')
+    if raw_json_str:
+        try:
+            raw_text = json.loads(raw_json_str).get('text')
+        except (json.JSONDecodeError, TypeError):
+            pass
+    # Fallback: reconstruct from sender + content
+    if not raw_text:
+        is_own = bool(row.get('is_own', 0))
+        if is_own:
+            device_name = runtime_config.get_device_name() or ''
+            raw_text = f"{device_name}: {row.get('content', '')}" if device_name else row.get('content', '')
+        else:
+            sender = row.get('sender', '')
+            raw_text = f"{sender}: {row.get('content', '')}" if sender else row.get('content', '')
+
+    return compute_pkt_payload(
+        channel_secrets[ch_idx], sender_ts, txt_type, raw_text
+    )
+
+
 @api_bp.route('/messages', methods=['GET'])
 def get_messages():
     """
@@ -441,47 +492,15 @@ def get_messages():
                     days=days,
                 )
 
-            # Build channel secret lookup for pkt_payload computation
-            # Use DB channels (fast) instead of get_channels_cached() which
-            # can block on device communication when cache is cold
-            channel_secrets = {}
-            db_channels = db.get_channels() if db else []
-            for ch_info in db_channels:
-                ch_key = ch_info.get('secret', ch_info.get('key', ''))
-                ch_idx = ch_info.get('idx', ch_info.get('index'))
-                if ch_key and ch_idx is not None:
-                    channel_secrets[ch_idx] = ch_key
+            channel_secrets = _build_channel_secrets(db)
 
             # Convert DB rows to frontend-compatible format
             messages = []
             for row in db_messages:
-                pkt_payload = row.get('pkt_payload')
                 ch_idx = row.get('channel_idx', 0)
                 sender_ts = row.get('sender_timestamp')
                 txt_type = row.get('txt_type', 0)
-
-                # Compute pkt_payload if not stored (v2: meshcore doesn't provide it)
-                if not pkt_payload and sender_ts and ch_idx in channel_secrets:
-                    # Use original text from raw_json (preserves trailing whitespace)
-                    raw_text = None
-                    raw_json_str = row.get('raw_json')
-                    if raw_json_str:
-                        try:
-                            raw_text = json.loads(raw_json_str).get('text')
-                        except (json.JSONDecodeError, TypeError):
-                            pass
-                    # Fallback: reconstruct from sender + content
-                    if not raw_text:
-                        is_own = bool(row.get('is_own', 0))
-                        if is_own:
-                            device_name = runtime_config.get_device_name() or ''
-                            raw_text = f"{device_name}: {row.get('content', '')}" if device_name else row.get('content', '')
-                        else:
-                            sender = row.get('sender', '')
-                            raw_text = f"{sender}: {row.get('content', '')}" if sender else row.get('content', '')
-                    pkt_payload = compute_pkt_payload(
-                        channel_secrets[ch_idx], sender_ts, txt_type, raw_text
-                    )
+                pkt_payload = _get_row_pkt_payload(row, channel_secrets)
 
                 # Decode path_len into hop_count and path_hash_size
                 path_len_raw = row.get('path_len')
@@ -508,17 +527,22 @@ def get_messages():
                     'pkt_payload': pkt_payload,
                 }
 
-                # Enrich with echo data and packet hash (frontend builds analyzer URL)
                 if pkt_payload:
                     msg['packet_hash'] = compute_packet_hash(pkt_payload)
-                    echoes = db.get_echoes_for_message(pkt_payload)
-                    if echoes:
-                        msg['echo_count'] = len(echoes)
-                        msg['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
-                        msg['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
-                        msg['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
 
                 messages.append(msg)
+
+            # Enrich with echo data in one batch query (per-message queries are
+            # prohibitively slow on connection-per-call over bind mounts)
+            payloads = [m['pkt_payload'] for m in messages if m.get('pkt_payload')]
+            echoes_by_payload = db.get_echoes_for_payloads(payloads)
+            for msg in messages:
+                echoes = echoes_by_payload.get(msg.get('pkt_payload'))
+                if echoes:
+                    msg['echo_count'] = len(echoes)
+                    msg['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
+                    msg['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
+                    msg['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
 
             # Filter out blocked contacts' messages
             blocked_names = db.get_blocked_contact_names()
@@ -548,6 +572,103 @@ def get_messages():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@api_bp.route('/path-analyzer/messages', methods=['GET'])
+def get_path_analyzer_messages():
+    """
+    Bulk channel messages across ALL channels with batched echo data.
+
+    Used by the Path Analyzer panel. Unlike /api/messages this returns all
+    channels at once and fetches echoes in chunked batch queries instead of
+    one query per message.
+
+    Query parameters:
+        days (int): Time window in days (default 3, clamped to 1..30)
+
+    Returns:
+        JSON with messages list; each message carries an echoes[] array of
+        {path, snr, hash_size, direction, received_at}. Messages whose
+        pkt_payload cannot be computed (legacy rows, missing channel secret)
+        are returned with packet_hash null and empty echoes.
+        RSSI is not included — it is not persisted for channel messages;
+        it would require an Observer-backed capture store (future work).
+    """
+    try:
+        days = request.args.get('days', default=3, type=int)
+        days = max(1, min(days, 30))
+
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+
+        db_messages = db.get_channel_messages(channel_idx=None, limit=None, days=days)
+
+        channel_secrets = _build_channel_secrets(db)
+        channel_names = {
+            ch.get('idx'): ch.get('name', '')
+            for ch in db.get_channels()
+        }
+        blocked_names = db.get_blocked_contact_names()
+
+        # First pass: compute payloads so echoes can be fetched in one batch
+        prepared = []
+        payloads = []
+        for row in db_messages:
+            if blocked_names and row.get('sender', '') in blocked_names:
+                continue
+            pkt_payload = _get_row_pkt_payload(row, channel_secrets)
+            if pkt_payload:
+                payloads.append(pkt_payload)
+            prepared.append((row, pkt_payload))
+
+        echoes_by_payload = db.get_echoes_for_payloads(payloads)
+
+        messages = []
+        for row, pkt_payload in prepared:
+            path_len_raw = row.get('path_len')
+            hop_count = None
+            path_hash_size = 1
+            if path_len_raw is not None:
+                hop_count, path_hash_size, _ = decode_path_len(path_len_raw)
+
+            ch_idx = row.get('channel_idx', 0)
+            messages.append({
+                'id': row.get('id'),
+                'channel_idx': ch_idx,
+                'channel_name': channel_names.get(ch_idx, ''),
+                'sender': row.get('sender', ''),
+                'content': row.get('content', ''),
+                'timestamp': row.get('timestamp', 0),
+                'datetime': datetime.fromtimestamp(row['timestamp']).isoformat() if row.get('timestamp') else None,
+                'is_own': bool(row.get('is_own', 0)),
+                'snr': row.get('snr'),
+                'hop_count': hop_count,
+                'path_hash_size': path_hash_size,
+                'packet_hash': compute_packet_hash(pkt_payload) if pkt_payload else None,
+                'pkt_payload': pkt_payload,
+                'echoes': [
+                    {
+                        'path': e.get('path', ''),
+                        'snr': e.get('snr'),
+                        'hash_size': e.get('hash_size', 1),
+                        'direction': e.get('direction', 'incoming'),
+                        'received_at': e.get('received_at'),
+                    }
+                    for e in echoes_by_payload.get(pkt_payload, [])
+                ] if pkt_payload else [],
+            })
+
+        return jsonify({
+            'success': True,
+            'count': len(messages),
+            'days': days,
+            'messages': messages,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching path analyzer messages: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @api_bp.route('/messages/<int:msg_id>/meta', methods=['GET'])
@@ -6272,6 +6393,28 @@ def delete_my_repeater(public_key):
     except Exception as e:
         logger.error(f"Error deleting repeater: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/repeaters/<public_key>/password', methods=['GET'])
+def get_my_repeater_password(public_key):
+    """Return the saved password for a repeater (empty string when none).
+
+    Used to prefill the login-retry prompt: a wrong stored password and an
+    unreachable repeater are indistinguishable, so on a failed auto-login we
+    hand the (correct) saved password back to the same trusted local UI rather
+    than force the user to retype it. Passwords are already stored so the app
+    can log in on the user's behalf, so this stays within the local-app scope.
+    """
+    db = _get_db()
+    if not db:
+        return jsonify({'success': False, 'error': 'Database not available'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    row = db.get_repeater(pk)
+    if not row:
+        return jsonify({'success': False, 'error': 'Repeater not in list'}), 404
+    return jsonify({'success': True, 'password': row.get('password') or ''}), 200
 
 
 @api_bp.route('/repeaters/<public_key>/login', methods=['POST'])

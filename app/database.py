@@ -1120,6 +1120,27 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def get_echoes_for_payloads(self, payloads: List[str]) -> Dict[str, List[Dict]]:
+        """Batch-fetch echoes for many pkt_payloads with chunked IN queries.
+
+        Returns {pkt_payload: [echo dicts ordered by received_at]}.
+        Chunked at 500 to stay under SQLite's host-parameter limit."""
+        result: Dict[str, List[Dict]] = {}
+        if not payloads:
+            return result
+        with self._connect() as conn:
+            for i in range(0, len(payloads), 500):
+                chunk = payloads[i:i + 500]
+                placeholders = ",".join("?" * len(chunk))
+                rows = conn.execute(
+                    f"""SELECT * FROM echoes WHERE pkt_payload IN ({placeholders})
+                        ORDER BY received_at ASC""",
+                    chunk
+                ).fetchall()
+                for r in rows:
+                    result.setdefault(r['pkt_payload'], []).append(dict(r))
+        return result
+
     def update_message_pkt_payload(self, msg_id: int, pkt_payload: str) -> None:
         """Set pkt_payload on a channel message (used for sent message echo correlation)."""
         with self._connect() as conn:

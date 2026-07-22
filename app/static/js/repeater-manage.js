@@ -1130,6 +1130,11 @@ function renderSettingsPane(body) {
                         <i class="bi bi-arrow-clockwise me-1"></i>Some changes take effect after a reboot — use Actions → Reboot.
                     </div>
                     <div class="sec-fields">${sec.fields.map(settingsFieldHtml).join('')}</div>
+                    ${sec.key === 'location' ? `
+                    <button type="button" class="btn btn-sm btn-outline-primary sec-map-pick" disabled
+                            title="Refresh the section first, then pick a point">
+                        <i class="bi bi-geo-alt"></i> Pick from map
+                    </button>` : ''}
                     <div class="d-flex align-items-center gap-2 mt-3">
                         <button type="button" class="btn btn-sm btn-outline-secondary sec-refresh">
                             <i class="bi bi-arrow-clockwise"></i> Refresh
@@ -1159,6 +1164,8 @@ function renderSettingsPane(body) {
         });
         item.querySelector('.sec-refresh').addEventListener('click', () => loadSettingsSection(sec.key));
         item.querySelector('.sec-apply').addEventListener('click', () => applySettingsSection(sec.key));
+        const mapPickBtn = item.querySelector('.sec-map-pick');
+        if (mapPickBtn) mapPickBtn.addEventListener('click', openLocationMapPicker);
         item.querySelectorAll('.sf-input, .sf-sub').forEach(inp => {
             const evt = (inp.type === 'checkbox' || inp.tagName === 'SELECT') ? 'change' : 'input';
             inp.addEventListener(evt, () => updateSectionDirty(sec.key));
@@ -1288,6 +1295,8 @@ async function loadSettingsSection(secKey) {
         'Reading from repeater… (one mesh round-trip per field)';
     item.querySelector('.sec-refresh').disabled = true;
     item.querySelector('.sec-apply').disabled = true;
+    const mapPickBtn = item.querySelector('.sec-map-pick');
+    if (mapPickBtn) mapPickBtn.disabled = true;
     sec.fields.forEach(f => {
         if (f.writeOnly) return;
         setFieldBadge(item, f.key, 'clear');
@@ -1332,6 +1341,7 @@ async function loadSettingsSection(secKey) {
             setFieldBadge(item, f.key, 'error', errors[f.key] || 'Failed to read');
         }
     });
+    if (mapPickBtn) mapPickBtn.disabled = !('lat' in st.loaded && 'lon' in st.loaded);
     st.loadedOnce = true;
 
     if (errCount) {
@@ -1465,6 +1475,92 @@ async function syncSavedPassword(newPassword) {
     } catch (e) {
         console.error('Failed to update saved password:', e);
     }
+}
+
+// ---------------- Location map picker (Settings → Location) ----------------
+
+let _locMap = null;
+let _locMapMarker = null;
+let _locMapModal = null;
+let _locMapPicked = null;   // {lat, lon} currently chosen on the map
+
+function openLocationMapPicker() {
+    const item = settingsSectionEl('location');
+    if (!item) return;
+    const latEl = sfControl(item, 'lat');
+    const lonEl = sfControl(item, 'lon');
+
+    // Seed from the loaded field values, then the advertised position, then a
+    // wide default view of the mesh area.
+    let seedLat = parseFloat(latEl && latEl.value);
+    let seedLon = parseFloat(lonEl && lonEl.value);
+    if (!isFinite(seedLat) || !isFinite(seedLon)) {
+        seedLat = (_repeater && _repeater.adv_lat) || NaN;
+        seedLon = (_repeater && _repeater.adv_lon) || NaN;
+    }
+    const hasSeed = isFinite(seedLat) && isFinite(seedLon) && (seedLat !== 0 || seedLon !== 0);
+
+    if (!_locMapModal) {
+        _locMapModal = new bootstrap.Modal(document.getElementById('locationMapModal'));
+    }
+
+    const useBtn = document.getElementById('locMapUseBtn');
+    const selLabel = document.getElementById('locMapSelected');
+    _locMapPicked = null;
+    if (useBtn) useBtn.disabled = true;
+    if (selLabel) selLabel.textContent = '—';
+
+    const modalEl = document.getElementById('locationMapModal');
+    const onShown = function () {
+        const center = hasSeed ? [seedLat, seedLon] : [52.0, 19.0];
+        const zoom = hasSeed ? 13 : 6;
+
+        if (!_locMap) {
+            _locMap = L.map('locLeafletMap').setView(center, zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
+            }).addTo(_locMap);
+            _locMap.on('click', (e) => setLocMapMarker(e.latlng.lat, e.latlng.lng));
+        } else {
+            _locMap.setView(center, zoom);
+        }
+        _locMap.invalidateSize();
+
+        if (_locMapMarker) { _locMap.removeLayer(_locMapMarker); _locMapMarker = null; }
+        if (hasSeed) setLocMapMarker(seedLat, seedLon);
+
+        modalEl.removeEventListener('shown.bs.modal', onShown);
+    };
+    modalEl.addEventListener('shown.bs.modal', onShown);
+    _locMapModal.show();
+}
+
+function setLocMapMarker(lat, lon) {
+    _locMapPicked = { lat, lon };
+    if (!_locMapMarker) {
+        _locMapMarker = L.circleMarker([lat, lon], {
+            radius: 9, fillColor: '#dc3545', color: '#fff',
+            weight: 2, opacity: 1, fillOpacity: 0.9
+        }).addTo(_locMap);
+    } else {
+        _locMapMarker.setLatLng([lat, lon]);
+    }
+    const useBtn = document.getElementById('locMapUseBtn');
+    const selLabel = document.getElementById('locMapSelected');
+    if (useBtn) useBtn.disabled = false;
+    if (selLabel) selLabel.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+}
+
+function applyLocationFromMap() {
+    if (!_locMapPicked) return;
+    const item = settingsSectionEl('location');
+    if (!item) return;
+    const latEl = sfControl(item, 'lat');
+    const lonEl = sfControl(item, 'lon');
+    if (latEl) latEl.value = _locMapPicked.lat.toFixed(6);
+    if (lonEl) lonEl.value = _locMapPicked.lon.toFixed(6);
+    updateSectionDirty('location');
+    if (_locMapModal) _locMapModal.hide();
 }
 
 // ================================================================
@@ -1742,6 +1838,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const input = document.getElementById('passwordInput');
         input.type = input.type === 'password' ? 'text' : 'password';
     });
+
+    document.getElementById('locMapUseBtn').addEventListener('click', applyLocationFromMap);
 
     document.getElementById('copyPubkeyBtn').addEventListener('click', async () => {
         try {

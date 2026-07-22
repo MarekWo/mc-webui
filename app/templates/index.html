@@ -148,6 +148,9 @@
     <button class="fab fab-repeaters d-none" id="fab-repeaters" data-bs-toggle="modal" data-bs-target="#repeatersModal" title="My Repeaters">
         <i class="bi bi-diagram-3"></i>
     </button>
+    <button class="fab fab-pathanalyzer d-none" id="fab-pathanalyzer" data-bs-toggle="modal" data-bs-target="#pathAnalyzerModal" title="Path Analyzer">
+        <i class="bi bi-signpost-split"></i>
+    </button>
     <button class="fab fab-deviceinfo d-none" id="fab-deviceinfo" data-bs-toggle="modal" data-bs-target="#deviceInfoModal" title="Device Info">
         <i class="bi bi-cpu"></i>
     </button>
@@ -219,6 +222,23 @@
             </div>
             <div class="modal-body p-0">
                 <iframe id="repeatersFrame" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Path Analyzer Modal (Full Screen) -->
+<div class="modal fade" id="pathAnalyzerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header pathanalyzer-header text-white">
+                <h5 class="modal-title"><i class="bi bi-signpost-split"></i> Path Analyzer</h5>
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg"></i> Close
+                </button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="pathAnalyzerFrame" style="width: 100%; height: 100%; border: none;"></iframe>
             </div>
         </div>
     </div>
@@ -320,6 +340,17 @@
                 const repeatersFrame = document.getElementById('repeatersFrame');
                 if (repeatersFrame) {
                     repeatersFrame.src = '/repeaters';
+                }
+            });
+        }
+
+        // Path Analyzer modal - (re)load iframe on open for fresh data
+        const pathAnalyzerModal = document.getElementById('pathAnalyzerModal');
+        if (pathAnalyzerModal) {
+            pathAnalyzerModal.addEventListener('show.bs.modal', function () {
+                const pathAnalyzerFrame = document.getElementById('pathAnalyzerFrame');
+                if (pathAnalyzerFrame) {
+                    pathAnalyzerFrame.src = '/path-analyzer';
                 }
             });
         }

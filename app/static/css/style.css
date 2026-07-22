@@ -1637,6 +1637,13 @@ main {
     color: white;
 }
 
+/* Path Analyzer FAB button + modal header (purple) */
+.fab-pathanalyzer,
+.pathanalyzer-header {
+    background: linear-gradient(135deg, #6f42c1 0%, #59359a 100%);
+    color: white;
+}
+
 /* Filter bar overlay - slides down from top of chat area */
 .filter-bar {
     position: absolute;
@@ -1883,7 +1890,8 @@ emoji-picker {
 #contactsModal .modal-dialog.modal-fullscreen,
 #logsModal .modal-dialog.modal-fullscreen,
 #consoleModal .modal-dialog.modal-fullscreen,
-#repeatersModal .modal-dialog.modal-fullscreen {
+#repeatersModal .modal-dialog.modal-fullscreen,
+#pathAnalyzerModal .modal-dialog.modal-fullscreen {
     margin: 0 !important;
     width: 100vw !important;
     max-width: 100vw !important;
@@ -1895,7 +1903,8 @@ emoji-picker {
 #contactsModal .modal-content,
 #logsModal .modal-content,
 #consoleModal .modal-content,
-#repeatersModal .modal-content {
+#repeatersModal .modal-content,
+#pathAnalyzerModal .modal-content {
     border: none !important;
     border-radius: 0 !important;
     height: 100vh !important;
@@ -1905,7 +1914,8 @@ emoji-picker {
 #contactsModal .modal-body,
 #logsModal .modal-body,
 #consoleModal .modal-body,
-#repeatersModal .modal-body {
+#repeatersModal .modal-body,
+#pathAnalyzerModal .modal-body {
     overflow: hidden !important;
 }
 

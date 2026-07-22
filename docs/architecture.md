@@ -105,6 +105,17 @@ The `/repeaters` (list) and `/repeaters/manage` (per-repeater tools) panels are 
 - **Role gating** — the firmware silently drops text CLI from non-admin logins (which would surface as a timeout), so the CLI/Settings/Actions endpoints reject guest sessions with 403 up front instead
 - **Actions whitelist** — `advert.zerohop`, `advert` (flood), `clock sync`, `reboot`. `reboot` never replies (the firmware restarts immediately without building one), so a clean send followed by silence is reported as success. Text `erase` is firmware-gated to the USB serial console (`sender_timestamp == 0`), hence no erase in the UI
 
+### Path Analyzer
+
+The `/path-analyzer` panel (standalone iframe page, `path-analyzer.js`) is a read-only analysis view over data the app already collects — no new tables, no background work:
+
+- **Data source** — `GET /api/path-analyzer/messages?days=N` joins `channel_messages` with `echoes` (path hex + SNR + per-echo `hash_size`, keyed by `pkt_payload`). Echoes are fetched with `db.get_echoes_for_payloads()` — chunked `IN` queries (≤500 params, under SQLite's host-parameter limit) via `idx_echoes_pkt` — deliberately avoiding the per-message echo query the older `/api/messages` path still does. The pkt_payload reconstruction (raw_json text → channel-secret AES/HMAC compute) is shared with `/api/messages` via the `_get_row_pkt_payload()` helper
+- **All filtering/stats/map/routes logic is client-side** over the bulk payload (hundreds of KB for 7 days — fine on a LAN): filters operate on per-hop tokens split with each echo's own `hash_size` (mixed 1/2/3-byte networks are real), so SQL-side token filtering was rejected. Every view always reflects the active filters for free
+- **Four views** share the one payload: Messages (hop-by-hop echo detail), Repeaters (per-hash relay/SNR stats), Routes (consecutive hop-segment n-grams — user-selectable length 2–4, counted anywhere in a path), and Map (Leaflet path drawing). The repeater filter accepts a `>`-chained sequence (each element a hash prefix or contact name) matched as consecutive hops; Routes rows write such a sequence into that filter on click
+- **SNR attribution** — echo SNR is measured at our receiver, so stats credit it to the *final* hop only; intermediate hops get relay counts but never SNR
+- **Hash→contact resolution** — pubkey-prefix match against `/api/contacts/cached?format=full` (memoized per token). 1-byte hashes collide by design; the map renders unresolved hops as amber candidate markers with manual pick, and the repeater-name filter is intentionally inclusive over candidates
+- Legacy rows whose `pkt_payload` cannot be recomputed (missing channel secret) are returned with `packet_hash: null` and no echoes rather than dropped
+
 ---
 
 ## Project Structure
@@ -197,6 +208,7 @@ The channels API reads from the `channels` DB table rather than iterating device
 | GET | `/api/messages/<id>/meta` | Get message metadata (echoes, paths) |
 | POST | `/api/messages/<id>/resend` | Re-broadcast an own channel message verbatim via `CMD_SEND_RAW_PACKET` (same packet hash, so unreached repeaters pick it up). 400 for not-own / missing `raw_packet` snapshot / disconnected / firmware < 1.16, 404 for unknown id |
 | GET | `/api/messages/search` | Full-text search (`?q=`, `?channel_idx=`, `?limit=`) |
+| GET | `/api/path-analyzer/messages` | Bulk channel messages across **all** channels with batched echo data (`?days=1..30`, default 3); powers the Path Analyzer panel (`GET /path-analyzer`) |
 
 ### Contacts
 
@@ -301,6 +313,7 @@ Every mutating endpoint hot-reloads the `ObserverManager`, so broker and setting
 | GET | `/api/repeaters/<pk>` | Single merged entry + login session state |
 | PUT | `/api/repeaters/<pk>` | Set or clear the saved password (`{password}`; empty string clears) |
 | DELETE | `/api/repeaters/<pk>` | Remove from the list (device contact untouched) |
+| GET | `/api/repeaters/<pk>/password` | Saved password (empty string when none); prefills the login-retry prompt for the trusted local UI |
 | POST | `/api/repeaters/<pk>/login` | Log in with `{password?, save?}` — omitted password uses the saved one |
 | GET | `/api/repeaters/<pk>/session` | In-memory session state (`logged_in`, `is_admin`, `permissions`) |
 | POST | `/api/repeaters/<pk>/logout` | Log out and drop the session |

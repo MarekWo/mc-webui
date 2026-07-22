@@ -17,6 +17,7 @@ This guide covers all features and functionality of mc-webui. For installation i
 - [DM Path Management](#dm-path-management)
 - [Interactive Console](#interactive-console)
 - [My Repeaters (Repeater Administration)](#my-repeaters-repeater-administration)
+- [Path Analyzer](#path-analyzer)
 - [Device Dashboard](#device-dashboard)
 - [Quick-Access FAB Buttons](#quick-access-fab-buttons)
 - [Settings](#settings)
@@ -556,6 +557,7 @@ Click a repeater row to log in. The first time, you are asked for the repeater p
 
 - The repeater decides your role from the password: **ADMIN** (full access) or **GUEST** (read-only: Status, Telemetry, Neighbors).
 - **Important:** a wrong password and an unreachable repeater look identical — MeshCore repeaters simply never answer a bad login. When a login times out, check reachability first (is the repeater several flood hops away?) before assuming the password is wrong.
+- Because of that ambiguity, when a one-click login fails the retry prompt comes back with your **saved password already filled in** — a failure is far more often a flaky connection than a wrong password, so you can just retry without retyping it.
 - Logins can take up to a minute on flood paths. Pinning a direct path (below) makes them much faster.
 
 ### Row Actions
@@ -598,6 +600,7 @@ Repeater configuration organized into collapsible sections: **Basic** (name, adm
 - Changed fields are highlighted and counted on the Apply button; only those fields are sent
 - Every field reports back individually: a green check (applied), a **reboot required** badge (stored, takes effect after a reboot — radio parameters work this way), or a red error showing the repeater's own reply (e.g. an out-of-range value). Failed fields stay marked so you can correct and re-apply
 - Changing radio parameters asks for confirmation first — wrong values can make the repeater unreachable over the mesh
+- The **Location** section has a **Pick from map** button (enabled once the section has loaded): it opens a map, and clicking a point fills the latitude and longitude fields for you and marks the section changed, ready to Apply — handy when you know where the repeater is but not its exact coordinates
 - The admin password is write-only (the current one is never displayed). After a successful change, the password saved in mc-webui is updated automatically so one-click login keeps working. Changing it does **not** log out sessions that are already active
 
 #### Actions (admin only)
@@ -610,6 +613,76 @@ One-click operations:
 - **Danger zone: Reboot** - Restarts the repeater after a confirmation prompt. The firmware does not reply to this command; the repeater simply drops off the mesh for a few seconds and comes back
 
 Erasing the repeater's file system is **not** available over the mesh — the firmware only accepts it on the USB serial console (use the MeshCore flasher for that).
+
+---
+
+## Path Analyzer
+
+A full-screen tool for analyzing how channel messages travel through the mesh: which repeaters relayed them, how strong the signal was, and what the routes look like on a map.
+
+To open:
+1. Tap the hamburger menu (☰)
+2. Select **Path Analyzer** from the menu
+
+Pick a time range at the top (last 1, 3, 5, or 7 days) — the tool loads every channel message from **all** your channels in that window, together with every copy (echo) of each message your node overheard. Everything below works on that data set; no extra loading.
+
+### Filters
+
+The filter bar applies to all four views at once and updates as you type:
+
+- **Hops** - Only messages that arrived over exactly that many hops (0 = heard directly, 4+ = long routes). A message matches when *any* of its echoes has that hop count
+- **HB (path hash size)** - Only messages whose route was recorded with 1-, 2-, or 3-byte repeater hashes; a combined **2/3-byte** option covers both larger sizes at once
+- **Repeater** - Type a repeater hash (e.g. `3B`) or part of a repeater's **name** (e.g. `wegrzce`); matches messages whose route passed through it. Chain several with `>` (e.g. `AFE6>6E9A` or `barbarka>wegrzce`) to match a route that passed through them **in that order, consecutively** — mixing hashes and names is fine. Note that with short 1-byte hashes two repeaters can share a hash, so a name search includes routes where the named repeater *might* be one of the candidates
+- **Sender** - Part of the sender's name
+- **Message text** - Part of the message content
+
+A counter shows how much of the data set matches ("38 of 412 messages"), and **Clear** resets everything. On phones the whole filter bar collapses behind a **Filters** button (with a badge counting the filters you have set) so the results get the full screen — the view switcher and match counter stay visible.
+
+### Messages view
+
+A table of messages: time, channel, sender, text, packet hash (click to copy — the same hash analyzer services use), hop count, hash size, and echo count. Click a row to expand its routes:
+
+- Every echo is shown as a chain of repeater hashes (`5A → F0 → 90`) with its SNR and receive time
+- Click a single hash chip to copy that hash; click the rest of the line to copy the whole route
+- The small map icon at the end of each route jumps straight to the **Map** view with that route drawn
+- Echoes with an empty route show as "Direct (flood, 0 hops)"
+
+On phones the Hash, HB, and Echoes columns fold away to keep the table readable — the packet hash and hash size appear at the top of the expanded row instead, and long routes wrap across multiple lines.
+
+### Repeaters view
+
+Per-repeater statistics computed from the currently filtered messages:
+
+- **Relayed** - How many echoes passed through this repeater hash (anywhere in the route)
+- **Messages** - How many distinct messages that was
+- **As last hop** - How often this repeater was the final hop, i.e. the one your node heard directly
+- **Avg SNR (last hop)** - Average signal quality, counted *only* when the repeater was the final hop. Your node can only measure the radio link it actually receives on, so SNR is never attributed to repeaters in the middle of a route — that's why some rows show "—"
+
+Columns are sortable, and the **Contact** column matches each hash to your contact list (showing "ambiguous (n)" when several contacts share a short hash). Click any row to jump back to the Messages view filtered to that repeater.
+
+### Routes view
+
+Where the Repeaters view counts single hops, the Routes view counts **sequences** of consecutive hops — so you can see which stretches of the mesh carry the most traffic to you, wherever they sit in a route. Pick a **Segment length** (2, 3, or 4 hops) and the table lists every such sequence found across the filtered messages:
+
+- **Route** - The hop sequence (e.g. `AFE6 → 6E9A`), with the matching contact names underneath
+- **Echoes** - How many overheard copies contained this exact sequence
+- **Messages** - How many distinct messages that was
+- **As path end** - How often the sequence was the *end* of a route — i.e. the final stretch that actually reached your node. Sort by this to see which approaches deliver to you most often
+
+Columns are sortable (echo count first by default). Click any row to jump to the Messages view filtered to that sequence.
+
+### Map view
+
+Repeaters from your contact list that have a position are plotted as dots. Pick a message in the side list — each tile shows the sender, the channel it came from (dimmed, next to the sender), the time, and the message text. Its **shortest** route is drawn automatically the moment you pick the message, so you see a path with one tap; pick a different route from the list to redraw. The path is drawn hop by hop:
+
+- Hops that resolve to exactly one known repeater become red numbered points (the number matches the legend order) labeled with the repeater's name, connected by a red line — clearly distinct from the purple background dots of uninvolved repeaters
+- When a short hash matches several contacts, all candidates are marked in amber and the legend lists them — tap the right one and the path redraws with your choice. Assignments are reversible: an undo icon next to a manually assigned hop reverts just that hop, and **Reset picks** clears every manual assignment on the current path
+- Unknown hops (no matching contact, or no position) are listed in the legend and the line is drawn dashed across the gap, so you can see which parts of the route are certain
+- If the sender is in your contacts with a position, it is added as a green origin point
+
+The eraser button clears the drawn path. On phones the map takes a fixed share of the screen (about 45%) and the message list gets the rest, so scrolling through routes is comfortable.
+
+Everything in the Path Analyzer is based on what **your node** overheard — it's a local view of the mesh, not a global one. A route you don't see here may still exist; it just never reached your radio.
 
 ---
 
@@ -665,7 +738,7 @@ Tap the toggle button (short click, no drag) to hide or show the rest of the FAB
 
 Open Settings → **Appearance** tab to adjust:
 - **Hide Quick Access** - Master switch: hides the FAB cluster entirely and moves all actions to the Main Menu
-- **Per-item placement** - Choose whether each of the 12 actions appears in the FAB or in the Main Menu. Changes take effect immediately
+- **Per-item placement** - Choose whether each of the 13 actions appears in the FAB or in the Main Menu. Changes take effect immediately
 - **Button size** - 28 to 72 pixels (default: 56)
 - **Spacing** - 2 to 24 pixels between buttons (default: 12)
 - **Reset position** - Reset both main chat and DM FAB positions to their defaults
@@ -751,7 +824,7 @@ Controls small notification toasts shown after actions (e.g. "Advert Sent", erro
 
 **Quick Access Buttons:**
 - **Hide Quick Access** - Master switch that hides the entire floating FAB cluster and moves all items to the Main Menu (slide-out)
-- **Per-item placement** - A table of all 12 configurable actions (Filter messages, Search messages, Direct Messages, Contact Management, Settings, Send Advert, Flood Advert, Map, Console, My Repeaters, Device Info, System Log). Each row has two radio buttons: **Quick Access** (shows in FAB) and **Main Menu** (shows in the slide-out). Changes take effect immediately
+- **Per-item placement** - A table of all 13 configurable actions (Filter messages, Search messages, Direct Messages, Contact Management, Settings, Send Advert, Flood Advert, Map, Console, My Repeaters, Path Analyzer, Device Info, System Log). Each row has two radio buttons: **Quick Access** (shows in FAB) and **Main Menu** (shows in the slide-out). Changes take effect immediately
 - **Button size (px)** - Adjust the size of FAB buttons (default: 56)
 - **Spacing (px)** - Space between FAB buttons (default: 12)
 - **Position** - Reset FAB position to default (top-right)

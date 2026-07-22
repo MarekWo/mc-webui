@@ -171,14 +171,16 @@ function renderRepeaterRows() {
             ? '<span class="spinner-border spinner-border-sm text-success" role="status"></span>'
             : '<i class="bi bi-diagram-3 text-success fs-4"></i>';
 
-        const roleInfo = r.last_login_at
-            ? ` · last login: ${esc(r.last_login_role || '?')}`
-            : '';
         const statusLine = isLoggingIn
             ? '<span class="text-primary">Logging in… (may take up to 60 s on flood paths)</span>'
             : (r.on_device
-                ? `<span class="rpt-path font-monospace">${esc(r.path_or_mode || '—')}</span>${roleInfo}`
+                ? `<span class="rpt-path font-monospace">${esc(r.path_or_mode || '—')}</span>`
                 : '<span class="text-warning">Not stored on the device</span>');
+        // "last login" goes on its own line so a long path keeps the full row
+        // width to itself (on narrow phones it otherwise gets truncated hard).
+        const roleLine = (r.on_device && !isLoggingIn && r.last_login_at)
+            ? `<small class="text-muted d-block text-truncate">last login: ${esc(r.last_login_role || '?')}</small>`
+            : '';
 
         row.innerHTML = `
             <div class="d-flex align-items-center gap-2">
@@ -186,6 +188,7 @@ function renderRepeaterRows() {
                 <div class="flex-grow-1 rpt-main">
                     <div class="fw-semibold text-truncate">${esc(r.name || r.public_key.substring(0, 12))}</div>
                     <small class="text-muted d-block text-truncate">${statusLine}</small>
+                    ${roleLine}
                 </div>
                 <div class="btn-group btn-group-sm flex-shrink-0">
                     <button type="button" class="btn btn-outline-secondary" data-action="path"
@@ -318,6 +321,23 @@ function openPasswordModal(mode, pubkey, errorHint = '') {
     }
     input.value = '';
     input.type = 'password';
+
+    // Login retry for a repeater with a saved password: the failure is most
+    // likely a connection problem (a wrong stored password and an unreachable
+    // repeater look identical), so prefill the saved password rather than make
+    // the user retype a correct one.
+    if (mode === 'login' && r.password_set) {
+        fetch(`/api/repeaters/${encodeURIComponent(pubkey)}/password`)
+            .then(resp => resp.json())
+            .then(data => {
+                if (data && data.success && data.password
+                        && _passwordCtx && _passwordCtx.mode === 'login'
+                        && _passwordCtx.pubkey === pubkey) {
+                    input.value = data.password;
+                }
+            })
+            .catch(() => {});
+    }
 
     _passwordModal.show();
     setTimeout(() => input.focus(), 300);
