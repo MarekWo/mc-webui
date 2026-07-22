@@ -2674,31 +2674,12 @@ class DeviceManager:
 
             # Read back the actual secret from device (firmware may have
             # generated it for # channels) and update in-memory cache + DB.
-            self._refresh_channel_secret(idx, name)
+            self._refresh_channel_secret(idx)
 
             return {'success': True, 'message': f'Channel {idx} set'}
         except Exception as e:
             logger.error(f"Failed to set channel: {e}")
             return {'success': False, 'error': str(e)}
-
-    def _refresh_channel_secret(self, idx: int, name: str = ''):
-        """Read back a channel's secret from device and update cache + DB."""
-        try:
-            event = self.execute(self.mc.commands.get_channel(idx))
-            if event:
-                data = getattr(event, 'payload', None) or {}
-                secret = data.get('channel_secret', data.get('secret', b''))
-                if isinstance(secret, bytes):
-                    secret = secret.hex()
-                if secret and len(secret) == 32:
-                    self._channel_secrets[idx] = secret
-                    ch_name = data.get('channel_name', data.get('name', ''))
-                    if isinstance(ch_name, str):
-                        ch_name = ch_name.strip('\x00').strip()
-                    self.db.upsert_channel(idx, ch_name or name, secret)
-                    logger.info(f"Refreshed channel {idx} secret into cache")
-        except Exception as e:
-            logger.warning(f"Failed to refresh channel {idx} secret: {e}")
 
     def remove_channel(self, idx: int) -> Dict:
         """Remove a channel from the device."""
