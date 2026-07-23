@@ -88,6 +88,8 @@ let paCurrentView = 'messages';   // 'messages' | 'stats' | 'routes' | 'map'
 let paContacts = [];              // /api/contacts/cached?format=full
 let paStatsSort = { key: 'relayed', dir: -1 };
 let paRoutesSort = { key: 'echoes', dir: -1 };
+let paDeepLink = null;            // ?hash=..&path=.. from a chat path popup
+let paContactsReady = Promise.resolve();
 
 async function paLoadContacts() {
     try {
@@ -978,6 +980,45 @@ async function paLoadMessages() {
     } else {
         paRender();
     }
+
+    if (paDeepLink) paApplyDeepLink();
+}
+
+// Deep link from the chat path popup: jump to the map view with the
+// linked message selected and the linked echo path drawn.
+async function paApplyDeepLink() {
+    const dl = paDeepLink;
+    const hash = (dl.hash || '').toLowerCase();
+    const msg = paMessages.find(m => (m.packet_hash || '').toLowerCase() === hash);
+
+    if (!msg) {
+        // The chat can show messages older than the default window - widen
+        // to the max range once before giving up
+        const daysSel = document.getElementById('paDaysSelect');
+        if (!dl.retried && daysSel.value !== '7') {
+            dl.retried = true;
+            daysSel.value = '7';
+            paLoadMessages();   // re-enters paApplyDeepLink when done
+            return;
+        }
+        paDeepLink = null;
+        showNotification('This message is no longer in the analyzer data (max 7 days).', 'warning');
+        return;
+    }
+
+    paDeepLink = null;
+    await paContactsReady;   // map needs contacts to resolve hop positions
+
+    let echoIdx = msg.echoView.findIndex(e =>
+        e.hops > 0 && (e.path || '').toLowerCase() === (dl.path || '').toLowerCase());
+    if (echoIdx === -1) echoIdx = paShortestEchoIdx(msg);
+    if (echoIdx === null) {
+        showNotification('This message has no routed echoes to draw.', 'warning');
+        return;
+    }
+
+    paMapSelection = { msgId: msg.id, echoIdx: echoIdx };
+    paSwitchView('map');
 }
 
 // ================================================================
@@ -1024,6 +1065,12 @@ function paClearFilters() {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadUiSettings();
+
+    const qs = new URLSearchParams(window.location.search);
+    if (qs.get('hash')) {
+        paDeepLink = { hash: qs.get('hash'), path: qs.get('path') || '' };
+    }
+
     document.getElementById('paDaysSelect').addEventListener('change', paLoadMessages);
     document.getElementById('paRefreshBtn').addEventListener('click', paLoadMessages);
 
@@ -1068,6 +1115,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    paLoadContacts();
+    paContactsReady = paLoadContacts();
     paLoadMessages();
 });

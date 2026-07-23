@@ -1187,7 +1187,7 @@ function updateMessageMetaDOM(wrapper, meta) {
             : segments.join('\u2192');
         const pathsData = encodeURIComponent(JSON.stringify(paths));
         const routeLabel = paths.length > 1 ? `Route (${paths.length})` : 'Route';
-        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}')">${routeLabel}: ${shortPath}</span>`);
+        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${meta.packet_hash || ''}')">${routeLabel}: ${shortPath}</span>`);
     }
     const metaInfo = metaParts.join(' | ');
 
@@ -1329,7 +1329,7 @@ function createMessageElement(msg) {
             : segments.join('\u2192');
         const pathsData = encodeURIComponent(JSON.stringify(msg.paths));
         const routeLabel = msg.paths.length > 1 ? `Route (${msg.paths.length})` : 'Route';
-        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}')">${routeLabel}: ${shortPath}</span>`);
+        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${msg.packet_hash || ''}')">${routeLabel}: ${shortPath}</span>`);
     }
     const metaInfo = metaParts.join(' | ');
 
@@ -1693,7 +1693,7 @@ async function blockContactFromChat(senderName) {
 /**
  * Show paths popup on tap (mobile-friendly, shows all routes)
  */
-function showPathsPopup(element, encodedPaths) {
+function showPathsPopup(element, encodedPaths, packetHash) {
     // Remove any existing popup
     const existing = document.querySelector('.path-popup');
     if (existing) existing.remove();
@@ -1717,16 +1717,42 @@ function showPathsPopup(element, encodedPaths) {
         const hops = segments.length;
         const entry = document.createElement('div');
         entry.className = 'path-entry';
-        entry.innerHTML = `${fullRoute}<span class="path-detail">SNR: ${snr} | Hops: ${hops}</span>`;
-        entry.title = 'Tap to copy route';
-        entry.addEventListener('click', (e) => {
+
+        const body = document.createElement('span');
+        body.className = 'path-route';
+        body.innerHTML = `${fullRoute}<span class="path-detail">SNR: ${snr} | Hops: ${hops}</span>`;
+        entry.appendChild(body);
+
+        const copyBtn = document.createElement('i');
+        copyBtn.className = 'bi bi-clipboard path-copy';
+        copyBtn.title = 'Copy route';
+        copyBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             navigator.clipboard.writeText(commaRoute).then(() => {
-                const orig = entry.innerHTML;
-                entry.innerHTML = '<span style="opacity:0.8">Copied!</span>';
-                setTimeout(() => { entry.innerHTML = orig; }, 1000);
+                copyBtn.className = 'bi bi-clipboard-check path-copy';
+                setTimeout(() => { copyBtn.className = 'bi bi-clipboard path-copy'; }, 1000);
             });
         });
+        entry.appendChild(copyBtn);
+
+        if (packetHash && p.path && segments.length > 0) {
+            entry.title = 'Show this route on the Path Analyzer map';
+            entry.addEventListener('click', (e) => {
+                e.stopPropagation();
+                popup.remove();
+                openPathInAnalyzer(packetHash, p.path);
+            });
+        } else {
+            // No packet hash (or direct message): keep the copy behavior
+            entry.title = 'Tap to copy route';
+            entry.addEventListener('click', (e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(commaRoute).then(() => {
+                    copyBtn.className = 'bi bi-clipboard-check path-copy';
+                    setTimeout(() => { copyBtn.className = 'bi bi-clipboard path-copy'; }, 1000);
+                });
+            });
+        }
         popup.appendChild(entry);
     });
 
@@ -1755,6 +1781,18 @@ function showPathsPopup(element, encodedPaths) {
             document.removeEventListener('click', handler);
         }
     });
+}
+
+/**
+ * Open the Path Analyzer modal deep-linked to one message + echo path.
+ * The modal's show handler (index.html) reads window.paDeepLink and builds
+ * the iframe URL from it.
+ */
+function openPathInAnalyzer(packetHash, pathHex) {
+    const modalEl = document.getElementById('pathAnalyzerModal');
+    if (!modalEl) return;
+    window.paDeepLink = { hash: packetHash, path: pathHex };
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
 /**
