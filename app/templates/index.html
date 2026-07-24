@@ -350,7 +350,13 @@
             pathAnalyzerModal.addEventListener('show.bs.modal', function () {
                 const pathAnalyzerFrame = document.getElementById('pathAnalyzerFrame');
                 if (pathAnalyzerFrame) {
-                    pathAnalyzerFrame.src = '/path-analyzer';
+                    // Deep link from a chat path popup (openPathInAnalyzer):
+                    // preselect the message + echo on the map view
+                    const dl = window.paDeepLink;
+                    window.paDeepLink = null;
+                    pathAnalyzerFrame.src = dl
+                        ? `/path-analyzer?hash=${encodeURIComponent(dl.hash)}&path=${encodeURIComponent(dl.path)}`
+                        : '/path-analyzer';
                 }
             });
         }

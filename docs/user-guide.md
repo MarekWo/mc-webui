@@ -170,6 +170,15 @@ Your own messages carry a small row of action buttons:
 - **Edit message** (pencil icon) - Copies the message text back into the composer so you can tweak it and send it again as a new message.
 - **Resend** (repeat-arrow icon) - Re-broadcasts the *same* packet. Repeaters that already forwarded the original ignore the duplicate, but nodes that never heard it can still pick it up — so the resend extends the repeater list on the existing message's badge instead of creating a new message. Handy right after sending when the delivery badge shows only partial coverage. This button only appears when your device runs companion firmware **1.16 or newer**; on older firmware it is hidden.
 
+### Group Chat Message Routes
+
+When your node overheard how a channel message travelled, a **Route** line appears under the message (e.g. `Route (3): 92→AD→40→D1`). Tap it to open a popup listing every route the message arrived by, each with its SNR and hop count:
+
+- Tap a route to open the **[Path Analyzer](#path-analyzer)** on the Map view, with that message selected and that exact route drawn — the quickest way to see where a message physically travelled.
+- Each route also has a small clipboard icon to copy it in comma-separated form (e.g. `92,AD,40,D1`) for use in the console `change_path` command.
+
+(In direct messages the same popup copies the route on tap, since only channel messages feed the Path Analyzer.)
+
 ---
 
 ## Message Content Features
@@ -623,6 +632,8 @@ A full-screen tool for analyzing how channel messages travel through the mesh: w
 To open:
 1. Tap the hamburger menu (☰)
 2. Select **Path Analyzer** from the menu
+
+Or jump straight to a specific route: under any channel message, tap the **Route** line and pick one of its routes — the analyzer opens on the Map view with that message selected and that exact route already drawn (see [Group chat message routes](#group-chat-message-routes)).
 
 Pick a time range at the top (last 1, 3, 5, or 7 days) — the tool loads every channel message from **all** your channels in that window, together with every copy (echo) of each message your node overheard. Everything below works on that data set; no extra loading.
 
