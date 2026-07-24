@@ -6,7 +6,19 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ---
 
-## Unreleased (since debb711)
+## Unreleased (since c6d2367)
+
+### New features
+
+- **Jump from a chat route straight to the map.** Tapping a route under a channel message used to just copy it to the clipboard. Now it opens the **Path Analyzer** on its map view with that message selected and that exact route already drawn — the quickest way to see where a message physically travelled. Copying isn't gone: each route in the popup keeps a small clipboard icon for pasting into the console's `change_path`.
+
+### Reliability & polish
+
+- **Your own sent channel messages no longer show a route that isn't theirs.** A bug could attach a stranger's overheard packet to your just-sent message, so the delivery badge and the Path Analyzer occasionally displayed a repeater hash and a physically impossible path that were never part of your message. Sent-message echoes are now matched exactly, so the route you see is really yours.
+
+---
+
+## 2026-07-22
 
 ### New features
 
