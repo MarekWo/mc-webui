@@ -649,6 +649,8 @@ The filter bar applies to all four views at once and updates as you type:
 
 A counter shows how much of the data set matches ("38 of 412 messages"), and **Clear** resets everything. On phones the whole filter bar collapses behind a **Filters** button (with a badge counting the filters you have set) so the results get the full screen — the view switcher and match counter stay visible.
 
+Your settings are remembered by the browser, so a working set like "Last 1 day + 2/3-byte" is still in place the next time you open the analyzer — including the time range and the Routes view's segment length. **Clear** resets the filters and forgets them, and the counter plus the **Clear** button always tell you when something is still filtering. Opening the analyzer from a chat route is the one exception: it ignores your saved filters for that visit, so they can't hide the message you tapped through to (your saved set is left untouched). The settings live in this browser only — they are not stored on the device, so another browser or phone keeps its own.
+
 ### Messages view
 
 A table of messages: time, channel, sender, text, packet hash (click to copy — the same hash analyzer services use), hop count, hash size, and echo count. Click a row to expand its routes:
@@ -684,12 +686,17 @@ Columns are sortable (echo count first by default). Click any row to jump to the
 
 ### Map view
 
-Repeaters from your contact list that have a position are plotted as dots. Pick a message in the side list — each tile shows the sender, the channel it came from (dimmed, next to the sender), the time, and the message text. Its **shortest** route is drawn automatically the moment you pick the message, so you see a path with one tap; pick a different route from the list to redraw. The path is drawn hop by hop:
+Pick a message in the side list — each tile shows the sender, the channel it came from (dimmed, next to the sender), the time, and the message text. Its **shortest** route is drawn automatically the moment you pick the message, so you see a path with one tap; pick a different route from the list to redraw. The map starts clean, showing only that route. The path is drawn hop by hop:
 
-- Hops that resolve to exactly one known repeater become red numbered points (the number matches the legend order) labeled with the repeater's name, connected by a red line — clearly distinct from the purple background dots of uninvolved repeaters
+- Hops that resolve to exactly one known repeater become red numbered points (the number matches the legend order) labeled with the repeater's name, connected by a red line
 - When a short hash matches several contacts, all candidates are marked in amber and the legend lists them — tap the right one and the path redraws with your choice. Assignments are reversible: an undo icon next to a manually assigned hop reverts just that hop, and **Reset picks** clears every manual assignment on the current path
 - Unknown hops (no matching contact, or no position) are listed in the legend and the line is drawn dashed across the gap, so you can see which parts of the route are certain
 - If the sender is in your contacts with a position, it is added as a green origin point
+
+Two checkboxes in the map's top-right corner add context when you want it. Both start switched off, and switching them does not move or re-zoom the map, so you keep the view you panned to:
+
+- **All repeaters** — plots every repeater from your contact list that has a position, as purple dots. Useful for judging which repeaters a route passed by but didn't use; leave it off to keep the route itself uncluttered
+- **Alternative paths** — draws the *other* routes your node overheard for the same message, each in its own light colour (blue, teal, orange, …). The matching coloured dot next to each route in the side list tells you which line is which, and tapping a line names the route and its SNR. Copies of one message usually share most of their route, so only the parts where an alternative actually **differs** are drawn — plus a dot where it ends, since often the last hop is the only difference
 
 The eraser button clears the drawn path. On phones the map takes a fixed share of the screen (about 45%) and the message list gets the rest, so scrolling through routes is comfortable.
 
