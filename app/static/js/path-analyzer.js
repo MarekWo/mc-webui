@@ -1172,7 +1172,64 @@ function paClearFilters() {
     document.getElementById('paTokenFilter').value = '';
     document.getElementById('paSenderFilter').value = '';
     document.getElementById('paContentFilter').value = '';
+    paApplyAndSaveFilters();
+}
+
+// ================================================================
+// Filter persistence
+// ================================================================
+
+// Browser-local only - these are a personal working set, not device state,
+// so they stay out of the database
+const PA_FILTERS_KEY = 'mc-webui-pa-filters';
+
+// The toolbar controls, plus the Routes segment length - same "set it
+// again on every visit" annoyance
+const PA_SAVED_CONTROLS = [
+    'paDaysSelect', 'paHopsFilter', 'paHashSizeFilter',
+    'paTokenFilter', 'paSenderFilter', 'paContentFilter',
+    'paSegLenSelect',
+];
+
+function paSaveFilters() {
+    const state = {};
+    PA_SAVED_CONTROLS.forEach(id => { state[id] = document.getElementById(id).value; });
+    try {
+        localStorage.setItem(PA_FILTERS_KEY, JSON.stringify(state));
+    } catch (e) {
+        // Private mode or a full quota - remembering filters is a convenience,
+        // never a reason to break the panel
+        console.warn('Could not save filters:', e);
+    }
+}
+
+function paRestoreFilters() {
+    let state;
+    try {
+        state = JSON.parse(localStorage.getItem(PA_FILTERS_KEY) || '{}');
+    } catch (e) {
+        return;
+    }
+    PA_SAVED_CONTROLS.forEach(id => {
+        const val = state[id];
+        if (typeof val !== 'string') return;
+        const el = document.getElementById(id);
+        // A stored option may no longer exist after a UI change - skip it
+        // rather than leaving the select on a value it cannot display
+        if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === val)) return;
+        el.value = val;
+    });
+    // Sync paFilters, the Clear button and the mobile badge with the
+    // restored controls before the first render
+    paReadFilters();
+}
+
+// Every user-driven filter change goes through here, so the stored set
+// only ever reflects deliberate choices - not programmatic ones such as
+// the deep-link widening the time range
+function paApplyAndSaveFilters() {
     paApplyFilters();
+    paSaveFilters();
 }
 
 // ================================================================
@@ -1187,16 +1244,19 @@ document.addEventListener('DOMContentLoaded', () => {
         paDeepLink = { hash: qs.get('hash'), path: qs.get('path') || '' };
     }
 
-    document.getElementById('paDaysSelect').addEventListener('change', paLoadMessages);
+    document.getElementById('paDaysSelect').addEventListener('change', () => {
+        paSaveFilters();
+        paLoadMessages();
+    });
     document.getElementById('paRefreshBtn').addEventListener('click', paLoadMessages);
 
     let filterDebounce = null;
     const debouncedApply = () => {
         clearTimeout(filterDebounce);
-        filterDebounce = setTimeout(paApplyFilters, 150);
+        filterDebounce = setTimeout(paApplyAndSaveFilters, 150);
     };
-    document.getElementById('paHopsFilter').addEventListener('change', paApplyFilters);
-    document.getElementById('paHashSizeFilter').addEventListener('change', paApplyFilters);
+    document.getElementById('paHopsFilter').addEventListener('change', paApplyAndSaveFilters);
+    document.getElementById('paHashSizeFilter').addEventListener('change', paApplyAndSaveFilters);
     document.getElementById('paTokenFilter').addEventListener('input', debouncedApply);
     document.getElementById('paSenderFilter').addEventListener('input', debouncedApply);
     document.getElementById('paContentFilter').addEventListener('input', debouncedApply);
@@ -1207,7 +1267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('paViewRoutesBtn').addEventListener('click', () => paSwitchView('routes'));
     document.getElementById('paViewMapBtn').addEventListener('click', () => paSwitchView('map'));
     document.getElementById('paMapClearBtn').addEventListener('click', paClearMapSelection);
-    document.getElementById('paSegLenSelect').addEventListener('change', paApplyFilters);
+    document.getElementById('paSegLenSelect').addEventListener('change', paApplyAndSaveFilters);
     document.querySelectorAll('#paStatsWrap .pa-sortable').forEach(th => {
         th.addEventListener('click', () => {
             const k = th.dataset.sort;
@@ -1230,6 +1290,10 @@ document.addEventListener('DOMContentLoaded', () => {
             paRenderRoutes();
         });
     });
+
+    // A deep link carries its own intent - restoring a saved filter set
+    // could hide the very message the user clicked through to
+    if (!paDeepLink) paRestoreFilters();
 
     paContactsReady = paLoadContacts();
     paLoadMessages();
