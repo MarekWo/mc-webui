@@ -11,6 +11,7 @@ Technical documentation for mc-webui, covering system architecture, project stru
 - [Database Architecture](#database-architecture)
 - [API Reference](#api-reference)
 - [WebSocket API](#websocket-api)
+- [Versioning & Releases](#versioning--releases)
 - [Offline Support](#offline-support)
 
 ---
@@ -444,6 +445,30 @@ Real-time log streaming via Socket.IO.
 - `log_line` - New log line
 
 The `MemoryLogHandler` filters werkzeug access-log records for `/socket.io/` and `/api/logs/` paths before buffering/broadcasting. With `async_mode='threading'` Socket.IO falls back to long-polling; without this filter every poll is logged, the broadcast wakes the pending poll, the client re-polls immediately, and an open System Log tab spins at 10+ requests/sec.
+
+---
+
+## Versioning & Releases
+
+Two identities, deliberately separate — `app/version.py` exposes both:
+
+| | Source | Looks like | Used for |
+|---|---|---|---|
+| `RELEASE_VERSION` | `VERSION` file at the repo root | `2.1.0` | What users and testers quote; the git tag; the GitHub release |
+| `VERSION_STRING` | git commit date + short hash | `2026.07.26+95d96ec` | Pinning down an exact deploy; what `/api/check-update` compares |
+
+Resolution order is unchanged: `app/version_frozen.py` (written by `python -m app.version freeze`, which `scripts/update.sh` runs before every rebuild) wins over live git, which wins over the built-in fallbacks. `RELEASE_VERSION` is read from the `VERSION` file and only *overridden* by the frozen file, so a frozen file written before releases existed still yields a correct release number. The container has no git and no `.git`, hence `COPY VERSION ./` in the Dockerfile — without it a plain `docker compose build` would report `0.0.0`.
+
+Both values ship in `GET /api/version` (`release` and `version`) and in the template context (`{{ release }}`, `{{ version }}`). The menu shows the release number first with the build underneath; `#versionText` deliberately still holds the *build* string, because the remote-update poller compares it to detect that the server came back on a new build.
+
+**Cutting a release:**
+
+1. On `dev`: bump `VERSION`, and title the pending `docs/whatsnew.md` section `## <version> — <date>` (open a fresh `## Unreleased` above it)
+2. Merge `dev` → `main`
+3. On `main`: `./scripts/release.sh` — validates the number, refuses a dirty tree, a non-`main` branch, or an existing tag, extracts the notes from that whatsnew section, then tags `v<version>`, pushes it, and publishes the GitHub release via `gh`. `--dry-run` prints the notes and changes nothing
+4. Deploy as usual (`mcupdate`), which freezes the version into the image
+
+Numbering is SemVer read through an operator's eyes: **MAJOR** when a deploy needs manual action (new env var, migration, breaking config), **MINOR** for new features, **PATCH** for fixes only. Releases start at 2.1.0 — the v2 line has been in production since 2026-03-28, and `v1` is the archived pre-migration branch, so 1.x would have been ambiguous. Everything before 2.1.0 is dated but untagged.
 
 ---
 

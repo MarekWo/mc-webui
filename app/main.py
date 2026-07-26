@@ -22,7 +22,7 @@ from app.log_handler import MemoryLogHandler
 from app.observer import ObserverManager
 from app.routes.views import views_bp
 from app.routes.api import api_bp
-from app.version import VERSION_STRING, GIT_BRANCH
+from app.version import RELEASE_VERSION, VERSION_STRING, GIT_BRANCH
 
 # Configure logging
 logging.basicConfig(
@@ -230,6 +230,7 @@ def create_app():
     @app.context_processor
     def inject_globals():
         return {
+            'release': RELEASE_VERSION,
             'version': VERSION_STRING,
             'git_branch': GIT_BRANCH,
             'transport_type': config.transport_type,

@@ -335,7 +335,7 @@ python3 -m app.version freeze
 docker compose up -d --build
 ```
 
-The `python3 -m app.version freeze` command captures the current Git version (date + commit hash) for display in the app menu.
+The `python3 -m app.version freeze` command captures the current Git build (date + commit hash) for display in the app menu, underneath the release number from the `VERSION` file. Released versions are tagged `v<version>` and published at [Releases](https://github.com/MarekWo/mc-webui/releases); see [Versioning & Releases](docs/architecture.md#versioning--releases) for how a release is cut.
 
 ### Testing experimental features
 

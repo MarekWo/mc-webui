@@ -4962,14 +4962,19 @@ def get_version():
         JSON with version info:
         {
             "success": true,
+            "release": "2.1.0",
             "version": "2025.01.18+576c8ca9",
             "docker_tag": "2025.01.18-576c8ca9",
             "branch": "dev"
         }
+
+    'release' is the human-facing release number; 'version' stays the exact
+    build and remains what the update poller compares.
     """
-    from app.version import VERSION_STRING, DOCKER_TAG, GIT_BRANCH
+    from app.version import RELEASE_VERSION, VERSION_STRING, DOCKER_TAG, GIT_BRANCH
     return jsonify({
         'success': True,
+        'release': RELEASE_VERSION,
         'version': VERSION_STRING,
         'docker_tag': DOCKER_TAG,
         'branch': GIT_BRANCH

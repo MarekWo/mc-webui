@@ -2,14 +2,23 @@
 
 User-facing summary of changes since the last `main` release. Maintained on `dev` and finalized before each merge to `main`.
 
+Releases are numbered `MAJOR.MINOR.PATCH` from **2.1.0** onward and tagged on GitHub — **MAJOR** when a deploy needs manual action from you, **MINOR** for new features, **PATCH** for fixes only. Sections before 2.1.0 are dated only; the project wasn't tagging releases yet. The exact build running on your server (`2026.07.26+95d96ec`) is still shown in the menu under the release number, for pinning down a specific deploy.
+
 For deep technical notes, see [architecture.md](architecture.md). For the full git history, run `git log`.
 
 ---
 
-## Unreleased (since c6d2367)
+## Unreleased
+
+_Nothing yet since 2.1.0._
+
+---
+
+## 2.1.0 — 2026-07-26
 
 ### New features
 
+- **Releases now have version numbers.** This is the first numbered release: the menu shows **2.1.0** with the exact build (date and commit) underneath, so "which version are you on?" has a short answer, and the build is still there when a problem needs pinning down. Each release is tagged on GitHub with these notes attached, so you can see what changed without digging through the commit history.
 - **The Path Analyzer map starts on the route you asked for.** The map used to plot every located repeater on top of your route, which buried the path you actually wanted to see. It now opens showing just that route, and two checkboxes in the map's top corner add the rest back when you want it: **All repeaters** brings back the purple dots of uninvolved repeaters, and **Alternative paths** draws the other copies of the same message your node overheard. Both start off, and switching them never moves or re-zooms the map, so you keep the view you panned to.
 - **See where a message's routes actually differ.** With **Alternative paths** on, each of the message's other routes gets its own light colour, matched by a coloured dot next to it in the side list, so you can tell the lines apart — tap one to see its hops and SNR. Copies of one message usually travel most of the same way, so only the stretches where an alternative really diverges are drawn, plus a dot marking where it ends. Often that's the last hop alone, which used to be invisible under the main route.
 - **The Path Analyzer remembers your filters.** Time range, hop and hash-size filters, the text searches, and the Routes segment length are kept between visits, so a working set like "Last 1 day + 2/3-byte" no longer has to be set up every single time. **Clear** resets and forgets them. Opening the analyzer from a chat route ignores your saved filters for that visit, so they can't hide the message you tapped through to. The settings are stored by your browser, not on the device — each browser or phone keeps its own.

@@ -29,7 +29,10 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy application code
-# Note: Run 'python -m app.version freeze' before build to include version info
+# Note: Run 'python -m app.version freeze' before build to include version info.
+# VERSION holds the release number and is read at /app/VERSION when no frozen
+# version file is present (e.g. a plain 'docker compose build' during dev).
+COPY VERSION ./
 COPY app/ ./app/
 
 # Expose Flask port

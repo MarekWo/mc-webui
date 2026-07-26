@@ -96,8 +96,11 @@
         <div class="px-3 pb-2 text-muted small border-bottom">
             <div class="d-flex align-items-center justify-content-between">
                 <span id="versionDisplay">
-                    <i class="bi bi-tag"></i> <span id="versionText">{{ version }}</span>
+                    <i class="bi bi-tag"></i> <span id="releaseText" class="fw-semibold">{{ release }}</span>
                     <span class="badge bg-secondary ms-1" id="branchBadge">{{ git_branch }}</span>
+                    <!-- Exact build: what pins a deployment down, and what the
+                         update poller compares - keep it as its own element -->
+                    <span id="versionText" class="d-block opacity-75" title="Exact build">{{ version }}</span>
                 </span>
                 <button id="checkUpdateBtn" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Check for updates">
                     <i class="bi bi-arrow-repeat" id="checkUpdateIcon"></i>
