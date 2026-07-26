@@ -175,6 +175,16 @@
             font-weight: 600;
         }
 
+        /* Ties an echo row to the colour of its line on the map */
+        .pa-echo-swatch {
+            display: inline-block;
+            width: 0.6rem;
+            height: 0.6rem;
+            border-radius: 50%;
+            margin-right: 0.3rem;
+            vertical-align: baseline;
+        }
+
         .pa-legend {
             margin-top: 0.4rem;
             padding: 0.4rem 0.5rem;
@@ -241,6 +251,35 @@
             background: rgba(255, 255, 255, 0.85);
             border: 1px solid rgba(0, 0, 0, 0.2);
             box-shadow: none;
+        }
+
+        /* Map overlay toggles (Leaflet control, top-right corner) - these
+           only apply to the Map view, hence not in the shared filter bar */
+        .pa-map-toggles {
+            background-color: var(--bg-surface);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.35rem;
+            padding: 0.35rem 0.55rem;
+            font-size: 0.78rem;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .pa-map-toggles label {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            cursor: pointer;
+            white-space: nowrap;
+            margin: 0;
+        }
+
+        .pa-map-toggles label + label {
+            margin-top: 0.25rem;
+        }
+
+        .pa-map-toggles input {
+            cursor: pointer;
         }
 
         /* Packet hash inside the expanded detail row - narrow screens only,

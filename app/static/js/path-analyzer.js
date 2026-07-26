@@ -621,11 +621,32 @@ function paRenderRoutes() {
 
 let paMap = null;
 let paBaseLayer = null;   // repeater contact markers
+let paAltLayer = null;    // the selected message's other echoes
 let paPathLayer = null;   // drawn path for the selected echo
 
+// Both map overlays are opt-in: the map opens showing just the picked
+// route, everything else is noise until the user asks for it
+let paShowAllRepeaters = false;
+let paShowAltPaths = false;
+
 // Path drawing color - distinct from the purple base markers so the
-// route stands out (origin stays green, ambiguous candidates amber)
+// route stands out (origin stays green, ambiguous candidates amber).
 const PA_PATH_COLOR = '#dc3545';
+
+// Alternative echoes get one light hue each, cycled by echo index, so two
+// alternatives running near each other stay tellable apart. Kept clear of
+// the primary red and of the marker colors above.
+const PA_ALT_PATH_COLORS = [
+    '#4dabf7',   // light blue
+    '#20c997',   // teal
+    '#ff922b',   // orange
+    '#e599f7',   // violet
+    '#94d82d',   // lime
+];
+
+function paAltColor(echoIdx) {
+    return PA_ALT_PATH_COLORS[echoIdx % PA_ALT_PATH_COLORS.length];
+}
 
 function paHopIcon(n) {
     return L.divIcon({
@@ -644,18 +665,49 @@ function paGeoContact(c) {
            !(Number(c.adv_lat) === 0 && Number(c.adv_lon) === 0);
 }
 
+// Overlay toggles live on the map itself, not in the shared filter bar -
+// they only make sense for this view
+function paAddMapToggles() {
+    const ctl = L.control({ position: 'topright' });
+    ctl.onAdd = () => {
+        const box = L.DomUtil.create('div', 'pa-map-toggles');
+        box.innerHTML =
+            '<label><input type="checkbox" id="paToggleRepeaters"> All repeaters</label>' +
+            '<label><input type="checkbox" id="paToggleAltPaths"> Alternative paths</label>';
+        L.DomEvent.disableClickPropagation(box);
+        L.DomEvent.disableScrollPropagation(box);
+        return box;
+    };
+    ctl.addTo(paMap);
+
+    // Re-render without refitting: toggling an overlay must not throw away
+    // the viewport the user panned/zoomed to
+    document.getElementById('paToggleRepeaters').addEventListener('change', (e) => {
+        paShowAllRepeaters = e.target.checked;
+        paRenderMapView(false);
+    });
+    document.getElementById('paToggleAltPaths').addEventListener('change', (e) => {
+        paShowAltPaths = e.target.checked;
+        paRenderMapView(false);
+    });
+}
+
 function paInitMap() {
     if (paMap) return;
     paMap = L.map('paMap').setView([52.0, 19.0], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(paMap);
+    // Added in draw order: base markers at the bottom, the selected path on top
     paBaseLayer = L.layerGroup().addTo(paMap);
+    paAltLayer = L.layerGroup().addTo(paMap);
     paPathLayer = L.layerGroup().addTo(paMap);
+    paAddMapToggles();
 }
 
 function paPlotBaseMarkers() {
     paBaseLayer.clearLayers();
+    if (!paShowAllRepeaters) return;
     paContacts.filter(c => c.type_label === 'REP' && paGeoContact(c)).forEach(c => {
         L.circleMarker([c.adv_lat, c.adv_lon], {
             radius: 5, color: '#6f42c1', weight: 1.5, fillOpacity: 0.5
@@ -678,58 +730,111 @@ function paResolveHop(token) {
     return { contact: null, candidates: geoCandidates };
 }
 
-function paDrawSelectedEcho() {
-    paPathLayer.clearLayers();
-    const msg = paMessages.find(m => m.id === paMapSelection.msgId);
-    if (!msg || paMapSelection.echoIdx === null) return;
-    const echo = msg.echoView[paMapSelection.echoIdx];
-    if (!echo) return;
-
+// Draw one echo's route. The primary echo gets numbered hop badges, name
+// labels and candidate markers; alternatives get a plain coloured line -
+// several fully decorated paths at once would be unreadable.
+// Returns the latlngs it contributed, for bounds fitting.
+function paDrawEcho(msg, echo, primary, seen, altColor) {
+    const layer = primary ? paPathLayer : paAltLayer;
     const points = [];   // {latlng, gapBefore}
     let gapPending = false;
 
     // Origin: sender name -> contact with geo (channel messages carry no sender pubkey)
     const origin = paContacts.find(c => c.name === msg.sender && paGeoContact(c));
     if (origin) {
-        L.circleMarker([origin.adv_lat, origin.adv_lon], {
-            radius: 7, color: '#198754', weight: 2, fillOpacity: 0.8
-        }).bindPopup(`<strong>${origin.name}</strong><br>Origin (sender)`)
-          .bindTooltip(origin.name, { permanent: true, direction: 'right', offset: [8, 0], className: 'pa-hop-label' })
-          .addTo(paPathLayer);
+        if (primary) {
+            L.circleMarker([origin.adv_lat, origin.adv_lon], {
+                radius: 7, color: '#198754', weight: 2, fillOpacity: 0.8
+            }).bindPopup(`<strong>${origin.name}</strong><br>Origin (sender)`)
+              .bindTooltip(origin.name, { permanent: true, direction: 'right', offset: [8, 0], className: 'pa-hop-label' })
+              .addTo(layer);
+        }
         points.push({ latlng: [origin.adv_lat, origin.adv_lon], gapBefore: false });
     }
 
     echo.tokens.forEach((tok, i) => {
         const { contact, candidates } = paResolveHop(tok);
         if (contact) {
-            L.marker([contact.adv_lat, contact.adv_lon], { icon: paHopIcon(i + 1) })
-                .bindPopup(`<strong>${contact.name}</strong><br>Hop ${i + 1}: <code>${tok}</code>`)
-                .bindTooltip(contact.name, { permanent: true, direction: 'right', offset: [13, 0], className: 'pa-hop-label' })
-                .addTo(paPathLayer);
+            if (primary) {
+                L.marker([contact.adv_lat, contact.adv_lon], { icon: paHopIcon(i + 1) })
+                    .bindPopup(`<strong>${contact.name}</strong><br>Hop ${i + 1}: <code>${tok}</code>`)
+                    .bindTooltip(contact.name, { permanent: true, direction: 'right', offset: [13, 0], className: 'pa-hop-label' })
+                    .addTo(layer);
+            }
             points.push({ latlng: [contact.adv_lat, contact.adv_lon], gapBefore: gapPending });
             gapPending = false;
         } else {
             // Ambiguous: show all geo candidates as amber markers, excluded from the line
-            candidates.forEach(c => {
-                L.circleMarker([c.adv_lat, c.adv_lon], {
-                    radius: 6, color: '#d39e00', weight: 2, fillOpacity: 0.5, dashArray: '3'
-                }).bindPopup(`<strong>${c.name}</strong><br>Candidate for hop ${i + 1}: <code>${tok}</code>`).addTo(paPathLayer);
-            });
+            if (primary) {
+                candidates.forEach(c => {
+                    L.circleMarker([c.adv_lat, c.adv_lon], {
+                        radius: 6, color: '#d39e00', weight: 2, fillOpacity: 0.5, dashArray: '3'
+                    }).bindPopup(`<strong>${c.name}</strong><br>Candidate for hop ${i + 1}: <code>${tok}</code>`).addTo(layer);
+                });
+            }
             gapPending = true;
         }
     });
 
-    // Polyline: solid between consecutive resolved hops, dashed across skipped ones
+    // Polyline: solid between consecutive resolved hops, dashed across skipped ones.
+    // Echoes of one message usually share a long prefix, so a segment is drawn
+    // only once - an alternative then shows exactly where it diverges instead of
+    // hiding under the primary route.
+    const snr = (echo.snr === null || echo.snr === undefined) ? '?' : `${Number(echo.snr).toFixed(1)} dB`;
+    const popup = `<strong>Alternative path</strong><br>${echo.tokens.join(' → ')}<br>${snr}`;
+    let drawn = 0;
     for (let i = 1; i < points.length; i++) {
-        L.polyline([points[i - 1].latlng, points[i].latlng], {
+        const key = [String(points[i - 1].latlng), String(points[i].latlng)].sort().join('|');
+        if (!primary && seen.has(key)) continue;
+        seen.add(key);
+        const line = L.polyline([points[i - 1].latlng, points[i].latlng], primary ? {
             color: PA_PATH_COLOR, weight: 3, opacity: 0.85,
             dashArray: points[i].gapBefore ? '6 8' : null
-        }).addTo(paPathLayer);
+        } : {
+            color: altColor, weight: 3, opacity: 0.9,
+            dashArray: points[i].gapBefore ? '4 6' : null
+        });
+        // Alternatives carry no labels, so name them in a popup instead
+        if (!primary) line.bindPopup(popup);
+        line.addTo(layer);
+        drawn++;
     }
 
-    const allLatLngs = points.map(p => p.latlng);
-    if (allLatLngs.length > 0) {
-        paMap.fitBounds(L.latLngBounds(allLatLngs).pad(0.25), { maxZoom: 13 });
+    // Mark where an alternative ends - often its only difference is the last hop
+    if (!primary && drawn > 0 && points.length > 1) {
+        L.circleMarker(points[points.length - 1].latlng, {
+            radius: 5, color: altColor, weight: 2, fillOpacity: 0.9
+        }).bindPopup(popup).addTo(layer);
+    }
+
+    return points.map(p => p.latlng);
+}
+
+// Redraw the selected message's paths. `fit` recentres the map - skipped
+// when only the overlay toggles changed, so the user keeps their viewport.
+function paDrawPaths(fit) {
+    paAltLayer.clearLayers();
+    paPathLayer.clearLayers();
+    const msg = paMessages.find(m => m.id === paMapSelection.msgId);
+    if (!msg || paMapSelection.echoIdx === null) return;
+    const echo = msg.echoView[paMapSelection.echoIdx];
+    if (!echo) return;
+
+    // The primary route is drawn first so it claims the shared segments;
+    // alternatives then only add the parts that differ
+    const seen = new Set();
+    const latlngs = paDrawEcho(msg, echo, true, seen);
+    if (paShowAltPaths) {
+        // Colour by echo index, so an alternative keeps its hue when the
+        // user switches which echo is the primary one
+        msg.echoView.forEach((alt, idx) => {
+            if (idx === paMapSelection.echoIdx || alt.hops === 0) return;
+            latlngs.push(...paDrawEcho(msg, alt, false, seen, paAltColor(idx)));
+        });
+    }
+
+    if (fit && latlngs.length > 0) {
+        paMap.fitBounds(L.latLngBounds(latlngs).pad(0.25), { maxZoom: 13 });
     }
 
     document.getElementById('paMapClearBtn').classList.remove('d-none');
@@ -819,7 +924,9 @@ function paShortestEchoIdx(msg) {
     return best;
 }
 
-function paRenderMapView() {
+// `fit` recentres the map on the drawn paths - suppressed when only an
+// overlay toggle changed, so the user keeps their viewport
+function paRenderMapView(fit = true) {
     paInitMap();
     paPlotBaseMarkers();
 
@@ -832,6 +939,7 @@ function paRenderMapView() {
     if (paMapSelection.msgId !== null && !filtered.some(m => m.id === paMapSelection.msgId)) {
         paMapSelection = { msgId: null, echoIdx: null };
         paPathLayer.clearLayers();
+        paAltLayer.clearLayers();
         document.getElementById('paMapClearBtn').classList.add('d-none');
     }
 
@@ -886,7 +994,14 @@ function paRenderMapView() {
                 const eEl = document.createElement('div');
                 eEl.className = 'pa-map-echo' + (idx === paMapSelection.echoIdx ? ' pa-selected' : '');
                 const snr = (echo.snr === null || echo.snr === undefined) ? '?' : `${Number(echo.snr).toFixed(1)} dB`;
-                eEl.textContent = `${echo.tokens.join(' → ')} (${snr})`;
+                // While alternatives are drawn, a swatch ties each row to its line
+                if (paShowAltPaths && idx !== paMapSelection.echoIdx) {
+                    const swatch = document.createElement('span');
+                    swatch.className = 'pa-echo-swatch';
+                    swatch.style.backgroundColor = paAltColor(idx);
+                    eEl.appendChild(swatch);
+                }
+                eEl.appendChild(document.createTextNode(`${echo.tokens.join(' → ')} (${snr})`));
                 eEl.addEventListener('click', (e) => {
                     e.stopPropagation();
                     paMapSelection.echoIdx = idx;
@@ -904,11 +1019,11 @@ function paRenderMapView() {
 
     paSetView('map');
     // Leaflet cannot size itself while the container was display:none -
-    // and fitBounds in paDrawSelectedEcho needs the corrected size, so
+    // and fitBounds in paDrawPaths needs the corrected size, so
     // drawing must happen after invalidateSize in the same deferred step
     setTimeout(() => {
         paMap.invalidateSize();
-        paDrawSelectedEcho();
+        paDrawPaths(fit);
     }, 60);
 
     // Keep the selected message visible (e.g. after jumping from the table)
@@ -924,6 +1039,7 @@ function paRenderMapView() {
 function paClearMapSelection() {
     paMapSelection = { msgId: null, echoIdx: null };
     paPathLayer.clearLayers();
+    paAltLayer.clearLayers();
     document.getElementById('paMapClearBtn').classList.add('d-none');
     paRenderMapView();
 }
