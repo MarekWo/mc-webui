@@ -24,6 +24,12 @@ TAG="v${VERSION}"
 
 if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
     error "VERSION must be MAJOR.MINOR.PATCH, got '${VERSION}'"
+    case "$VERSION" in
+        *-dev|*-dev*)
+            error "This is still a development version. Drop the '-dev' suffix"
+            error "on dev, title the whatsnew section, then merge and release."
+            ;;
+    esac
     exit 1
 fi
 
@@ -35,6 +41,18 @@ fi
 
 if [ -n "$(git status --porcelain)" ]; then
     error "Working tree is dirty - commit or stash first"
+    exit 1
+fi
+
+# The tag alone would drag the commit objects to GitHub, leaving the main
+# branch pointing at older code while a release claims otherwise
+info "Checking that main is pushed..."
+git fetch origin main --quiet
+LOCAL_HEAD=$(git rev-parse HEAD)
+REMOTE_HEAD=$(git rev-parse origin/main 2>/dev/null || echo "")
+if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+    error "Local main ($(git rev-parse --short HEAD)) does not match origin/main (${REMOTE_HEAD:0:7})"
+    error "Push it first:  git push origin main"
     exit 1
 fi
 
