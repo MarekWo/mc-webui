@@ -5,6 +5,8 @@ A lightweight web interface providing browser-based access to MeshCore mesh netw
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MarekWo/mc-webui)
 
+> **Which version is this?** The [`VERSION`](VERSION) file always holds the version of the branch you are looking at: on `main` it matches the newest entry under [Releases](https://github.com/MarekWo/mc-webui/releases), on `dev` it carries a `-dev` suffix for the release being prepared. The Releases panel in the sidebar is repository-wide and always shows the newest published release, whichever branch you are browsing.
+
 ## Overview
 
 **mc-webui** is a Flask-based web application providing browser-based access to MeshCore mesh network. It communicates directly with your LoRa device (via USB, BLE, or TCP) using the `meshcore` Python library, eliminating the need for SSH/terminal access. Tested on Heltec V3 and Heltec V4.
