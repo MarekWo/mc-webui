@@ -2,13 +2,19 @@
 
 User-facing summary of changes since the last `main` release. Maintained on `dev` and finalized before each merge to `main`.
 
-Releases are numbered `MAJOR.MINOR.PATCH` from **2.1.0** onward and tagged on GitHub — **MAJOR** when a deploy needs manual action from you, **MINOR** for new features, **PATCH** for fixes only. Sections before 2.1.0 are dated only; the project wasn't tagging releases yet. The exact build running on your server (`2026.07.26+95d96ec`) is still shown in the menu under the release number, for pinning down a specific deploy.
+Releases are numbered `MAJOR.MINOR.PATCH` from **2.1.0** onward and tagged on GitHub — **MAJOR** when a deploy needs manual action from you, **MINOR** for new features, **PATCH** for fixes only. Sections before 2.1.0 are dated only; the project wasn't tagging releases yet. The exact build running on your server (a date and commit, like `2026.07.26+95d96ec`) is still shown in the menu under the release number, for pinning down a specific deploy.
 
 For deep technical notes, see [architecture.md](architecture.md). For the full git history, run `git log`.
 
 ---
 
 ## Unreleased
+
+_Nothing yet since 2.2.0._
+
+---
+
+## 2.2.0 — 2026-07-27
 
 ### New features
 
