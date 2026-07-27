@@ -163,6 +163,19 @@ Archives are created automatically at midnight (00:00 UTC) each day. The live vi
 
 Click the reply button on any message to insert `@[UserName]` into the text field, then type your reply.
 
+### Quoting a Message
+
+Click the quote button (") on any message to quote it. The quoted text is put on its own line prefixed with `>`, and the cursor lands on the line below it, ready for your answer:
+
+```
+@[daniel5120] >Are we still on for tonight?
+Yes, 8pm works.
+```
+
+The `>` prefix is the plain-text quoting convention used across the internet and by other MeshCore clients, so your quote reads correctly for everyone, not just mc-webui users. mc-webui shows the quoted line in an italic, tinted block. Quotes typed by hand are styled the same way, as are the `»quoted text«` guillemets mc-webui used before version 2.2.0.
+
+Long messages open a dialog first, offering the full text or a truncated version — see **Max quote length** in [Settings](#settings).
+
 ### Message Actions
 
 Your own messages carry a small row of action buttons:

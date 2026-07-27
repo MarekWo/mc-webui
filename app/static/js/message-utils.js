@@ -134,17 +134,31 @@ function processChannelLinks(text) {
 }
 
 /**
- * Convert »quoted text« to styled quote blocks
+ * Convert quoted text to styled quote blocks. Two syntaxes are recognised:
+ * `>quoted line` (current, also what other MeshCore clients use) and
+ * `»quoted text«` (what mc-webui produced before 2.2.0 — still rendered so
+ * older messages keep their styling).
  * @param {string} text - HTML-escaped text
  * @returns {string} - Text with styled quotes
  */
 function processQuotes(text) {
-    // Match »...« pattern (guillemets) including optional trailing whitespace
-    const quotePattern = /»([^«]+)«\s*/g;
-
-    return text.replace(quotePattern, (_match, quoted) => {
-        // Display without guillemets (styling is enough) + line break after
+    // Legacy guillemets: the markers are dropped (styling replaces them) and
+    // the pattern eats the space separating quote from reply, hence the <br>.
+    const legacyPattern = /»([^«]+)«\s*/g;
+    text = text.replace(legacyPattern, (_match, quoted) => {
         return `<span class="quote-text">${quoted}</span><br>`;
+    });
+
+    // `>quoted line`. The text arrives HTML-escaped, so a typed '>' shows up as
+    // '&gt;' and the '>' of generated tags can never match. Anchored to the
+    // start of a line or to a leading @[mention] badge, so "5 &gt; 3" mid
+    // sentence is left alone. The trailing newline stays in place — the message
+    // containers are pre-wrap and render it as the break.
+    const quotePattern = /(^|\n|<\/span>[ \t]*)&gt;[ \t]*([^\n]*)/g;
+
+    return text.replace(quotePattern, (match, prefix, quoted) => {
+        if (!quoted.trim()) return match;
+        return `${prefix}<span class="quote-text">${quoted}</span>`;
     });
 }
 

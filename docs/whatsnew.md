@@ -10,7 +10,16 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
-_Nothing yet since 2.1.0._
+### New features
+
+- **Quotes now use the `>` convention everyone else already uses.** Quoting a message used to wrap it in guillemets — `@[Daniel] »Hejka« Cześć!` — a shape mc-webui invented back when it couldn't send multi-line messages. It now puts the quote on its own line behind a `>` and drops the cursor underneath it, so a reply reads as a quote in the standard MeshCore app and every other client too, not just here:
+
+  ```
+  @[Daniel] >Are we still on for tonight?
+  Yes, 8pm works.
+  ```
+
+  Quotes you type by hand get the same italic, tinted styling, so `>` written manually now looks like a proper quote as well. Nothing you received earlier changes: the old `»…«` form is still recognised and still displayed exactly as before.
 
 ---
 

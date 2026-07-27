@@ -1531,11 +1531,15 @@ function truncateToBytes(text, maxBytes) {
 }
 
 /**
- * Insert a quote into the message input.
+ * Insert a quote into the message input, leaving the cursor on a fresh line
+ * for the reply. Uses the `>` line prefix rather than the guillemets of older
+ * versions, so the quote also reads as one in clients that don't style it.
  */
 function insertQuote(username, quotedText) {
     const input = document.getElementById('messageInput');
-    input.value = `@[${username}] »${quotedText}« `;
+    // One '>' per line — a quoted multi-line message stays fully quoted.
+    const quoted = quotedText.split('\n').map(line => `>${line}`).join('\n');
+    input.value = `@[${username}] ${quoted}\n`;
     updateCharCounter();
     input.focus();
 }
