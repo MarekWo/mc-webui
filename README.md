@@ -38,6 +38,7 @@ A lightweight web interface providing browser-based access to MeshCore mesh netw
 - **DM delivery tracking** - ACK-based delivery confirmation with SNR, route, and hop count details
 - **Multi-device support** - Database file named after device public key for easy multi-device setups
 - **PWA support** - Browser notifications and installable app (experimental)
+- **Android app** - Optional companion app that opens your instance full screen, without the browser address bar
 - **Full offline support** - Works without internet (local Bootstrap, icons, emoji picker)
 
 For detailed feature documentation, see the [User Guide](docs/user-guide.md).
@@ -285,6 +286,21 @@ For complete usage instructions, see the [User Guide](docs/user-guide.md).
 
 ---
 
+## Android App
+
+<table>
+  <tr>
+    <td width="200" align="center"><a href="images/android-wrapper-setup.jpg"><img src="images/android-wrapper-setup.jpg" width="180"></a></td>
+    <td>
+      A companion app that opens your own instance full screen — no address bar, its own icon in the app drawer. Everything still runs on your server; the app only displays it.<br><br>
+      It is not distributed through Google Play. Download <a href="android/mc-webui-wrapper.apk"><code>android/mc-webui-wrapper.apk</code></a>, install it on the phone, and enter the address of your instance once (e.g. <code>http://192.168.1.100:5000</code>).<br><br>
+      Full instructions — including the "unknown sources" and Play Protect warnings, and what the app can and cannot do — are in the <a href="docs/android-app.md">Android App guide</a>.
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Updating
 
 ### Docker Hub installation
@@ -444,6 +460,7 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 | Document | Description |
 |----------|-------------|
 | [User Guide](docs/user-guide.md) | Complete feature documentation |
+| [Android App](docs/android-app.md) | Installing the Android companion app and connecting it to your instance |
 | [Architecture](docs/architecture.md) | Technical details, API reference |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 | [Docker Installation](docs/docker-install.md) | How to install Docker on Debian/Ubuntu |

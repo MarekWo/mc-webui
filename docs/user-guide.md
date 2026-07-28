@@ -26,6 +26,7 @@ This guide covers all features and functionality of mc-webui. For installation i
 - [Network Commands](#network-commands)
 - [PWA Notifications](#pwa-notifications)
 - [Notifications Tab](#notifications-tab)
+- [Android App](#android-app)
 
 ---
 
@@ -1052,6 +1053,35 @@ To get the full PWA experience with app badge counters:
 - This is normal OS behavior for battery saving
 - Reopen app to resume notifications
 - Full "wake device" support would require Web Push API (not implemented)
+
+---
+
+## Android App
+
+Besides installing mc-webui as a PWA, there is a small **Android companion
+app** that opens your instance full screen — no address bar, its own icon in
+the app drawer. It contains no mesh logic: it asks once for the address of your
+server (e.g. `http://192.168.1.100:5000`) and displays it, so everything still
+runs on your server and your MeshCore device.
+
+<p align="center">
+  <img src="../images/android-wrapper-setup.jpg" width="280" alt="mc-webui Android app - server address screen">
+</p>
+
+The app is not distributed through Google Play — you download the `.apk` from
+the repository and install it yourself, which means going past a couple of
+Android warnings. The **[Android App guide](android-app.md)** walks through the
+download, the "unknown sources" permission, the Play Protect notice, and the
+first connection.
+
+**App or PWA?** They can coexist, and each is better at something:
+
+| | Android app | PWA (Chrome → Add to Home Screen) |
+|---|---|---|
+| Full screen, own icon | Yes | Yes |
+| Setup | Install `.apk`, type the address once | Open in Chrome, add to home screen |
+| Notifications | Not available | Available (see above) |
+| QR scanning, file downloads | Not available | Available |
 
 ---
 

@@ -10,7 +10,9 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
-_Nothing yet since 2.2.0._
+### New features
+
+- **There is an Android app now.** A small companion app opens your own instance full screen — no address bar, its own icon in the app drawer, and it looks like a proper Android app rather than a page in a browser. It holds no mesh logic of its own: on first run it asks for the address of your server (`http://192.168.1.100:5000` on the local network, or your `https://` hostname behind a reverse proxy), remembers it, and from then on launches straight into mc-webui. Everything still runs on your server and your MeshCore device. It is not on Google Play, so you download the `.apk` from the repository and install it yourself — the new [Android App guide](android-app.md) walks through that, including the "unknown sources" permission and the Play Protect notice Android shows for any app that didn't come from the Play Store. Two things still belong to the browser: notifications and QR scanning, so if you rely on those, keep the Chrome "Add to Home Screen" install — the two can live side by side.
 
 ---
 
