@@ -161,6 +161,10 @@ full-screen WebView for mc-webui itself, and a saved preference between them.
 No analytics, no third-party services, no background activity — when the app is
 closed, nothing of it runs.
 
+The complete source is in [`android/src/`](../android/src), and
+[`android/README.md`](../android/README.md) describes how to build it yourself
+if you would rather not trust a prebuilt `.apk`.
+
 ---
 
 ## See also

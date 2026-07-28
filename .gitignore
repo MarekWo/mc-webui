@@ -81,6 +81,16 @@ data/
 *.db
 
 # ============================================
+# Android wrapper app (android/src)
+# ============================================
+.gradle/
+local.properties
+# Signing keys never belong in the repository
+*.jks
+*.keystore
+keystore.properties
+
+# ============================================
 # OS
 # ============================================
 Thumbs.db
