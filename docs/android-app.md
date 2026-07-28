@@ -31,10 +31,10 @@ along the way. The steps below cover those warnings.
 |---|---|
 | **File** | [`android/mc-webui-wrapper.apk`](../android/mc-webui-wrapper.apk) |
 | **Direct link** | https://github.com/MarekWo/mc-webui/raw/main/android/mc-webui-wrapper.apk |
-| **Size** | 5.7 MB |
+| **Size** | 4.6 MB |
 | **App version** | 1.0 |
 | **Package** | `it.wojtaszek.mc.wrapper` |
-| **SHA-256** | `12e1e388e01a68e0de73672808033a2ff8417df7075a229e3be9eccc6f7ff82c` |
+| **SHA-256** | `eaeccbb2016f67517adb2940375604b327ba049fe69ae5682f8f0881de888f08` |
 
 Download it directly on the phone, or copy it over from a computer.
 
@@ -114,27 +114,34 @@ The address is remembered, so every later launch goes straight into mc-webui.
 
 ### Changing the address later
 
-The app returns to the address screen when you press **Back** on the main
-mc-webui page, and also when it cannot reach the server (wrong address, server
-down, phone off the network). Enter the address again — corrected if it was
-wrong, unchanged if the server was simply unreachable — and tap **SAVE &
-CONNECT**.
+Press **Back** on the first mc-webui page and the app asks what you want:
+**Change server** brings up the address form, **Exit** closes the app, **Cancel**
+stays where you were. (Deeper inside the interface, Back simply goes back a
+page, as in a browser.)
+
+The address form also appears on its own when the app cannot reach the server —
+wrong address, server down, phone off the network. Either way the form opens
+**pre-filled with the address you are using**, and nothing is overwritten until
+you tap **SAVE & CONNECT**: a dropped connection never costs you the address.
 
 ---
 
 ## What works, and what doesn't
 
-Everything you do in mc-webui itself works exactly as in the browser: channels,
-direct messages, contacts, the console, My Repeaters, the Path Analyzer, maps,
-settings, themes. A few things live outside the page and are not wired up in
-this version of the wrapper:
+Everything you do in mc-webui itself works as in the browser: channels, direct
+messages, contacts, the console, My Repeaters, the Path Analyzer, maps,
+settings, themes. Links to other sites — a URL in a message, the packet
+analyzer — open in your normal browser, so the app stays on your instance.
 
-| Feature | In the app | Instead |
-|---|---|---|
-| **Notifications** for new messages | Not available — the app has no access to the browser notification system | Install mc-webui as a **PWA** in Chrome for notifications ([how](user-guide.md#installing-as-pwa)); the two can live side by side |
-| **Scanning a QR code** (Add Contact → Scan QR) | Not available — the app does not request camera access | **Paste URI** or **Manual entry** on the same screen |
-| **Downloading files** (database backup, saving a QR image) | Does nothing when tapped | Do it from a browser on the phone or from a computer |
-| **HTTPS with a self-signed certificate** | Refused, with an "SSL Error" message | Use a valid certificate (e.g. Let's Encrypt), or plain `http://` on the local network |
+Two things depend on how your instance is reachable, and one is not available
+at all:
+
+| Feature | In the app |
+|---|---|
+| **Notifications** for new messages | **Not available.** The app has no access to the browser's notification system. If you want notifications, also install mc-webui as a **PWA** in Chrome ([how](user-guide.md#installing-as-pwa)) — the app and the PWA can live side by side |
+| **Scanning a QR code** (Add Contact → Scan QR) | **Works on `https://` instances.** Android asks for camera permission the first time. Over plain `http://` the camera stays blocked — that is a browser rule, not an app limitation, and Chrome on the same phone behaves identically. Use **Paste URI** or **Manual entry** there |
+| **Downloading files** (e.g. database backups) | **Works.** Files land in the phone's **Downloads** folder, with the usual download notification |
+| **HTTPS with a self-signed certificate** | **Refused,** with an "SSL error" message. Use a valid certificate (e.g. Let's Encrypt), or plain `http://` on the local network |
 
 ---
 
@@ -150,7 +157,13 @@ this version of the wrapper:
   certificate. On a home network that is fine; over the internet, put mc-webui
   behind a reverse proxy with HTTPS and some form of access control — the app
   adds no authentication of its own
-- The app requests a single Android permission: **internet access**
+- **Permissions:** internet access; the camera, only when you use QR scanning
+  and only after you allow it; and file storage on Android 9 and older, only
+  for saving a download. Nothing else — no contacts, no location, no background
+  services
+- Every release is **signed with the same key** (certificate SHA-256
+  `42:58:57:b3:60:0c:1b:89:2f:8d:3b:2a:5c:46:8b:fe:17:c0:d2:1f:6c:12:24:33:a4:e1:1b:51:be:9b:d2:30`),
+  which is also why updates install straight over the previous version
 
 ---
 

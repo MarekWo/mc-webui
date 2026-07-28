@@ -140,7 +140,8 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean =
                 handleUrl(request?.url)
 
-            @Suppress("DEPRECATION")
+            // Deprecated, but it is the only one Android 5.x calls
+            @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean =
                 handleUrl(if (url == null) null else Uri.parse(url))
 
@@ -228,7 +229,7 @@ class MainActivity : AppCompatActivity() {
                 setMimeType(mimeType)
                 setTitle(fileName)
                 setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFIED)
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 if (!userAgent.isNullOrEmpty()) addRequestHeader("User-Agent", userAgent)
                 CookieManager.getInstance().getCookie(url)?.let { addRequestHeader("Cookie", it) }
             }
