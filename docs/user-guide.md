@@ -1080,8 +1080,8 @@ first connection.
 |---|---|---|
 | Full screen, own icon | Yes | Yes |
 | Setup | Install `.apk`, type the address once | Open in Chrome, add to home screen |
-| Notifications | Not available | Available (see above) |
-| QR scanning, file downloads | Not available | Available |
+| Notifications | Yes, from app version 1.1 — and over plain `http://` too | Yes (see above), on `https://` only |
+| QR scanning, file downloads | Yes (QR needs `https://`) | Yes (QR needs `https://`) |
 
 ---
 
