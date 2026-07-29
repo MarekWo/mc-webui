@@ -32,9 +32,9 @@ along the way. The steps below cover those warnings.
 | **File** | [`android/mc-webui-wrapper.apk`](../android/mc-webui-wrapper.apk) |
 | **Direct link** | https://github.com/MarekWo/mc-webui/raw/main/android/mc-webui-wrapper.apk |
 | **Size** | 4.6 MB |
-| **App version** | 1.0 |
+| **App version** | 1.1 |
 | **Package** | `it.wojtaszek.mc.wrapper` |
-| **SHA-256** | `eaeccbb2016f67517adb2940375604b327ba049fe69ae5682f8f0881de888f08` |
+| **SHA-256** | `6f089b4b9b2a3293225653fd668d69b058ae326ae31d2ae221d6a931a5729d42` |
 
 Download it directly on the phone, or copy it over from a computer.
 
@@ -133,12 +133,11 @@ messages, contacts, the console, My Repeaters, the Path Analyzer, maps,
 settings, themes. Links to other sites — a URL in a message, the packet
 analyzer — open in your normal browser, so the app stays on your instance.
 
-Two things depend on how your instance is reachable, and one is not available
-at all:
+A couple of things depend on how your instance is reachable:
 
 | Feature | In the app |
 |---|---|
-| **Notifications** for new messages | **Not available.** The app has no access to the browser's notification system. If you want notifications, also install mc-webui as a **PWA** in Chrome ([how](user-guide.md#installing-as-pwa)) — the app and the PWA can live side by side |
+| **Notifications** for new messages | **Work,** from version 1.1. Turn them on in the mc-webui menu as usual; Android asks for its own permission the first time. They arrive while the app is open or recently in the background — Android eventually suspends a backgrounded app, and notifications stop until you open it again. Unlike a browser, these also work over plain `http://`. Tapping one reopens the app |
 | **Scanning a QR code** (Add Contact → Scan QR) | **Works on `https://` instances.** Android asks for camera permission the first time. Over plain `http://` the camera stays blocked — that is a browser rule, not an app limitation, and Chrome on the same phone behaves identically. Use **Paste URI** or **Manual entry** there |
 | **Downloading files** (e.g. database backups) | **Works.** Files land in the phone's **Downloads** folder, with the usual download notification |
 | **HTTPS with a self-signed certificate** | **Refused,** with an "SSL error" message. Use a valid certificate (e.g. Let's Encrypt), or plain `http://` on the local network |
@@ -158,8 +157,9 @@ at all:
   behind a reverse proxy with HTTPS and some form of access control — the app
   adds no authentication of its own
 - **Permissions:** internet access; the camera, only when you use QR scanning
-  and only after you allow it; and file storage on Android 9 and older, only
-  for saving a download. Nothing else — no contacts, no location, no background
+  and only after you allow it; notifications, only after you turn them on in
+  the menu and allow them; and file storage on Android 9 and older, only for
+  saving a download. Nothing else — no contacts, no location, no background
   services
 - Every release is **signed with the same key** (certificate SHA-256
   `42:58:57:b3:60:0c:1b:89:2f:8d:3b:2a:5c:46:8b:fe:17:c0:d2:1f:6c:12:24:33:a4:e1:1b:51:be:9b:d2:30`),
@@ -183,6 +183,6 @@ if you would rather not trust a prebuilt `.apk`.
 ## See also
 
 - [User Guide](user-guide.md) — everything the interface itself can do
-- [PWA Notifications](user-guide.md#pwa-notifications) — the browser-based
-  alternative, with notification support
+- [PWA Notifications](user-guide.md#pwa-notifications) — how the same
+  notifications behave in the browser
 - [Troubleshooting](troubleshooting.md) — when the server itself misbehaves

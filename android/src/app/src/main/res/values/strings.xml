@@ -24,4 +24,9 @@
     <string name="download_failed">Download failed: %1$s</string>
     <string name="camera_denied">Camera permission denied - QR scanning needs it</string>
     <string name="storage_denied">Storage permission denied - the file cannot be saved</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_name">Mesh activity</string>
+    <string name="notification_channel_description">New messages and pending contacts from your mc-webui server</string>
+    <string name="notifications_denied">Notification permission denied - mc-webui cannot alert you about new messages</string>
 </resources>

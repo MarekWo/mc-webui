@@ -10,7 +10,15 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
-_Nothing yet since 2.3.0._
+_Nothing yet since 2.4.0._
+
+---
+
+## 2.4.0 — 2026-07-29
+
+### New features
+
+- **The Android app can send notifications now.** When the app shipped in 2.3.0, notifications were the one thing it couldn't do, and the advice was to keep a Chrome "Add to Home Screen" install alongside it. That's no longer necessary — turn notifications on in the mc-webui menu as usual, allow the permission Android asks for, and new messages and pending contacts arrive as ordinary Android notifications. Tapping one reopens the app. Two things are actually better here than in the browser: they work over plain `http://` too (Chrome refuses notifications on an unencrypted page), and the app shows up in Android's notification settings like any other, so you can silence it or change its sound there. The same limit as the browser still applies: notifications arrive while the app is open or recently in the background, and stop once Android suspends it — reopening the app catches you up. Requires app version **1.1**; see the [Android App guide](https://github.com/MarekWo/mc-webui/blob/main/docs/android-app.md) for how to update.
 
 ---
 
