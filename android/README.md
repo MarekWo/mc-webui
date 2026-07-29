@@ -14,7 +14,7 @@ see [Android App](../docs/android-app.md).
 | **Published build** | [`mc-webui-wrapper.apk`](mc-webui-wrapper.apk) |
 | **Package** | `it.wojtaszek.mc.wrapper` |
 | **Min / target SDK** | 21 (Android 5.0) / 34 |
-| **Permissions** | `INTERNET`; `CAMERA` for QR scanning; `WRITE_EXTERNAL_STORAGE` (Android 9 and older) for saving downloads |
+| **Permissions** | `INTERNET`; `CAMERA` for QR scanning; `POST_NOTIFICATIONS` for new-message alerts; `WRITE_EXTERNAL_STORAGE` (Android 9 and older) for saving downloads |
 
 ## Layout
 
@@ -26,6 +26,7 @@ src/
     ├── build.gradle.kts
     └── src/main/
         ├── AndroidManifest.xml
+        ├── assets/notification_shim.js                    ← window.Notification
         ├── java/it/wojtaszek/mc/wrapper/MainActivity.kt   ← the whole app
         └── res/                                            layout, strings, icons
 ```
@@ -40,6 +41,30 @@ src/
   schemes are handed to the system, so the app stays on the user's instance
 - The page's camera request (QR scanning) is mirrored to an Android permission
   request; downloads go to the phone's Downloads folder via `DownloadManager`
+
+## Notifications
+
+Android's WebView ships **no Web Notifications API at all** — `window.Notification`
+is simply undefined, so mc-webui detects that and greys its notification toggle
+out as "Unavailable". Native code has to supply the missing piece:
+
+- `assets/notification_shim.js` defines a stand-in `window.Notification` and
+  forwards every call to a `@JavascriptInterface` bridge in `MainActivity.kt`,
+  which posts through Android's own `NotificationManager`. **mc-webui itself
+  needs no changes** — the page uses the standard API and never knows
+- The shim is injected from `onPageStarted`, which runs as the document begins
+  loading. That is comfortably ahead of `DOMContentLoaded`, where mc-webui reads
+  the permission and decides whether to enable the toggle
+- The web permission states map onto Android's: below Android 13 posting needs
+  no permission so it is `granted` outright; after a refusal,
+  `shouldShowRequestPermissionRationale` is what separates "ask again"
+  (`default`) from "blocked for good" (`denied`)
+- The notification channel is created at startup, which is also what puts the
+  app in Android's notification settings list at all
+- **Limitation:** notifications only arrive while the app's process is alive —
+  open, or recently backgrounded. Android eventually suspends it and they stop.
+  This is the same limit the PWA has; real background delivery would need a
+  foreground service or push from the server
 
 ## Building
 

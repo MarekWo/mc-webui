@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- QR scanning in Add Contact; the page asks first, Android asks second -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- New message alerts. Also what puts the app in Android's notification
+         settings at all - without it the app is not even listed there -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Saving downloads (e.g. database backups) before Android 10 -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
@@ -25,7 +28,8 @@
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
