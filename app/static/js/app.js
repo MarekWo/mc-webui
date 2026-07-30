@@ -391,6 +391,86 @@ function isContactProtectedByName(senderName) {
     return pubkey && protectedContactPubkeys.has(pubkey.toLowerCase());
 }
 
+// =============================================================================
+// Resync after a gap
+//
+// The chat view is push-driven: messages arrive over the socket and are
+// appended one at a time. Whatever the socket misses - Android doze tearing the
+// connection down behind a locked screen, a switch between Wi-Fi and mobile -
+// is never drawn, and the list silently stops at the last message that got
+// through. A browser tab hides this because it reloads the page on resume; the
+// Android wrapper keeps the same page alive for days, so the gap stays until
+// the app is force-stopped.
+//
+// So every way back from a gap ends up here: the socket reconnecting, the page
+// becoming visible, the heartbeat noticing it was frozen, the Refresh menu
+// item, and the wrapper's onResume hook.
+// =============================================================================
+
+let chatSocketEverConnected = false;
+let resyncInFlight = false;
+
+/** Re-read the message list and badges from the server. */
+async function resyncFromServer(reason, { toast = false } = {}) {
+    if (resyncInFlight) return;
+    resyncInFlight = true;
+    console.log(`[resync] refreshing after ${reason}`);
+    try {
+        // The archive view is a frozen snapshot of one day - reloading it would
+        // fight the date the user picked. Its badges still need updating.
+        if (!currentArchiveDate) await loadMessages();
+        await checkForUpdates();
+        loadStatus();
+        updatePendingContactsBadge();
+        checkDmUpdates();
+        if (toast) showNotification('Messages refreshed', 'success');
+    } catch (error) {
+        console.error('[resync] failed:', error);
+        if (toast) showNotification('Refresh failed', 'danger');
+    } finally {
+        resyncInFlight = false;
+    }
+}
+
+/**
+ * Heartbeat that catches the cases no event announces.
+ *
+ * A tick arriving far later than scheduled means the page was frozen or
+ * throttled - precisely the window in which socket events go missing - so the
+ * gap is worth a resync even if the socket claims it never dropped. The same
+ * tick nudges a socket still stuck in its reconnect backoff.
+ */
+function startResyncHeartbeat() {
+    const TICK_MS = 20000;
+    let lastTickAt = Date.now();
+
+    setInterval(() => {
+        const now = Date.now();
+        const drift = now - lastTickAt;
+        lastTickAt = now;
+
+        if (document.hidden) return;  // visibilitychange covers the way back
+
+        if (drift > TICK_MS * 3) {
+            resyncFromServer('timer gap');
+            return;
+        }
+        // connect() during backoff simply retries now instead of later; the
+        // 'connect' handler then does the resync
+        if (chatSocket && !chatSocket.connected) chatSocket.connect();
+    }, TICK_MS);
+}
+
+/**
+ * Called by the Android wrapper from onResume. The WebView is not guaranteed
+ * to fire visibilitychange for an Activity coming back to the foreground, so
+ * the wrapper says so itself.
+ */
+window.__mcAppResumed = function() {
+    if (chatSocket && !chatSocket.connected) chatSocket.connect();
+    resyncFromServer('app resumed');
+};
+
 // Initialize on page load
 /**
  * Connect to SocketIO /chat namespace for real-time message updates
@@ -412,6 +492,15 @@ function connectChatSocket() {
 
     chatSocket.on('connect', () => {
         console.log('SocketIO connected to /chat');
+        // Everything pushed while the socket was down is gone for good - only a
+        // re-read of the list brings those messages back. Skipped on the very
+        // first connect, where DOMContentLoaded has just loaded them anyway.
+        if (chatSocketEverConnected) resyncFromServer('socket reconnect');
+        chatSocketEverConnected = true;
+    });
+
+    chatSocket.on('disconnect', (reason) => {
+        console.warn('SocketIO /chat disconnected:', reason);
     });
 
     chatSocket.on('connect_error', (err) => {
@@ -582,6 +671,8 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Connect SocketIO for real-time updates
     connectChatSocket();
+    // Safety net for the updates the socket never delivered
+    startResyncHeartbeat();
 
     console.log(`[init] UI ready in ${(performance.now() - initStart).toFixed(0)}ms`);
 
@@ -609,23 +700,34 @@ window.addEventListener('pageshow', function(event) {
 });
 
 // Handle app returning from background (PWA visibility change)
+let hiddenSince = null;
 document.addEventListener('visibilitychange', function() {
-    if (!document.hidden) {
-        // App became visible again, force viewport recalculation
-        console.log('App became visible, recalculating viewport');
-        setTimeout(() => {
-            window.scrollTo(0, 0);
-            window.dispatchEvent(new Event('resize'));
-            document.body.offsetHeight;
-        }, 100);
-
-        // Clear app badge when user returns to app
-        if ('clearAppBadge' in navigator) {
-            navigator.clearAppBadge().catch((error) => {
-                console.error('Error clearing app badge on visibility:', error);
-            });
-        }
+    if (document.hidden) {
+        hiddenSince = Date.now();
+        return;
     }
+
+    // App became visible again, force viewport recalculation
+    console.log('App became visible, recalculating viewport');
+    setTimeout(() => {
+        window.scrollTo(0, 0);
+        window.dispatchEvent(new Event('resize'));
+        document.body.offsetHeight;
+    }, 100);
+
+    // Clear app badge when user returns to app
+    if ('clearAppBadge' in navigator) {
+        navigator.clearAppBadge().catch((error) => {
+            console.error('Error clearing app badge on visibility:', error);
+        });
+    }
+
+    // Anything longer than a glance away is long enough for the socket to have
+    // dropped messages, so catch up before the user reads a stale list
+    const away = hiddenSince ? Date.now() - hiddenSince : 0;
+    hiddenSince = null;
+    if (chatSocket && !chatSocket.connected) chatSocket.connect();
+    if (away > 10000) resyncFromServer('back from background');
 });
 
 /**
@@ -942,6 +1044,15 @@ function setupEventListeners() {
         oc.addEventListener('hidden.bs.offcanvas', () => openFilterBar(), { once: true });
         inst.hide();
     });
+
+    // Manual refresh from the menu
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            if (chatSocket && !chatSocket.connected) chatSocket.connect();
+            resyncFromServer('manual refresh', { toast: true });
+        });
+    }
 
     // Notification toggle
     const notificationsToggle = document.getElementById('notificationsToggle');

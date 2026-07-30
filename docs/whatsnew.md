@@ -10,7 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
-_Nothing yet since 2.4.0._
+### Fixes
+
+- **Messages no longer go missing after the app has been in the background.** Coming back to a minimised app — or to a phone that had been asleep — could show a chat that quietly stopped at whatever message arrived last before the screen went off, with everything since then missing until the app was force-stopped and reopened. New messages reach an open page over a live connection, and Android tears that connection down while the app sits in the background; nothing then went back to ask the server what had been missed. Now every way back from a gap re-reads the list: the connection coming back, the app returning to the foreground, and a heartbeat that notices when the page has been frozen. The same applies to direct messages, and to a browser tab that lost its network for a while.
+- **A Refresh item in the menu.** The browser's pull-to-refresh has no equivalent in the Android app, so there is now a **Refresh** entry at the top of the menu that reloads the messages from the server on demand — in the app, and everywhere else too.
 
 ---
 

@@ -114,6 +114,31 @@ function resolveConversationName(conversationId) {
     return 'Unknown';
 }
 
+let chatSocketEverConnected = false;
+let resyncInFlight = false;
+
+/**
+ * Re-read the DM lists from the server.
+ *
+ * This view is push-driven, so a socket that drops while the phone sleeps
+ * leaves it showing whatever arrived last - the 60s poll eventually catches up,
+ * but only once its timer un-throttles. Every path back from a gap comes here.
+ */
+async function resyncFromServer(reason) {
+    if (resyncInFlight) return;
+    resyncInFlight = true;
+    console.log(`DM: [resync] refreshing after ${reason}`);
+    try {
+        await loadConversations();
+        if (currentConversationId) await loadMessages();
+        await loadStatus();
+    } catch (error) {
+        console.error('DM: [resync] failed:', error);
+    } finally {
+        resyncInFlight = false;
+    }
+}
+
 /**
  * Connect to SocketIO /chat namespace for real-time DM and ACK updates
  */
@@ -134,10 +159,14 @@ function connectChatSocket() {
 
     chatSocket.on('connect', () => {
         console.log('DM: SocketIO connected to /chat');
+        // Whatever arrived while the socket was down was never pushed to us;
+        // only re-reading the lists brings it back (see resyncFromServer)
+        if (chatSocketEverConnected) resyncFromServer('socket reconnect');
+        chatSocketEverConnected = true;
     });
 
-    chatSocket.on('disconnect', () => {
-        console.log('DM: SocketIO disconnected');
+    chatSocket.on('disconnect', (reason) => {
+        console.log('DM: SocketIO disconnected:', reason);
     });
 
     // Real-time new DM message
@@ -330,16 +359,27 @@ window.addEventListener('pageshow', function(event) {
 });
 
 // Handle app returning from background (PWA visibility change)
+let hiddenSince = null;
 document.addEventListener('visibilitychange', function() {
-    if (!document.hidden) {
-        // App became visible again, force viewport recalculation
-        console.log('App became visible, recalculating viewport');
-        setTimeout(() => {
-            window.scrollTo(0, 0);
-            window.dispatchEvent(new Event('resize'));
-            document.body.offsetHeight;
-        }, 100);
+    if (document.hidden) {
+        hiddenSince = Date.now();
+        return;
     }
+
+    // App became visible again, force viewport recalculation
+    console.log('App became visible, recalculating viewport');
+    setTimeout(() => {
+        window.scrollTo(0, 0);
+        window.dispatchEvent(new Event('resize'));
+        document.body.offsetHeight;
+    }, 100);
+
+    // Long enough away for the socket to have dropped updates - catch up
+    // rather than wait for the next 60s poll
+    const away = hiddenSince ? Date.now() - hiddenSince : 0;
+    hiddenSince = null;
+    if (chatSocket && !chatSocket.connected) chatSocket.connect();
+    if (away > 10000) resyncFromServer('back from background');
 });
 
 /**

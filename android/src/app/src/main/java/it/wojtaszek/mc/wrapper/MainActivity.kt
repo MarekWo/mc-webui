@@ -107,6 +107,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * The page keeps running while the app sits in the background - that is how
+     * notifications keep arriving - but the connection behind it does not
+     * survive doze, so the message list can be minutes behind by the time the
+     * user looks at it again. A WebView is not guaranteed to tell the page it
+     * was ever hidden, so say it here instead and let mc-webui catch up.
+     */
+    override fun onResume() {
+        super.onResume()
+        callJs("window.__mcAppResumed")
+    }
+
+    /**
      * A notification tap on a running app lands here rather than in [onCreate].
      * When the app was not running, simply being launched is the whole point of
      * the tap, so there is nothing extra to deliver.
