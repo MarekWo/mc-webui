@@ -1,4 +1,15 @@
 {
+  "common.days_ago": {
+    "one": "{count} dzień temu",
+    "few": "{count} dni temu",
+    "many": "{count} dni temu",
+    "other": "{count} dnia temu"
+  },
+  "common.hours_ago": "{count} godz. temu",
+  "common.just_now": "przed chwilą",
+  "common.minutes_ago": "{count} min temu",
+  "common.yesterday": "Wczoraj",
+
   "meta.language_english_name": "Polish",
   "meta.language_name": "Polski",
   "meta.translator": "mc-webui"

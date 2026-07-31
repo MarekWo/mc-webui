@@ -1,4 +1,13 @@
 {
+  "common.days_ago": {
+    "one": "{count}d ago",
+    "other": "{count}d ago"
+  },
+  "common.hours_ago": "{count}h ago",
+  "common.just_now": "just now",
+  "common.minutes_ago": "{count} min ago",
+  "common.yesterday": "Yesterday",
+
   "meta.language_english_name": "English",
   "meta.language_name": "English",
   "meta.translator": "mc-webui"

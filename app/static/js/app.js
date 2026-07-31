@@ -4591,45 +4591,14 @@ function scrollToBottom() {
 }
 
 /**
- * Format timestamp
+ * Format a message timestamp.
+ * Archive views always show the full date, since "Today" is meaningless there.
  */
 function formatTime(timestamp) {
-    const date = new Date(timestamp * 1000);
-
-    // When viewing archive, always show full date + time
-    if (currentArchiveDate) {
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-
-    // When viewing live messages, compare calendar dates
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === now.toDateString()) {
-        // Today - show time only
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (date.toDateString() === yesterday.toDateString()) {
-        // Yesterday
-        return 'Yesterday ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else {
-        // Older - show date and time
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
+    return formatTimestamp(timestamp, { absolute: !!currentArchiveDate });
 }
 
-/**
- * Format a unix timestamp as relative time (e.g., "5 min ago", "2h ago")
- */
-function formatTimeAgo(timestamp) {
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return new Date(timestamp * 1000).toLocaleDateString();
-}
+// formatTimeAgo() comes from datetime-utils.js.
 
 /**
  * Update character counter (counts UTF-8 bytes, not characters)

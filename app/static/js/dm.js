@@ -1783,24 +1783,11 @@ function updateLastRefresh() {
 }
 
 /**
- * Format timestamp to readable time
+ * Format timestamp to readable time.
+ * Uses the short date form ("5 Aug") — DM rows are narrower than channel messages.
  */
 function formatTime(timestamp) {
-    if (!timestamp) return '';
-
-    const date = new Date(timestamp * 1000);
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === now.toDateString()) {
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (date.toDateString() === yesterday.toDateString()) {
-        return 'Yesterday ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else {
-        return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
-               ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
+    return formatTimestamp(timestamp, { dateStyle: 'short' });
 }
 
 /**

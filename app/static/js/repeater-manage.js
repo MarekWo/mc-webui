@@ -278,9 +278,11 @@ function fmtDuration(seconds) {
     return parts.join(' ');
 }
 
+// Delegates to datetime-utils.js; no longer forces en-US thousands separators, so
+// numbers follow the reader's locale. Kept as a declaration (not const) so it stays
+// hoisted, like the implementation it replaced.
 function fmtInt(n) {
-    if (n == null || isNaN(n)) return '—';
-    return Number(n).toLocaleString('en-US');
+    return formatInt(n);
 }
 
 function batteryPercent(mv) {

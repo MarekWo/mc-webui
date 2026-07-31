@@ -8,6 +8,7 @@ const ASSETS_TO_CACHE = [
     '/static/js/message-utils.js',
     '/static/js/filter-utils.js',
     '/static/js/i18n-runtime.js',
+    '/static/js/datetime-utils.js',
     '/static/js/console.js',
     '/static/images/android-chrome-192x192.png',
     '/static/images/android-chrome-512x512.png',
