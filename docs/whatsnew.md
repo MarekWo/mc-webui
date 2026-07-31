@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.4.1 — 2026-07-31
+
 ### Fixes
 
 - **You can keep mc-webui open in several tabs again.** Two or three open windows used to bring the whole thing to a crawl — the message list crept, buttons took ten or twenty seconds to do anything, and the status could sit on "Connecting…". It looked exactly like an overloaded server, and it wasn't: the server was answering in a few thousandths of a second the entire time. The live connection that pushes new messages to an open page was running in a mode that keeps a browser connection permanently occupied, and a browser only allows six connections to one address **shared across every tab**. Three tabs took the lot, so everything else — loading messages, marking them read, sending — queued in the browser waiting for a free one. That connection now uses a proper WebSocket, which does not come out of that budget. Measured with three tabs open: a request that had been taking around 15 seconds now takes about 12 milliseconds. The advice to keep only one window open no longer applies. If you run mc-webui behind a reverse proxy that isn't set up to pass WebSocket connections through, the page quietly falls back to the old behaviour and works exactly as before.
