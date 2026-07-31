@@ -482,9 +482,14 @@ function connectChatSocket() {
     }
 
     const wsUrl = window.location.origin;
+    // Default transports (polling, then upgrade to websocket). Long-polling was
+    // pinned in 1d47c9c because werkzeug had no websocket support; python-engineio
+    // 4.8.1 pulled in simple-websocket and it does now. Polling holds an HTTP
+    // connection open per tab, and browsers only allow six per origin, so three
+    // tabs starved every other request of a connection for tens of seconds.
+    // Upgrading moves that connection out of the HTTP pool. Where the upgrade is
+    // blocked (a proxy that drops Upgrade), the client stays on polling by itself.
     chatSocket = io(wsUrl + '/chat', {
-        transports: ['polling'],
-        upgrade: false,
         reconnection: true,
         reconnectionDelay: 2000,
         reconnectionDelayMax: 10000,

@@ -37,9 +37,8 @@ function connectWebSocket() {
     console.log('Connecting to WebSocket:', wsUrl);
 
     try {
+        // Default transports — see the note in app.js connectChatSocket().
         socket = io(wsUrl + '/console', {
-            transports: ['polling'],
-            upgrade: false,
             reconnection: true,
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,

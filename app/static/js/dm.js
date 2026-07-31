@@ -149,9 +149,8 @@ function connectChatSocket() {
     }
 
     const wsUrl = window.location.origin;
+    // Default transports — see the note in app.js connectChatSocket().
     chatSocket = io(wsUrl + '/chat', {
-        transports: ['polling'],
-        upgrade: false,
         reconnection: true,
         reconnectionDelay: 2000,
         reconnectionDelayMax: 10000,

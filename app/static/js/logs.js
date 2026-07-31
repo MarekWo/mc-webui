@@ -32,9 +32,8 @@
     const LEVEL_ORDER = { DEBUG: 0, INFO: 1, WARNING: 2, ERROR: 3, CRITICAL: 4 };
 
     // --- WebSocket ---
+    // Default transports — see the note in app.js connectChatSocket().
     const socket = io('/logs', {
-        transports: ['polling'],
-        upgrade: false,
         reconnection: true,
         reconnectionDelay: 2000,
     });

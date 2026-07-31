@@ -409,7 +409,11 @@ These are top-level routes (not under `/api/`), consumed by Docker's healthcheck
 
 ## WebSocket API
 
-All Socket.IO clients (`/chat`, `/console`, `/logs`) are configured with `transports: ['polling']`. The Werkzeug dev server can't upgrade WebSockets, so every `io()` upgrade attempt previously returned HTTP 500 and clients fell into a polling/upgrade reconnect loop — visible as 10–15 s freezes on app load. Long-polling keeps real-time pushes working with ~1–2 s latency.
+All Socket.IO clients (`/chat`, `/console`, `/logs`) use the default transports: connect over long-polling, then upgrade to a real WebSocket. Where the upgrade is blocked (a reverse proxy that drops the `Upgrade` header) the client stays on polling by itself, so no configuration is needed either way.
+
+From 2026-06-07 to 2026-07-31 the clients pinned `transports: ['polling'], upgrade: false`, because the Werkzeug server then had no WebSocket support and every `io()` upgrade attempt returned HTTP 500, producing a reconnect loop and 10–15 s freezes on app load. That stopped being true when `python-engineio==4.8.1` was pinned (2026-07-14) and pulled in `simple-websocket`, which teaches Werkzeug to serve WebSockets.
+
+**Do not re-pin polling.** Long-polling holds one HTTP connection open per tab for the life of the tab, and browsers allow only six concurrent HTTP/1.1 connections per origin *across all tabs*. Three open tabs therefore consumed the whole pool, and every other request — including ones the server answered in 10 ms — waited tens of seconds in the browser's queue for a free connection. Measured with three tabs open: `/health` took a **14.7 s median** from inside a tab while answering in **11 ms** to a client outside the browser at the same instant; after the upgrade the same probe reads 12 ms. A WebSocket is not part of that HTTP pool, so upgrading is what releases it.
 
 ### Console Namespace (`/console`)
 
@@ -444,7 +448,7 @@ Real-time log streaming via Socket.IO.
 **Server → Client:**
 - `log_line` - New log line
 
-The `MemoryLogHandler` filters werkzeug access-log records for `/socket.io/` and `/api/logs/` paths before buffering/broadcasting. With `async_mode='threading'` Socket.IO falls back to long-polling; without this filter every poll is logged, the broadcast wakes the pending poll, the client re-polls immediately, and an open System Log tab spins at 10+ requests/sec.
+The `MemoryLogHandler` filters werkzeug access-log records for `/socket.io/` and `/api/logs/` paths before buffering/broadcasting. Clients still open on long-polling before upgrading, and stay there wherever the upgrade is blocked; without this filter every poll is logged, the broadcast wakes the pending poll, the client re-polls immediately, and an open System Log tab spins at 10+ requests/sec.
 
 ---
 
