@@ -118,7 +118,9 @@ main {
     white-space: nowrap;
 }
 
-.channel-sidebar-item .sidebar-unread-badge {
+/* Same badge in the sidebar (wide) and the navbar dropdown (narrow) */
+.channel-sidebar-item .sidebar-unread-badge,
+.channel-selector-item .sidebar-unread-badge {
     background-color: var(--sender-color);
     color: white;
     border-radius: 10px;
