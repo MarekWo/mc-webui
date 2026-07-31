@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 from flask import Flask, request as flask_request
 from flask_socketio import SocketIO, emit
+from app import i18n
 from app.config import config, runtime_config
 from app.database import Database
 from app.device_manager import DeviceManager, parse_meshcore_uri
@@ -22,6 +23,7 @@ from app.log_handler import MemoryLogHandler
 from app.observer import ObserverManager
 from app.routes.views import views_bp
 from app.routes.api import api_bp
+from app.routes.i18n import i18n_bp
 from app.version import RELEASE_VERSION, VERSION_STRING, GIT_BRANCH
 
 # Configure logging
@@ -226,19 +228,27 @@ def create_app():
     app.config['DEBUG'] = config.FLASK_DEBUG
     app.config['SECRET_KEY'] = 'mc-webui-secret-key-change-in-production'
 
-    # Inject version, branch, and transport type into all templates
+    # Inject version, branch, transport type, and UI language into all templates.
+    # This is the single injection point for i18n — it covers every render_template()
+    # in the app, including the six standalone pages loaded as fullscreen iframes.
     @app.context_processor
     def inject_globals():
+        lang = i18n.resolve_lang()
         return {
             'release': RELEASE_VERSION,
             'version': VERSION_STRING,
             'git_branch': GIT_BRANCH,
             'transport_type': config.transport_type,
+            'lang': lang,
+            'i18n_catalog_url': i18n.catalog_url(lang),
+            'available_languages': i18n.available_languages(),
+            **i18n.make_helpers(lang),
         }
 
     # Register blueprints
     app.register_blueprint(views_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(i18n_bp)
 
     # Initialize SocketIO
     socketio.init_app(app, cors_allowed_origins="*", async_mode='threading')

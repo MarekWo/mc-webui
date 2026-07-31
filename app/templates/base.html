@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light" data-bs-theme="light">
+<html lang="{{ lang }}" data-theme="light" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -15,9 +15,9 @@
     <!-- Theme: apply saved preference before CSS loads to prevent flash -->
     <script>
         (function() {
-            var t = localStorage.getItem('mc-webui-theme') || 'light';
-            document.documentElement.setAttribute('data-theme', t);
-            document.documentElement.setAttribute('data-bs-theme', t);
+            var theme = localStorage.getItem('mc-webui-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-bs-theme', theme);
         })();
     </script>
 
@@ -33,6 +33,8 @@
             } catch (e) {}
         })();
     </script>
+
+    {% include "_head_i18n.html" %}
 
     <!-- Bootstrap 5 CSS (local) -->
     <link href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
@@ -766,6 +768,25 @@
                             </form>
                         </div>
                         <div class="tab-pane fade" id="tabSettingsAppearance">
+                            <h6 class="text-muted mb-3">Language</h6>
+                            <div class="input-group input-group-sm mb-2">
+                                <select class="form-select form-select-sm" id="settLanguage">
+                                    {% for code, name in available_languages.items() %}
+                                    <option value="{{ code }}"{% if code == lang %} selected{% endif %}>{{ name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button class="btn btn-outline-secondary" type="button" id="reloadTranslationsBtn"
+                                        title="Re-scan the translations folder">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </div>
+                            <small class="d-block text-muted mb-3">
+                                Applies to this browser and becomes the server default for others.
+                                Add your own by dropping a catalog into the translations folder — see
+                                <code>docs/translations.md</code>.
+                            </small>
+
+                            <hr>
                             <h6 class="text-muted mb-3">Theme</h6>
                             <div class="d-flex flex-column gap-2">
                                 <div class="theme-option active" data-theme-value="light" onclick="setTheme('light')">

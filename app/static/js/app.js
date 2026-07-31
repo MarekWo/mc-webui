@@ -2592,7 +2592,8 @@ async function saveChatSettings() {
 const UI_SETTINGS_DEFAULTS = {
     toast_timeout_sec: 2,
     toast_no_autoclose: false,
-    toast_position: 'top-left'
+    toast_position: 'top-left',
+    language: 'en'
 };
 
 const TOAST_POSITION_CLASSES = {
@@ -2618,8 +2619,9 @@ function applyToastPosition(position) {
 window.applyToastPosition = applyToastPosition;
 
 function populateUiSettingsForm(data) {
-    const t = document.getElementById('settToastTimeout');
-    if (t) t.value = data.toast_timeout_sec ?? UI_SETTINGS_DEFAULTS.toast_timeout_sec;
+    // Not `t` — that would shadow the global translation helper for this whole function.
+    const timeout = document.getElementById('settToastTimeout');
+    if (timeout) timeout.value = data.toast_timeout_sec ?? UI_SETTINGS_DEFAULTS.toast_timeout_sec;
     const noClose = document.getElementById('settToastNoAutoclose');
     if (noClose) noClose.checked = !!(data.toast_no_autoclose ?? UI_SETTINGS_DEFAULTS.toast_no_autoclose);
     const pos = document.getElementById('settToastPosition');
@@ -2672,6 +2674,59 @@ async function saveUiSettings() {
         }
     } catch (e) {
         showNotification('Failed to save settings', 'danger');
+    }
+}
+
+// --- UI Language ---
+
+/**
+ * Switch the interface language.
+ *
+ * The cookie is what the server reads when rendering, and same-origin iframes send it
+ * automatically — so reloading the top-level page is all the propagation needed. The
+ * existing modal-open wiring in index.html re-assigns every iframe src, and each one
+ * then renders in the new language. The POST additionally makes this the server-wide
+ * default for browsers that have no cookie of their own.
+ */
+async function changeLanguage(code) {
+    if (!code || code === window.MC_LANG) return;
+
+    document.cookie = `mc_lang=${encodeURIComponent(code)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+
+    try {
+        await fetch('/api/ui/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ language: code })
+        });
+    } catch (e) {
+        // The cookie is already set, so the reload still switches this browser.
+        console.error('Failed to save server default language:', e);
+    }
+
+    location.reload();
+}
+
+/**
+ * Re-scan the translations folder without restarting the app.
+ *
+ * Catalogs are fingerprinted with stat() on every render, so a dropped-in file is
+ * normally live on the next refresh already. This covers network filesystems whose
+ * mtime granularity is too coarse for that to be noticed.
+ */
+async function reloadTranslations() {
+    try {
+        const resp = await fetch('/api/i18n/reload', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            const names = Object.values(data.languages || {}).join(', ');
+            showNotification(`Translations reloaded: ${names}`, 'success');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showNotification(data.error || 'Failed to reload translations', 'danger');
+        }
+    } catch (e) {
+        showNotification('Failed to reload translations', 'danger');
     }
 }
 
@@ -2875,6 +2930,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('uiSettingsResetBtn')?.addEventListener('click', () => {
         populateUiSettingsForm(UI_SETTINGS_DEFAULTS);
     });
+
+    document.getElementById('settLanguage')?.addEventListener('change', (e) => {
+        changeLanguage(e.target.value);
+    });
+
+    document.getElementById('reloadTranslationsBtn')?.addEventListener('click', reloadTranslations);
 
     // --- Device Settings ---
     const devicePublicInfoForm = document.getElementById('devicePublicInfoForm');

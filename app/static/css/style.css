@@ -1941,7 +1941,7 @@ emoji-picker {
 }
 
 /* =============================================================================
-   Contact Management Styles (shared between contacts.html and contacts_base.html)
+   Contact Management Styles (shared by contacts_base.html and its contacts-* pages)
    ============================================================================= */
 
 .compact-setting {
@@ -2191,7 +2191,7 @@ emoji-picker {
 #rptLeafletMap .leaflet-bottom { z-index: 1000; }
 
 /* =============================================================================
-   Contact Management - Page-specific Styles (contacts.html)
+   Contact Management - Page-specific Styles (contacts-* pages)
    ============================================================================= */
 
 .contact-info-row {
