@@ -46,17 +46,17 @@
         <!-- URI Paste Tab -->
         <div class="tab-pane fade show active" id="pane-uri" role="tabpanel">
             <div class="mb-3">
-                <label for="uriInput" class="form-label">MeshCore URI:</label>
+                <label for="uriInput" class="form-label">{{ t('contacts.add.uri_label') }}</label>
                 <textarea class="form-control font-monospace" id="uriInput" rows="3"
-                    placeholder="meshcore://contact/add?name=...&public_key=...&type=..."></textarea>
-                <small class="form-text text-muted">Paste a meshcore:// URI from the MeshCore mobile app</small>
+                    placeholder="{{ t('contacts.add.uri_ph') }}"></textarea>
+                <small class="form-text text-muted">{{ t('contacts.add.uri_hint') }}</small>
             </div>
             <!-- URI Preview -->
             <div id="uriPreview" class="alert alert-info d-none mb-3">
-                <strong>Preview:</strong>
-                <div><span class="text-muted">Name:</span> <span id="uriPreviewName"></span></div>
-                <div><span class="text-muted">Key:</span> <span id="uriPreviewKey" class="font-monospace small" style="word-break: break-all;"></span></div>
-                <div><span class="text-muted">Type:</span> <span id="uriPreviewType"></span></div>
+                <strong>{{ t('contacts.add.preview') }}</strong>
+                <div><span class="text-muted">{{ t('contacts.add.name') }}</span> <span id="uriPreviewName"></span></div>
+                <div><span class="text-muted">{{ t('contacts.add.key') }}</span> <span id="uriPreviewKey" class="font-monospace small" style="word-break: break-all;"></span></div>
+                <div><span class="text-muted">{{ t('contacts.add.type_short') }}</span> <span id="uriPreviewType"></span></div>
             </div>
             <button class="btn btn-success" id="addFromUriBtn" disabled>
                 <i class="bi bi-plus-circle"></i> Add Contact
@@ -79,15 +79,15 @@
             </div>
             <!-- File Upload Fallback -->
             <div class="mb-3">
-                <label for="qrFileInput" class="form-label">Or upload a QR code image:</label>
+                <label for="qrFileInput" class="form-label">{{ t('contacts.add.qr_label') }}</label>
                 <input type="file" class="form-control" id="qrFileInput" accept="image/*">
             </div>
             <!-- QR Result -->
             <div id="qrResult" class="alert alert-success d-none mb-3">
-                <strong>Scanned:</strong>
-                <div><span class="text-muted">Name:</span> <span id="qrResultName"></span></div>
-                <div><span class="text-muted">Key:</span> <span id="qrResultKey" class="font-monospace small" style="word-break: break-all;"></span></div>
-                <div><span class="text-muted">Type:</span> <span id="qrResultType"></span></div>
+                <strong>{{ t('contacts.add.scanned') }}</strong>
+                <div><span class="text-muted">{{ t('contacts.add.name') }}</span> <span id="qrResultName"></span></div>
+                <div><span class="text-muted">{{ t('contacts.add.key') }}</span> <span id="qrResultKey" class="font-monospace small" style="word-break: break-all;"></span></div>
+                <div><span class="text-muted">{{ t('contacts.add.type_short') }}</span> <span id="qrResultType"></span></div>
             </div>
             <div id="qrError" class="alert alert-danger d-none mb-3"></div>
             <button class="btn btn-success d-none" id="addFromQrBtn">
@@ -98,17 +98,17 @@
         <!-- Manual Entry Tab -->
         <div class="tab-pane fade" id="pane-manual" role="tabpanel">
             <div class="mb-3">
-                <label for="manualName" class="form-label">Name:</label>
-                <input type="text" class="form-control" id="manualName" placeholder="Contact name" maxlength="32">
+                <label for="manualName" class="form-label">{{ t('contacts.add.name') }}</label>
+                <input type="text" class="form-control" id="manualName" placeholder="{{ t('contacts.add.name_ph') }}" maxlength="32">
             </div>
             <div class="mb-3">
-                <label for="manualKey" class="form-label">Public Key (64 hex chars):</label>
+                <label for="manualKey" class="form-label">{{ t('contacts.add.pubkey') }}</label>
                 <input type="text" class="form-control font-monospace" id="manualKey"
-                    placeholder="e.g. a1b2c3d4..." maxlength="64" pattern="[0-9a-fA-F]{64}">
+                    placeholder="{{ t('contacts.add.pubkey_ph') }}" maxlength="64" pattern="[0-9a-fA-F]{64}">
                 <small class="form-text text-muted" id="manualKeyCount">0 / 64 characters</small>
             </div>
             <div class="mb-3">
-                <label for="manualType" class="form-label">Contact Type:</label>
+                <label for="manualType" class="form-label">{{ t('contacts.add.type') }}</label>
                 <select class="form-select" id="manualType">
                     <option value="1" selected>COM (Companion)</option>
                     <option value="2">REP (Repeater)</option>

@@ -10,7 +10,7 @@
         <div class="nav-card" onclick="navigateTo('/contacts/add');" style="border-left: 4px solid #198754;">
             <div>
                 <h6><i class="bi bi-person-plus"></i> Add Contact</h6>
-                <small class="text-muted">Add from URI, QR code, or manual entry</small>
+                <small class="text-muted">{{ t('contacts.card.add_desc') }}</small>
             </div>
             <i class="bi bi-chevron-right text-muted"></i>
         </div>
@@ -19,7 +19,7 @@
         <div class="nav-card" onclick="navigateTo('/contacts/pending');">
             <div>
                 <h6><i class="bi bi-hourglass-split"></i> Pending Contacts</h6>
-                <small class="text-muted">Contacts awaiting manual approval</small>
+                <small class="text-muted">{{ t('contacts.card.pending_desc') }}</small>
             </div>
             <span class="badge bg-primary rounded-pill" id="pendingBadge" style="font-size: 1.1rem;">
                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -30,7 +30,7 @@
         <div class="nav-card" onclick="navigateTo('/contacts/existing');">
             <div>
                 <h6><i class="bi bi-person-lines-fill"></i> Existing Contacts</h6>
-                <small class="text-muted">Manage all stored contacts</small>
+                <small class="text-muted">{{ t('contacts.card.existing_desc') }}</small>
             </div>
             <span class="badge counter-badge counter-ok rounded-pill" id="existingBadge" style="font-size: 1.1rem;">
                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -42,17 +42,17 @@
     <div class="cleanup-section">
         <h6>
             <i class="bi bi-trash"></i>
-            <span>Cleanup Contacts</span>
+            <span>{{ t('contacts.cleanup.title') }}</span>
             <i class="bi bi-info-circle info-icon"
                data-bs-toggle="tooltip"
                data-bs-placement="top"
-               title="Remove contacts based on various filter criteria"></i>
+               title="{{ t('contacts.cleanup.title_hint') }}"></i>
         </h6>
 
         <!-- Basic Filters (Always visible) -->
         <div class="mb-3">
-            <label for="cleanupNameFilter" class="form-label">Name Filter (optional):</label>
-            <input type="text" class="form-control" id="cleanupNameFilter" placeholder="Enter partial name to search...">
+            <label for="cleanupNameFilter" class="form-label">{{ t('contacts.cleanup.name_filter') }}</label>
+            <input type="text" class="form-control" id="cleanupNameFilter" placeholder="{{ t('contacts.cleanup.name_filter_ph') }}">
         </div>
 
         <!-- Advanced Filters (Collapsible) -->
@@ -65,7 +65,7 @@
         <div class="collapse" id="advancedFilters">
             <!-- Contact Types -->
             <div class="mb-3">
-                <label class="form-label">Contact Types:</label>
+                <label class="form-label">{{ t('contacts.cleanup.types') }}</label>
                 <div class="d-flex flex-wrap gap-2">
                     <div class="form-check">
                         <input class="form-check-input cleanup-type-filter" type="checkbox" value="1" id="cleanupTypeCOM" checked>
@@ -88,15 +88,15 @@
 
             <!-- Date Field -->
             <div class="mb-3">
-                <label class="form-label">Date Field:</label>
+                <label class="form-label">{{ t('contacts.cleanup.date_field') }}</label>
                 <div class="d-flex gap-3">
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="cleanupDateField" id="cleanupDateLastAdvert" value="last_advert" checked>
-                        <label class="form-check-label" for="cleanupDateLastAdvert">Last Advert</label>
+                        <label class="form-check-label" for="cleanupDateLastAdvert">{{ t('contacts.cleanup.last_advert') }}</label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="cleanupDateField" id="cleanupDateLastMod" value="lastmod">
-                        <label class="form-check-label" for="cleanupDateLastMod">Last Modified</label>
+                        <label class="form-check-label" for="cleanupDateLastMod">{{ t('contacts.cleanup.last_modified') }}</label>
                     </div>
                 </div>
             </div>
@@ -105,7 +105,7 @@
             <div class="mb-3">
                 <label for="cleanupDays" class="form-label">Days of Inactivity (0 = ignore):</label>
                 <input type="number" class="form-control" id="cleanupDays" value="0" min="0">
-                <small class="form-text text-muted">Contacts inactive for more than this many days will be selected</small>
+                <small class="form-text text-muted">{{ t('contacts.cleanup.days_hint') }}</small>
             </div>
 
             <!-- Auto-Cleanup Toggle -->
@@ -113,18 +113,18 @@
                 <div class="form-check form-switch d-flex align-items-center gap-2">
                     <input class="form-check-input" type="checkbox" role="switch" id="autoCleanupSwitch" style="cursor: pointer; min-width: 3rem; min-height: 1.5rem;">
                     <label class="form-check-label" for="autoCleanupSwitch" style="cursor: pointer; font-weight: 500;">
-                        <span id="autoCleanupLabel">Enable Auto-Cleanup</span>
+                        <span id="autoCleanupLabel">{{ t('contacts.cleanup.enable') }}</span>
                     </label>
                     <i class="bi bi-info-circle info-icon"
                        data-bs-toggle="tooltip"
                        data-bs-placement="top"
-                       title="When enabled, contacts matching the above criteria will be automatically deleted daily at the specified hour"></i>
+                       title="{{ t('contacts.cleanup.enable_hint') }}"></i>
                 </div>
                 <small class="text-muted">Status: <span id="autoCleanupStatusText">Loading...</span></small>
 
                 <!-- Cleanup Hour Selector -->
                 <div class="mt-2 d-flex align-items-center gap-2">
-                    <label for="cleanupHour" class="form-label mb-0 small">Run at:</label>
+                    <label for="cleanupHour" class="form-label mb-0 small">{{ t('contacts.cleanup.run_at') }}</label>
                     <select class="form-select form-select-sm" id="cleanupHour" style="width: auto;" disabled>
                         <option value="0">00:00</option>
                         <option value="1" selected>01:00</option>
@@ -170,7 +170,7 @@
                 <h5 class="modal-title" id="cleanupConfirmModalLabel">
                     <i class="bi bi-exclamation-triangle"></i> Confirm Contact Cleanup
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('common.close') }}"></button>
             </div>
             <div class="modal-body">
                 <p class="fw-bold">The following <span id="cleanupContactCount">0</span> contact(s) will be permanently deleted:</p>
@@ -179,11 +179,11 @@
                 </div>
                 <div class="alert alert-warning mb-0">
                     <i class="bi bi-exclamation-circle"></i>
-                    <strong>Warning:</strong> This action cannot be undone!
+                    <strong>{{ t('common.warning') }}</strong> This action cannot be undone!
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
                 <button type="button" class="btn btn-danger" id="confirmCleanupBtn">
                     <i class="bi bi-trash"></i> Delete Contacts
                 </button>

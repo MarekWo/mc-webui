@@ -24,23 +24,23 @@
 
     <!-- Search Toolbar -->
     <div class="search-toolbar">
-        <input type="text" class="form-control" id="searchInput" placeholder="Search by name or public key...">
+        <input type="text" class="form-control" id="searchInput" placeholder="{{ t('contacts.existing.search_ph') }}">
     </div>
 
     <!-- Filter and Sort Toolbar -->
     <div class="filter-sort-toolbar">
         <!-- Source Filter -->
         <select class="form-select" id="sourceFilter">
-            <option value="ALL">All sources</option>
-            <option value="DEVICE">On device</option>
-            <option value="CACHE">Cache only</option>
-            <option value="IGNORED">Ignored</option>
-            <option value="BLOCKED">Blocked</option>
+            <option value="ALL">{{ t('contacts.filter.all_sources') }}</option>
+            <option value="DEVICE">{{ t('contacts.filter.on_device') }}</option>
+            <option value="CACHE">{{ t('contacts.filter.cache_only') }}</option>
+            <option value="IGNORED">{{ t('contacts.filter.ignored') }}</option>
+            <option value="BLOCKED">{{ t('contacts.filter.blocked') }}</option>
         </select>
 
         <!-- Type Filter -->
         <select class="form-select" id="typeFilter">
-            <option value="ALL">All Types</option>
+            <option value="ALL">{{ t('contacts.filter.all_types') }}</option>
             <option value="COM">COM</option>
             <option value="REP">REP</option>
             <option value="ROOM">ROOM</option>
@@ -61,14 +61,14 @@
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
-        <p class="mt-3 text-muted">Loading contacts...</p>
+        <p class="mt-3 text-muted">{{ t('contacts.existing.loading') }}</p>
     </div>
 
     <!-- Empty State -->
     <div id="existingEmpty" class="empty-state" style="display: none;">
         <i class="bi bi-inbox"></i>
-        <p class="mb-0">No contacts found</p>
-        <small class="text-muted">Contacts will appear here once added</small>
+        <p class="mb-0">{{ t('contacts.existing.none') }}</p>
+        <small class="text-muted">{{ t('contacts.existing.none_hint') }}</small>
     </div>
 
     <!-- Existing Contacts List (Full-screen) -->
@@ -79,7 +79,7 @@
     <!-- Error State -->
     <div id="existingError" class="alert alert-danger" style="display: none;" role="alert">
         <i class="bi bi-exclamation-triangle"></i>
-        <span id="existingErrorMessage">Failed to load contacts</span>
+        <span id="existingErrorMessage">{{ t('contacts.existing.load_failed') }}</span>
     </div>
 </div>
 {% endblock %}
