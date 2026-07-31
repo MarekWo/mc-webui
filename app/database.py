@@ -834,6 +834,26 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
 
+    def get_channel_messages_by_ids(self, msg_ids: List[int]) -> Dict[int, Dict]:
+        """Batch-fetch channel messages by id with chunked IN queries.
+
+        Returns {msg_id: row dict}; ids with no row are simply absent.
+        Chunked at 500 to stay under SQLite's host-parameter limit."""
+        result: Dict[int, Dict] = {}
+        if not msg_ids:
+            return result
+        with self._connect() as conn:
+            for i in range(0, len(msg_ids), 500):
+                chunk = msg_ids[i:i + 500]
+                placeholders = ",".join("?" * len(chunk))
+                rows = conn.execute(
+                    f"SELECT * FROM channel_messages WHERE id IN ({placeholders})",
+                    chunk
+                ).fetchall()
+                for r in rows:
+                    result[r['id']] = dict(r)
+        return result
+
     def get_channel_messages(self, channel_idx: int = None, limit: int = 50,
                               offset: int = 0, days: int = None) -> List[Dict]:
         with self._connect() as conn:

@@ -1218,9 +1218,17 @@ function appendMessageFromSocket(data) {
     markChannelAsRead(currentChannelIdx, msg.timestamp);
 }
 
+// Cap on ids per /api/messages/meta request, to keep the query string short.
+const META_BATCH_SIZE = 200;
+
 /**
  * Refresh metadata (SNR, hops, route, analyzer) for messages missing it.
- * Fetches /api/messages/<id>/meta for each incomplete message, updates DOM in-place.
+ *
+ * Every echo triggers a sweep of the whole rendered list, and messages that
+ * never gain a route (no repeaters heard them) never stop qualifying — so this
+ * must stay cheap. Ids are collected first and resolved with batched
+ * /api/messages/meta calls; one request per message used to flood the
+ * single-threaded server and hang the UI.
  */
 async function refreshMessagesMeta(forceIds = []) {
     const container = document.getElementById('messagesList');
@@ -1228,7 +1236,8 @@ async function refreshMessagesMeta(forceIds = []) {
 
     const forced = new Set((forceIds || []).map(String));
 
-    // Find message wrappers that don't have full metadata yet
+    // Collect message wrappers that don't have full metadata yet
+    const pending = new Map();   // msgId -> wrapper
     const wrappers = container.querySelectorAll('.message-wrapper[data-msg-id]');
     for (const wrapper of wrappers) {
         const msgId = wrapper.dataset.msgId;
@@ -1245,14 +1254,24 @@ async function refreshMessagesMeta(forceIds = []) {
             if (hasRoute && hasAnalyzer) continue;
         }
 
-        try {
-            const resp = await fetch(`/api/messages/${msgId}/meta`);
-            const meta = await resp.json();
-            if (!meta.success) continue;
+        pending.set(msgId, wrapper);
+    }
+    if (pending.size === 0) return;
 
-            updateMessageMetaDOM(wrapper, meta);
+    const ids = Array.from(pending.keys());
+    for (let i = 0; i < ids.length; i += META_BATCH_SIZE) {
+        const chunk = ids.slice(i, i + META_BATCH_SIZE);
+        try {
+            const resp = await fetch(`/api/messages/meta?ids=${chunk.join(',')}`);
+            const data = await resp.json();
+            if (!data.success || !data.metas) continue;
+
+            for (const [msgId, meta] of Object.entries(data.metas)) {
+                const wrapper = pending.get(msgId);
+                if (wrapper && meta.success) updateMessageMetaDOM(wrapper, meta);
+            }
         } catch (e) {
-            console.error(`Error fetching meta for msg #${msgId}:`, e);
+            console.error('Error fetching message meta batch:', e);
         }
     }
 }
