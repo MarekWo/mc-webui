@@ -91,14 +91,10 @@ function esc(s) {
         .replaceAll('"', '&quot;');
 }
 
-function formatRelativeTime(timestamp) {
-    if (!timestamp) return 'Never';
-    const diff = Math.floor(Date.now() / 1000) - timestamp;
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-}
+// Relative time comes from datetime-utils.js as formatTimeAgo(). The local copy this
+// replaced also had a "Never" branch for a falsy timestamp, which was unreachable — the
+// single call site already guards it. contacts.js and dm.js still carry their own
+// copies; they get folded in with their own slices.
 
 // ================================================================
 // State
@@ -132,14 +128,14 @@ async function loadRepeaters(forceRefresh = false) {
         const response = await fetch(url);
         const data = await response.json();
         if (!data.success) {
-            listEl.innerHTML = `<div class="text-danger small">${esc(data.error || 'Failed to load repeaters')}</div>`;
+            listEl.innerHTML = `<div class="text-danger small">${esc(data.error || t('repeaters.load_failed'))}</div>`;
             return;
         }
         myRepeaters = data.repeaters || [];
         renderRepeaterRows();
     } catch (e) {
         console.error('Failed to load repeaters:', e);
-        listEl.innerHTML = '<div class="text-danger small">Failed to load repeaters</div>';
+        listEl.innerHTML = `<div class="text-danger small">${tHtml('repeaters.load_failed')}</div>`;
     }
 }
 
@@ -149,9 +145,7 @@ function renderRepeaterRows() {
     const countEl = document.getElementById('repeaterCount');
 
     if (countEl) {
-        countEl.textContent = myRepeaters.length
-            ? `${myRepeaters.length} repeater${myRepeaters.length === 1 ? '' : 's'}`
-            : '';
+        countEl.textContent = myRepeaters.length ? tn('repeaters.count', myRepeaters.length) : '';
     }
 
     listEl.innerHTML = '';
@@ -172,14 +166,14 @@ function renderRepeaterRows() {
             : '<i class="bi bi-diagram-3 text-success fs-4"></i>';
 
         const statusLine = isLoggingIn
-            ? '<span class="text-primary">Logging in… (may take up to 60 s on flood paths)</span>'
+            ? `<span class="text-primary">${tHtml('repeaters.row.logging_in')}</span>`
             : (r.on_device
                 ? `<span class="rpt-path font-monospace">${esc(r.path_or_mode || '—')}</span>`
-                : '<span class="text-warning">Not stored on the device</span>');
+                : `<span class="text-warning">${tHtml('repeaters.row.not_on_device')}</span>`);
         // "last login" goes on its own line so a long path keeps the full row
         // width to itself (on narrow phones it otherwise gets truncated hard).
         const roleLine = (r.on_device && !isLoggingIn && r.last_login_at)
-            ? `<small class="text-muted d-block text-truncate">last login: ${esc(r.last_login_role || '?')}</small>`
+            ? `<small class="text-muted d-block text-truncate">${tHtml('repeaters.row.last_login', { role: r.last_login_role || '?' })}</small>`
             : '';
 
         row.innerHTML = `
@@ -192,14 +186,14 @@ function renderRepeaterRows() {
                 </div>
                 <div class="btn-group btn-group-sm flex-shrink-0">
                     <button type="button" class="btn btn-outline-secondary" data-action="path"
-                            title="Set path" ${r.on_device ? '' : 'disabled'}>
+                            title="${tHtml('repeaters.row.set_path_title')}" ${r.on_device ? '' : 'disabled'}>
                         <i class="bi bi-signpost-split"></i>
                     </button>
                     <button type="button" class="btn btn-outline-secondary" data-action="password"
-                            title="${r.password_set ? 'Change password' : 'Set password'}">
+                            title="${tHtml(r.password_set ? 'repeaters.password.change_title' : 'repeaters.password.set_title')}">
                         <i class="bi bi-key${r.password_set ? '-fill' : ''}"></i>
                     </button>
-                    <button type="button" class="btn btn-outline-danger" data-action="remove" title="Remove from list">
+                    <button type="button" class="btn btn-outline-danger" data-action="remove" title="${tHtml('repeaters.row.remove_title')}">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
@@ -232,11 +226,11 @@ function onRepeaterClick(pubkey) {
     const r = findRepeater(pubkey);
     if (!r) return;
     if (!r.on_device) {
-        showNotification('This repeater is not stored on the device — it cannot be managed', 'warning');
+        showNotification(t('repeaters.toast.not_on_device'), 'warning');
         return;
     }
     if (_loginPubkey) {
-        showNotification('Another login is already in progress', 'warning');
+        showNotification(t('repeaters.toast.login_in_progress'), 'warning');
         return;
     }
     if (!r.password_set) {
@@ -275,12 +269,12 @@ async function doLogin(pubkey, password, save) {
 
     if (data && data.success) {
         const role = data.is_admin ? 'ADMIN' : 'GUEST';
-        showNotification(`Logged in to ${r.name || 'repeater'} as ${role}`, 'success');
+        showNotification(t('repeaters.toast.logged_in', { name: r.name || t('repeaters.term'), role }), 'success');
         window.location.href = `/repeaters/manage?pubkey=${encodeURIComponent(pubkey)}`;
         return;
     } else {
         await loadRepeaters();
-        const error = (data && data.error) || 'Login failed';
+        const error = (data && data.error) || t('repeaters.toast.login_failed');
         showNotification(error, 'danger');
         // Offer a retry with password correction (wrong password and
         // unreachable repeater are indistinguishable at protocol level).
@@ -306,16 +300,18 @@ function openPasswordModal(mode, pubkey, errorHint = '') {
 
     const name = r.name || r.public_key.substring(0, 12);
     if (mode === 'set') {
-        title.textContent = `Set password — ${name}`;
-        info.textContent = 'The password is stored in the app database and used to log in to this repeater without asking again.';
-        submitBtn.textContent = 'Save';
+        title.textContent = `${t('repeaters.password.set_title')} — ${name}`;
+        info.textContent = t('repeaters.password.set_info');
+        submitBtn.textContent = t('common.save');
         saveWrap.style.display = 'none';
     } else {
-        title.textContent = `Log in — ${name}`;
+        title.textContent = `${t('repeaters.password.login_title')} — ${name}`;
+        // errorHint comes from the backend and stays English; only the advice around it
+        // is translated.
         info.innerHTML = errorHint
-            ? `<span class="text-danger">${esc(errorHint)}</span><br>Check the password and try again.`
-            : 'Enter the repeater password to log in.';
-        submitBtn.textContent = 'Log in';
+            ? `<span class="text-danger">${esc(errorHint)}</span><br>${tHtml('repeaters.password.retry_hint')}`
+            : tHtml('repeaters.password.login_info');
+        submitBtn.textContent = t('repeaters.password.login_btn');
         saveWrap.style.display = '';
         saveCheck.checked = true;
     }
@@ -351,7 +347,7 @@ async function submitPasswordModal() {
     const password = input.value;
 
     if (!password) {
-        showNotification('Password cannot be empty', 'warning');
+        showNotification(t('repeaters.toast.password_empty'), 'warning');
         return;
     }
 
@@ -366,13 +362,13 @@ async function submitPasswordModal() {
             });
             const data = await response.json();
             if (data.success) {
-                showNotification('Password saved', 'success');
+                showNotification(t('repeaters.toast.password_saved'), 'success');
                 await loadRepeaters();
             } else {
-                showNotification(data.error || 'Failed to save password', 'danger');
+                showNotification(data.error || t('repeaters.toast.password_save_failed'), 'danger');
             }
         } catch (e) {
-            showNotification('Failed to save password', 'danger');
+            showNotification(t('repeaters.toast.password_save_failed'), 'danger');
         }
     } else {
         doLogin(pubkey, password, saveCheck.checked);
@@ -387,7 +383,9 @@ function openRemoveModal(pubkey) {
     const r = findRepeater(pubkey);
     if (!r) return;
     _removeCtx = { pubkey };
-    document.getElementById('removeRepeaterName').textContent = r.name || r.public_key.substring(0, 12);
+    document.getElementById('removeRepeaterQuestion').innerHTML = tHtml('repeaters.remove.question', {
+        name: r.name || r.public_key.substring(0, 12)
+    });
     _removeModal.show();
 }
 
@@ -399,13 +397,13 @@ async function confirmRemoveRepeater() {
         const response = await fetch(`/api/repeaters/${encodeURIComponent(pubkey)}`, { method: 'DELETE' });
         const data = await response.json();
         if (data.success) {
-            showNotification('Repeater removed from list', 'info');
+            showNotification(t('repeaters.toast.removed'), 'info');
             await loadRepeaters();
         } else {
-            showNotification(data.error || 'Failed to remove repeater', 'danger');
+            showNotification(data.error || t('repeaters.toast.remove_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to remove repeater', 'danger');
+        showNotification(t('repeaters.toast.remove_failed'), 'danger');
     }
 }
 
@@ -416,14 +414,14 @@ async function confirmRemoveRepeater() {
 async function openAddRepeaterModal() {
     _addRepeaterModal.show();
     const listEl = document.getElementById('deviceRptList');
-    listEl.innerHTML = '<div class="text-muted small p-3">Loading device contacts...</div>';
+    listEl.innerHTML = `<div class="text-muted small p-3">${tHtml('repeaters.add_loading')}</div>`;
     document.getElementById('deviceRptSearch').value = '';
 
     try {
         const response = await fetch('/api/contacts/detailed');
         const data = await response.json();
         if (!data.success) {
-            listEl.innerHTML = `<div class="text-danger small p-3">${esc(data.error || 'Failed to load device contacts')}</div>`;
+            listEl.innerHTML = `<div class="text-danger small p-3">${esc(data.error || t('repeaters.toast.contacts_load_failed'))}</div>`;
             return;
         }
         _deviceRepeaters = (data.contacts || [])
@@ -432,7 +430,7 @@ async function openAddRepeaterModal() {
         renderDeviceRepeaterList();
     } catch (e) {
         console.error('Failed to load device contacts:', e);
-        listEl.innerHTML = '<div class="text-danger small p-3">Failed to load device contacts</div>';
+        listEl.innerHTML = `<div class="text-danger small p-3">${tHtml('repeaters.toast.contacts_load_failed')}</div>`;
     }
 }
 
@@ -447,10 +445,10 @@ function renderDeviceRepeaterList() {
         items = items.filter(c => (c.name || '').toLowerCase().includes(searchVal));
     }
 
-    if (countEl) countEl.textContent = `${(_deviceRepeaters || []).length} repeaters on device`;
+    if (countEl) countEl.textContent = tn('repeaters.on_device_count', (_deviceRepeaters || []).length);
 
     if (!items.length) {
-        listEl.innerHTML = '<div class="text-muted small p-3">No repeaters found on the device.</div>';
+        listEl.innerHTML = `<div class="text-muted small p-3">${tHtml('repeaters.add_none_found')}</div>`;
         return;
     }
 
@@ -466,7 +464,7 @@ function renderDeviceRepeaterList() {
                 <small class="text-muted font-monospace">${esc(c.public_key_prefix)} · ${esc(c.path_or_mode || '')}</small>
             </div>
             ${added
-                ? '<span class="badge bg-secondary flex-shrink-0">Added</span>'
+                ? `<span class="badge bg-secondary flex-shrink-0">${tHtml('repeaters.added_badge')}</span>`
                 : '<i class="bi bi-plus-circle text-success flex-shrink-0"></i>'}
         `;
         if (!added) {
@@ -485,14 +483,14 @@ async function addRepeater(contact) {
         });
         const data = await response.json();
         if (data.success) {
-            showNotification(`${contact.name || 'Repeater'} added`, 'success');
+            showNotification(t('repeaters.toast.added', { name: contact.name || t('repeaters.term') }), 'success');
             await loadRepeaters();
             renderDeviceRepeaterList();
         } else {
-            showNotification(data.error || 'Failed to add repeater', 'danger');
+            showNotification(data.error || t('repeaters.toast.add_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to add repeater', 'danger');
+        showNotification(t('repeaters.toast.add_failed'), 'danger');
     }
 }
 
@@ -523,13 +521,13 @@ async function renderPathList(pubkey) {
     const listEl = document.getElementById('pathList');
     if (!listEl) return;
 
-    listEl.innerHTML = '<div class="text-muted small">Loading...</div>';
+    listEl.innerHTML = `<div class="text-muted small">${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`);
         const data = await response.json();
         if (!data.success || !data.paths.length) {
-            listEl.innerHTML = '<div class="text-muted small mb-2">No paths configured. Use + to add.</div>';
+            listEl.innerHTML = `<div class="text-muted small mb-2">${tHtml('repeaters.paths.none')}</div>`;
             return;
         }
 
@@ -552,18 +550,18 @@ async function renderPathList(pubkey) {
                 ${path.label ? `<span class="path-label" title="${esc(path.label)}">${esc(path.label)}</span>` : ''}
                 <span class="path-actions">
                     <button class="btn btn-link p-0 ${path.is_primary ? 'text-warning' : 'text-muted'}"
-                            title="${path.is_primary ? 'Primary path' : 'Set as primary'}"
+                            title="${tHtml(path.is_primary ? 'repeaters.paths.is_primary_title' : 'repeaters.paths.set_primary_title')}"
                             data-action="primary" data-id="${path.id}">
                         <i class="bi bi-star${path.is_primary ? '-fill' : ''}"></i>
                     </button>
                     <button class="btn btn-link p-0 text-primary"
-                            title="Set as device path"
+                            title="${tHtml('repeaters.paths.apply_title')}"
                             data-action="apply" data-id="${path.id}">
                         <i class="bi bi-upload"></i>
                     </button>
-                    ${index > 0 ? `<button class="btn btn-link p-0 text-muted" title="Move up" data-action="up" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-up"></i></button>` : ''}
-                    ${index < data.paths.length - 1 ? `<button class="btn btn-link p-0 text-muted" title="Move down" data-action="down" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-down"></i></button>` : ''}
-                    <button class="btn btn-link p-0 text-danger" title="Delete" data-action="delete" data-id="${path.id}">
+                    ${index > 0 ? `<button class="btn btn-link p-0 text-muted" title="${tHtml('common.move_up')}" data-action="up" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-up"></i></button>` : ''}
+                    ${index < data.paths.length - 1 ? `<button class="btn btn-link p-0 text-muted" title="${tHtml('common.move_down')}" data-action="down" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-down"></i></button>` : ''}
+                    <button class="btn btn-link p-0 text-danger" title="${tHtml('common.delete')}" data-action="delete" data-id="${path.id}">
                         <i class="bi bi-trash"></i>
                     </button>
                 </span>
@@ -589,7 +587,7 @@ async function renderPathList(pubkey) {
             });
         });
     } catch (e) {
-        listEl.innerHTML = '<div class="text-danger small">Failed to load paths</div>';
+        listEl.innerHTML = `<div class="text-danger small">${tHtml('repeaters.paths.load_failed')}</div>`;
         console.error('Failed to load paths:', e);
     }
 }
@@ -615,14 +613,14 @@ async function applyPathToDevice(pubkey, pathId) {
         );
         const data = await response.json();
         if (data.success) {
-            showNotification('Device path updated', 'info');
+            showNotification(t('repeaters.toast.path_updated'), 'info');
             await refreshDevicePathDisplay();
         } else {
-            showNotification(data.error || 'Failed to set device path', 'danger');
+            showNotification(data.error || t('repeaters.toast.path_set_failed'), 'danger');
         }
     } catch (e) {
         console.error('Failed to apply path to device:', e);
-        showNotification('Failed to set device path', 'danger');
+        showNotification(t('repeaters.toast.path_set_failed'), 'danger');
     }
 }
 
@@ -674,7 +672,7 @@ async function saveNewPath() {
     const label = document.getElementById('pathLabelInput').value.trim();
 
     if (!pathHex) {
-        showNotification('Path hex is required', 'danger');
+        showNotification(t('repeaters.toast.path_hex_required'), 'danger');
         return;
     }
 
@@ -686,13 +684,15 @@ async function saveNewPath() {
     if (hashSize === 1) {
         const adjDupes = hops.filter((h, i) => i > 0 && hops[i - 1] === h);
         if (adjDupes.length > 0) {
-            showNotification(`Adjacent duplicate hop(s): ${[...new Set(adjDupes)].map(d => d.toUpperCase()).join(', ')}`, 'danger');
+            showNotification(tn('repeaters.toast.adjacent_dupes', [...new Set(adjDupes)].length,
+                { hops: [...new Set(adjDupes)].map(d => d.toUpperCase()).join(', ') }), 'danger');
             return;
         }
     } else {
         const dupes = hops.filter((h, i) => hops.indexOf(h) !== i);
         if (dupes.length > 0) {
-            showNotification(`Duplicate hop(s): ${[...new Set(dupes)].map(d => d.toUpperCase()).join(', ')}`, 'danger');
+            showNotification(tn('repeaters.toast.dupes', [...new Set(dupes)].length,
+                { hops: [...new Set(dupes)].map(d => d.toUpperCase()).join(', ') }), 'danger');
             return;
         }
     }
@@ -707,19 +707,19 @@ async function saveNewPath() {
         if (data.success) {
             _addPathModal.hide();
             await renderPathList(pubkey);
-            showNotification('Path added', 'info');
+            showNotification(t('repeaters.toast.path_added'), 'info');
         } else {
-            showNotification(data.error || 'Failed to add path', 'danger');
+            showNotification(data.error || t('repeaters.toast.path_add_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to add path', 'danger');
+        showNotification(t('repeaters.toast.path_add_failed'), 'danger');
     }
 }
 
 async function resetPathToFlood() {
     const pubkey = _pathPubkey;
     if (!pubkey) return;
-    if (!confirm('Reset device path to FLOOD?\n\nThis resets the path on the device only. Your configured paths will be kept.')) {
+    if (!confirm(t('repeaters.confirm.reset_flood'))) {
         return;
     }
     try {
@@ -728,20 +728,20 @@ async function resetPathToFlood() {
         });
         const data = await response.json();
         if (data.success) {
-            showNotification('Device path reset to FLOOD', 'info');
+            showNotification(t('repeaters.toast.reset_flood_done'), 'info');
             await refreshDevicePathDisplay();
         } else {
-            showNotification(data.error || 'Reset failed', 'danger');
+            showNotification(data.error || t('repeaters.toast.reset_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Reset failed', 'danger');
+        showNotification(t('repeaters.toast.reset_failed'), 'danger');
     }
 }
 
 async function clearAllPaths() {
     const pubkey = _pathPubkey;
     if (!pubkey) return;
-    if (!confirm('Clear all configured paths?\n\nThis will delete all paths from the database. The device path will not be changed.')) {
+    if (!confirm(t('repeaters.confirm.clear_paths'))) {
         return;
     }
     try {
@@ -751,12 +751,12 @@ async function clearAllPaths() {
         const data = await response.json();
         if (data.success) {
             await renderPathList(pubkey);
-            showNotification(`${data.paths_deleted || 0} path(s) cleared`, 'info');
+            showNotification(tn('repeaters.toast.paths_cleared', data.paths_deleted || 0), 'info');
         } else {
-            showNotification(data.error || 'Clear failed', 'danger');
+            showNotification(data.error || t('repeaters.toast.clear_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Clear failed', 'danger');
+        showNotification(t('repeaters.toast.clear_failed'), 'danger');
     }
 }
 
@@ -784,7 +784,7 @@ async function loadHopPicker() {
                 _repeatersCache = data.repeaters;
             }
         } catch (e) {
-            listEl.innerHTML = '<div class="text-danger small p-2">Failed to load repeaters</div>';
+            listEl.innerHTML = `<div class="text-danger small p-2">${tHtml('repeaters.load_failed')}</div>`;
             return;
         }
     }
@@ -814,7 +814,7 @@ function renderHopPickerList(listEl, repeaters) {
     });
 
     if (!filtered.length) {
-        listEl.innerHTML = '<div class="text-muted small p-2">No repeaters found</div>';
+        listEl.innerHTML = `<div class="text-muted small p-2">${tHtml('repeaters.picker.none')}</div>`;
         return;
     }
 
@@ -830,7 +830,7 @@ function renderHopPickerList(listEl, repeaters) {
         item.innerHTML = `
             <span class="badge ${samePrefix > 1 ? 'bg-warning text-dark' : 'bg-success'}">${esc(prefix)}</span>
             <span class="flex-grow-1 text-truncate">${esc(rpt.name)}</span>
-            ${samePrefix > 1 ? '<i class="bi bi-exclamation-triangle text-warning" title="' + samePrefix + ' repeaters share this prefix"></i>' : ''}
+            ${samePrefix > 1 ? `<i class="bi bi-exclamation-triangle text-warning" title="${tHtml('repeaters.picker.shared_prefix', { count: samePrefix })}"></i>` : ''}
         `;
         item.addEventListener('click', () => {
             appendHopToPathInput(prefix.toLowerCase(), hashSize);
@@ -855,12 +855,12 @@ function appendHopToPathInput(prefixLc, hashSize) {
     const existingHops = getCurrentPathHops(hashSize);
     if (hashSize === 1) {
         if (existingHops.length > 0 && existingHops[existingHops.length - 1] === prefixLc) {
-            showNotification(`${prefixLc.toUpperCase()} cannot be adjacent to itself`, 'warning');
+            showNotification(t('repeaters.toast.hop_adjacent_self', { hop: prefixLc.toUpperCase() }), 'warning');
             return false;
         }
     } else {
         if (existingHops.includes(prefixLc)) {
-            showNotification(`${prefixLc.toUpperCase()} is already in the path`, 'warning');
+            showNotification(t('repeaters.toast.hop_already_used', { hop: prefixLc.toUpperCase() }), 'warning');
             return false;
         }
     }
@@ -901,7 +901,8 @@ function checkUniquenessWarning(repeaters, hashSize) {
     });
 
     if (ambiguous.length > 0) {
-        warningEl.textContent = `⚠ Ambiguous prefix(es): ${ambiguous.map(h => h.toUpperCase()).join(', ')}. Consider using a larger hash size.`;
+        warningEl.textContent = tn('repeaters.toast.ambiguous_prefix', ambiguous.length,
+        { hops: ambiguous.map(h => h.toUpperCase()).join(', ') });
         warningEl.style.display = '';
     } else {
         warningEl.style.display = 'none';
@@ -1018,7 +1019,7 @@ async function loadRepeaterMapMarkers() {
 
     repeaters.forEach(rpt => {
         const prefix = rpt.public_key.substring(0, hashSize * 2).toUpperCase();
-        const lastSeen = rpt.last_advert ? formatRelativeTime(rpt.last_advert) : '';
+        const lastSeen = rpt.last_advert ? formatTimeAgo(rpt.last_advert) : '';
 
         const marker = L.circleMarker([rpt.adv_lat, rpt.adv_lon], {
             radius: 10,
@@ -1032,7 +1033,7 @@ async function loadRepeaterMapMarkers() {
         marker.bindPopup(
             `<b>${esc(rpt.name)}</b><br>` +
             `<code>${esc(prefix)}</code>` +
-            (lastSeen ? `<br><small class="text-muted">Last seen: ${lastSeen}</small>` : '')
+            (lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : '')
         );
 
         marker.on('click', () => {

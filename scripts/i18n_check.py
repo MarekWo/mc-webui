@@ -48,6 +48,15 @@ GLOSSARY = [
 # t('key'), tn('key', n), tHtml('key', {...}), t_html('key', name=x).
 # The lookbehind stops "format(" / ".at(" / "$t(" from matching.
 CALL_RE = re.compile(r'''(?<![\w.$])(t|tn|tHtml|t_html)\s*\(\s*(['"])((?:(?!\2).)*)\2''')
+
+# The key is often chosen inline: tHtml(p.is_primary ? 'a.b' : 'c.d'). CALL_RE cannot see
+# those, because the first thing after "(" is not a quote. That produced false "unused
+# key" warnings and, worse, would have hidden a typo in either branch.
+TERNARY_CALL_RE = re.compile(
+    r'''(?<![\w.$])(t|tn|tHtml|t_html)\s*\([^()'"]*\?\s*'''
+    r'''(['"])((?:(?!\2).)*)\2\s*:\s*(['"])((?:(?!\4).)*)\4'''
+)
+
 PARAM_RE = re.compile(r'\{(\w+)\}')
 SHADOW_RE = re.compile(r'(?:const|let|var)\s+t\s*=')
 
@@ -93,6 +102,11 @@ def scan_sources() -> tuple[dict[str, set[str]], dict[str, list[str]]]:
                 for func, _, key in CALL_RE.findall(line):
                     kinds[key].add(func)
                     sites[key].append(f'{rel}:{lineno}')
+
+                for func, _, key_true, _, key_false in TERNARY_CALL_RE.findall(line):
+                    for key in (key_true, key_false):
+                        kinds[key].add(func)
+                        sites[key].append(f'{rel}:{lineno}')
 
                 # A t() result landing in innerHTML must be tHtml() — its params are
                 # escaped, so interpolated user data cannot inject markup.

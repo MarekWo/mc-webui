@@ -23,8 +23,14 @@ forum post — it just makes the app harder to use.
 
 | | |
 |---|---|
-| **Protocol and radio terms** | flood, direct, hop, path, advert, ACK, RSSI, SNR, LoRa, MQTT, broker, telemetry, pubkey, packet hash, spreading factor, bandwidth, coding rate |
+| **Mode names shown as values** | `Flood`, `Direct`, `FLOOD` — these are states the device reports, not descriptions |
+| **Protocol and radio terms** | hop, advert, ACK, RSSI, SNR, LoRa, MQTT, broker, telemetry, pubkey, hash, spreading factor, bandwidth, coding rate |
 | **Node roles** | Companion, Repeater, Room Server, Sensor — and the codes `COM`, `REP`, `ROOM`, `SENS` |
+
+Ordinary words **are** translated even when they describe protocol things — "path" becomes
+"ścieżka", "label" becomes "etykieta". The rule is whether the word is a *value the device
+uses* or a *name the user reads*. `Flood` in a path field is a value; "Configured paths" is
+a heading.
 | **CLI surfaces** | everything the Console prints, its `help` screen, `Usage:` lines, command names |
 | **Log output** | log lines and the level names `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | **Device/firmware fields** | `radio.rxgain`, `advert.interval` and similar |
