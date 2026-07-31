@@ -887,12 +887,9 @@ def get_status():
         message_count = 0
         latest_timestamp = None
         if db:
-            stats = db.get_stats()
-            message_count = stats.get('channel_messages', 0) + stats.get('direct_messages', 0)
-            # Get latest channel message timestamp
-            recent = db.get_channel_messages(limit=1)
-            if recent:
-                latest_timestamp = recent[0].get('timestamp')
+            summary = db.get_status_summary()
+            message_count = summary['message_count']
+            latest_timestamp = summary['latest_message_timestamp']
         else:
             message_count = parser.count_messages()
             latest = parser.get_latest_message()
