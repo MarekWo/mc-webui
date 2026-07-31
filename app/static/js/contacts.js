@@ -331,7 +331,7 @@ async function loadContactCounts() {
  */
 async function loadCleanupSettings() {
     const statusText = document.getElementById('autoCleanupStatusText');
-    if (statusText) statusText.textContent = 'Loading...';
+    if (statusText) statusText.textContent = t('common.loading');
 
     try {
         const response = await fetch('/api/contacts/cleanup-settings');
@@ -344,11 +344,11 @@ async function loadCleanupSettings() {
             console.log('Loaded cleanup settings:', autoCleanupSettings, 'timezone:', cleanupTimezone);
         } else {
             console.error('Failed to load cleanup settings:', data.error);
-            if (statusText) statusText.textContent = 'Error loading settings';
+            if (statusText) statusText.textContent = t('contacts.toast.settings_load_error');
         }
     } catch (error) {
         console.error('Error loading cleanup settings:', error);
-        if (statusText) statusText.textContent = 'Network error';
+        if (statusText) statusText.textContent = t('common.network_error');
     }
 }
 
@@ -411,7 +411,7 @@ function applyCleanupSettingsToUI(settings) {
             statusText.classList.remove('text-muted');
             statusText.classList.add('text-success');
         } else {
-            statusText.textContent = 'Disabled';
+            statusText.textContent = t('common.disabled');
             statusText.classList.remove('text-success');
             statusText.classList.add('text-muted');
         }
@@ -433,14 +433,14 @@ async function handleAutoCleanupToggle(event) {
 
         // Check if days > 0
         if (criteria.days <= 0) {
-            showToast('Set "Days of Inactivity" > 0 before enabling auto-cleanup', 'warning');
+            showToast(t('contacts.toast.need_days'), 'warning');
             event.target.checked = false;
             return;
         }
 
         // Check if at least one type is selected
         if (criteria.types.length === 0) {
-            showToast('Select at least one contact type before enabling auto-cleanup', 'warning');
+            showToast(t('contacts.toast.need_type_enable'), 'warning');
             event.target.checked = false;
             return;
         }
@@ -453,7 +453,7 @@ async function handleAutoCleanupToggle(event) {
 
     // Update status text while saving
     if (statusText) {
-        statusText.textContent = 'Saving...';
+        statusText.textContent = t('common.saving');
         statusText.classList.remove('text-success', 'text-muted');
     }
 
@@ -536,7 +536,7 @@ async function saveCleanupSettings(enabled) {
                     statusText.classList.remove('text-muted');
                     statusText.classList.add('text-success');
                 } else {
-                    statusText.textContent = 'Disabled';
+                    statusText.textContent = t('common.disabled');
                     statusText.classList.remove('text-success');
                     statusText.classList.add('text-muted');
                 }
@@ -546,7 +546,7 @@ async function saveCleanupSettings(enabled) {
             return true;
         } else {
             console.error('Failed to save cleanup settings:', data.error);
-            showToast('Failed to save settings: ' + data.error, 'danger');
+            showToast(t('contacts.toast.settings_save_failed', { error: data.error }), 'danger');
 
             // Restore previous status
             if (statusText && autoCleanupSettings) {
@@ -555,7 +555,7 @@ async function saveCleanupSettings(enabled) {
                     const hourStr = prevHour.toString().padStart(2, '0');
                     statusText.textContent = `Enabled (runs daily at ${hourStr}:00 ${cleanupTimezone})`;
                 } else {
-                    statusText.textContent = 'Disabled';
+                    statusText.textContent = t('common.disabled');
                 }
             }
 
@@ -563,10 +563,10 @@ async function saveCleanupSettings(enabled) {
         }
     } catch (error) {
         console.error('Error saving cleanup settings:', error);
-        showToast('Network error saving settings', 'danger');
+        showToast(t('contacts.toast.settings_network_error'), 'danger');
 
         if (statusText) {
-            statusText.textContent = 'Save failed';
+            statusText.textContent = t('common.save_failed');
         }
 
         return false;
@@ -614,14 +614,14 @@ async function handleCleanupPreview() {
 
     // Validate: at least one type must be selected
     if (criteria.types.length === 0) {
-        showToast('Please select at least one contact type', 'warning');
+        showToast(t('contacts.toast.need_type'), 'warning');
         return;
     }
 
     // Disable button during preview
     const originalHTML = previewBtn.innerHTML;
     previewBtn.disabled = true;
-    previewBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading...';
+    previewBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> ${tHtml('common.loading')}`;
 
     try {
         const response = await fetch('/api/contacts/preview-cleanup', {
@@ -638,7 +638,7 @@ async function handleCleanupPreview() {
             cleanupPreviewContacts = data.contacts || [];
 
             if (cleanupPreviewContacts.length === 0) {
-                showToast('No contacts match the selected criteria', 'info');
+                showToast(t('contacts.toast.no_match'), 'info');
                 return;
             }
 
@@ -649,11 +649,11 @@ async function handleCleanupPreview() {
             const modal = new bootstrap.Modal(document.getElementById('cleanupConfirmModal'));
             modal.show();
         } else {
-            showToast('Preview failed: ' + (data.error || 'Unknown error'), 'danger');
+            showToast(t('contacts.toast.preview_failed', { error: data.error || t('common.unknown_error') }), 'danger');
         }
     } catch (error) {
         console.error('Error during cleanup preview:', error);
-        showToast('Network error during preview', 'danger');
+        showToast(t('contacts.toast.preview_network_error'), 'danger');
     } finally {
         // Re-enable button
         previewBtn.disabled = false;
@@ -681,7 +681,7 @@ function populateCleanupModal(contacts) {
 
             // Format last seen time
             const lastSeenTimestamp = contact.last_advert || 0;
-            const lastSeenText = lastSeenTimestamp > 0 ? formatRelativeTime(lastSeenTimestamp) : 'Never';
+            const lastSeenText = lastSeenTimestamp > 0 ? formatRelativeTime(lastSeenTimestamp) : t('common.never');
 
             item.innerHTML = `
                 <div class="d-flex justify-content-between align-items-start">
@@ -689,8 +689,8 @@ function populateCleanupModal(contacts) {
                         <strong>${escapeHtml(contact.name)}</strong>
                         <br>
                         <small class="text-muted">
-                            Type: <span class="badge bg-secondary">${contact.type_label}</span>
-                            | Last advert: ${lastSeenText}
+                            ${tHtml('contacts.add.type_short')} <span class="badge bg-secondary">${contact.type_label}</span>
+                            | ${tHtml('contacts.last_advert', { time: lastSeenText })}
                         </small>
                     </div>
                 </div>
@@ -722,7 +722,7 @@ async function handleCleanupConfirm() {
     // Disable button during cleanup
     const originalHTML = confirmBtn.innerHTML;
     confirmBtn.disabled = true;
-    confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Deleting...';
+    confirmBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> ${tHtml('common.deleting')}`;
 
     try {
         const response = await fetch('/api/contacts/cleanup', {
@@ -759,7 +759,7 @@ async function handleCleanupConfirm() {
             // Clear preview
             cleanupPreviewContacts = [];
         } else {
-            showToast('Cleanup failed: ' + (data.error || 'Unknown error'), 'danger');
+            showToast(t('contacts.toast.cleanup_failed', { error: data.error || t('common.unknown_error') }), 'danger');
         }
     } catch (error) {
         console.error('Error during cleanup:', error);
@@ -996,13 +996,13 @@ async function toggleContactProtection(publicKey, buttonEl) {
 
             showToast(data.message, 'success');
         } else {
-            showToast('Failed to update protection: ' + data.error, 'danger');
+            showToast(t('contacts.toast.protect_failed', { error: data.error }), 'danger');
             buttonEl.innerHTML = originalHTML;
             buttonEl.disabled = false;
         }
     } catch (error) {
         console.error('Error toggling protection:', error);
-        showToast('Network error', 'danger');
+        showToast(t('common.network_error'), 'danger');
         buttonEl.innerHTML = originalHTML;
         buttonEl.disabled = false;
     }
@@ -1020,11 +1020,11 @@ function updateProtectionUI(publicKey, isProtected, buttonEl) {
     // Update button appearance
     buttonEl.disabled = false;
     if (isProtected) {
-        buttonEl.innerHTML = '<i class="bi bi-lock-fill"></i> <span class="btn-label">Protected</span>';
+        buttonEl.innerHTML = `<i class="bi bi-lock-fill"></i> <span class="btn-label">${tHtml('contacts.btn.protected')}</span>`;
         buttonEl.classList.remove('btn-outline-warning');
         buttonEl.classList.add('btn-warning');
     } else {
-        buttonEl.innerHTML = '<i class="bi bi-shield"></i> <span class="btn-label">Protect</span>';
+        buttonEl.innerHTML = `<i class="bi bi-shield"></i> <span class="btn-label">${tHtml('contacts.btn.protect')}</span>`;
         buttonEl.classList.remove('btn-warning');
         buttonEl.classList.add('btn-outline-warning');
     }
@@ -1037,7 +1037,7 @@ function updateProtectionUI(publicKey, isProtected, buttonEl) {
         if (!lockIcon && nameDiv) {
             const indicator = document.createElement('span');
             indicator.className = 'protection-indicator ms-2';
-            indicator.innerHTML = '<i class="bi bi-lock-fill text-warning" title="Protected contact"></i>';
+            indicator.innerHTML = `<i class="bi bi-lock-fill text-warning" title="${tHtml('contacts.protected_title')}"></i>`;
             nameDiv.appendChild(indicator);
         }
     } else {
@@ -1050,7 +1050,7 @@ function updateProtectionUI(publicKey, isProtected, buttonEl) {
         if (!icon) return;
         if (icon.classList.contains('bi-trash') || icon.classList.contains('bi-eye-slash') || icon.classList.contains('bi-slash-circle')) {
             btn.disabled = isProtected;
-            btn.title = isProtected ? 'Protected contact' : '';
+            btn.title = isProtected ? t('contacts.protected_title') : '';
         }
     });
 }
@@ -1068,16 +1068,16 @@ async function toggleContactIgnore(publicKey, ignored) {
             loadExistingContacts();
             loadContactCounts();
         } else {
-            showToast('Failed: ' + data.error, 'danger');
+            showToast(t('common.failed_with', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error toggling ignore:', error);
-        showToast('Network error', 'danger');
+        showToast(t('common.network_error'), 'danger');
     }
 }
 
 async function toggleContactBlock(publicKey, blocked) {
-    if (blocked && !confirm('Block this contact? Their messages will be hidden from chat.')) return;
+    if (blocked && !confirm(t('contacts.confirm.block'))) return;
     try {
         const response = await fetch(`/api/contacts/${encodeURIComponent(publicKey)}/block`, {
             method: 'POST',
@@ -1090,11 +1090,11 @@ async function toggleContactBlock(publicKey, blocked) {
             loadExistingContacts();
             loadContactCounts();
         } else {
-            showToast('Failed: ' + data.error, 'danger');
+            showToast(t('common.failed_with', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error toggling block:', error);
-        showToast('Network error', 'danger');
+        showToast(t('common.network_error'), 'danger');
     }
 }
 
@@ -1245,7 +1245,7 @@ async function loadPendingContacts() {
             console.error('Failed to load pending contacts:', data.error);
             if (errorEl) {
                 const errorMsg = document.getElementById('pendingErrorMessage');
-                if (errorMsg) errorMsg.textContent = data.error || 'Failed to load pending contacts';
+                if (errorMsg) errorMsg.textContent = data.error || t('contacts.pending.load_failed');
                 errorEl.style.display = 'block';
             }
         }
@@ -1254,7 +1254,7 @@ async function loadPendingContacts() {
         if (loadingEl) loadingEl.style.display = 'none';
         if (errorEl) {
             const errorMsg = document.getElementById('pendingErrorMessage');
-            if (errorMsg) errorMsg.textContent = 'Network error: ' + error.message;
+            if (errorMsg) errorMsg.textContent = t('common.network_error_detail', { error: error.message });
             errorEl.style.display = 'block';
         }
     }
@@ -1327,7 +1327,7 @@ function createContactCard(contact, index) {
     const keyDiv = document.createElement('div');
     keyDiv.className = 'contact-key clickable-key';
     keyDiv.textContent = contact.public_key_prefix || contact.public_key.substring(0, 12);
-    keyDiv.title = 'Click to copy';
+    keyDiv.title = t('contacts.copy_title');
     keyDiv.onclick = () => copyToClipboard(keyDiv.textContent, keyDiv);
 
     // Last advert (optional - show if available)
@@ -1346,7 +1346,7 @@ function createContactCard(contact, index) {
     // Approve button
     const approveBtn = document.createElement('button');
     approveBtn.className = 'btn btn-sm btn-success';
-    approveBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span class="btn-label">Approve</span>';
+    approveBtn.innerHTML = `<i class="bi bi-check-circle"></i> <span class="btn-label">${tHtml('contacts.btn.approve')}</span>`;
     approveBtn.onclick = () => approveContact(contact, index);
 
     actionsDiv.appendChild(approveBtn);
@@ -1355,7 +1355,7 @@ function createContactCard(contact, index) {
     if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
         const mapBtn = document.createElement('button');
         mapBtn.className = 'btn btn-sm btn-outline-primary';
-        mapBtn.innerHTML = '<i class="bi bi-geo-alt"></i> <span class="btn-label">Map</span>';
+        mapBtn.innerHTML = `<i class="bi bi-geo-alt"></i> <span class="btn-label">${tHtml('contacts.map.title')}</span>`;
         mapBtn.onclick = () => window.showContactOnMap(contact.name, contact.adv_lat, contact.adv_lon);
         actionsDiv.appendChild(mapBtn);
     }
@@ -1363,7 +1363,7 @@ function createContactCard(contact, index) {
     // Ignore button
     const ignoreBtn = document.createElement('button');
     ignoreBtn.className = 'btn btn-sm btn-outline-secondary';
-    ignoreBtn.innerHTML = '<i class="bi bi-eye-slash"></i> <span class="btn-label">Ignore</span>';
+    ignoreBtn.innerHTML = `<i class="bi bi-eye-slash"></i> <span class="btn-label">${tHtml('contacts.btn.ignore')}</span>`;
     ignoreBtn.onclick = () => {
         toggleContactIgnore(contact.public_key, true).then(() => loadPendingContacts());
     };
@@ -1372,7 +1372,7 @@ function createContactCard(contact, index) {
     // Block button
     const blockBtn = document.createElement('button');
     blockBtn.className = 'btn btn-sm btn-outline-danger';
-    blockBtn.innerHTML = '<i class="bi bi-slash-circle"></i> <span class="btn-label">Block</span>';
+    blockBtn.innerHTML = `<i class="bi bi-slash-circle"></i> <span class="btn-label">${tHtml('contacts.btn.block')}</span>`;
     blockBtn.onclick = () => {
         toggleContactBlock(contact.public_key, true).then(() => loadPendingContacts());
     };
@@ -1410,7 +1410,7 @@ async function approveContact(contact, index) {
         const data = await response.json();
 
         if (data.success) {
-            showToast(`Approved: ${contact.name}`, 'success');
+            showToast(t('contacts.toast.approved', { name: contact.name }), 'success');
 
             // Remove from list with animation
             if (cardEl) {
@@ -1425,7 +1425,7 @@ async function approveContact(contact, index) {
             }
         } else {
             console.error('Failed to approve contact:', data.error);
-            showToast('Failed to approve: ' + data.error, 'danger');
+            showToast(t('contacts.toast.approve_failed', { error: data.error }), 'danger');
 
             // Re-enable buttons
             if (cardEl) {
@@ -1435,7 +1435,7 @@ async function approveContact(contact, index) {
         }
     } catch (error) {
         console.error('Error approving contact:', error);
-        showToast('Network error: ' + error.message, 'danger');
+        showToast(t('common.network_error_detail', { error: error.message }), 'danger');
 
         // Re-enable buttons
         if (cardEl) {
@@ -1449,7 +1449,7 @@ function copyPublicKey(publicKey, buttonEl) {
     navigator.clipboard.writeText(publicKey).then(() => {
         // Visual feedback
         const originalHTML = buttonEl.innerHTML;
-        buttonEl.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        buttonEl.innerHTML = `<i class="bi bi-check"></i> ${tHtml('common.copied')}`;
         buttonEl.classList.remove('btn-outline-secondary');
         buttonEl.classList.add('btn-success');
 
@@ -1459,10 +1459,10 @@ function copyPublicKey(publicKey, buttonEl) {
             buttonEl.classList.add('btn-outline-secondary');
         }, 2000);
 
-        showToast('Public key copied to clipboard', 'info');
+        showToast(t('contacts.toast.pubkey_copied'), 'info');
     }).catch(err => {
         console.error('Failed to copy:', err);
-        showToast('Failed to copy to clipboard', 'danger');
+        showToast(t('contacts.toast.copy_failed'), 'danger');
     });
 }
 
@@ -1492,7 +1492,7 @@ function applyPendingFilters() {
 
 function showBatchApprovalModal() {
     if (filteredPendingContacts.length === 0) {
-        showToast('No contacts to approve', 'warning');
+        showToast(t('contacts.toast.none_to_approve'), 'warning');
         return;
     }
 
@@ -1592,12 +1592,12 @@ async function batchApproveContacts() {
 
     // Show result
     if (successCount > 0 && failedCount === 0) {
-        showToast(`Successfully approved ${successCount} contact${successCount !== 1 ? 's' : ''}`, 'success');
+        showToast(tn('contacts.toast.bulk_approved', successCount), 'success');
     } else if (successCount > 0 && failedCount > 0) {
-        showToast(`Approved ${successCount}, failed ${failedCount}. Check console for details.`, 'warning');
+        showToast(t('contacts.toast.bulk_approve_partial', { ok: successCount, failed: failedCount }), 'warning');
         console.error('Failed approvals:', failures);
     } else {
-        showToast(`Failed to approve contacts. Check console for details.`, 'danger');
+        showToast(t('contacts.toast.bulk_approve_failed'), 'danger');
         console.error('Failed approvals:', failures);
     }
 
@@ -1607,13 +1607,13 @@ async function batchApproveContacts() {
     // Re-enable button
     if (confirmBtn) {
         confirmBtn.disabled = false;
-        confirmBtn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Approve All';
+        confirmBtn.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${tHtml('contacts.btn.approve_all')}`;
     }
 }
 
 function showBatchIgnoreModal() {
     if (filteredPendingContacts.length === 0) {
-        showToast('No contacts to ignore', 'warning');
+        showToast(t('contacts.toast.none_to_ignore'), 'warning');
         return;
     }
 
@@ -1694,12 +1694,12 @@ async function batchIgnoreContacts() {
     if (modal) modal.hide();
 
     if (successCount > 0 && failedCount === 0) {
-        showToast(`Successfully ignored ${successCount} contact${successCount !== 1 ? 's' : ''}`, 'info');
+        showToast(tn('contacts.toast.bulk_ignored', successCount), 'info');
     } else if (successCount > 0 && failedCount > 0) {
-        showToast(`Ignored ${successCount}, failed ${failedCount}. Check console for details.`, 'warning');
+        showToast(t('contacts.toast.bulk_ignore_partial', { ok: successCount, failed: failedCount }), 'warning');
         console.error('Failed ignores:', failures);
     } else {
-        showToast(`Failed to ignore contacts. Check console for details.`, 'danger');
+        showToast(t('contacts.toast.bulk_ignore_failed'), 'danger');
         console.error('Failed ignores:', failures);
     }
 
@@ -1707,7 +1707,7 @@ async function batchIgnoreContacts() {
 
     if (confirmBtn) {
         confirmBtn.disabled = false;
-        confirmBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Ignore All';
+        confirmBtn.innerHTML = `<i class="bi bi-eye-slash"></i> ${tHtml('contacts.btn.ignore_all')}`;
     }
 }
 
@@ -1787,7 +1787,7 @@ async function loadExistingContacts() {
             const cacheOnlyContacts = cachedContacts
                 .filter(c => !deviceKeySet.has(c.public_key))
                 .map(c => ({
-                    name: c.name || 'Unknown',
+                    name: c.name || t('common.unknown'),
                     public_key: c.public_key,
                     public_key_prefix: c.public_key_prefix || c.public_key.substring(0, 12),
                     type_label: c.type_label || '',
@@ -1815,7 +1815,7 @@ async function loadExistingContacts() {
             console.error('Failed to load existing contacts:', deviceData.error);
             if (errorEl) {
                 const errorMsg = document.getElementById('existingErrorMessage');
-                if (errorMsg) errorMsg.textContent = deviceData.error || 'Failed to load contacts';
+                if (errorMsg) errorMsg.textContent = deviceData.error || t('contacts.existing.load_failed');
                 errorEl.style.display = 'block';
             }
         }
@@ -1824,7 +1824,7 @@ async function loadExistingContacts() {
         if (loadingEl) loadingEl.style.display = 'none';
         if (errorEl) {
             const errorMsg = document.getElementById('existingErrorMessage');
-            if (errorMsg) errorMsg.textContent = 'Network error: ' + error.message;
+            if (errorMsg) errorMsg.textContent = t('common.network_error_detail', { error: error.message });
             errorEl.style.display = 'block';
         }
     }
@@ -1969,7 +1969,7 @@ async function loadBlockedNamesList() {
         // Add a separator header
         const header = document.createElement('div');
         header.className = 'text-muted small fw-bold mt-3 mb-2 px-1';
-        header.innerHTML = '<i class="bi bi-slash-circle"></i> Blocked by name';
+        header.innerHTML = `<i class="bi bi-slash-circle"></i> ${tHtml('contacts.blocked_by_name')}`;
         listEl.appendChild(header);
 
         data.blocked_names.forEach(entry => {
@@ -1986,7 +1986,7 @@ async function loadBlockedNamesList() {
             const statusIcon = document.createElement('span');
             statusIcon.className = 'ms-1';
             statusIcon.style.fontSize = '0.85rem';
-            statusIcon.innerHTML = '<i class="bi bi-slash-circle text-danger" title="Blocked by name"></i>';
+            statusIcon.innerHTML = `<i class="bi bi-slash-circle text-danger" title="${tHtml('contacts.blocked_by_name')}"></i>`;
 
             infoRow.appendChild(nameDiv);
             infoRow.appendChild(statusIcon);
@@ -1996,7 +1996,7 @@ async function loadBlockedNamesList() {
 
             const unblockBtn = document.createElement('button');
             unblockBtn.className = 'btn btn-sm btn-outline-success';
-            unblockBtn.innerHTML = '<i class="bi bi-slash-circle"></i> <span class="btn-label">Unblock</span>';
+            unblockBtn.innerHTML = `<i class="bi bi-slash-circle"></i> <span class="btn-label">${tHtml('contacts.btn.unblock')}</span>`;
             unblockBtn.onclick = async () => {
                 try {
                     const resp = await fetch('/api/contacts/block-name', {
@@ -2009,10 +2009,10 @@ async function loadBlockedNamesList() {
                         showToast(result.message, 'info');
                         loadExistingContacts();
                     } else {
-                        showToast('Failed: ' + result.error, 'danger');
+                        showToast(t('common.failed_with', { error: result.error }), 'danger');
                     }
                 } catch (err) {
-                    showToast('Network error', 'danger');
+                    showToast(t('common.network_error'), 'danger');
                 }
             };
             actionsDiv.appendChild(unblockBtn);
@@ -2030,45 +2030,9 @@ async function loadBlockedNamesList() {
  * Format Unix timestamp as relative time ("5 minutes ago", "2 hours ago", etc.)
  */
 function formatRelativeTime(timestamp) {
-    if (!timestamp) return 'Never';
-
-    const now = Math.floor(Date.now() / 1000); // Current time in Unix seconds
-    const diffSeconds = now - timestamp;
-
-    if (diffSeconds < 0) return 'Just now'; // Future timestamp (clock skew)
-
-    // Less than 1 minute
-    if (diffSeconds < 60) {
-        return 'Just now';
-    }
-
-    // Less than 1 hour
-    if (diffSeconds < 3600) {
-        const minutes = Math.floor(diffSeconds / 60);
-        return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-    }
-
-    // Less than 1 day
-    if (diffSeconds < 86400) {
-        const hours = Math.floor(diffSeconds / 3600);
-        return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
-    }
-
-    // Less than 30 days
-    if (diffSeconds < 2592000) {
-        const days = Math.floor(diffSeconds / 86400);
-        return `${days} day${days !== 1 ? 's' : ''} ago`;
-    }
-
-    // Less than 1 year
-    if (diffSeconds < 31536000) {
-        const months = Math.floor(diffSeconds / 2592000);
-        return `${months} month${months !== 1 ? 's' : ''} ago`;
-    }
-
-    // More than 1 year
-    const years = Math.floor(diffSeconds / 31536000);
-    return `${years} year${years !== 1 ? 's' : ''} ago`;
+    // Delegates to datetime-utils.js. The "long" form keeps counting in months and
+    // years past a week, which is what a contact list wants for a stale advert.
+    return formatTimeAgo(timestamp, { long: true });
 }
 
 /**
@@ -2080,7 +2044,7 @@ function getActivityStatus(timestamp) {
         return {
             icon: '⚫',
             color: '#6c757d',
-            title: 'Never seen'
+            title: t('contacts.never_seen')
         };
     }
 
@@ -2092,7 +2056,7 @@ function getActivityStatus(timestamp) {
         return {
             icon: '🟢',
             color: '#28a745',
-            title: 'Active (advert received recently)'
+            title: t('contacts.active_recent')
         };
     }
 
@@ -2101,7 +2065,7 @@ function getActivityStatus(timestamp) {
         return {
             icon: '🟡',
             color: '#ffc107',
-            title: 'Recent activity'
+            title: t('contacts.recent_activity')
         };
     }
 
@@ -2109,7 +2073,7 @@ function getActivityStatus(timestamp) {
     return {
         icon: '🔴',
         color: '#dc3545',
-        title: 'Inactive'
+        title: t('contacts.inactive')
     };
 }
 
@@ -2133,7 +2097,7 @@ function createExistingContactCard(contact, index) {
     if (isProtected) {
         const lockIndicator = document.createElement('span');
         lockIndicator.className = 'protection-indicator ms-2';
-        lockIndicator.innerHTML = '<i class="bi bi-lock-fill text-warning" title="Protected contact"></i>';
+        lockIndicator.innerHTML = `<i class="bi bi-lock-fill text-warning" title="${tHtml('contacts.protected_title')}"></i>`;
         nameDiv.appendChild(lockIndicator);
     }
 
@@ -2151,9 +2115,9 @@ function createExistingContactCard(contact, index) {
             default: typeBadge.classList.add('bg-secondary');
         }
     } else {
-        typeBadge.textContent = 'Cache';
+        typeBadge.textContent = t('contacts.cache_badge');
         typeBadge.classList.add('bg-secondary');
-        typeBadge.title = 'Not on device - type unknown';
+        typeBadge.title = t('contacts.cache_badge_title');
     }
 
     // Source icon (device vs cache)
@@ -2161,9 +2125,9 @@ function createExistingContactCard(contact, index) {
     sourceIcon.className = 'ms-1';
     sourceIcon.style.fontSize = '0.85rem';
     if (contact.on_device !== false) {
-        sourceIcon.innerHTML = '<i class="bi bi-cpu text-success" title="On device"></i>';
+        sourceIcon.innerHTML = `<i class="bi bi-cpu text-success" title="${tHtml('contacts.filter.on_device')}"></i>`;
     } else {
-        sourceIcon.innerHTML = '<i class="bi bi-cloud text-secondary" title="Cache only"></i>';
+        sourceIcon.innerHTML = `<i class="bi bi-cloud text-secondary" title="${tHtml('contacts.filter.cache_only')}"></i>`;
     }
 
     // Status icon (ignored/blocked)
@@ -2172,12 +2136,12 @@ function createExistingContactCard(contact, index) {
         statusIcon = document.createElement('span');
         statusIcon.className = 'ms-1';
         statusIcon.style.fontSize = '0.85rem';
-        statusIcon.innerHTML = '<i class="bi bi-slash-circle text-danger" title="Blocked"></i>';
+        statusIcon.innerHTML = `<i class="bi bi-slash-circle text-danger" title="${tHtml('contacts.filter.blocked')}"></i>`;
     } else if (contact.is_ignored) {
         statusIcon = document.createElement('span');
         statusIcon.className = 'ms-1';
         statusIcon.style.fontSize = '0.85rem';
-        statusIcon.innerHTML = '<i class="bi bi-eye-slash text-secondary" title="Ignored"></i>';
+        statusIcon.innerHTML = `<i class="bi bi-eye-slash text-secondary" title="${tHtml('contacts.filter.ignored')}"></i>`;
     }
 
     infoRow.appendChild(nameDiv);
@@ -2189,7 +2153,7 @@ function createExistingContactCard(contact, index) {
     const keyDiv = document.createElement('div');
     keyDiv.className = 'contact-key clickable-key';
     keyDiv.textContent = contact.public_key_prefix;
-    keyDiv.title = 'Click to copy';
+    keyDiv.title = t('contacts.copy_title');
     keyDiv.onclick = () => copyToClipboard(contact.public_key_prefix, keyDiv);
 
     // Last advert row (with activity status indicator)
@@ -2207,7 +2171,7 @@ function createExistingContactCard(contact, index) {
         statusIcon.title = status.title;
 
         const timeText = document.createElement('span');
-        timeText.textContent = `Last advert: ${relativeTime}`;
+        timeText.textContent = t('contacts.last_advert', { time: relativeTime });
 
         lastAdvertDiv.appendChild(statusIcon);
         lastAdvertDiv.appendChild(timeText);
@@ -2218,7 +2182,7 @@ function createExistingContactCard(contact, index) {
         statusIcon.style.fontSize = '0.9rem';
 
         const timeText = document.createElement('span');
-        timeText.textContent = 'Last advert: Unknown';
+        timeText.textContent = t('contacts.last_advert_unknown');
 
         lastAdvertDiv.appendChild(statusIcon);
         lastAdvertDiv.appendChild(timeText);
@@ -2237,7 +2201,7 @@ function createExistingContactCard(contact, index) {
         } else {
             // mode is formatted path like "E7→DE→54→54→D8"
             const hopCount = mode.split('→').length;
-            pathDiv.innerHTML = `<i class="bi bi-signpost-split"></i> ${mode} <span class="text-muted">(${hopCount} hops)</span>`;
+            pathDiv.innerHTML = `<i class="bi bi-signpost-split"></i> ${mode} <span class="text-muted">(${tn('contacts.hops', hopCount)})</span>`;
         }
     }
 
@@ -2249,7 +2213,7 @@ function createExistingContactCard(contact, index) {
     if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
         const mapBtn = document.createElement('button');
         mapBtn.className = 'btn btn-sm btn-outline-primary';
-        mapBtn.innerHTML = '<i class="bi bi-geo-alt"></i> <span class="btn-label">Map</span>';
+        mapBtn.innerHTML = `<i class="bi bi-geo-alt"></i> <span class="btn-label">${tHtml('contacts.map.title')}</span>`;
         mapBtn.onclick = () => window.showContactOnMap(contact.name, contact.adv_lat, contact.adv_lon);
         actionsDiv.appendChild(mapBtn);
     }
@@ -2260,28 +2224,28 @@ function createExistingContactCard(contact, index) {
         protectBtn.className = isProtected ? 'btn btn-sm btn-warning' : 'btn btn-sm btn-outline-warning';
         protectBtn.innerHTML = isProtected
             ? '<i class="bi bi-lock-fill"></i> <span class="btn-label">Protected</span>'
-            : '<i class="bi bi-shield"></i> <span class="btn-label">Protect</span>';
+            : `<i class="bi bi-shield"></i> <span class="btn-label">${tHtml('contacts.btn.protect')}</span>`;
         protectBtn.onclick = () => toggleContactProtection(contact.public_key, protectBtn);
         actionsDiv.appendChild(protectBtn);
 
         const moveToCacheBtn = document.createElement('button');
         moveToCacheBtn.className = 'btn btn-sm btn-outline-info';
-        moveToCacheBtn.innerHTML = '<i class="bi bi-cloud-arrow-down"></i> <span class="btn-label">To cache</span>';
-        moveToCacheBtn.title = 'Remove from device, keep in cache';
+        moveToCacheBtn.innerHTML = `<i class="bi bi-cloud-arrow-down"></i> <span class="btn-label">${tHtml('contacts.btn.to_cache')}</span>`;
+        moveToCacheBtn.title = t('contacts.btn.to_cache_title');
         moveToCacheBtn.onclick = () => moveContactToCache(contact);
         moveToCacheBtn.disabled = isProtected;
         if (isProtected) {
-            moveToCacheBtn.title = 'Cannot move protected contact';
+            moveToCacheBtn.title = t('contacts.protected_cannot_move');
         }
         actionsDiv.appendChild(moveToCacheBtn);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn btn-sm btn-outline-danger';
-        deleteBtn.innerHTML = '<i class="bi bi-trash"></i> <span class="btn-label">Delete</span>';
+        deleteBtn.innerHTML = `<i class="bi bi-trash"></i> <span class="btn-label">${tHtml('common.delete')}</span>`;
         deleteBtn.onclick = () => showDeleteModal(contact);
         deleteBtn.disabled = isProtected;
         if (isProtected) {
-            deleteBtn.title = 'Cannot delete protected contact';
+            deleteBtn.title = t('contacts.protected_cannot_delete');
         }
         actionsDiv.appendChild(deleteBtn);
     }
@@ -2290,14 +2254,14 @@ function createExistingContactCard(contact, index) {
     if (contact.on_device === false) {
         const pushToDeviceBtn = document.createElement('button');
         pushToDeviceBtn.className = 'btn btn-sm btn-outline-success';
-        pushToDeviceBtn.innerHTML = '<i class="bi bi-cpu"></i> <span class="btn-label">To device</span>';
-        pushToDeviceBtn.title = 'Add this contact to the device';
+        pushToDeviceBtn.innerHTML = `<i class="bi bi-cpu"></i> <span class="btn-label">${tHtml('contacts.btn.to_device')}</span>`;
+        pushToDeviceBtn.title = t('contacts.btn.to_device_title');
         pushToDeviceBtn.onclick = () => pushContactToDevice(contact);
         actionsDiv.appendChild(pushToDeviceBtn);
 
         const deleteCacheBtn = document.createElement('button');
         deleteCacheBtn.className = 'btn btn-sm btn-outline-danger';
-        deleteCacheBtn.innerHTML = '<i class="bi bi-trash"></i> <span class="btn-label">Delete</span>';
+        deleteCacheBtn.innerHTML = `<i class="bi bi-trash"></i> <span class="btn-label">${tHtml('common.delete')}</span>`;
         deleteCacheBtn.onclick = () => showDeleteModal(contact);
         actionsDiv.appendChild(deleteCacheBtn);
     }
@@ -2306,33 +2270,33 @@ function createExistingContactCard(contact, index) {
     if (contact.is_blocked) {
         const unblockBtn = document.createElement('button');
         unblockBtn.className = 'btn btn-sm btn-outline-success';
-        unblockBtn.innerHTML = '<i class="bi bi-slash-circle"></i> <span class="btn-label">Unblock</span>';
+        unblockBtn.innerHTML = `<i class="bi bi-slash-circle"></i> <span class="btn-label">${tHtml('contacts.btn.unblock')}</span>`;
         unblockBtn.onclick = () => toggleContactBlock(contact.public_key, false);
         actionsDiv.appendChild(unblockBtn);
     } else if (contact.is_ignored) {
         const unignoreBtn = document.createElement('button');
         unignoreBtn.className = 'btn btn-sm btn-outline-success';
-        unignoreBtn.innerHTML = '<i class="bi bi-eye"></i> <span class="btn-label">Unignore</span>';
+        unignoreBtn.innerHTML = `<i class="bi bi-eye"></i> <span class="btn-label">${tHtml('contacts.btn.unignore')}</span>`;
         unignoreBtn.onclick = () => toggleContactIgnore(contact.public_key, false);
         actionsDiv.appendChild(unignoreBtn);
     } else {
         const ignoreBtn = document.createElement('button');
         ignoreBtn.className = 'btn btn-sm btn-outline-secondary';
-        ignoreBtn.innerHTML = '<i class="bi bi-eye-slash"></i> <span class="btn-label">Ignore</span>';
+        ignoreBtn.innerHTML = `<i class="bi bi-eye-slash"></i> <span class="btn-label">${tHtml('contacts.btn.ignore')}</span>`;
         ignoreBtn.onclick = () => toggleContactIgnore(contact.public_key, true);
         if (isProtected) {
             ignoreBtn.disabled = true;
-            ignoreBtn.title = 'Cannot ignore protected contact';
+            ignoreBtn.title = t('contacts.protected_cannot_ignore');
         }
         actionsDiv.appendChild(ignoreBtn);
 
         const blockBtn = document.createElement('button');
         blockBtn.className = 'btn btn-sm btn-outline-danger';
-        blockBtn.innerHTML = '<i class="bi bi-slash-circle"></i> <span class="btn-label">Block</span>';
+        blockBtn.innerHTML = `<i class="bi bi-slash-circle"></i> <span class="btn-label">${tHtml('contacts.btn.block')}</span>`;
         blockBtn.onclick = () => toggleContactBlock(contact.public_key, true);
         if (isProtected) {
             blockBtn.disabled = true;
-            blockBtn.title = 'Cannot block protected contact';
+            blockBtn.title = t('contacts.protected_cannot_block');
         }
         actionsDiv.appendChild(blockBtn);
     }
@@ -2385,7 +2349,7 @@ function legacyCopy(text, element, originalText) {
         showCopyFeedback(element, originalText);
     } catch (err) {
         console.error('Failed to copy:', err);
-        showToast('Failed to copy', 'danger');
+        showToast(t('contacts.toast.copy_failed'), 'danger');
     }
 
     document.body.removeChild(textArea);
@@ -2395,7 +2359,7 @@ function legacyCopy(text, element, originalText) {
  * Show visual feedback after successful copy.
  */
 function showCopyFeedback(element, originalText) {
-    element.textContent = 'Copied!';
+    element.textContent = t('common.copied');
     element.classList.add('copied');
 
     setTimeout(() => {
@@ -2403,7 +2367,7 @@ function showCopyFeedback(element, originalText) {
         element.classList.remove('copied');
     }, 1500);
 
-    showToast('Key copied to clipboard', 'info');
+    showToast(t('contacts.toast.key_copied'), 'info');
 }
 
 function showDeleteModal(contact) {
@@ -2430,7 +2394,7 @@ async function confirmDelete() {
     // Disable button during deletion
     if (confirmBtn) {
         confirmBtn.disabled = true;
-        confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Deleting...';
+        confirmBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> ${tHtml('common.deleting')}`;
     }
 
     try {
@@ -2452,7 +2416,7 @@ async function confirmDelete() {
         const data = await response.json();
 
         if (data.success) {
-            showToast(`Deleted: ${contactToDelete.name}`, 'success');
+            showToast(t('contacts.toast.deleted', { name: contactToDelete.name }), 'success');
 
             // Hide modal
             if (modal) modal.hide();
@@ -2461,16 +2425,16 @@ async function confirmDelete() {
             setTimeout(() => loadExistingContacts(), 500);
         } else {
             console.error('Failed to delete contact:', data.error);
-            showToast('Failed to delete: ' + data.error, 'danger');
+            showToast(t('contacts.toast.delete_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error deleting contact:', error);
-        showToast('Network error: ' + error.message, 'danger');
+        showToast(t('common.network_error_detail', { error: error.message }), 'danger');
     } finally {
         // Re-enable button
         if (confirmBtn) {
             confirmBtn.disabled = false;
-            confirmBtn.innerHTML = '<i class="bi bi-trash"></i> Delete Contact';
+            confirmBtn.innerHTML = `<i class="bi bi-trash"></i> ${tHtml('contacts.delete.confirm')}`;
         }
         contactToDelete = null;
     }
@@ -2493,10 +2457,10 @@ async function pushContactToDevice(contact) {
             showToast(data.message || `${contact.name} pushed to device`, 'success');
             setTimeout(() => loadExistingContacts(), 500);
         } else {
-            showToast(data.error || 'Failed to push contact', 'danger');
+            showToast(data.error || t('contacts.toast.push_failed'), 'danger');
         }
     } catch (error) {
-        showToast('Network error: ' + error.message, 'danger');
+        showToast(t('common.network_error_detail', { error: error.message }), 'danger');
     }
 }
 
@@ -2513,10 +2477,10 @@ async function moveContactToCache(contact) {
             showToast(data.message || `${contact.name} moved to cache`, 'success');
             setTimeout(() => loadExistingContacts(), 500);
         } else {
-            showToast(data.error || 'Failed to move contact', 'danger');
+            showToast(data.error || t('contacts.toast.move_failed'), 'danger');
         }
     } catch (error) {
-        showToast('Network error: ' + error.message, 'danger');
+        showToast(t('common.network_error_detail', { error: error.message }), 'danger');
     }
 }
 
@@ -2621,7 +2585,7 @@ function startQrCamera() {
         document.getElementById('startCameraBtn').classList.add('d-none');
         document.getElementById('stopCameraBtn').classList.remove('d-none');
     }).catch(err => {
-        showQrError('Camera access denied or not available. Try uploading an image instead.');
+        showQrError(t('contacts.qr.camera_denied'));
         console.error('QR camera error:', err);
     });
 }
@@ -2645,7 +2609,7 @@ function handleQrFile(event) {
             scanner.clear();
         })
         .catch(err => {
-            showQrError('Could not read QR code from image. Make sure the image contains a valid QR code.');
+            showQrError(t('contacts.qr.read_failed'));
             console.error('QR file scan error:', err);
         });
 }
@@ -2671,7 +2635,7 @@ function onQrCodeSuccess(decodedText) {
 
     // Hex blob format
     if (decodedText.startsWith('meshcore://') && decodedText.length > 20) {
-        resultDiv.innerHTML = '<strong>Scanned:</strong> <span class="font-monospace small" style="word-break: break-all;">' +
+        resultDiv.innerHTML = `<strong>${tHtml('contacts.add.scanned')}</strong> <span class="font-monospace small" style="word-break: break-all;">` +
             decodedText.substring(0, 60) + '...</span>';
         resultDiv.classList.remove('d-none');
         addBtn.classList.remove('d-none');
@@ -2726,7 +2690,7 @@ async function submitContact(mode) {
 
     // Show loading
     statusDiv.className = 'mt-3 alert alert-info';
-    statusDiv.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Adding contact...';
+    statusDiv.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${tHtml('contacts.add.adding')}`;
     statusDiv.classList.remove('d-none');
 
     try {
@@ -2739,16 +2703,16 @@ async function submitContact(mode) {
 
         if (data.success) {
             statusDiv.className = 'mt-3 alert alert-success';
-            statusDiv.textContent = data.message || 'Contact added successfully!';
+            statusDiv.textContent = data.message || t('contacts.add.success');
             // Reset form
             resetAddForm(mode);
         } else {
             statusDiv.className = 'mt-3 alert alert-danger';
-            statusDiv.textContent = data.error || 'Failed to add contact.';
+            statusDiv.textContent = data.error || t('contacts.add.failed');
         }
     } catch (error) {
         statusDiv.className = 'mt-3 alert alert-danger';
-        statusDiv.textContent = 'Network error: ' + error.message;
+        statusDiv.textContent = t('common.network_error_detail', { error: error.message });
     }
 }
 

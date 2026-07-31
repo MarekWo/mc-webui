@@ -52,15 +52,35 @@ function formatTimestamp(timestamp, opts) {
 
 /**
  * Format a unix timestamp as relative time ("5 min ago", "2h ago").
+ *
  * @param {number} timestamp - unix seconds
+ * @param {Object} [opts]
+ * @param {boolean} [opts.long] - spell out the units and keep counting in months and
+ *   years past a week, instead of falling back to a date. Contact lists want this: a
+ *   stale advert reads better as "3 months ago" than as a date nobody recognises.
  * @returns {string}
  */
-function formatTimeAgo(timestamp) {
+function formatTimeAgo(timestamp, opts) {
+    if (!timestamp) return t('common.never');
+    const long = !!(opts && opts.long);
     const diff = Math.floor(Date.now() / 1000) - timestamp;
 
+    // A future timestamp means clock skew between us and the sender, not a real value.
     if (diff < 60) return t('common.just_now');
-    if (diff < 3600) return t('common.minutes_ago', { count: Math.floor(diff / 60) });
-    if (diff < 86400) return t('common.hours_ago', { count: Math.floor(diff / 3600) });
+
+    if (diff < 3600) {
+        return long ? tn('common.minutes_ago_long', Math.floor(diff / 60))
+                    : t('common.minutes_ago', { count: Math.floor(diff / 60) });
+    }
+    if (diff < 86400) {
+        return long ? tn('common.hours_ago_long', Math.floor(diff / 3600))
+                    : t('common.hours_ago', { count: Math.floor(diff / 3600) });
+    }
+    if (long) {
+        if (diff < 2592000) return tn('common.days_ago_long', Math.floor(diff / 86400));
+        if (diff < 31536000) return tn('common.months_ago', Math.floor(diff / 2592000));
+        return tn('common.years_ago', Math.floor(diff / 31536000));
+    }
     if (diff < 604800) return tn('common.days_ago', Math.floor(diff / 86400));
     return new Date(timestamp * 1000).toLocaleDateString();
 }
