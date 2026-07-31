@@ -39,10 +39,15 @@ META_KEYS = {'meta.language_name', 'meta.language_english_name', 'meta.translato
 # Terms that must survive translation. Mesh operators use the English words regardless
 # of UI language, and a translated "flood" matches no firmware doc or forum post.
 # Canonical list — docs/translations.md points here.
+# Kept deliberately tight: only jargon whose native translation would leave a mesh
+# operator unable to match the UI against firmware output or a forum post. Words with a
+# normal, unambiguous native equivalent — telemetry, sensor, broker, bandwidth — are
+# guidance in docs/translations.md, not an automated check. They fired on correct Polish
+# ("telemetria", "czujniki"), and a warning you are meant to ignore trains you to ignore
+# all of them. "direct" is out for the same reason: it is a common adjective ("direct
+# neighbours") far more often than the Direct mode value.
 GLOSSARY = [
-    'flood', 'direct', 'hop', 'advert', 'ACK', 'RSSI', 'SNR', 'LoRa', 'MQTT',
-    'repeater', 'room server', 'companion', 'sensor', 'pubkey', 'telemetry', 'broker',
-    'spreading factor', 'bandwidth', 'coding rate',
+    'flood', 'hop', 'advert', 'ACK', 'RSSI', 'SNR', 'LoRa', 'MQTT', 'pubkey', 'repeater',
 ]
 
 # t('key'), tn('key', n), tHtml('key', {...}), t_html('key', name=x).
@@ -90,10 +95,14 @@ def available_langs() -> list[str]:
     return sorted(p.stem for p in TRANSLATIONS.glob('*.json'))
 
 
-def scan_sources() -> tuple[dict[str, set[str]], dict[str, list[str]]]:
-    """Return (key -> set of call kinds used, key -> list of 'file:line' sites)."""
+STRING_LITERAL_RE = re.compile(r'''(['"])((?:(?!\1)[^\\])*)\1''')
+
+
+def scan_sources() -> tuple[dict[str, set[str]], dict[str, list[str]], set[str]]:
+    """Return (key -> call kinds, key -> 'file:line' sites, every string literal seen)."""
     kinds: dict[str, set[str]] = defaultdict(set)
     sites: dict[str, list[str]] = defaultdict(list)
+    literals: set[str] = set()
 
     for pattern in SCAN_GLOBS:
         for path in sorted(REPO.glob(pattern)):
@@ -108,6 +117,9 @@ def scan_sources() -> tuple[dict[str, set[str]], dict[str, list[str]]]:
                         kinds[key].add(func)
                         sites[key].append(f'{rel}:{lineno}')
 
+                for _, literal in STRING_LITERAL_RE.findall(line):
+                    literals.add(literal)
+
                 # A t() result landing in innerHTML must be tHtml() — its params are
                 # escaped, so interpolated user data cannot inject markup.
                 if HTML_SINK_RE.search(line) and re.search(r'\$\{\s*t\s*\(', line):
@@ -117,7 +129,7 @@ def scan_sources() -> tuple[dict[str, set[str]], dict[str, list[str]]]:
                     err(f'{rel}:{lineno}: `t` is assigned here, shadowing the global '
                         f'translation helper — rename the variable')
 
-    return kinds, sites
+    return kinds, sites, literals
 
 
 # ---------------------------------------------------------------------------
@@ -140,13 +152,19 @@ def placeholders(value) -> set[str]:
     return out
 
 
-def check_usage(en: dict, kinds: dict[str, set[str]], sites: dict[str, list[str]]):
+def check_usage(en: dict, kinds: dict[str, set[str]], sites: dict[str, list[str]],
+                literals: set[str]):
     for key in sorted(kinds):
         if key not in en:
             where = sites[key][0]
             err(f'{where}: key not in en.json — {key!r}')
 
-    unused = set(en) - set(kinds) - META_KEYS
+    # Some keys are resolved dynamically — a declarative schema holding
+    # labelKey: 'repeaters.settings.name' and calling t(f.labelKey) at render time.
+    # A bare literal that exactly matches a catalog key counts as a reference, which
+    # keeps those out of the unused list. It only relaxes this warning: missing-key
+    # errors and the markup lint still come from real call sites.
+    unused = set(en) - set(kinds) - META_KEYS - literals
     for key in sorted(unused):
         warn(f'en.json: unused key {key!r}')
 
@@ -216,8 +234,8 @@ def main() -> int:
             print(f'{key}\t{text}')
         return 0
 
-    kinds, sites = scan_sources()
-    check_usage(en, kinds, sites)
+    kinds, sites, literals = scan_sources()
+    check_usage(en, kinds, sites, literals)
 
     langs = [args.lang] if args.lang else [l for l in available_langs() if l != 'en']
     coverage = {lang: check_language(lang, en, load_catalog(lang)) for lang in langs}
