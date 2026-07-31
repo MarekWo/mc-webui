@@ -834,6 +834,26 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
 
+    def get_channel_messages_by_ids(self, msg_ids: List[int]) -> Dict[int, Dict]:
+        """Batch-fetch channel messages by id with chunked IN queries.
+
+        Returns {msg_id: row dict}; ids with no row are simply absent.
+        Chunked at 500 to stay under SQLite's host-parameter limit."""
+        result: Dict[int, Dict] = {}
+        if not msg_ids:
+            return result
+        with self._connect() as conn:
+            for i in range(0, len(msg_ids), 500):
+                chunk = msg_ids[i:i + 500]
+                placeholders = ",".join("?" * len(chunk))
+                rows = conn.execute(
+                    f"SELECT * FROM channel_messages WHERE id IN ({placeholders})",
+                    chunk
+                ).fetchall()
+                for r in rows:
+                    result[r['id']] = dict(r)
+        return result
+
     def get_channel_messages(self, channel_idx: int = None, limit: int = 50,
                               offset: int = 0, days: int = None) -> List[Dict]:
         with self._connect() as conn:
@@ -1459,6 +1479,35 @@ class Database:
     # ================================================================
     # Maintenance
     # ================================================================
+
+    def get_status_summary(self) -> Dict[str, Any]:
+        """Message count + newest channel timestamp, for /api/status.
+
+        /api/status is polled by every open tab, so it gets a dedicated query
+        instead of reusing get_stats() + get_channel_messages(limit=1):
+
+        - get_stats() counts 11 tables to answer a question about 2. The
+          COUNT(*) over echoes alone costs ~200ms on a 20k-row table and its
+          result was discarded — and echoes only ever grow.
+        - get_channel_messages(limit=1) was a `SELECT *` whose ORDER BY
+          timestamp has no usable index (idx_cm_channel_ts leads with
+          channel_idx), so it scanned the table through two temp B-trees and
+          materialized every column, raw_packet included, to read one field.
+          MAX(timestamp) is served straight off that index instead.
+
+        Together with folding both into a single connection this is ~46ms
+        where the pair cost ~371ms.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT (SELECT COUNT(*) FROM channel_messages) AS channel_count,
+                          (SELECT COUNT(*) FROM direct_messages) AS dm_count,
+                          (SELECT MAX(timestamp) FROM channel_messages) AS latest_timestamp"""
+            ).fetchone()
+            return {
+                'message_count': (row['channel_count'] or 0) + (row['dm_count'] or 0),
+                'latest_message_timestamp': row['latest_timestamp'],
+            }
 
     def get_stats(self) -> Dict[str, Any]:
         """Get row counts for all tables."""

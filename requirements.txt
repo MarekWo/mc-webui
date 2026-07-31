@@ -32,6 +32,9 @@ flask-socketio==5.3.6
 # Observer: MQTT packet publishing (meshcore-packet-capture compatible)
 paho-mqtt==2.1.0
 python-socketio==5.10.0
+# Pulls in simple-websocket, which is what lets the werkzeug server serve real
+# WebSockets. Clients rely on that upgrade; without it they fall back to
+# long-polling and starve the browser's per-origin connection pool.
 python-engineio==4.8.1
 
 # v2: Direct MeshCore device communication (replaces bridge subprocess)

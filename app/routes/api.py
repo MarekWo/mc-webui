@@ -671,6 +671,88 @@ def get_path_analyzer_messages():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _build_message_meta(row: dict, pkt_payload, echoes: list) -> dict:
+    """Assemble the meta payload (SNR, hops, route, analyzer hash) for one row.
+
+    Pure: takes the already-resolved pkt_payload and its echoes so callers can
+    batch the DB work."""
+    path_len_raw = row.get('path_len')
+    hop_count = None
+    path_hash_size = 1
+    if path_len_raw is not None:
+        hop_count, path_hash_size, _ = decode_path_len(path_len_raw)
+
+    meta = {
+        'success': True,
+        'snr': row.get('snr'),
+        'path_len': path_len_raw,
+        'hop_count': hop_count,
+        'path_hash_size': path_hash_size,
+        'pkt_payload': pkt_payload,
+    }
+
+    if pkt_payload:
+        meta['packet_hash'] = compute_packet_hash(pkt_payload)
+        if echoes:
+            meta['echo_count'] = len(echoes)
+            meta['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
+            meta['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
+            meta['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
+
+    return meta
+
+
+@api_bp.route('/messages/meta', methods=['GET'])
+def get_messages_meta_batch():
+    """Return metadata for many channel messages at once.
+
+    Query: ?ids=1,2,3 -> {'success': True, 'metas': {'1': {...}, ...}}
+
+    The UI sweeps every rendered message whenever echoes arrive; doing that one
+    request per message flooded the single-threaded werkzeug server (thousands
+    of round-trips per minute, each opening its own SQLite connections). This
+    resolves the whole sweep with a handful of queries.
+    """
+    try:
+        db = _get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'No database'}), 500
+
+        raw_ids = (request.args.get('ids') or '').split(',')
+        msg_ids = []
+        for part in raw_ids:
+            part = part.strip()
+            if part.isdigit():
+                msg_ids.append(int(part))
+        if not msg_ids:
+            return jsonify({'success': True, 'metas': {}})
+
+        rows = db.get_channel_messages_by_ids(msg_ids)
+        channel_secrets = _build_channel_secrets(db)
+
+        payload_by_id = {
+            mid: _get_row_pkt_payload(row, channel_secrets)
+            for mid, row in rows.items()
+        }
+        echoes_by_payload = db.get_echoes_for_payloads(
+            list({p for p in payload_by_id.values() if p})
+        )
+
+        metas = {
+            str(mid): _build_message_meta(
+                row,
+                payload_by_id[mid],
+                echoes_by_payload.get(payload_by_id[mid], []),
+            )
+            for mid, row in rows.items()
+        }
+        return jsonify({'success': True, 'metas': metas})
+
+    except Exception as e:
+        logger.error(f"Error fetching batch message meta: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/messages/<int:msg_id>/meta', methods=['GET'])
 def get_message_meta(msg_id):
     """Return metadata (SNR, hops, route, analyzer URL) for a single channel message."""
@@ -683,68 +765,9 @@ def get_message_meta(msg_id):
         if not row:
             return jsonify({'success': False, 'error': 'Not found'}), 404
 
-        pkt_payload = row.get('pkt_payload')
-        sender_ts = row.get('sender_timestamp')
-        ch_idx = row.get('channel_idx', 0)
-        txt_type = row.get('txt_type', 0)
-
-        # Compute pkt_payload if not stored
-        # Use DB channels (fast) to avoid blocking on device communication
-        if not pkt_payload and sender_ts:
-            db_channels = db.get_channels() if db else []
-            channel_secrets = {}
-            for ch_info in db_channels:
-                ch_key = ch_info.get('secret', ch_info.get('key', ''))
-                ci = ch_info.get('idx', ch_info.get('index'))
-                if ch_key and ci is not None:
-                    channel_secrets[ci] = ch_key
-
-            if ch_idx in channel_secrets:
-                raw_text = None
-                raw_json_str = row.get('raw_json')
-                if raw_json_str:
-                    try:
-                        raw_text = json.loads(raw_json_str).get('text')
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                if not raw_text:
-                    is_own = bool(row.get('is_own', 0))
-                    if is_own:
-                        device_name = runtime_config.get_device_name() or ''
-                        raw_text = f"{device_name}: {row.get('content', '')}" if device_name else row.get('content', '')
-                    else:
-                        sender = row.get('sender', '')
-                        raw_text = f"{sender}: {row.get('content', '')}" if sender else row.get('content', '')
-                pkt_payload = compute_pkt_payload(
-                    channel_secrets[ch_idx], sender_ts, txt_type, raw_text
-                )
-
-        # Decode path_len
-        path_len_raw = row.get('path_len')
-        hop_count = None
-        path_hash_size = 1
-        if path_len_raw is not None:
-            hop_count, path_hash_size, _ = decode_path_len(path_len_raw)
-
-        meta = {
-            'success': True,
-            'snr': row.get('snr'),
-            'path_len': path_len_raw,
-            'hop_count': hop_count,
-            'path_hash_size': path_hash_size,
-            'pkt_payload': pkt_payload,
-        }
-
-        if pkt_payload:
-            meta['packet_hash'] = compute_packet_hash(pkt_payload)
-            echoes = db.get_echoes_for_message(pkt_payload)
-            if echoes:
-                meta['echo_count'] = len(echoes)
-                meta['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
-                meta['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
-                meta['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
-
-        return jsonify(meta)
+        pkt_payload = _get_row_pkt_payload(row, _build_channel_secrets(db))
+        echoes = db.get_echoes_for_message(pkt_payload) if pkt_payload else []
+        return jsonify(_build_message_meta(row, pkt_payload, echoes))
 
     except Exception as e:
         logger.error(f"Error fetching message meta: {e}")
@@ -864,12 +887,9 @@ def get_status():
         message_count = 0
         latest_timestamp = None
         if db:
-            stats = db.get_stats()
-            message_count = stats.get('channel_messages', 0) + stats.get('direct_messages', 0)
-            # Get latest channel message timestamp
-            recent = db.get_channel_messages(limit=1)
-            if recent:
-                latest_timestamp = recent[0].get('timestamp')
+            summary = db.get_status_summary()
+            message_count = summary['message_count']
+            latest_timestamp = summary['latest_message_timestamp']
         else:
             message_count = parser.count_messages()
             latest = parser.get_latest_message()
