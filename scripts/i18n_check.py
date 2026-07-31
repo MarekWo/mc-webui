@@ -181,6 +181,16 @@ def check_usage(en: dict, kinds: dict[str, set[str]], sites: dict[str, list[str]
             err(f'{sites[key][0]}: {key!r} contains markup but is used via t()/tn() - '
                 f'use tHtml()/t_html()')
 
+        # A plural value only picks the right form when the count reaches the resolver,
+        # and tn() is the only helper that passes it. t()/tHtml() fall back to the "one"
+        # form and render it for every count - silently, and correctly-looking in English
+        # where "1 hop"/"2 hops" differ only in a letter. Polish makes it obvious, but by
+        # then it is in a screenshot, not in a test.
+        if isinstance(value, dict) and kinds[key] - {'tn'}:
+            wrong = ', '.join(sorted(f'{f}()' for f in kinds[key] - {'tn'}))
+            err(f'{sites[key][0]}: {key!r} is a plural value but is used via {wrong} - '
+                f'use tn(key, count)')
+
 
 def check_language(lang: str, en: dict, catalog: dict) -> float:
     translated = [k for k in en if k in catalog]

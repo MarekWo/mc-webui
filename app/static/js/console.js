@@ -60,7 +60,7 @@ function connectWebSocket() {
             updateStatus('disconnected');
             enableInput(false);
             // Transient session event — show inline but don't persist to transcript
-            addMessage(t('console.status.disconnected'), 'error', false);
+            addMessage(t('common.disconnected'), 'error', false);
 
             // Clear pending command indicator
             if (pendingCommandDiv) {
@@ -245,15 +245,15 @@ function updateStatus(status) {
 
     switch (status) {
         case 'connected':
-            text.textContent = t('console.status.connected');
+            text.textContent = t('common.connected');
             text.className = 'text-success';
             break;
         case 'disconnected':
-            text.textContent = t('console.status.disconnected');
+            text.textContent = t('common.disconnected');
             text.className = 'text-danger';
             break;
         case 'connecting':
-            text.textContent = t('console.status.connecting');
+            text.textContent = t('common.connecting');
             text.className = 'text-warning';
             break;
     }

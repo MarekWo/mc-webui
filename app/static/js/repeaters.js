@@ -93,8 +93,8 @@ function esc(s) {
 
 // Relative time comes from datetime-utils.js as formatTimeAgo(). The local copy this
 // replaced also had a "Never" branch for a falsy timestamp, which was unreachable — the
-// single call site already guards it. contacts.js and dm.js still carry their own
-// copies; they get folded in with their own slices.
+// single call site already guards it. contacts.js and dm.js have since been folded in
+// the same way, so this is now the only implementation.
 
 // ================================================================
 // State
@@ -830,7 +830,7 @@ function renderHopPickerList(listEl, repeaters) {
         item.innerHTML = `
             <span class="badge ${samePrefix > 1 ? 'bg-warning text-dark' : 'bg-success'}">${esc(prefix)}</span>
             <span class="flex-grow-1 text-truncate">${esc(rpt.name)}</span>
-            ${samePrefix > 1 ? `<i class="bi bi-exclamation-triangle text-warning" title="${tHtml('repeaters.picker.shared_prefix', { count: samePrefix })}"></i>` : ''}
+            ${samePrefix > 1 ? `<i class="bi bi-exclamation-triangle text-warning" title="${tn('repeaters.picker.shared_prefix', samePrefix)}"></i>` : ''}
         `;
         item.addEventListener('click', () => {
             appendHopToPathInput(prefix.toLowerCase(), hashSize);
@@ -924,7 +924,7 @@ function openRepeaterMapPicker() {
     const addBtn = document.getElementById('rptMapAddBtn');
     const selectedLabel = document.getElementById('rptMapSelected');
     if (addBtn) addBtn.disabled = true;
-    if (selectedLabel) selectedLabel.textContent = 'Click a repeater on the map';
+    if (selectedLabel) selectedLabel.textContent = t('repeaters.map.hint');
 
     const modal = new bootstrap.Modal(modalEl);
 
@@ -960,7 +960,7 @@ function openRepeaterMapPicker() {
             if (appendHopToPathInput(prefix, hashSize)) {
                 _rptMapSelectedRepeater = null;
                 addBtn.disabled = true;
-                if (selectedLabel) selectedLabel.textContent = 'Click a repeater on the map';
+                if (selectedLabel) selectedLabel.textContent = t('repeaters.map.hint');
             }
         };
     }
@@ -981,7 +981,7 @@ async function loadRepeaterMapMarkers() {
 
     _rptMapSelectedRepeater = null;
     if (addBtn) addBtn.disabled = true;
-    if (selectedLabel) selectedLabel.textContent = 'Click a repeater on the map';
+    if (selectedLabel) selectedLabel.textContent = t('repeaters.map.hint');
 
     if (!_repeatersCache) {
         try {

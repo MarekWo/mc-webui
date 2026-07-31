@@ -76,7 +76,7 @@ let chatSocket = null;  // SocketIO connection to /chat namespace
  * Get display-friendly name (truncate full pubkeys to short prefix)
  */
 function displayName(name) {
-    if (!name) return 'Unknown';
+    if (!name) return t('common.unknown');
     if (/^[0-9a-f]{12,64}$/i.test(name)) return name.substring(0, 8) + '...';
     return name;
 }
@@ -111,7 +111,7 @@ function resolveConversationName(conversationId) {
     // Fallback
     if (conversationId && conversationId.startsWith('name_')) return conversationId.substring(5);
     if (conversationId && conversationId.startsWith('pk_')) return conversationId.substring(3, 11) + '...';
-    return 'Unknown';
+    return t('common.unknown');
 }
 
 let chatSocketEverConnected = false;
@@ -196,8 +196,8 @@ function connectChatSocket() {
                 statusEl.className = 'bi bi-check2 dm-status delivered';
                 const tooltip = [];
                 if (data.snr != null) tooltip.push(`SNR: ${data.snr}`);
-                if (data.route_type) tooltip.push(`Route: ${data.route_type}`);
-                statusEl.title = tooltip.length > 0 ? tooltip.join(', ') : 'Delivered';
+                if (data.route_type) tooltip.push(t('dm.route', { route: data.route_type }));
+                statusEl.title = tooltip.length > 0 ? tooltip.join(', ') : t('dm.status.delivered');
                 // Unwrap status icon from wrapper span
                 const wrapper = statusEl.closest('[data-dm-id]');
                 if (wrapper) {
@@ -211,7 +211,7 @@ function connectChatSocket() {
     chatSocket.on('dm_retry_status', (data) => {
         if (!data.dm_id) return;
         const info = document.querySelector(`.dm-retry-info[data-dm-id="${data.dm_id}"]`);
-        if (info) info.textContent = `Attempt ${data.attempt}/${data.max_attempts}`;
+        if (info) info.textContent = t('dm.attempt', { n: data.attempt, max: data.max_attempts });
     });
 
     // DM retry exhausted — mark as failed, show final attempt count
@@ -223,7 +223,7 @@ function connectChatSocket() {
             const icon = wrapper.querySelector('.dm-status');
             if (icon) {
                 icon.className = 'bi bi-x-circle dm-status timeout';
-                icon.title = 'Delivery failed — all retries exhausted';
+                icon.title = t('dm.status.failed');
             }
             wrapper.removeAttribute('onclick');
             wrapper.classList.remove('dm-status-unknown');
@@ -232,7 +232,7 @@ function connectChatSocket() {
         const info = document.querySelector(`.dm-retry-info[data-dm-id="${data.dm_id}"]`);
         if (info) {
             if (data.attempt && data.max_attempts) {
-                info.textContent = `Attempt ${data.attempt}/${data.max_attempts}`;
+                info.textContent = t('dm.attempt', { n: data.attempt, max: data.max_attempts });
             } else {
                 info.textContent = '';
             }
@@ -250,9 +250,9 @@ function connectChatSocket() {
         if (!msgDiv) return;
         // Build delivery meta text
         const parts = [];
-        if (data.attempt && data.max_attempts) parts.push(`Attempt ${data.attempt}/${data.max_attempts}`);
+        if (data.attempt && data.max_attempts) parts.push(t('dm.attempt', { n: data.attempt, max: data.max_attempts }));
         const hexRoute = formatDmRoute(data.path, data.hash_size);
-        if (hexRoute) parts.push(`Route: ${hexRoute}`);
+        if (hexRoute) parts.push(t('dm.route', { route: hexRoute }));
         if (parts.length > 0) {
             let metaEl = msgDiv.querySelector('.dm-delivery-meta');
             if (!metaEl) {
@@ -660,7 +660,7 @@ function renderDropdownItems(query) {
     if (filteredConvs.length > 0) {
         const sep = document.createElement('div');
         sep.className = 'dm-dropdown-separator';
-        sep.textContent = 'Recent conversations';
+        sep.textContent = t('dm.dropdown.recent');
         dropdown.appendChild(sep);
 
         filteredConvs.forEach(item => {
@@ -672,7 +672,7 @@ function renderDropdownItems(query) {
     if (filteredContacts.length > 0) {
         const sep = document.createElement('div');
         sep.className = 'dm-dropdown-separator';
-        sep.textContent = 'Contacts';
+        sep.textContent = t('dm.dropdown.contacts');
         dropdown.appendChild(sep);
 
         filteredContacts.forEach(contact => {
@@ -686,7 +686,7 @@ function renderDropdownItems(query) {
     if (filteredConvs.length === 0 && filteredContacts.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'dm-dropdown-separator text-center';
-        empty.textContent = q ? 'No matches' : 'No contacts available';
+        empty.textContent = q ? t('dm.dropdown.no_matches') : t('dm.dropdown.no_contacts');
         dropdown.appendChild(empty);
     }
 }
@@ -747,7 +747,7 @@ function populateDmSidebar(query) {
     if (filteredConvs.length > 0) {
         const sep = document.createElement('div');
         sep.className = 'dm-sidebar-separator';
-        sep.textContent = 'Recent conversations';
+        sep.textContent = t('dm.dropdown.recent');
         list.appendChild(sep);
 
         filteredConvs.forEach(item => {
@@ -759,7 +759,7 @@ function populateDmSidebar(query) {
     if (filteredContacts.length > 0) {
         const sep = document.createElement('div');
         sep.className = 'dm-sidebar-separator';
-        sep.textContent = 'Contacts';
+        sep.textContent = t('dm.dropdown.contacts');
         list.appendChild(sep);
 
         filteredContacts.forEach(contact => {
@@ -773,7 +773,7 @@ function populateDmSidebar(query) {
     if (filteredConvs.length === 0 && filteredContacts.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'dm-sidebar-separator text-center';
-        empty.textContent = q ? 'No matches' : 'No contacts available';
+        empty.textContent = q ? t('dm.dropdown.no_matches') : t('dm.dropdown.no_contacts');
         list.appendChild(empty);
     }
 }
@@ -923,7 +923,7 @@ async function selectConversation(conversationId) {
     const sendBtn = document.getElementById('dmSendBtn');
     if (input) {
         input.disabled = false;
-        input.placeholder = `Message ${displayName(currentRecipient)}...`;
+        input.placeholder = t('dm.msg_input_ph', { name: displayName(currentRecipient) });
     }
     if (sendBtn) {
         sendBtn.disabled = false;
@@ -960,7 +960,7 @@ function clearConversation() {
     const sendBtn = document.getElementById('dmSendBtn');
     if (input) {
         input.disabled = true;
-        input.placeholder = 'Type a message...';
+        input.placeholder = t('chat.input_ph');
         input.value = '';
     }
     if (sendBtn) {
@@ -973,8 +973,8 @@ function clearConversation() {
         container.innerHTML = `
             <div class="dm-empty-state">
                 <i class="bi bi-envelope"></i>
-                <p class="mb-1">Select a conversation</p>
-                <small class="text-muted">Choose from the list or start a new chat from channel messages</small>
+                <p class="mb-1">${tHtml('dm.empty.select')}</p>
+                <small class="text-muted">${tHtml('dm.empty.select_hint')}</small>
             </div>
         `;
     }
@@ -1013,17 +1013,9 @@ function findCurrentContact() {
     return findCurrentContactByConvId(currentConversationId);
 }
 
-/**
- * Minimal relative time formatter.
- */
-function formatRelativeTimeDm(timestamp) {
-    if (!timestamp) return 'Never';
-    const diff = Math.floor(Date.now() / 1000) - timestamp;
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-}
+// Relative time comes from datetime-utils.js as formatTimeAgo(). This was the last of
+// the four local copies. The contact-info row uses the long form to match the contacts
+// page; the map popup uses the short form to match the My Repeaters map picker.
 
 /**
  * Populate the Contact Info modal body.
@@ -1034,7 +1026,7 @@ function populateContactInfoModal() {
 
     const contact = findCurrentContact();
     if (!contact) {
-        body.innerHTML = '<p class="text-muted">No contact information available.</p>';
+        body.innerHTML = `<p class="text-muted">${tHtml('dm.no_contact_info')}</p>`;
         return;
     }
 
@@ -1063,11 +1055,11 @@ function populateContactInfoModal() {
     keyDiv.className = 'text-muted small font-monospace mb-2';
     keyDiv.style.cursor = 'pointer';
     keyDiv.textContent = contact.public_key_prefix || contact.public_key?.substring(0, 12) || '';
-    keyDiv.title = 'Click to copy full public key';
+    keyDiv.title = t('dm.copy_pubkey_title');
     keyDiv.onclick = () => {
         const pk = contact.public_key || contact.public_key_prefix || '';
         navigator.clipboard.writeText(pk).then(() => {
-            showNotification('Public key copied', 'info');
+            showNotification(t('contacts.toast.pubkey_copied'), 'info');
         }).catch(() => {});
     };
     body.appendChild(keyDiv);
@@ -1081,7 +1073,7 @@ function populateContactInfoModal() {
         else if (diff < 3600) icon = '🟡';
         const div = document.createElement('div');
         div.className = 'small mb-2';
-        div.textContent = `${icon} Last advert: ${formatRelativeTimeDm(ts)}`;
+        div.textContent = `${icon} ${t('contacts.last_advert', { time: formatTimeAgo(ts, { long: true }) })}`;
         body.appendChild(div);
     }
 
@@ -1103,9 +1095,9 @@ function populateContactInfoModal() {
             const pathHex = contact.out_path ? contact.out_path.substring(0, hopCount * hashSize * 2) : '';
 
             div.innerHTML = `
-                <span><i class="bi bi-signpost-split"></i> ${mode} <span class="text-muted">(${hops} hops)</span></span>
+                <span><i class="bi bi-signpost-split"></i> ${escapeHtml(mode)} <span class="text-muted">(${tn('contacts.hops', hops)})</span></span>
                 ${pathHex ? `<button type="button" class="btn btn-outline-primary btn-sm py-0 px-1"
-                    id="dmImportDevicePathBtn" title="Import device path to configured paths"
+                    id="dmImportDevicePathBtn" title="${tHtml('dm.import_device_path_title')}"
                     style="font-size: 0.7rem; line-height: 1.3;">
                     <i class="bi bi-download"></i>
                 </button>` : ''}
@@ -1125,6 +1117,9 @@ function populateContactInfoModal() {
                                     body: JSON.stringify({
                                         path_hex: pathHex,
                                         hash_size: hashSize,
+                                        // Stored in the DB, not rendered chrome - it stays
+                                        // English so the row does not change meaning when
+                                        // the operator switches the UI language later.
                                         label: 'Device path',
                                         is_primary: true
                                     })
@@ -1132,12 +1127,12 @@ function populateContactInfoModal() {
                                 const data = await response.json();
                                 if (data.success) {
                                     await renderPathList(pubkey);
-                                    showNotification('Device path imported', 'info');
+                                    showNotification(t('dm.toast.device_path_imported'), 'info');
                                 } else {
-                                    showNotification(data.error || 'Import failed', 'danger');
+                                    showNotification(data.error || t('dm.toast.import_failed'), 'danger');
                                 }
                             } catch (e) {
-                                showNotification('Import failed', 'danger');
+                                showNotification(t('dm.toast.import_failed'), 'danger');
                             }
                         });
                     }
@@ -1209,7 +1204,7 @@ async function loadMessages() {
             // Always update placeholder with best known name
             const msgInput = document.getElementById('dmMessageInput');
             if (msgInput) {
-                msgInput.placeholder = `Message ${displayName(currentRecipient)}...`;
+                msgInput.placeholder = t('dm.msg_input_ph', { name: displayName(currentRecipient) });
             }
             // Keep search input in sync
             const searchInput = document.getElementById('dmContactSearchInput');
@@ -1225,11 +1220,11 @@ async function loadMessages() {
 
             updateLastRefresh();
         } else {
-            container.innerHTML = '<div class="text-center text-danger py-4">Error loading messages</div>';
+            container.innerHTML = `<div class="text-center text-danger py-4">${tHtml('dm.load_messages_error')}</div>`;
         }
     } catch (error) {
         console.error('Error loading messages:', error);
-        container.innerHTML = '<div class="text-center text-danger py-4">Failed to load messages</div>';
+        container.innerHTML = `<div class="text-center text-danger py-4">${tHtml('dm.load_messages_failed')}</div>`;
     }
 }
 
@@ -1244,8 +1239,8 @@ function displayMessages(messages) {
         container.innerHTML = `
             <div class="dm-empty-state">
                 <i class="bi bi-chat-dots"></i>
-                <p>No messages yet</p>
-                <small class="text-muted">Send a message to start the conversation</small>
+                <p>${tHtml('dm.empty.no_messages')}</p>
+                <small class="text-muted">${tHtml('dm.empty.no_messages_hint')}</small>
             </div>
         `;
         lastMessageTimestamp = 0;
@@ -1270,12 +1265,12 @@ function displayMessages(messages) {
             const ackAttr = msg.expected_ack ? ` data-ack="${msg.expected_ack}"` : '';
             const dmIdAttr = msg.id ? ` data-dm-id="${msg.id}"` : '';
             if (msg.status === 'delivered') {
-                let title = 'Delivered';
+                let title = t('dm.status.delivered');
                 if (msg.delivery_attempt && msg.delivery_max_attempts) {
                     title += ` (${msg.delivery_attempt}/${msg.delivery_max_attempts})`;
                 }
                 const route = formatDmRoute(msg.delivery_path, msg.delivery_path_hash_size || msg.path_hash_size);
-                if (route) title += `, Route: ${route}`;
+                if (route) title += `, ${t('dm.route', { route: route })}`;
                 else if (msg.delivery_route) title += `, ${msg.delivery_route.replace('PATH_', '')}`;
                 if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
                     title += `, SNR: ${msg.delivery_snr.toFixed(1)} dB`;
@@ -1283,9 +1278,9 @@ function displayMessages(messages) {
                 if (msg.delivery_route) title += ` (${msg.delivery_route})`;
                 statusIcon = `<i class="bi bi-check2 dm-status delivered"${ackAttr} title="${title}"></i>`;
             } else if (msg.status === 'failed') {
-                statusIcon = `<span${dmIdAttr}><i class="bi bi-x-circle dm-status timeout"${ackAttr} title="Delivery failed — all retries exhausted"></i></span>`;
+                statusIcon = `<span${dmIdAttr}><i class="bi bi-x-circle dm-status timeout"${ackAttr} title="${tHtml('dm.status.failed')}"></i></span>`;
             } else if (msg.status === 'pending') {
-                statusIcon = `<i class="bi bi-clock dm-status pending"${ackAttr} title="Sending..."></i>`;
+                statusIcon = `<i class="bi bi-clock dm-status pending"${ackAttr} title="${tHtml('dm.status.sending')}"></i>`;
             } else {
                 // No ACK received — show clickable "?" with retry counter
                 statusIcon = `<span class="dm-status-unknown"${dmIdAttr} onclick="showDeliveryInfo(this)"><i class="bi bi-question-circle dm-status unknown"${ackAttr}></i></span>`;
@@ -1310,7 +1305,7 @@ function displayMessages(messages) {
             && msg.delivery_attempt) {
             const parts = [];
             if (msg.delivery_attempt && msg.delivery_max_attempts) {
-                parts.push(`Attempt ${msg.delivery_attempt}/${msg.delivery_max_attempts}`);
+                parts.push(t('dm.attempt', { n: msg.delivery_attempt, max: msg.delivery_max_attempts }));
             }
             // Show route only for delivered messages (not failed)
             if (msg.status === 'delivered') {
@@ -1328,7 +1323,7 @@ function displayMessages(messages) {
         let retryInfo = '';
         if (msg.is_own) {
             const isPending = !msg.status || (msg.status !== 'delivered' && msg.status !== 'failed');
-            const initialText = isPending && msg.expected_ack ? 'Sending...' : '';
+            const initialText = isPending && msg.expected_ack ? t('dm.status.sending') : '';
             retryInfo = `<div class="dm-delivery-meta dm-retry-info" data-dm-id="${msg.id || ''}">${initialText}</div>`;
         }
 
@@ -1339,7 +1334,7 @@ function displayMessages(messages) {
         // only raw resend (arrow-repeat).
         const resendBtn = msg.is_own ? `
             <div class="dm-actions">
-                <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Edit message">
+                <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${JSON.stringify(msg.content)})' title="${tHtml('dm.edit_title')}">
                     <i class="bi bi-pencil-square"></i>
                 </button>
             </div>
@@ -1404,17 +1399,17 @@ async function sendMessage() {
         if (data.success) {
             input.value = '';
             updateCharCounter();
-            showNotification('Message sent', 'success');
+            showNotification(t('dm.toast.sent'), 'success');
 
             // Reload messages once to show sent message
             // ACK delivery updates arrive via SocketIO in real-time
             await loadMessages();
         } else {
-            showNotification('Failed to send: ' + data.error, 'danger');
+            showNotification(t('dm.toast.send_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error sending message:', error);
-        showNotification('Failed to send message', 'danger');
+        showNotification(t('dm.toast.send_error'), 'danger');
     } finally {
         if (sendBtn) sendBtn.disabled = false;
         input.focus();
@@ -1547,10 +1542,10 @@ function buildDmRouteHtml(hexPath, hashSize) {
     const short = segments.length > 4
         ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
         : segments.join('\u2192');
-    if (segments.length <= 4) return `Route: ${short}`;
+    if (segments.length <= 4) return tHtml('dm.route', { route: short });
     const hs = hashSize || 1;
     const escaped = hexPath.replace(/'/g, "\\'");
-    return `<span class="dm-route-link" onclick="showDmRoutePopup(this, '${escaped}', ${hs})">Route: ${short}</span>`;
+    return `<span class="dm-route-link" onclick="showDmRoutePopup(this, '${escaped}', ${hs})">${tHtml('dm.route', { route: short })}</span>`;
 }
 
 /**
@@ -1569,13 +1564,13 @@ function showDmRoutePopup(element, hexPath, hashSize) {
 
     const entry = document.createElement('div');
     entry.className = 'path-entry';
-    entry.innerHTML = `${fullRoute}<span class="path-detail">Hops: ${segments.length}</span>`;
-    entry.title = 'Tap to copy route';
+    entry.innerHTML = `${fullRoute}<span class="path-detail">${tHtml('chat.route_hops', { count: segments.length })}</span>`;
+    entry.title = t('chat.copy_route_title');
     entry.addEventListener('click', (e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(commaRoute).then(() => {
             const orig = entry.innerHTML;
-            entry.innerHTML = '<span style="opacity:0.8">Copied!</span>';
+            entry.innerHTML = `<span style="opacity:0.8">${tHtml('common.copied')}</span>`;
             setTimeout(() => { entry.innerHTML = orig; }, 1000);
         });
     });
@@ -1609,7 +1604,7 @@ function showDeliveryInfo(element) {
 
     const popup = document.createElement('div');
     popup.className = 'dm-delivery-popup';
-    popup.textContent = 'Delivery unknown \u2014 no ACK received. Message may still have been delivered.';
+    popup.textContent = t('dm.delivery_unknown');
     element.style.position = 'relative';
     element.appendChild(popup);
 
@@ -1764,9 +1759,9 @@ function updateStatus(status) {
     if (!statusEl) return;
 
     const icons = {
-        connected: '<i class="bi bi-circle-fill status-connected"></i> Connected',
-        disconnected: '<i class="bi bi-circle-fill status-disconnected"></i> Disconnected',
-        connecting: '<i class="bi bi-circle-fill status-connecting"></i> Connecting...'
+        connected: `<i class="bi bi-circle-fill status-connected"></i> ${tHtml('common.connected')}`,
+        disconnected: `<i class="bi bi-circle-fill status-disconnected"></i> ${tHtml('common.disconnected')}`,
+        connecting: `<i class="bi bi-circle-fill status-connecting"></i> ${tHtml('common.connecting')}`
     };
 
     statusEl.innerHTML = icons[status] || icons.connecting;
@@ -1778,7 +1773,7 @@ function updateStatus(status) {
 function updateLastRefresh() {
     const el = document.getElementById('dmLastRefresh');
     if (el) {
-        el.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+        el.textContent = t('chat.updated', { time: new Date().toLocaleTimeString() });
     }
 }
 
@@ -1869,7 +1864,7 @@ function checkDmNotifications(conversations) {
 
         try {
             const notification = new Notification('mc-webui', {
-                body: `New private messages: ${delta}`,
+                body: tn('dm.notify.new_messages', delta),
                 icon: '/static/images/android-chrome-192x192.png',
                 badge: '/static/images/android-chrome-192x192.png',
                 tag: 'mc-webui-dm',
@@ -1909,13 +1904,13 @@ function initializeDmFabToggle() {
     // Restore collapsed state (shared with main chat)
     if (localStorage.getItem('mc-webui-fab-collapsed') === '1') {
         container.classList.add('collapsed');
-        toggle.title = 'Show buttons';
+        toggle.title = t('chat.fab.show');
     }
 
     toggle.addEventListener('click', () => {
         container.classList.toggle('collapsed');
         const isCollapsed = container.classList.contains('collapsed');
-        toggle.title = isCollapsed ? 'Show buttons' : 'Hide buttons';
+        toggle.title = isCollapsed ? t('chat.fab.show') : t('chat.fab.hide');
         localStorage.setItem('mc-webui-fab-collapsed', isCollapsed ? '1' : '0');
     });
 
@@ -2054,7 +2049,7 @@ function applyDmFilter(query) {
         noMatchesDiv.className = 'filter-no-matches';
         noMatchesDiv.innerHTML = `
             <i class="bi bi-search"></i>
-            <p>No messages match "${escapeHtml(currentDmFilterQuery)}"</p>
+            <p>${tHtml('chat.filter.no_matches', { query: currentDmFilterQuery })}</p>
         `;
         container.appendChild(noMatchesDiv);
     }
@@ -2151,7 +2146,7 @@ async function loadAutoRetryConfig() {
             const data = await response.json();
             if (data.success) {
                 showNotification(
-                    data.enabled ? 'Auto Retry enabled' : 'Auto Retry disabled',
+                    data.enabled ? t('dm.toast.auto_retry_on') : t('dm.toast.auto_retry_off'),
                     'info'
                 );
             }
@@ -2201,13 +2196,13 @@ async function renderPathList(pubkey) {
     const listEl = document.getElementById('dmPathList');
     if (!listEl) return;
 
-    listEl.innerHTML = '<div class="text-muted small">Loading...</div>';
+    listEl.innerHTML = `<div class="text-muted small">${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`);
         const data = await response.json();
         if (!data.success || !data.paths.length) {
-            listEl.innerHTML = '<div class="text-muted small mb-2">No paths configured. Use + to add.</div>';
+            listEl.innerHTML = `<div class="text-muted small mb-2">${tHtml('repeaters.paths.none')}</div>`;
             return;
         }
 
@@ -2226,23 +2221,23 @@ async function renderPathList(pubkey) {
             const hashLabel = path.hash_size + 'B';
 
             item.innerHTML = `
-                <span class="path-hex" title="${path.path_hex}">${pathDisplay}</span>
+                <span class="path-hex" title="${escapeHtml(path.path_hex)}">${pathDisplay}</span>
                 <span class="badge bg-secondary">${hashLabel}</span>
-                ${path.label ? `<span class="path-label" title="${path.label}">${path.label}</span>` : ''}
+                ${path.label ? `<span class="path-label" title="${escapeHtml(path.label)}">${escapeHtml(path.label)}</span>` : ''}
                 <span class="path-actions">
                     <button class="btn btn-link p-0 ${path.is_primary ? 'text-warning' : 'text-muted'}"
-                            title="${path.is_primary ? 'Primary path' : 'Set as primary'}"
+                            title="${tHtml(path.is_primary ? 'repeaters.paths.is_primary_title' : 'repeaters.paths.set_primary_title')}"
                             data-action="primary" data-id="${path.id}">
                         <i class="bi bi-star${path.is_primary ? '-fill' : ''}"></i>
                     </button>
                     <button class="btn btn-link p-0 text-primary"
-                            title="Set as device path"
+                            title="${tHtml('repeaters.paths.apply_title')}"
                             data-action="apply" data-id="${path.id}">
                         <i class="bi bi-upload"></i>
                     </button>
-                    ${index > 0 ? `<button class="btn btn-link p-0 text-muted" title="Move up" data-action="up" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-up"></i></button>` : ''}
-                    ${index < data.paths.length - 1 ? `<button class="btn btn-link p-0 text-muted" title="Move down" data-action="down" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-down"></i></button>` : ''}
-                    <button class="btn btn-link p-0 text-danger" title="Delete" data-action="delete" data-id="${path.id}">
+                    ${index > 0 ? `<button class="btn btn-link p-0 text-muted" title="${tHtml('common.move_up')}" data-action="up" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-up"></i></button>` : ''}
+                    ${index < data.paths.length - 1 ? `<button class="btn btn-link p-0 text-muted" title="${tHtml('common.move_down')}" data-action="down" data-id="${path.id}" data-index="${index}"><i class="bi bi-chevron-down"></i></button>` : ''}
+                    <button class="btn btn-link p-0 text-danger" title="${tHtml('common.delete')}" data-action="delete" data-id="${path.id}">
                         <i class="bi bi-trash"></i>
                     </button>
                 </span>
@@ -2269,7 +2264,7 @@ async function renderPathList(pubkey) {
             });
         });
     } catch (e) {
-        listEl.innerHTML = '<div class="text-danger small">Failed to load paths</div>';
+        listEl.innerHTML = `<div class="text-danger small">${tHtml('repeaters.paths.load_failed')}</div>`;
         console.error('Failed to load paths:', e);
     }
 }
@@ -2295,14 +2290,14 @@ async function applyPathToDevice(pubkey, pathId) {
         );
         const data = await response.json();
         if (data.success) {
-            showNotification('Device path updated', 'info');
+            showNotification(t('repeaters.toast.path_updated'), 'info');
             await refreshContactInfoPath();
         } else {
-            showNotification(data.error || 'Failed to set device path', 'danger');
+            showNotification(data.error || t('repeaters.toast.path_set_failed'), 'danger');
         }
     } catch (e) {
         console.error('Failed to apply path to device:', e);
-        showNotification('Failed to set device path', 'danger');
+        showNotification(t('repeaters.toast.path_set_failed'), 'danger');
     }
 }
 
@@ -2381,7 +2376,7 @@ function setupPathFormHandlers(pubkey) {
         const label = document.getElementById('dmPathLabelInput').value.trim();
 
         if (!pathHex) {
-            showNotification('Path hex is required', 'danger');
+            showNotification(t('repeaters.toast.path_hex_required'), 'danger');
             return;
         }
 
@@ -2395,14 +2390,18 @@ function setupPathFormHandlers(pubkey) {
             // 1B: only block adjacent duplicates
             const adjDupes = hops.filter((h, i) => i > 0 && hops[i - 1] === h);
             if (adjDupes.length > 0) {
-                showNotification(`Adjacent duplicate hop(s): ${[...new Set(adjDupes)].map(d => d.toUpperCase()).join(', ')}`, 'danger');
+                const uniqAdj = [...new Set(adjDupes)];
+                showNotification(tn('repeaters.toast.adjacent_dupes', uniqAdj.length,
+                    { hops: uniqAdj.map(d => d.toUpperCase()).join(', ') }), 'danger');
                 return;
             }
         } else {
             // 2B/3B: block any duplicate
             const dupes = hops.filter((h, i) => hops.indexOf(h) !== i);
             if (dupes.length > 0) {
-                showNotification(`Duplicate hop(s): ${[...new Set(dupes)].map(d => d.toUpperCase()).join(', ')}`, 'danger');
+                const uniqDupes = [...new Set(dupes)];
+                showNotification(tn('repeaters.toast.dupes', uniqDupes.length,
+                    { hops: uniqDupes.map(d => d.toUpperCase()).join(', ') }), 'danger');
                 return;
             }
         }
@@ -2417,12 +2416,12 @@ function setupPathFormHandlers(pubkey) {
             if (data.success) {
                 addPathModal.hide();
                 await renderPathList(pubkey);
-                showNotification('Path added', 'info');
+                showNotification(t('repeaters.toast.path_added'), 'info');
             } else {
-                showNotification(data.error || 'Failed to add path', 'danger');
+                showNotification(data.error || t('repeaters.toast.path_add_failed'), 'danger');
             }
         } catch (e) {
-            showNotification('Failed to add path', 'danger');
+            showNotification(t('repeaters.toast.path_add_failed'), 'danger');
         }
     });
 
@@ -2464,7 +2463,7 @@ function setupPathFormHandlers(pubkey) {
         const newResetBtn = resetFloodBtn.cloneNode(true);
         resetFloodBtn.parentNode.replaceChild(newResetBtn, resetFloodBtn);
         newResetBtn.addEventListener('click', async () => {
-            if (!confirm('Reset device path to FLOOD?\n\nThis resets the path on the device only. Your configured paths will be kept.')) {
+            if (!confirm(t('repeaters.confirm.reset_flood'))) {
                 return;
             }
             try {
@@ -2473,13 +2472,13 @@ function setupPathFormHandlers(pubkey) {
                 });
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Device path reset to FLOOD', 'info');
+                    showNotification(t('repeaters.toast.reset_flood_done'), 'info');
                     await refreshContactInfoPath();
                 } else {
-                    showNotification(data.error || 'Reset failed', 'danger');
+                    showNotification(data.error || t('repeaters.toast.reset_failed'), 'danger');
                 }
             } catch (e) {
-                showNotification('Reset failed', 'danger');
+                showNotification(t('repeaters.toast.reset_failed'), 'danger');
             }
         });
     }
@@ -2489,7 +2488,7 @@ function setupPathFormHandlers(pubkey) {
         const newClearBtn = clearPathsBtn.cloneNode(true);
         clearPathsBtn.parentNode.replaceChild(newClearBtn, clearPathsBtn);
         newClearBtn.addEventListener('click', async () => {
-            if (!confirm('Clear all configured paths?\n\nThis will delete all paths from the database. The device path will not be changed.')) {
+            if (!confirm(t('repeaters.confirm.clear_paths'))) {
                 return;
             }
             try {
@@ -2499,12 +2498,12 @@ function setupPathFormHandlers(pubkey) {
                 const data = await response.json();
                 if (data.success) {
                     await renderPathList(pubkey);
-                    showNotification(`${data.paths_deleted || 0} path(s) cleared`, 'info');
+                    showNotification(tn('repeaters.toast.paths_cleared', data.paths_deleted || 0), 'info');
                 } else {
-                    showNotification(data.error || 'Clear failed', 'danger');
+                    showNotification(data.error || t('repeaters.toast.clear_failed'), 'danger');
                 }
             } catch (e) {
-                showNotification('Clear failed', 'danger');
+                showNotification(t('repeaters.toast.clear_failed'), 'danger');
             }
         });
     }
@@ -2525,7 +2524,7 @@ async function loadRepeaterPicker(pubkey) {
                 _repeatersCache = data.repeaters;
             }
         } catch (e) {
-            listEl.innerHTML = '<div class="text-danger small p-2">Failed to load repeaters</div>';
+            listEl.innerHTML = `<div class="text-danger small p-2">${tHtml('repeaters.load_failed')}</div>`;
             return;
         }
     }
@@ -2556,7 +2555,7 @@ function renderRepeaterList(listEl, repeaters, pubkey) {
     });
 
     if (!filtered.length) {
-        listEl.innerHTML = '<div class="text-muted small p-2">No repeaters found</div>';
+        listEl.innerHTML = `<div class="text-muted small p-2">${tHtml('repeaters.picker.none')}</div>`;
         return;
     }
 
@@ -2572,8 +2571,8 @@ function renderRepeaterList(listEl, repeaters, pubkey) {
         item.className = 'repeater-picker-item';
         item.innerHTML = `
             <span class="badge ${samePrefix > 1 ? 'bg-warning text-dark' : 'bg-success'}">${prefix}</span>
-            <span class="flex-grow-1 text-truncate">${rpt.name}</span>
-            ${samePrefix > 1 ? '<i class="bi bi-exclamation-triangle text-warning" title="' + samePrefix + ' repeaters share this prefix"></i>' : ''}
+            <span class="flex-grow-1 text-truncate">${escapeHtml(rpt.name)}</span>
+            ${samePrefix > 1 ? `<i class="bi bi-exclamation-triangle text-warning" title="${tn('repeaters.picker.shared_prefix', samePrefix)}"></i>` : ''}
         `;
         item.addEventListener('click', () => {
             // Check for duplicate hop
@@ -2582,13 +2581,13 @@ function renderRepeaterList(listEl, repeaters, pubkey) {
             if (hashSize === 1) {
                 // 1B: only block if same as last hop (adjacent duplicate)
                 if (existingHops.length > 0 && existingHops[existingHops.length - 1] === prefixLc) {
-                    showNotification(`${prefix} cannot be adjacent to itself`, 'warning');
+                    showNotification(t('repeaters.toast.hop_adjacent_self', { hop: prefix }), 'warning');
                     return;
                 }
             } else {
                 // 2B/3B: block any duplicate
                 if (existingHops.includes(prefixLc)) {
-                    showNotification(`${prefix} is already in the path`, 'warning');
+                    showNotification(t('repeaters.toast.hop_already_used', { hop: prefix }), 'warning');
                     return;
                 }
             }
@@ -2655,7 +2654,8 @@ function checkUniquenessWarning(repeaters, hashSize) {
     });
 
     if (ambiguous.length > 0) {
-        warningEl.textContent = `⚠ Ambiguous prefix(es): ${ambiguous.map(h => h.toUpperCase()).join(', ')}. Consider using a larger hash size.`;
+        warningEl.textContent = tn('repeaters.toast.ambiguous_prefix', ambiguous.length,
+            { hops: ambiguous.map(h => h.toUpperCase()).join(', ') });
         warningEl.style.display = '';
     } else {
         warningEl.style.display = 'none';
@@ -2679,7 +2679,7 @@ function openRepeaterMapPicker() {
     const addBtn = document.getElementById('rptMapAddBtn');
     const selectedLabel = document.getElementById('rptMapSelected');
     if (addBtn) addBtn.disabled = true;
-    if (selectedLabel) selectedLabel.textContent = 'Click a repeater on the map';
+    if (selectedLabel) selectedLabel.textContent = t('repeaters.map.hint');
 
     const modal = new bootstrap.Modal(modalEl);
 
@@ -2719,12 +2719,12 @@ function openRepeaterMapPicker() {
             const existingHops = getCurrentPathHops(hashSize);
             if (hashSize === 1) {
                 if (existingHops.length > 0 && existingHops[existingHops.length - 1] === prefix) {
-                    showNotification(`${prefix.toUpperCase()} cannot be adjacent to itself`, 'warning');
+                    showNotification(t('repeaters.toast.hop_adjacent_self', { hop: prefix.toUpperCase() }), 'warning');
                     return;
                 }
             } else {
                 if (existingHops.includes(prefix)) {
-                    showNotification(`${prefix.toUpperCase()} is already in the path`, 'warning');
+                    showNotification(t('repeaters.toast.hop_already_used', { hop: prefix.toUpperCase() }), 'warning');
                     return;
                 }
             }
@@ -2745,7 +2745,7 @@ function openRepeaterMapPicker() {
             // Reset selection for next pick
             _rptMapSelectedRepeater = null;
             if (addBtn) addBtn.disabled = true;
-            if (selectedLabel) selectedLabel.textContent = 'Click a repeater on the map';
+            if (selectedLabel) selectedLabel.textContent = t('repeaters.map.hint');
         };
     }
 
@@ -2766,7 +2766,7 @@ async function loadRepeaterMapMarkers() {
     // Reset selection
     _rptMapSelectedRepeater = null;
     if (addBtn) addBtn.disabled = true;
-    if (selectedLabel) selectedLabel.textContent = 'Click a repeater on the map';
+    if (selectedLabel) selectedLabel.textContent = t('repeaters.map.hint');
 
     // Ensure repeaters cache is loaded
     if (!_repeatersCache) {
@@ -2775,7 +2775,7 @@ async function loadRepeaterMapMarkers() {
             const data = await response.json();
             if (data.success) _repeatersCache = data.repeaters;
         } catch (e) {
-            if (countEl) countEl.textContent = 'Failed to load';
+            if (countEl) countEl.textContent = t('repeaters.load_failed');
             return;
         }
     }
@@ -2800,14 +2800,14 @@ async function loadRepeaterMapMarkers() {
         } catch (e) { /* show all on error */ }
     }
 
-    if (countEl) countEl.textContent = `${repeaters.length} repeaters`;
+    if (countEl) countEl.textContent = tn('repeaters.count', repeaters.length);
 
     const hashSize = parseInt(document.querySelector('input[name="pathHashSize"]:checked')?.value || '1');
     const bounds = [];
 
     repeaters.forEach(rpt => {
         const prefix = rpt.public_key.substring(0, hashSize * 2).toUpperCase();
-        const lastSeen = rpt.last_advert ? formatRelativeTimeDm(rpt.last_advert) : '';
+        const lastSeen = rpt.last_advert ? formatTimeAgo(rpt.last_advert) : '';
 
         const marker = L.circleMarker([rpt.adv_lat, rpt.adv_lon], {
             radius: 10,
@@ -2819,16 +2819,16 @@ async function loadRepeaterMapMarkers() {
         }).addTo(_rptMapMarkers);
 
         marker.bindPopup(
-            `<b>${rpt.name}</b><br>` +
+            `<b>${escapeHtml(rpt.name)}</b><br>` +
             `<code>${prefix}</code>` +
-            (lastSeen ? `<br><small class="text-muted">Last seen: ${lastSeen}</small>` : '')
+            (lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : '')
         );
 
         marker.on('click', () => {
             _rptMapSelectedRepeater = rpt;
             if (addBtn) addBtn.disabled = false;
             if (selectedLabel) {
-                selectedLabel.innerHTML = `<code>${prefix}</code> ${rpt.name}`;
+                selectedLabel.innerHTML = `<code>${prefix}</code> ${escapeHtml(rpt.name)}`;
             }
         });
 
@@ -2872,7 +2872,7 @@ async function loadNoAutoFloodToggle(pubkey) {
             const data = await response.json();
             if (data.success) {
                 showNotification(
-                    data.no_auto_flood ? 'Keep path enabled' : 'Keep path disabled',
+                    data.no_auto_flood ? t('dm.toast.keep_path_on') : t('dm.toast.keep_path_off'),
                     'info'
                 );
             }
@@ -2912,8 +2912,8 @@ function updateRepeaterSearchPlaceholder() {
     if (mode === 'id') {
         const hashSize = parseInt(document.querySelector('input[name="pathHashSize"]:checked')?.value || '1');
         const chars = hashSize * 2;
-        searchInput.placeholder = `Search by first ${chars} hex chars...`;
+        searchInput.placeholder = t('repeaters.addpath.search_id_ph', { chars: chars });
     } else {
-        searchInput.placeholder = 'Search by name...';
+        searchInput.placeholder = t('repeaters.addpath.search_ph');
     }
 }
