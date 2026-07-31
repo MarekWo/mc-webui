@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.4.2 — 2026-07-31
+
 ### Fixes
 
 - **Unread counts stand out in the channel list on a phone.** On a wide screen, a channel with unread messages shows the count in a blue badge next to its name. On a narrow screen the channel list is a drop-down from the top bar, and there the same number was drawn in plain text, the same colour and size as everything else in the row — easy to read as part of the timestamp and easy to miss entirely. It is now the same blue badge as on a wide screen.
