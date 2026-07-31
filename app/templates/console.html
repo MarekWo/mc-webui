@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Console - mc-webui</title>
+    <title>{{ t('console.title') }} - mc-webui</title>
 
     {% include "_head_i18n.html" %}
 
@@ -309,16 +309,18 @@
             <small class="device-name">{{ device_name }}</small>
             <div class="d-flex align-items-center gap-2">
                 <span class="status-dot" id="statusDot"></span>
-                <small class="text-muted" id="statusText">Connecting...</small>
+                <small class="text-muted" id="statusText">{{ t('console.status.connecting') }}</small>
             </div>
         </div>
 
         <!-- Messages Area -->
         <div class="messages-wrap">
             <div class="console-messages" id="consoleMessages">
-                <div class="console-message system">Type 'help' for available commands.</div>
+                {# 'help' is the literal command name — never translated. #}
+                <div class="console-message system">{{ t('console.help_hint') }}</div>
             </div>
-            <button type="button" class="scroll-bottom-btn" id="scrollBottomBtn" title="Scroll to latest" aria-label="Scroll to latest">
+            <button type="button" class="scroll-bottom-btn" id="scrollBottomBtn"
+                    title="{{ t('console.scroll_bottom_title') }}" aria-label="{{ t('console.scroll_bottom_aria') }}">
                 <i class="bi bi-arrow-down"></i>
             </button>
         </div>
@@ -328,21 +330,21 @@
             <form id="consoleForm" class="d-flex gap-2">
                 <!-- History dropdown -->
                 <div class="history-dropdown">
-                    <button type="button" class="btn history-btn" id="historyBtn" title="Command history" disabled>
+                    <button type="button" class="btn history-btn" id="historyBtn" title="{{ t('console.history_title') }}" disabled>
                         <i class="bi bi-clock-history"></i>
                     </button>
                     <div class="history-menu" id="historyMenu">
-                        <div class="history-empty">No commands in history</div>
+                        <div class="history-empty">{{ t('console.history_empty') }}</div>
                     </div>
                 </div>
                 <!-- Clear output transcript -->
-                <button type="button" class="btn history-btn" id="clearOutputBtn" title="Clear output history">
+                <button type="button" class="btn history-btn" id="clearOutputBtn" title="{{ t('console.clear_title') }}">
                     <i class="bi bi-trash"></i>
                 </button>
                 <input type="text"
                        id="commandInput"
                        class="form-control console-input"
-                       placeholder="Enter command..."
+                       placeholder="{{ t('console.input_ph') }}"
                        autocomplete="off"
                        autocapitalize="off"
                        spellcheck="false"

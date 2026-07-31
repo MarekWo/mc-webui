@@ -8,6 +8,21 @@
   "common.minutes_ago": "{count} min ago",
   "common.yesterday": "Yesterday",
 
+  "console.clear_title": "Clear output history",
+  "console.connect_failed": "Failed to connect: {error}",
+  "console.error_prefix": "Error: {error}",
+  "console.help_hint": "Type 'help' for available commands.",
+  "console.history_empty": "No commands in history",
+  "console.history_title": "Command history",
+  "console.input_ph": "Enter command...",
+  "console.no_output": "(no output)",
+  "console.scroll_bottom_aria": "Scroll to latest",
+  "console.scroll_bottom_title": "Scroll to latest",
+  "console.status.connected": "Connected",
+  "console.status.connecting": "Connecting...",
+  "console.status.disconnected": "Disconnected",
+  "console.title": "Console",
+
   "logs.clear_title": "Clear display",
   "logs.entries": {
     "one": "{count} entry",

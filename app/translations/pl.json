@@ -10,6 +10,21 @@
   "common.minutes_ago": "{count} min temu",
   "common.yesterday": "Wczoraj",
 
+  "console.clear_title": "Wyczyść zapis konsoli",
+  "console.connect_failed": "Nie udało się połączyć: {error}",
+  "console.error_prefix": "Błąd: {error}",
+  "console.help_hint": "Wpisz 'help', aby zobaczyć dostępne polecenia.",
+  "console.history_empty": "Brak poleceń w historii",
+  "console.history_title": "Historia poleceń",
+  "console.input_ph": "Wpisz polecenie...",
+  "console.no_output": "(brak wyniku)",
+  "console.scroll_bottom_aria": "Przewiń do najnowszych",
+  "console.scroll_bottom_title": "Przewiń do najnowszych",
+  "console.status.connected": "Połączono",
+  "console.status.connecting": "Łączenie...",
+  "console.status.disconnected": "Rozłączono",
+  "console.title": "Konsola",
+
   "logs.clear_title": "Wyczyść widok",
   "logs.entries": {
     "one": "{count} wpis",
