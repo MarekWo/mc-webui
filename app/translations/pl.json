@@ -10,6 +10,28 @@
   "common.minutes_ago": "{count} min temu",
   "common.yesterday": "Wczoraj",
 
+  "logs.clear_title": "Wyczyść widok",
+  "logs.entries": {
+    "one": "{count} wpis",
+    "few": "{count} wpisy",
+    "many": "{count} wpisów",
+    "other": "{count} wpisu"
+  },
+  "logs.entries_filtered": {
+    "one": "{shown} / {count} wpis",
+    "few": "{shown} / {count} wpisy",
+    "many": "{shown} / {count} wpisów",
+    "other": "{shown} / {count} wpisu"
+  },
+  "logs.filter.all_levels": "Wszystkie poziomy",
+  "logs.filter.all_modules": "Wszystkie moduły",
+  "logs.filter.reset_title": "Wyczyść filtry",
+  "logs.filter.search_ph": "Szukaj...",
+  "logs.load_failed": "Nie udało się wczytać dziennika",
+  "logs.loading": "Ładowanie dziennika...",
+  "logs.pause_title": "Wstrzymaj/Wznów",
+  "logs.title": "Dziennik systemowy",
+
   "meta.language_english_name": "Polish",
   "meta.language_name": "Polski",
   "meta.translator": "mc-webui"

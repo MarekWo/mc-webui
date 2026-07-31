@@ -8,6 +8,24 @@
   "common.minutes_ago": "{count} min ago",
   "common.yesterday": "Yesterday",
 
+  "logs.clear_title": "Clear display",
+  "logs.entries": {
+    "one": "{count} entry",
+    "other": "{count} entries"
+  },
+  "logs.entries_filtered": {
+    "one": "{shown} / {count} entry",
+    "other": "{shown} / {count} entries"
+  },
+  "logs.filter.all_levels": "All levels",
+  "logs.filter.all_modules": "All modules",
+  "logs.filter.reset_title": "Reset filters",
+  "logs.filter.search_ph": "Search...",
+  "logs.load_failed": "Failed to load logs",
+  "logs.loading": "Loading logs...",
+  "logs.pause_title": "Pause/Resume",
+  "logs.title": "System Log",
+
   "meta.language_english_name": "English",
   "meta.language_name": "English",
   "meta.translator": "mc-webui"

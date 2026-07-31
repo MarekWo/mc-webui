@@ -20,6 +20,14 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+# Catalog values and the --missing worklist contain non-ASCII text. Windows consoles
+# default to a legacy code page, which would mangle them and corrupt a redirected file.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8')
+    except (AttributeError, OSError):
+        pass
+
 REPO = Path(__file__).resolve().parent.parent
 TRANSLATIONS = REPO / 'app' / 'translations'
 SCAN_GLOBS = ['app/templates/**/*.html', 'app/static/js/*.js']
@@ -129,19 +137,17 @@ def check_usage(en: dict, kinds: dict[str, set[str]], sites: dict[str, list[str]
         warn(f'en.json: unused key {key!r}')
 
     # Markup in a catalog value only survives through the _html variants.
+    #
+    # Only flagged in this direction. The reverse (_html used on a markup-free value) is
+    # not a problem and must not be warned about: what _html buys at an innerHTML sink is
+    # param escaping, not markup support. Warning there would push people toward t() in
+    # exactly the place where t() is the XSS hazard.
     for key, value in sorted(en.items()):
         if key not in kinds:
             continue
-        has_markup = any('<' in text for text in value_strings(value))
-        used_plain = bool(kinds[key] & {'t', 'tn'})
-        used_html = bool(kinds[key] & {'tHtml', 't_html'})
-
-        if has_markup and used_plain:
-            err(f'{sites[key][0]}: {key!r} contains markup but is used via t()/tn() — '
+        if any('<' in text for text in value_strings(value)) and kinds[key] & {'t', 'tn'}:
+            err(f'{sites[key][0]}: {key!r} contains markup but is used via t()/tn() - '
                 f'use tHtml()/t_html()')
-        if not has_markup and used_html:
-            warn(f'{sites[key][0]}: {key!r} has no markup but is used via the _html '
-                 f'variant — t() is enough')
 
 
 def check_language(lang: str, en: dict, catalog: dict) -> float:

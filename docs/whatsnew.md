@@ -10,6 +10,12 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Features
+
+- **The interface can be translated, and Polish has started.** mc-webui was written English-only, with every label and message baked into the code. There is now a translation system behind it, and a **Language** setting at the top of Settings → Appearance. This first step covers the groundwork plus the **System Log** panel; the remaining panels follow one at a time, so for now most of the interface is still English whichever language you pick. Your choice applies to the browser you set it in and also becomes the default for anyone else opening the server without a preference of their own.
+- **You can add a language yourself, without waiting for a release.** A language is a single file. Copy `en.json` from `app/translations/`, translate the values, and drop it into a `translations` folder inside your config directory — the same place the database lives. Refresh the page and it appears in the Language list, named however you named it, with no rebuild and no restart. Anything you leave untranslated falls back to English, so a half-finished translation is perfectly usable. A file you drop in also overrides one that ships with the app, so you can correct the built-in Polish on your own server. English and Polish ship in the box; everything else is open to whoever wants to write it. See [translations.md](translations.md), which explains the format and — importantly — which words to leave alone: mesh terms like flood, hop, advert, RSSI and the repeater roles stay English in every language, because that is what the firmware, the CLI and the forums all use. The Console and the log lines themselves stay English for the same reason.
+- **Times and dates behave the same in every language.** Only the words are translated — "Yesterday" becomes "Wczoraj", "5 min ago" becomes "5 min temu". The clock and the number formatting keep following your browser's own settings, so switching the menus to English will not suddenly turn your 24-hour clock into "9:53 AM". One display of large numbers on the repeater statistics page had been hard-coded to American thousands separators; it now follows your locale like everything else.
+
 ---
 
 ## 2.4.2 — 2026-07-31

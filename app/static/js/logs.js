@@ -81,7 +81,7 @@
                 renderAll();
             })
             .catch(err => {
-                if (loadingMsg) loadingMsg.textContent = 'Failed to load logs';
+                if (loadingMsg) loadingMsg.textContent = t('logs.load_failed');
                 console.error('Failed to load logs:', err);
             });
     }
@@ -203,8 +203,8 @@
         const total = entries.length;
         const shown = logEntries.children.length;
         logCount.textContent = shown === total
-            ? `${total} entries`
-            : `${shown} / ${total} entries`;
+            ? tn('logs.entries', total)
+            : tn('logs.entries_filtered', total, { shown });
     }
 
     function updateLoggerOptions() {
@@ -212,7 +212,7 @@
         // Group loggers by top-level module
         const sorted = Array.from(knownLoggers).sort();
 
-        loggerFilter.innerHTML = '<option value="">All modules</option>';
+        loggerFilter.innerHTML = `<option value="">${tHtml('logs.filter.all_modules')}</option>`;
         for (const name of sorted) {
             const opt = document.createElement('option');
             opt.value = name;
