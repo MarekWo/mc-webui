@@ -262,7 +262,7 @@ async function doLogin(pubkey, password, save) {
         data = await response.json();
     } catch (e) {
         console.error('Login request failed:', e);
-        data = { success: false, error: 'Login request failed' };
+        data = { success: false, error: t('rptmgmt.login_request_failed') };
     }
 
     _loginPubkey = null;
@@ -989,7 +989,7 @@ async function loadRepeaterMapMarkers() {
             const data = await response.json();
             if (data.success) _repeatersCache = data.repeaters;
         } catch (e) {
-            if (countEl) countEl.textContent = 'Failed to load';
+            if (countEl) countEl.textContent = t('common.load_failed');
             return;
         }
     }

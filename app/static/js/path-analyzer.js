@@ -226,7 +226,7 @@ function paBuildEchoLine(msg, echo, echoIdx) {
             const chip = document.createElement('span');
             chip.className = 'pa-chip';
             chip.textContent = tok;
-            chip.title = `Copy repeater hash ${tok}`;
+            chip.title = t('pa.copy_hash_title', { hash: tok });
             chip.addEventListener('click', (e) => {
                 e.stopPropagation();
                 paCopyText(tok, t('pa.repeater_hash'));
@@ -457,7 +457,7 @@ function paRenderStats() {
     for (const s of rows) {
         const tr = document.createElement('tr');
         tr.className = 'pa-stats-row';
-        tr.title = `Filter messages by ${s.token}`;
+        tr.title = t('pa.filter_by_title', { token: s.token });
 
         const tdToken = document.createElement('td');
         tdToken.innerHTML = `<span class="pa-hash">${s.token}</span>`;
@@ -576,7 +576,7 @@ function paRenderRoutes() {
         const names = r.tokens.map(tok => {
             const cands = paMatchContacts(tok);
             if (cands.length === 1) return cands[0].name || '—';
-            return cands.length > 1 ? `ambiguous (${cands.length})` : '—';
+            return cands.length > 1 ? t('pa.ambiguous', { count: cands.length }) : '—';
         });
         if (names.some(nm => nm !== '—')) {
             const nameLine = document.createElement('div');
@@ -610,7 +610,7 @@ function paRenderRoutes() {
     if (rows.length === 0) {
         document.getElementById('paEmptyText').textContent =
             filtered.length === 0 ? t('pa.empty_filtered')
-                                  : `No paths with at least ${n} hops in the current selection.`;
+                                  : t('pa.no_paths_min_hops', { count: n });
         paSetView('empty');
     } else {
         paSetView('routes');
@@ -674,8 +674,8 @@ function paAddMapToggles() {
     ctl.onAdd = () => {
         const box = L.DomUtil.create('div', 'pa-map-toggles');
         box.innerHTML =
-            '<label><input type="checkbox" id="paToggleRepeaters"> All repeaters</label>' +
-            '<label><input type="checkbox" id="paToggleAltPaths"> Alternative paths</label>';
+            `<label><input type="checkbox" id="paToggleRepeaters"> ${tHtml('pa.toggle_all_repeaters')}</label>` +
+            `<label><input type="checkbox" id="paToggleAltPaths"> ${tHtml('pa.toggle_alt_paths')}</label>`;
         L.DomEvent.disableClickPropagation(box);
         L.DomEvent.disableScrollPropagation(box);
         return box;
@@ -747,7 +747,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
         if (primary) {
             L.circleMarker([origin.adv_lat, origin.adv_lon], {
                 radius: 7, color: '#198754', weight: 2, fillOpacity: 0.8
-            }).bindPopup(`<strong>${origin.name}</strong><br>Origin (sender)`)
+            }).bindPopup(`<strong>${origin.name}</strong><br>${tHtml('pa.map.origin')}`)
               .bindTooltip(origin.name, { permanent: true, direction: 'right', offset: [8, 0], className: 'pa-hop-label' })
               .addTo(layer);
         }
@@ -759,7 +759,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
         if (contact) {
             if (primary) {
                 L.marker([contact.adv_lat, contact.adv_lon], { icon: paHopIcon(i + 1) })
-                    .bindPopup(`<strong>${contact.name}</strong><br>Hop ${i + 1}: <code>${tok}</code>`)
+                    .bindPopup(`<strong>${contact.name}</strong><br>${tHtml('pa.map.hop', { n: i + 1, token: `<code>${tok}</code>` })}`)
                     .bindTooltip(contact.name, { permanent: true, direction: 'right', offset: [13, 0], className: 'pa-hop-label' })
                     .addTo(layer);
             }
@@ -771,7 +771,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
                 candidates.forEach(c => {
                     L.circleMarker([c.adv_lat, c.adv_lon], {
                         radius: 6, color: '#d39e00', weight: 2, fillOpacity: 0.5, dashArray: '3'
-                    }).bindPopup(`<strong>${c.name}</strong><br>Candidate for hop ${i + 1}: <code>${tok}</code>`).addTo(layer);
+                    }).bindPopup(`<strong>${c.name}</strong><br>${tHtml('pa.map.candidate', { n: i + 1, token: `<code>${tok}</code>` })}`).addTo(layer);
                 });
             }
             gapPending = true;
@@ -783,7 +783,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
     // only once - an alternative then shows exactly where it diverges instead of
     // hiding under the primary route.
     const snr = (echo.snr === null || echo.snr === undefined) ? '?' : `${Number(echo.snr).toFixed(1)} dB`;
-    const popup = `<strong>Alternative path</strong><br>${echo.tokens.join(' → ')}<br>${snr}`;
+    const popup = `<strong>${tHtml('pa.map.alt_path')}</strong><br>${echo.tokens.join(' → ')}<br>${snr}`;
     let drawn = 0;
     for (let i = 1; i < points.length; i++) {
         const key = [String(points[i - 1].latlng), String(points[i].latlng)].sort().join('|');

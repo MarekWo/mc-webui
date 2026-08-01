@@ -407,7 +407,7 @@ function applyCleanupSettingsToUI(settings) {
     if (statusText) {
         if (settings.enabled) {
             const hourStr = hour.toString().padStart(2, '0');
-            statusText.textContent = `Enabled (runs daily at ${hourStr}:00 ${cleanupTimezone})`;
+            statusText.textContent = t('contacts.cleanup.auto_enabled', { time: `${hourStr}:00`, tz: cleanupTimezone });
             statusText.classList.remove('text-muted');
             statusText.classList.add('text-success');
         } else {
@@ -532,7 +532,7 @@ async function saveCleanupSettings(enabled) {
                 if (data.settings.enabled) {
                     const savedHour = data.settings.hour !== undefined ? data.settings.hour : 1;
                     const hourStr = savedHour.toString().padStart(2, '0');
-                    statusText.textContent = `Enabled (runs daily at ${hourStr}:00 ${cleanupTimezone})`;
+                    statusText.textContent = t('contacts.cleanup.auto_enabled', { time: `${hourStr}:00`, tz: cleanupTimezone });
                     statusText.classList.remove('text-muted');
                     statusText.classList.add('text-success');
                 } else {
@@ -553,7 +553,7 @@ async function saveCleanupSettings(enabled) {
                 if (autoCleanupSettings.enabled) {
                     const prevHour = autoCleanupSettings.hour !== undefined ? autoCleanupSettings.hour : 1;
                     const hourStr = prevHour.toString().padStart(2, '0');
-                    statusText.textContent = `Enabled (runs daily at ${hourStr}:00 ${cleanupTimezone})`;
+                    statusText.textContent = t('contacts.cleanup.auto_enabled', { time: `${hourStr}:00`, tz: cleanupTimezone });
                 } else {
                     statusText.textContent = t('common.disabled');
                 }
@@ -740,9 +740,9 @@ async function handleCleanupConfirm() {
             if (modal) modal.hide();
 
             // Show success message
-            let message = `Cleanup completed: ${data.deleted_count} deleted`;
+            let message = t('contacts.cleanup.completed', { count: data.deleted_count });
             if (data.failed_count > 0) {
-                message += `, ${data.failed_count} failed`;
+                message += t('contacts.cleanup.completed_failed', { count: data.failed_count });
             }
 
             showToast(message, data.failed_count > 0 ? 'warning' : 'success');
@@ -763,7 +763,7 @@ async function handleCleanupConfirm() {
         }
     } catch (error) {
         console.error('Error during cleanup:', error);
-        showToast('Network error during cleanup', 'danger');
+        showToast(t('contacts.cleanup.network_error'), 'danger');
     } finally {
         // Re-enable button
         confirmBtn.disabled = false;
@@ -1272,8 +1272,8 @@ function renderPendingList(contacts) {
         emptyDiv.className = 'empty-state';
         emptyDiv.innerHTML = `
             <i class="bi bi-funnel"></i>
-            <p class="mb-0">No contacts match filters</p>
-            <small class="text-muted">Try changing your filter criteria</small>
+            <p class="mb-0">${tHtml('contacts.filter.no_match')}</p>
+            <small class="text-muted">${tHtml('contacts.filter.no_match_hint')}</small>
         `;
         listEl.appendChild(emptyDiv);
         return;
@@ -1336,7 +1336,7 @@ function createContactCard(contact, index) {
         lastAdvertDiv = document.createElement('div');
         lastAdvertDiv.className = 'text-muted small';
         const relativeTime = formatRelativeTime(contact.last_advert);
-        lastAdvertDiv.textContent = `Last seen: ${relativeTime}`;
+        lastAdvertDiv.textContent = t('repeaters.map.last_seen', { time: relativeTime });
     }
 
     // Action buttons
@@ -1559,7 +1559,7 @@ async function batchApproveContacts() {
 
         // Update button with progress
         if (confirmBtn) {
-            confirmBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> Approving ${i + 1}/${filteredPendingContacts.length}...`;
+            confirmBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> ${tHtml('contacts.progress.approving', { done: i + 1, total: filteredPendingContacts.length })}`;
         }
 
         try {
@@ -1667,7 +1667,7 @@ async function batchIgnoreContacts() {
         const contact = filteredPendingContacts[i];
 
         if (confirmBtn) {
-            confirmBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> Ignoring ${i + 1}/${filteredPendingContacts.length}...`;
+            confirmBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> ${tHtml('contacts.progress.ignoring', { done: i + 1, total: filteredPendingContacts.length })}`;
         }
 
         try {
@@ -2445,7 +2445,7 @@ async function confirmDelete() {
 // =============================================================================
 
 async function pushContactToDevice(contact) {
-    if (!confirm(`Push "${contact.name}" to device?`)) return;
+    if (!confirm(t('contacts.confirm.push', { name: contact.name }))) return;
 
     try {
         const response = await fetch(`/api/contacts/${contact.public_key}/push-to-device`, {
@@ -2454,7 +2454,7 @@ async function pushContactToDevice(contact) {
         });
         const data = await response.json();
         if (data.success) {
-            showToast(data.message || `${contact.name} pushed to device`, 'success');
+            showToast(data.message || t('contacts.toast.pushed', { name: contact.name }), 'success');
             setTimeout(() => loadExistingContacts(), 500);
         } else {
             showToast(data.error || t('contacts.toast.push_failed'), 'danger');
@@ -2465,7 +2465,7 @@ async function pushContactToDevice(contact) {
 }
 
 async function moveContactToCache(contact) {
-    if (!confirm(`Move "${contact.name}" from device to cache?`)) return;
+    if (!confirm(t('contacts.confirm.to_cache', { name: contact.name }))) return;
 
     try {
         const response = await fetch(`/api/contacts/${contact.public_key}/move-to-cache`, {
@@ -2474,7 +2474,7 @@ async function moveContactToCache(contact) {
         });
         const data = await response.json();
         if (data.success) {
-            showToast(data.message || `${contact.name} moved to cache`, 'success');
+            showToast(data.message || t('contacts.toast.to_cache', { name: contact.name }), 'success');
             setTimeout(() => loadExistingContacts(), 500);
         } else {
             showToast(data.error || t('contacts.toast.move_failed'), 'danger');
@@ -2644,7 +2644,7 @@ function onQrCodeSuccess(decodedText) {
         return;
     }
 
-    showQrError('QR code does not contain a valid meshcore:// URI.');
+    showQrError(t('contacts.add.qr_invalid_uri'));
 }
 
 function showQrError(msg) {
