@@ -2010,7 +2010,7 @@ async function copyToClipboard(text, btnElement) {
  */
 async function loadDeviceInfo() {
     const container = document.getElementById('deviceInfoContent');
-    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch('/api/device/info');
@@ -2024,13 +2024,13 @@ async function loadDeviceInfo() {
         // API returns info as a dict directly (v2 DeviceManager)
         const info = data.info;
         if (!info || typeof info !== 'object') {
-            container.innerHTML = `<div class="alert alert-warning mb-0">No device info available</div>`;
+            container.innerHTML = `<div class="alert alert-warning mb-0">${tHtml('device.info.none')}</div>`;
             return;
         }
 
         // Type mapping
         const typeNames = { 1: 'Companion', 2: 'Repeater', 3: 'Room Server', 4: 'Sensor' };
-        const typeName = typeNames[info.adv_type] || `Unknown (${info.adv_type})`;
+        const typeName = typeNames[info.adv_type] || t('device.info.type_unknown', { code: info.adv_type });
 
         // Shorten public key for display
         const pubKey = info.public_key || '';
@@ -2038,22 +2038,22 @@ async function loadDeviceInfo() {
 
         // Location
         const hasLocation = info.adv_lat && info.adv_lon && (info.adv_lat !== 0 || info.adv_lon !== 0);
-        const coords = hasLocation ? `${info.adv_lat.toFixed(6)}, ${info.adv_lon.toFixed(6)}` : 'Not available';
+        const coords = hasLocation ? `${info.adv_lat.toFixed(6)}, ${info.adv_lon.toFixed(6)}` : tHtml('device.info.location_none');
 
         // Build table rows
         const rows = [
-            { label: 'Name', value: escapeHtml(info.name || 'Unknown'), copyValue: info.name },
-            { label: 'Type', value: typeName },
-            { label: 'Public Key', value: `<code class="small">${escapeHtml(shortKey)}</code>`, copyValue: pubKey },
-            { label: 'Location', value: coords, showMap: hasLocation, lat: info.adv_lat, lon: info.adv_lon, name: info.name },
-            { label: 'TX Power', value: `${info.tx_power || 0} / ${info.max_tx_power || 0} dBm` },
-            { label: 'Frequency', value: `${info.radio_freq || 0} MHz` },
-            { label: 'Bandwidth', value: `${info.radio_bw || 0} kHz` },
-            { label: 'Spreading Factor', value: info.radio_sf || 0 },
-            { label: 'Coding Rate', value: `4/${info.radio_cr || 0}` },
-            { label: 'Multi Acks', value: info.multi_acks ? 'Enabled' : 'Disabled' },
-            { label: 'Location Sharing', value: info.adv_loc_policy ? 'Enabled' : 'Disabled' },
-            { label: 'Manual Add Contacts', value: info.manual_add_contacts ? 'Yes' : 'No' }
+            { label: tHtml('device.info.name'), value: escapeHtml(info.name || t('common.unknown')), copyValue: info.name },
+            { label: tHtml('device.info.type'), value: typeName },
+            { label: tHtml('device.info.pubkey'), value: `<code class="small">${escapeHtml(shortKey)}</code>`, copyValue: pubKey },
+            { label: tHtml('device.info.location'), value: coords, showMap: hasLocation, lat: info.adv_lat, lon: info.adv_lon, name: info.name },
+            { label: tHtml('device.info.tx_power'), value: `${info.tx_power || 0} / ${info.max_tx_power || 0} dBm` },
+            { label: tHtml('device.info.freq'), value: `${info.radio_freq || 0} MHz` },
+            { label: tHtml('device.info.bw'), value: `${info.radio_bw || 0} kHz` },
+            { label: tHtml('device.info.sf'), value: info.radio_sf || 0 },
+            { label: tHtml('device.info.cr'), value: `4/${info.radio_cr || 0}` },
+            { label: tHtml('device.info.multi_acks'), value: tHtml(info.multi_acks ? 'common.enabled' : 'common.disabled') },
+            { label: tHtml('device.info.loc_sharing'), value: tHtml(info.adv_loc_policy ? 'common.enabled' : 'common.disabled') },
+            { label: tHtml('device.info.manual_add'), value: tHtml(info.manual_add_contacts ? 'common.yes' : 'common.no') }
         ];
 
         let html = '<table class="table table-sm mb-0">';
@@ -2067,12 +2067,12 @@ async function loadDeviceInfo() {
 
             // Copy button
             if (row.copyValue) {
-                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="copyToClipboard('${escapeHtml(row.copyValue)}', this)" title="Copy to clipboard"><i class="bi bi-clipboard"></i></button>`;
+                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="copyToClipboard('${escapeHtml(row.copyValue)}', this)" title="${tHtml('device.info.copy_title')}"><i class="bi bi-clipboard"></i></button>`;
             }
 
             // Map button
             if (row.showMap) {
-                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="showContactOnMap('${escapeHtml(row.name)}', ${row.lat}, ${row.lon})" title="Show on map"><i class="bi bi-geo-alt"></i></button>`;
+                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="showContactOnMap('${escapeHtml(row.name)}', ${row.lat}, ${row.lon})" title="${tHtml('chat.msg.map_title')}"><i class="bi bi-geo-alt"></i></button>`;
             }
 
             html += '</td>';
@@ -2084,7 +2084,7 @@ async function loadDeviceInfo() {
 
     } catch (error) {
         console.error('Error loading device info:', error);
-        container.innerHTML = '<div class="alert alert-danger mb-0">Failed to load device info</div>';
+        container.innerHTML = `<div class="alert alert-danger mb-0">${tHtml('device.info.load_failed')}</div>`;
     }
 }
 
@@ -2095,7 +2095,7 @@ async function loadDeviceStats() {
     const container = document.getElementById('deviceStatsContent');
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch('/api/device/stats');
@@ -2112,9 +2112,9 @@ async function loadDeviceStats() {
 
         // Battery (from dedicated get_bat or from core stats)
         if (bat && typeof bat === 'object' && bat.voltage) {
-            html += `<tr><td class="text-muted">Battery</td><td>${bat.voltage}V</td></tr>`;
+            html += `<tr><td class="text-muted">${tHtml('device.stats.battery')}</td><td>${bat.voltage}V</td></tr>`;
         } else if (stats.core && stats.core.battery_mv) {
-            html += `<tr><td class="text-muted">Battery</td><td>${(stats.core.battery_mv / 1000).toFixed(2)}V</td></tr>`;
+            html += `<tr><td class="text-muted">${tHtml('device.stats.battery')}</td><td>${(stats.core.battery_mv / 1000).toFixed(2)}V</td></tr>`;
         }
 
         // Core stats
@@ -2124,58 +2124,58 @@ async function loadDeviceStats() {
                 const d = Math.floor(c.uptime / 86400);
                 const h = Math.floor((c.uptime % 86400) / 3600);
                 const m = Math.floor((c.uptime % 3600) / 60);
-                html += `<tr><td class="text-muted">Uptime</td><td>${d}d ${h}h ${m}m</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.uptime')}</td><td>${d}d ${h}h ${m}m</td></tr>`;
             }
             if (c.queue_length !== undefined)
-                html += `<tr><td class="text-muted">Queue</td><td>${c.queue_length}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.queue')}</td><td>${c.queue_length}</td></tr>`;
             if (c.errors !== undefined)
-                html += `<tr><td class="text-muted">Errors</td><td>${c.errors}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.errors')}</td><td>${c.errors}</td></tr>`;
         }
 
         // Radio stats
         if (stats.radio) {
             const r = stats.radio;
             if (r.tx_air_time !== undefined)
-                html += `<tr><td class="text-muted">TX Air Time</td><td>${r.tx_air_time.toFixed(1)} min</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.tx_air')}</td><td>${r.tx_air_time.toFixed(1)} min</td></tr>`;
             if (r.rx_air_time !== undefined)
-                html += `<tr><td class="text-muted">RX Air Time</td><td>${r.rx_air_time.toFixed(1)} min</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.rx_air')}</td><td>${r.rx_air_time.toFixed(1)} min</td></tr>`;
         }
 
         // Packet stats
         if (stats.packets) {
             const p = stats.packets;
             if (p.sent !== undefined)
-                html += `<tr><td class="text-muted">Packets TX</td><td>${p.sent.toLocaleString()}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.packets_tx')}</td><td>${p.sent.toLocaleString()}</td></tr>`;
             if (p.received !== undefined)
-                html += `<tr><td class="text-muted">Packets RX</td><td>${p.received.toLocaleString()}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.packets_rx')}</td><td>${p.received.toLocaleString()}</td></tr>`;
         }
 
         // DB stats (included in same response)
         if (data.db_stats) {
             const db = data.db_stats;
             if (db.contacts !== undefined)
-                html += `<tr><td class="text-muted">Contacts (DB)</td><td>${db.contacts}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.contacts_db')}</td><td>${db.contacts}</td></tr>`;
             if (db.channel_messages !== undefined)
-                html += `<tr><td class="text-muted">Channel Msgs</td><td>${db.channel_messages.toLocaleString()}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.channel_msgs')}</td><td>${db.channel_messages.toLocaleString()}</td></tr>`;
             if (db.direct_messages !== undefined)
-                html += `<tr><td class="text-muted">Direct Msgs</td><td>${db.direct_messages.toLocaleString()}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.direct_msgs')}</td><td>${db.direct_messages.toLocaleString()}</td></tr>`;
             if (db.db_size_bytes !== undefined) {
                 const sizeMB = (db.db_size_bytes / (1024 * 1024)).toFixed(1);
-                html += `<tr><td class="text-muted">DB Size</td><td>${sizeMB} MB</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.db_size')}</td><td>${sizeMB} MB</td></tr>`;
             }
         }
 
         html += '</tbody></table>';
 
         if (html === '<table class="table table-sm mb-0"><tbody></tbody></table>') {
-            container.innerHTML = '<div class="text-center text-muted py-3">No statistics available</div>';
+            container.innerHTML = `<div class="text-center text-muted py-3">${tHtml('device.stats.none')}</div>`;
         } else {
             container.innerHTML = html;
         }
 
     } catch (error) {
         console.error('Error loading device stats:', error);
-        container.innerHTML = '<div class="alert alert-danger mb-0">Failed to load stats</div>';
+        container.innerHTML = `<div class="alert alert-danger mb-0">${tHtml('device.stats.load_failed')}</div>`;
     }
 }
 
@@ -2192,7 +2192,7 @@ async function loadDeviceShare() {
     const container = document.getElementById('deviceShareContent');
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch('/api/device/info');
@@ -2205,7 +2205,7 @@ async function loadDeviceShare() {
 
         const info = data.info;
         if (!info || !info.public_key || !info.name) {
-            container.innerHTML = '<div class="alert alert-warning mb-0">Device info not available</div>';
+            container.innerHTML = `<div class="alert alert-warning mb-0">${tHtml('device.share.unavailable')}</div>`;
             return;
         }
 
@@ -2215,17 +2215,17 @@ async function loadDeviceShare() {
         const typeNames = { 1: 'Companion', 2: 'Repeater', 3: 'Room Server', 4: 'Sensor' };
 
         let html = '<div class="text-center">';
-        html += '<p class="text-muted small mb-3">Share this QR code or URI so others can add your device as a contact.</p>';
+        html += `<p class="text-muted small mb-3">${tHtml('device.share.hint')}</p>`;
         html += '<div id="shareQrCode" class="d-inline-block mb-3"></div>';
         html += '<div class="mb-2"><strong>' + escapeHtml(info.name) + '</strong></div>';
-        html += '<div class="text-muted small mb-3">' + escapeHtml(typeNames[contactType] || 'Unknown') + '</div>';
+        html += '<div class="text-muted small mb-3">' + escapeHtml(typeNames[contactType] || t('common.unknown')) + '</div>';
         html += '</div>';
 
         html += '<div class="mb-3">';
-        html += '<label class="form-label text-muted small">Contact URI:</label>';
+        html += `<label class="form-label text-muted small">${tHtml('device.share.uri')}</label>`;
         html += '<div class="input-group">';
         html += '<input type="text" class="form-control form-control-sm font-monospace" value="' + escapeHtml(uri) + '" readonly id="shareUriInput">';
-        html += '<button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard(document.getElementById(\'shareUriInput\').value, this)" title="Copy URI"><i class="bi bi-clipboard"></i></button>';
+        html += '<button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard(document.getElementById(\'shareUriInput\').value, this)" title="' + tHtml('device.share.copy_uri') + '"><i class="bi bi-clipboard"></i></button>';
         html += '</div>';
         html += '</div>';
 
@@ -2246,7 +2246,7 @@ async function loadDeviceShare() {
 
     } catch (error) {
         console.error('Error loading device share:', error);
-        container.innerHTML = '<div class="alert alert-danger mb-0">Failed to load device info</div>';
+        container.innerHTML = `<div class="alert alert-danger mb-0">${tHtml('device.info.load_failed')}</div>`;
     }
 }
 
@@ -2322,7 +2322,7 @@ async function loadDeviceConfig() {
 async function saveDevicePublicInfo() {
     const name = document.getElementById('settDeviceName').value.trim();
     if (!name) {
-        showNotification('Device name cannot be empty', 'danger');
+        showNotification(t('settings.device.toast.name_empty'), 'danger');
         document.getElementById('settDeviceName').focus();
         return;
     }
@@ -2350,14 +2350,14 @@ async function saveDevicePublicInfo() {
         });
         const data = await resp.json();
         if (data.success) {
-            showNotification('Public info saved', 'success');
+            showNotification(t('settings.device.toast.info_saved'), 'success');
             _selfInfo = null;
             if (phmSel) phmSel.dataset.initial = phmSel.value;
         } else {
-            showNotification(data.error || 'Failed to save', 'danger');
+            showNotification(data.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save public info', 'danger');
+        showNotification(t('settings.device.toast.info_save_failed'), 'danger');
     }
 }
 
@@ -2369,23 +2369,23 @@ async function saveDeviceRadioSettings() {
     const txPower = parseInt(document.getElementById('settRadioTxPower').value, 10);
 
     if (isNaN(freq) || freq < 100 || freq > 1000) {
-        showNotification('Invalid frequency', 'danger');
+        showNotification(t('settings.device.toast.freq_invalid'), 'danger');
         return;
     }
     if (isNaN(sf) || sf < 5 || sf > 12) {
-        showNotification('Spreading factor must be 5-12', 'danger');
+        showNotification(t('settings.device.toast.sf_invalid'), 'danger');
         return;
     }
     if (isNaN(cr) || cr < 5 || cr > 8) {
-        showNotification('Coding rate must be 5-8', 'danger');
+        showNotification(t('settings.device.toast.cr_invalid'), 'danger');
         return;
     }
     if (isNaN(txPower) || txPower < 0 || txPower > 30) {
-        showNotification('TX power must be 0-30 dBm', 'danger');
+        showNotification(t('settings.device.toast.tx_invalid'), 'danger');
         return;
     }
 
-    if (!confirm('Changing radio settings will disconnect from the mesh network. Continue?')) return;
+    if (!confirm(t('settings.device.confirm.radio'))) return;
 
     try {
         const resp = await fetch('/api/device/config', {
@@ -2401,12 +2401,12 @@ async function saveDeviceRadioSettings() {
         });
         const data = await resp.json();
         if (data.success) {
-            showNotification('Radio settings saved', 'success');
+            showNotification(t('settings.device.toast.radio_saved'), 'success');
         } else {
-            showNotification(data.error || 'Failed to save', 'danger');
+            showNotification(data.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save radio settings', 'danger');
+        showNotification(t('settings.device.toast.radio_save_failed'), 'danger');
     }
 }
 
@@ -2580,13 +2580,13 @@ async function saveChatSettings() {
             const data = await resp.json();
             chatSettingsCache = { ...CHAT_SETTINGS_DEFAULTS, ...data };
             window.chatSettingsCache = chatSettingsCache;
-            showNotification('Settings saved', 'success');
+            showNotification(t('settings.toast.saved'), 'success');
         } else {
             const err = await resp.json();
-            showNotification(err.error || 'Failed to save', 'danger');
+            showNotification(err.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save settings', 'danger');
+        showNotification(t('settings.toast.save_failed'), 'danger');
     }
 }
 
@@ -2650,7 +2650,7 @@ async function saveUiSettings() {
     const timeoutEl = document.getElementById('settToastTimeout');
     const timeout = parseFloat(timeoutEl.value);
     if (isNaN(timeout) || timeout < 1 || timeout > 60) {
-        showNotification('Invalid auto-close duration', 'danger');
+        showNotification(t('settings.iface.toast.autoclose_invalid'), 'danger');
         timeoutEl.focus();
         return;
     }
@@ -2670,13 +2670,13 @@ async function saveUiSettings() {
             uiSettingsCache = { ...UI_SETTINGS_DEFAULTS, ...data };
             window.uiSettingsCache = uiSettingsCache;
             applyToastPosition(uiSettingsCache.toast_position);
-            showNotification('Settings saved', 'success');
+            showNotification(t('settings.toast.saved'), 'success');
         } else {
             const err = await resp.json();
-            showNotification(err.error || 'Failed to save', 'danger');
+            showNotification(err.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save settings', 'danger');
+        showNotification(t('settings.toast.save_failed'), 'danger');
     }
 }
 
@@ -2723,13 +2723,13 @@ async function reloadTranslations() {
         const data = await resp.json();
         if (resp.ok && data.success) {
             const names = Object.values(data.languages || {}).join(', ');
-            showNotification(`Translations reloaded: ${names}`, 'success');
+            showNotification(t('settings.appear.toast.reloaded', { names }), 'success');
             setTimeout(() => location.reload(), 800);
         } else {
-            showNotification(data.error || 'Failed to reload translations', 'danger');
+            showNotification(data.error || t('settings.appear.toast.reload_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to reload translations', 'danger');
+        showNotification(t('settings.appear.toast.reload_failed'), 'danger');
     }
 }
 
@@ -2791,13 +2791,13 @@ async function saveDmRetrySettings() {
             body: JSON.stringify(payload)
         });
         if (resp.ok) {
-            showNotification('Settings saved', 'success');
+            showNotification(t('settings.toast.saved'), 'success');
         } else {
             const err = await resp.json();
-            showNotification(err.error || 'Failed to save', 'danger');
+            showNotification(err.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save settings', 'danger');
+        showNotification(t('settings.toast.save_failed'), 'danger');
     }
 }
 
@@ -2879,7 +2879,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('observerIataInput')?.addEventListener('change', (e) => {
         const iata = (e.target.value || '').trim();
         if (iata && !/^[A-Za-z]{3}$/.test(iata)) {
-            showNotification('Location code must be empty or exactly 3 letters', 'warning');
+            showNotification(t('observer.iata_invalid'), 'warning');
             return;
         }
         saveObserverSettings({ iata });
@@ -2986,7 +2986,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function cleanupContacts() {
     const hours = parseInt(document.getElementById('inactiveHours').value);
 
-    if (!confirm(`Remove all contacts inactive for more than ${hours} hours?`)) {
+    if (!confirm(t('contacts.cleanup.confirm', { hours }))) {
         return;
     }
 
@@ -3007,11 +3007,11 @@ async function cleanupContacts() {
         if (data.success) {
             showNotification(data.message, 'success');
         } else {
-            showNotification('Cleanup failed: ' + data.error, 'danger');
+            showNotification(t('contacts.cleanup.failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error cleaning contacts:', error);
-        showNotification('Cleanup failed', 'danger');
+        showNotification(t('contacts.cleanup.error'), 'danger');
     } finally {
         btn.disabled = false;
     }
@@ -3041,9 +3041,9 @@ async function executeSpecialCommand(command) {
         const data = await response.json();
 
         if (data.success) {
-            showNotification(data.message || `${command} sent successfully`, 'success');
+            showNotification(data.message || t('device.cmd.sent', { command }), 'success');
         } else {
-            showNotification(`Command failed: ${data.error}`, 'danger');
+            showNotification(t('device.cmd.failed', { error: data.error }), 'danger');
         }
 
         // Close offcanvas menu after command execution
@@ -3072,7 +3072,7 @@ async function executeSpecialCommand(command) {
  */
 async function requestNotificationPermission() {
     if (!('Notification' in window)) {
-        showNotification('Notifications are not supported in this browser', 'warning');
+        showNotification(t('settings.notif.toast.unsupported'), 'warning');
         return false;
     }
 
@@ -3082,17 +3082,17 @@ async function requestNotificationPermission() {
         if (permission === 'granted') {
             localStorage.setItem('mc_notifications_enabled', 'true');
             updateNotificationToggleUI();
-            showNotification('Notifications enabled', 'success');
+            showNotification(t('settings.notif.toast.enabled'), 'success');
             return true;
         } else if (permission === 'denied') {
             localStorage.setItem('mc_notifications_enabled', 'false');
             updateNotificationToggleUI();
-            showNotification('Notifications blocked. Change browser settings to enable them.', 'warning');
+            showNotification(t('settings.notif.toast.denied'), 'warning');
             return false;
         }
     } catch (error) {
         console.error('Error requesting notification permission:', error);
-        showNotification('Error enabling notifications', 'danger');
+        showNotification(t('settings.notif.toast.error'), 'danger');
         return false;
     }
 }
@@ -3161,16 +3161,16 @@ async function handleNotificationToggle() {
             // Turn OFF
             localStorage.setItem('mc_notifications_enabled', 'false');
             updateNotificationToggleUI();
-            showNotification('Notifications disabled', 'info');
+            showNotification(t('settings.notif.toast.disabled'), 'info');
         } else {
             // Turn ON
             localStorage.setItem('mc_notifications_enabled', 'true');
             updateNotificationToggleUI();
-            showNotification('Notifications enabled', 'success');
+            showNotification(t('settings.notif.toast.enabled'), 'success');
         }
     } else if (permission === 'denied') {
         // Blocked - show help message
-        showNotification('Notifications are blocked. Change browser settings: Settings → Site Settings → Notifications', 'warning');
+        showNotification(t('settings.notif.toast.blocked_help'), 'warning');
     } else {
         // Not yet requested - ask for permission
         await requestNotificationPermission();
@@ -3240,7 +3240,7 @@ async function saveContactsSetting(key, value, inputEl) {
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
             if (inputEl) inputEl.checked = !value;
-            showNotification(data.error || 'Failed to save setting', 'danger');
+            showNotification(data.error || t('settings.toast.setting_save_failed'), 'danger');
             return;
         }
         window.contactsSettings[key] = !!value;
@@ -3257,7 +3257,7 @@ async function saveContactsSetting(key, value, inputEl) {
     } catch (e) {
         console.error('Error saving contacts setting:', e);
         if (inputEl) inputEl.checked = !value;
-        showNotification('Network error saving setting', 'danger');
+        showNotification(t('settings.toast.setting_network_error'), 'danger');
     }
 }
 
@@ -3292,7 +3292,7 @@ async function loadRegions() {
         renderRegionsList();
     } catch (e) {
         console.error('Error loading regions:', e);
-        listEl.innerHTML = '<div class="text-center text-danger small py-2">Failed to load regions</div>';
+        listEl.innerHTML = `<div class="text-center text-danger small py-2">${tHtml('settings.regions.load_failed')}</div>`;
     }
 }
 
@@ -3301,7 +3301,7 @@ function renderRegionsList() {
     if (!listEl) return;
     const regions = window.regionRegistry || [];
     if (regions.length === 0) {
-        listEl.innerHTML = '<div class="text-center text-muted small py-3">No regions defined. Add one below.</div>';
+        listEl.innerHTML = `<div class="text-center text-muted small py-3">${tHtml('settings.regions.empty')}</div>`;
         return;
     }
     const noDefault = !regions.some(r => r.is_default);
@@ -3313,7 +3313,7 @@ function renderRegionsList() {
                        onchange="clearDefaultRegion()">
             </div>
             <div class="flex-grow-1 text-muted">
-                <i class="bi bi-dash-circle"></i> None — use firmware default
+                <i class="bi bi-dash-circle"></i> ${tHtml('settings.regions.none_row')}
             </div>
         </div>
     `;
@@ -3333,7 +3333,7 @@ function renderRegionsList() {
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-danger"
                         onclick="deleteRegion(${r.id}, '${escapeHtml(r.name).replace(/'/g, "\\'")}')"
-                        title="Delete region">
+                        title="${tHtml('settings.regions.delete_title')}">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
@@ -3344,7 +3344,7 @@ function renderRegionsList() {
 
 async function addRegion(name, inputEl) {
     if (!isValidRegionName(name)) {
-        showNotification('Invalid region name. Allowed: letters, digits, - $ # (max 30 bytes, no spaces).', 'warning');
+        showNotification(t('settings.regions.toast.name_invalid'), 'warning');
         return;
     }
     try {
@@ -3355,14 +3355,14 @@ async function addRegion(name, inputEl) {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to add region', 'danger');
+            showNotification(data.error || t('settings.regions.toast.add_failed'), 'danger');
             return;
         }
         if (inputEl) inputEl.value = '';
         await loadRegions();
     } catch (e) {
         console.error('Error adding region:', e);
-        showNotification('Network error adding region', 'danger');
+        showNotification(t('settings.regions.toast.add_error'), 'danger');
     }
 }
 
@@ -3372,13 +3372,13 @@ async function deleteRegion(id, name) {
         const resp = await fetch(`/api/regions/${id}`, { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to delete region', 'danger');
+            showNotification(data.error || t('settings.regions.toast.delete_failed'), 'danger');
             return;
         }
         await loadRegions();
     } catch (e) {
         console.error('Error deleting region:', e);
-        showNotification('Network error deleting region', 'danger');
+        showNotification(t('settings.regions.toast.delete_error'), 'danger');
     }
 }
 
@@ -3387,7 +3387,7 @@ async function setDefaultRegion(id) {
         const resp = await fetch(`/api/regions/${id}/default`, { method: 'POST' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to set default region', 'danger');
+            showNotification(data.error || t('settings.regions.toast.default_failed'), 'danger');
             await loadRegions();  // snap UI back to server truth
             return;
         }
@@ -3398,7 +3398,7 @@ async function setDefaultRegion(id) {
         (window.regionRegistry || []).forEach(r => { r.is_default = (r.id === id) ? 1 : 0; });
     } catch (e) {
         console.error('Error setting default region:', e);
-        showNotification('Network error setting default', 'danger');
+        showNotification(t('settings.regions.toast.default_error'), 'danger');
         await loadRegions();
     }
 }
@@ -3408,7 +3408,7 @@ async function clearDefaultRegion() {
         const resp = await fetch('/api/regions/default', { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to clear default region', 'danger');
+            showNotification(data.error || t('settings.regions.toast.clear_failed'), 'danger');
             await loadRegions();  // snap UI back to server truth
             return;
         }
@@ -3418,7 +3418,7 @@ async function clearDefaultRegion() {
         (window.regionRegistry || []).forEach(r => { r.is_default = 0; });
     } catch (e) {
         console.error('Error clearing default region:', e);
-        showNotification('Network error clearing default', 'danger');
+        showNotification(t('settings.regions.toast.clear_error'), 'danger');
         await loadRegions();
     }
 }
@@ -3460,7 +3460,7 @@ async function loadAnalyzers() {
         console.error('Error loading analyzers:', e);
         const listEl = document.getElementById('analyzersList');
         if (listEl) {
-            listEl.innerHTML = '<div class="text-center text-danger small py-2">Failed to load analyzers</div>';
+            listEl.innerHTML = `<div class="text-center text-danger small py-2">${tHtml('analyzer.load_failed')}</div>`;
         }
     }
 }
@@ -3472,7 +3472,7 @@ function renderAnalyzersList() {
 
     if (analyzers.length === 0) {
         listEl.innerHTML =
-            '<div class="text-center text-muted small py-3">No analyzers configured. Click "Add analyzer" to add one.</div>';
+            `<div class="text-center text-muted small py-3">${tHtml('analyzer.empty')}</div>`;
         return;
     }
 
@@ -3482,31 +3482,31 @@ function renderAnalyzersList() {
         const isDefault = !!a.is_default;
         const starIcon = isDefault ? 'bi-star-fill text-warning' : 'bi-star';
         const disabledBadge = disabled
-            ? '<span class="badge bg-secondary ms-1">Disabled</span>' : '';
+            ? `<span class="badge bg-secondary ms-1">${tHtml('common.disabled')}</span>` : '';
         const nameClass = disabled ? 'text-muted text-decoration-line-through' : '';
         const safeName = escapeHtml(a.name);
         return `
             <div class="list-group-item d-flex align-items-center gap-2 py-2">
                 <button type="button" class="btn btn-link p-0 text-decoration-none"
                         onclick="toggleAnalyzerDefault(${a.id}, ${isDefault})"
-                        title="${isDefault ? 'Clear default' : 'Mark as default'}">
+                        title="${tHtml(isDefault ? 'analyzer.clear_default_title' : 'analyzer.set_default_title')}">
                     <i class="bi ${starIcon}"></i>
                 </button>
                 <div class="flex-grow-1" style="min-width: 0;">
                     <div class="${nameClass}"><strong>${safeName}</strong>${disabledBadge}</div>
                     <code class="small text-muted text-break" style="word-break: break-all;">${escapeHtml(a.url_template)}</code>
                 </div>
-                <div class="form-check form-switch mb-0" title="${enabled ? 'Enabled' : 'Disabled'}">
+                <div class="form-check form-switch mb-0" title="${tHtml(enabled ? 'common.enabled' : 'common.disabled')}">
                     <input class="form-check-input" type="checkbox"
                            id="analyzerEnabled_${a.id}" ${enabled ? 'checked' : ''}
                            onchange="toggleAnalyzerDisabled(${a.id}, !this.checked)">
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary"
-                        onclick="openAnalyzerEditModal(${a.id})" title="Edit">
+                        onclick="openAnalyzerEditModal(${a.id})" title="${tHtml('common.edit')}">
                     <i class="bi bi-pencil"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        onclick="deleteAnalyzer(${a.id}, '${safeName.replace(/'/g, "\\'")}')" title="Delete">
+                        onclick="deleteAnalyzer(${a.id}, '${safeName.replace(/'/g, "\\'")}')" title="${tHtml('common.delete')}">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
@@ -3562,11 +3562,11 @@ async function saveAnalyzerFromForm() {
     const is_disabled = !enabledEl.checked;
 
     if (!name) {
-        showAnalyzerFormError('Name is required');
+        showAnalyzerFormError(t('analyzer.name_required'));
         return;
     }
     if (!url_template.startsWith('http://') && !url_template.startsWith('https://')) {
-        showAnalyzerFormError('URL must start with http:// or https://');
+        showAnalyzerFormError(t('analyzer.url_invalid'));
         return;
     }
     if (!url_template.includes(ANALYZER_PLACEHOLDER)) {
@@ -3585,7 +3585,7 @@ async function saveAnalyzerFromForm() {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showAnalyzerFormError(data.error || 'Failed to save analyzer');
+            showAnalyzerFormError(data.error || t('analyzer.toast.save_failed'));
             return;
         }
         // If creating a new analyzer with disabled=true, push the flag in a follow-up PUT.
@@ -3601,7 +3601,7 @@ async function saveAnalyzerFromForm() {
         await loadAnalyzers();
     } catch (e) {
         console.error('Error saving analyzer:', e);
-        showAnalyzerFormError('Network error saving analyzer');
+        showAnalyzerFormError(t('analyzer.toast.save_error'));
     }
 }
 
@@ -3618,13 +3618,13 @@ async function deleteAnalyzer(id, name) {
         const resp = await fetch(`/api/analyzers/${id}`, { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to delete analyzer', 'danger');
+            showNotification(data.error || t('analyzer.toast.delete_failed'), 'danger');
             return;
         }
         await loadAnalyzers();
     } catch (e) {
         console.error('Error deleting analyzer:', e);
-        showNotification('Network error deleting analyzer', 'danger');
+        showNotification(t('analyzer.toast.delete_error'), 'danger');
     }
 }
 
@@ -3635,14 +3635,14 @@ async function toggleAnalyzerDefault(id, currentlyDefault) {
         const resp = await fetch(url, { method });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to update default', 'danger');
+            showNotification(data.error || t('analyzer.toast.default_failed'), 'danger');
             await loadAnalyzers();
             return;
         }
         await loadAnalyzers();
     } catch (e) {
         console.error('Error toggling analyzer default:', e);
-        showNotification('Network error updating default', 'danger');
+        showNotification(t('analyzer.toast.default_error'), 'danger');
         await loadAnalyzers();
     }
 }
@@ -3656,14 +3656,14 @@ async function toggleAnalyzerDisabled(id, disabled) {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to update analyzer', 'danger');
+            showNotification(data.error || t('analyzer.toast.update_failed'), 'danger');
             await loadAnalyzers();
             return;
         }
         await loadAnalyzers();
     } catch (e) {
         console.error('Error toggling analyzer disabled:', e);
-        showNotification('Network error updating analyzer', 'danger');
+        showNotification(t('analyzer.toast.update_error'), 'danger');
         await loadAnalyzers();
     }
 }
@@ -3686,7 +3686,7 @@ async function openMessageAnalyzer(packetHash) {
 
     // Nothing enabled — user has deliberately turned everything off or deleted it.
     if (enabled.length === 0) {
-        showNotification('No analyzer configured. Add one in Settings → Analyzer.', 'warning');
+        showNotification(t('analyzer.toast.none_configured'), 'warning');
         return;
     }
 
@@ -3760,7 +3760,7 @@ async function loadObserverTab() {
         console.error('Error loading observer status:', e);
         const listEl = document.getElementById('observerBrokersList');
         if (listEl) {
-            listEl.innerHTML = '<div class="text-center text-danger small py-2">Failed to load observer status</div>';
+            listEl.innerHTML = `<div class="text-center text-danger small py-2">${tHtml('observer.load_failed')}</div>`;
         }
     }
 }
@@ -3780,20 +3780,22 @@ function renderObserverStatusLine(status) {
     const el = document.getElementById('observerStatusLine');
     if (!el || !status) return;
     if (!status.enabled) {
-        el.innerHTML = 'Observer is <strong>off</strong>.';
+        el.innerHTML = tHtml('observer.off');
         return;
     }
     const state = status.running
-        ? '<span class="badge bg-success">running</span>'
-        : `<span class="badge bg-warning text-dark">waiting</span> ${escapeHtml(status.reason || '')}`;
-    el.innerHTML = `${state} &mdash; packets captured: <strong>${status.packets_seen ?? 0}</strong>,`
-        + ` published: <strong>${status.packets_published ?? 0}</strong>`;
+        ? `<span class="badge bg-success">${tHtml('observer.state.running')}</span>`
+        : `<span class="badge bg-warning text-dark">${tHtml('observer.state.waiting')}</span> ${escapeHtml(status.reason || '')}`;
+    el.innerHTML = `${state} &mdash; ` + tHtml('observer.counters', {
+        seen: status.packets_seen ?? 0,
+        published: status.packets_published ?? 0,
+    });
 }
 
 function observerBrokerBadgeParts(b) {
-    if (b.connected) return { cls: 'bg-success', txt: 'connected', title: '' };
-    if (b.last_error) return { cls: 'bg-danger', txt: 'error', title: b.last_error };
-    return { cls: 'bg-secondary', txt: 'offline', title: '' };
+    if (b.connected) return { cls: 'bg-success', txt: tHtml('observer.state.connected'), title: '' };
+    if (b.last_error) return { cls: 'bg-danger', txt: tHtml('observer.state.error'), title: b.last_error };
+    return { cls: 'bg-secondary', txt: tHtml('observer.state.offline'), title: '' };
 }
 
 function renderObserverBrokers() {
@@ -3803,7 +3805,7 @@ function renderObserverBrokers() {
 
     if (brokers.length === 0) {
         listEl.innerHTML =
-            '<div class="text-center text-muted small py-3">No brokers configured. Click "Add broker" to add one.</div>';
+            `<div class="text-center text-muted small py-3">${tHtml('observer.empty')}</div>`;
         return;
     }
 
@@ -3813,7 +3815,7 @@ function renderObserverBrokers() {
         const safeName = escapeHtml(b.name);
         const tlsBadge = b.use_tls ? '<span class="badge bg-info text-dark ms-1">TLS</span>' : '';
         const badge = b.is_disabled
-            ? '<span class="badge bg-secondary ms-1">Disabled</span>'
+            ? `<span class="badge bg-secondary ms-1">${tHtml('common.disabled')}</span>`
             : (() => {
                 const p = observerBrokerBadgeParts(b);
                 return `<span class="badge ${p.cls} ms-1" id="observerBrokerBadge_${b.id}" title="${escapeHtml(p.title)}">${p.txt}</span>`;
@@ -3825,16 +3827,16 @@ function renderObserverBrokers() {
                     <div class="${nameClass}"><strong>${safeName}</strong>${tlsBadge}${badge}</div>
                     <code class="small text-muted text-break" style="word-break: break-all;">${userInfo}${escapeHtml(b.host)}:${b.port}</code>
                 </div>
-                <div class="form-check form-switch mb-0" title="${enabled ? 'Enabled' : 'Disabled'}">
+                <div class="form-check form-switch mb-0" title="${tHtml(enabled ? 'common.enabled' : 'common.disabled')}">
                     <input class="form-check-input" type="checkbox" ${enabled ? 'checked' : ''}
                            onchange="toggleObserverBrokerDisabled(${b.id}, !this.checked)">
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary"
-                        onclick="openObserverBrokerModal(${b.id})" title="Edit">
+                        onclick="openObserverBrokerModal(${b.id})" title="${tHtml('common.edit')}">
                     <i class="bi bi-pencil"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        onclick="deleteObserverBroker(${b.id}, '${safeName.replace(/'/g, "\\'")}')" title="Delete">
+                        onclick="deleteObserverBroker(${b.id}, '${safeName.replace(/'/g, "\\'")}')" title="${tHtml('common.delete')}">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
@@ -3927,9 +3929,9 @@ async function saveObserverBrokerFromForm() {
     const tls_verify = document.getElementById('observerBrokerEditTlsVerify').checked;
     const is_disabled = !document.getElementById('observerBrokerEditEnabled').checked;
 
-    if (!name) { showObserverBrokerFormError('Name is required'); return; }
-    if (!host) { showObserverBrokerFormError('Host is required'); return; }
-    if (!(port >= 1 && port <= 65535)) { showObserverBrokerFormError('Port must be 1-65535'); return; }
+    if (!name) { showObserverBrokerFormError(t('observer.name_required')); return; }
+    if (!host) { showObserverBrokerFormError(t('observer.host_required')); return; }
+    if (!(port >= 1 && port <= 65535)) { showObserverBrokerFormError(t('observer.port_invalid')); return; }
 
     const body = { name, host, port, username, use_tls, tls_verify, is_disabled };
     // Edit mode: an empty password field means "keep the stored password"
@@ -3944,7 +3946,7 @@ async function saveObserverBrokerFromForm() {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showObserverBrokerFormError(data.error || 'Failed to save broker');
+            showObserverBrokerFormError(data.error || t('observer.toast.save_failed'));
             return;
         }
         bootstrap.Modal.getInstance(document.getElementById('observerBrokerEditModal'))?.hide();
@@ -3953,7 +3955,7 @@ async function saveObserverBrokerFromForm() {
         setTimeout(loadObserverTab, 1500);
     } catch (e) {
         console.error('Error saving observer broker:', e);
-        showObserverBrokerFormError('Network error saving broker');
+        showObserverBrokerFormError(t('observer.toast.save_error'));
     }
 }
 
@@ -3963,13 +3965,13 @@ async function deleteObserverBroker(id, name) {
         const resp = await fetch(`/api/observer/brokers/${id}`, { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to delete broker', 'danger');
+            showNotification(data.error || t('observer.toast.delete_failed'), 'danger');
             return;
         }
         await loadObserverTab();
     } catch (e) {
         console.error('Error deleting observer broker:', e);
-        showNotification('Network error deleting broker', 'danger');
+        showNotification(t('observer.toast.delete_error'), 'danger');
     }
 }
 
@@ -3982,11 +3984,11 @@ async function toggleObserverBrokerDisabled(id, disabled) {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to update broker', 'danger');
+            showNotification(data.error || t('observer.toast.update_failed'), 'danger');
         }
     } catch (e) {
         console.error('Error toggling observer broker:', e);
-        showNotification('Network error updating broker', 'danger');
+        showNotification(t('observer.toast.update_error'), 'danger');
     }
     await loadObserverTab();
     setTimeout(loadObserverTab, 1500);
@@ -4001,7 +4003,7 @@ async function saveObserverSettings(patch) {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to save observer settings', 'danger');
+            showNotification(data.error || t('observer.toast.settings_failed'), 'danger');
             await loadObserverTab();
             return;
         }
@@ -4009,7 +4011,7 @@ async function saveObserverSettings(patch) {
         setTimeout(loadObserverTab, 1500);
     } catch (e) {
         console.error('Error saving observer settings:', e);
-        showNotification('Network error saving observer settings', 'danger');
+        showNotification(t('observer.toast.settings_error'), 'danger');
     }
 }
 
@@ -4075,9 +4077,9 @@ function renderRegionPickerList() {
         listEl.innerHTML = `
             <div class="text-center py-4 text-muted">
                 <i class="bi bi-pin-map fs-3 d-block mb-2"></i>
-                <p class="mb-2">No regions defined yet.</p>
+                <p class="mb-2">${tHtml('settings.regions.picker_empty')}</p>
                 <button type="button" class="btn btn-sm btn-primary" id="pickerManageRegionsBtn">
-                    <i class="bi bi-gear"></i> Manage Regions
+                    <i class="bi bi-gear"></i> ${tHtml('settings.regions.picker_manage')}
                 </button>
             </div>
         `;
@@ -4099,7 +4101,7 @@ function renderRegionPickerList() {
         <label class="list-group-item d-flex align-items-center gap-2">
             <input type="radio" name="regionPickerChoice" value="" class="form-check-input mt-0"
                    ${_regionPickerPending === null ? 'checked' : ''}>
-            <span class="text-muted"><i class="bi bi-dash-circle"></i> None — use firmware default</span>
+            <span class="text-muted"><i class="bi bi-dash-circle"></i> ${tHtml('settings.regions.none_row')}</span>
         </label>
     `];
     for (const r of regions) {
@@ -4109,7 +4111,7 @@ function renderRegionPickerList() {
                        ${_regionPickerPending === r.id ? 'checked' : ''}>
                 <span class="flex-grow-1">
                     <strong>${escapeHtml(r.name)}</strong>
-                    ${r.is_default ? '<span class="badge bg-secondary ms-1">default</span>' : ''}
+                    ${r.is_default ? `<span class="badge bg-secondary ms-1">${tHtml('settings.regions.is_default')}</span>` : ''}
                 </span>
             </label>
         `);
@@ -4170,7 +4172,7 @@ async function saveChannelScope() {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to save region scope', 'danger');
+            showNotification(data.error || t('settings.regions.toast.scope_failed'), 'danger');
             return;
         }
         // Update the local cache + re-render the channels list.
@@ -4190,7 +4192,7 @@ async function saveChannelScope() {
         }
     } catch (e) {
         console.error('Error saving channel scope:', e);
-        showNotification('Network error saving region scope', 'danger');
+        showNotification(t('settings.regions.toast.scope_error'), 'danger');
     }
 }
 
@@ -7029,10 +7031,10 @@ async function loadDatabaseSize() {
         if (data.success) {
             statusEl.textContent = t('backup.size', { size: _formatBytes(data.size) });
         } else {
-            statusEl.textContent = 'Size: unknown';
+            statusEl.textContent = t('backup.size_unknown');
         }
     } catch (error) {
-        statusEl.textContent = 'Size: unknown';
+        statusEl.textContent = t('backup.size_unknown');
     }
 }
 
@@ -7042,12 +7044,12 @@ async function optimizeDatabase() {
     if (!btn) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Optimizing…';
-    if (statusEl) statusEl.textContent = 'Running VACUUM…';
+    btn.innerHTML = `<div class="spinner-border spinner-border-sm"></div> ${tHtml('backup.optimizing')}`;
+    if (statusEl) statusEl.textContent = t('backup.vacuum_running');
 
     const restoreButton = () => {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-arrows-collapse"></i> Optimize now';
+        btn.innerHTML = `<i class="bi bi-arrows-collapse"></i> ${tHtml('backup.optimize_now')}`;
     };
 
     try {
@@ -7055,7 +7057,7 @@ async function optimizeDatabase() {
         const kickoffData = await kickoff.json().catch(() => ({}));
 
         if (!kickoff.ok && kickoff.status !== 409) {
-            showNotification('Optimize failed: ' + (kickoffData.error || `HTTP ${kickoff.status}`), 'danger');
+            showNotification(t('backup.optimize_failed', { error: kickoffData.error || `HTTP ${kickoff.status}` }), 'danger');
             loadDatabaseSize();
             restoreButton();
             return;
@@ -7077,17 +7079,19 @@ async function optimizeDatabase() {
             }
 
             if (status.running) {
-                if (statusEl) statusEl.textContent = `Running VACUUM… (${status.elapsed_seconds || 0}s)`;
+                if (statusEl) statusEl.textContent = t('backup.vacuum_running_for', { seconds: status.elapsed_seconds || 0 });
                 continue;
             }
 
             // Done — either success or error.
             if (status.success === true && status.size_after !== undefined) {
-                const freed = status.freed > 0 ? `freed ${_formatBytes(status.freed)}` : 'no space to reclaim';
-                showNotification(`Optimized: ${freed} in ${status.elapsed_seconds}s`, 'success');
+                const freed = status.freed > 0
+                    ? t('backup.freed', { size: _formatBytes(status.freed) })
+                    : t('backup.freed_none');
+                showNotification(t('backup.optimized', { freed, seconds: status.elapsed_seconds }), 'success');
                 if (statusEl) statusEl.textContent = t('backup.size', { size: _formatBytes(status.size_after) });
             } else if (status.error) {
-                showNotification('Optimize failed: ' + status.error, 'danger');
+                showNotification(t('backup.optimize_failed', { error: status.error }), 'danger');
                 loadDatabaseSize();
             } else {
                 // No result, no error, not running — odd, just refresh size
@@ -7097,12 +7101,12 @@ async function optimizeDatabase() {
             return;
         }
 
-        showNotification('Optimize is still running after 10 minutes — check container logs', 'warning');
+        showNotification(t('backup.optimize_stuck'), 'warning');
         loadDatabaseSize();
         restoreButton();
     } catch (error) {
         console.error('Error running VACUUM:', error);
-        showNotification('Optimize failed', 'danger');
+        showNotification(t('backup.optimize_error'), 'danger');
         loadDatabaseSize();
         restoreButton();
     }
@@ -7113,7 +7117,7 @@ async function loadBackupList() {
     const statusEl = document.getElementById('backupAutoStatus');
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    container.innerHTML = `<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch('/api/backup/list');
@@ -7127,12 +7131,15 @@ async function loadBackupList() {
         // Show auto-backup status
         if (statusEl) {
             statusEl.textContent = data.auto_backup_enabled
-                ? `Auto: daily at ${String(data.backup_hour).padStart(2, '0')}:00, keep ${data.retention_days}d`
-                : 'Auto-backup disabled';
+                ? t('backup.auto_on', {
+                    time: `${String(data.backup_hour).padStart(2, '0')}:00`,
+                    days: data.retention_days,
+                })
+                : t('backup.auto_off');
         }
 
         if (data.backups.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-inbox"></i><p class="mt-2 mb-0">No backups yet</p></div>';
+            container.innerHTML = `<div class="text-center text-muted py-3"><i class="bi bi-inbox"></i><p class="mt-2 mb-0">${tHtml('backup.empty')}</p></div>`;
             return;
         }
 
@@ -7148,7 +7155,7 @@ async function loadBackupList() {
                     <span class="ms-1">${escapeHtml(b.filename)}</span>
                     <small class="text-muted ms-2">${b.size_display}</small>
                 </div>
-                <a href="/api/backup/download?file=${encodeURIComponent(b.filename)}" class="btn btn-sm btn-outline-primary" title="Download">
+                <a href="/api/backup/download?file=${encodeURIComponent(b.filename)}" class="btn btn-sm btn-outline-primary" title="${tHtml('backup.download_title')}">
                     <i class="bi bi-download"></i>
                 </a>
             `;
@@ -7160,7 +7167,7 @@ async function loadBackupList() {
 
     } catch (error) {
         console.error('Error loading backups:', error);
-        container.innerHTML = '<div class="alert alert-danger">Failed to load backups</div>';
+        container.innerHTML = `<div class="alert alert-danger">${tHtml('backup.load_failed')}</div>`;
     }
 }
 
@@ -7169,24 +7176,24 @@ async function createBackup() {
     if (!btn) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Creating...';
+    btn.innerHTML = `<div class="spinner-border spinner-border-sm"></div> ${tHtml('backup.creating')}`;
 
     try {
         const response = await fetch('/api/backup/create', { method: 'POST' });
         const data = await response.json();
 
         if (data.success) {
-            showNotification(`Backup created: ${data.filename}`, 'success');
+            showNotification(t('backup.created', { filename: data.filename }), 'success');
             loadBackupList();
         } else {
-            showNotification('Backup failed: ' + data.error, 'danger');
+            showNotification(t('backup.failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error creating backup:', error);
-        showNotification('Backup failed', 'danger');
+        showNotification(t('backup.error'), 'danger');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-plus-circle"></i> Create Backup';
+        btn.innerHTML = `<i class="bi bi-plus-circle"></i> ${tHtml('backup.create')}`;
     }
 }
 
