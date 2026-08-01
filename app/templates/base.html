@@ -271,43 +271,43 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-broadcast-pin"></i> Manage Channels</h5>
+                    <h5 class="modal-title"><i class="bi bi-broadcast-pin"></i> {{ t('menu.channels') }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <!-- Channel List -->
-                    <h6>Your Channels</h6>
+                    <h6>{{ t('channels.your') }}</h6>
                     <div id="channelsList" class="list-group mb-3">
                         <div class="text-center text-muted py-3">
-                            <div class="spinner-border spinner-border-sm"></div> Loading...
+                            <div class="spinner-border spinner-border-sm"></div> {{ t('common.loading') }}
                         </div>
                     </div>
 
                     <!-- Actions -->
                     <div class="btn-group w-100 mb-3" role="group">
                         <button type="button" class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#addChannelForm">
-                            <i class="bi bi-plus-circle"></i> Add New Channel
+                            <i class="bi bi-plus-circle"></i> {{ t('channels.add_new') }}
                         </button>
                         <button type="button" class="btn btn-success" data-bs-toggle="collapse" data-bs-target="#joinChannelForm">
-                            <i class="bi bi-box-arrow-in-right"></i> Join Existing
+                            <i class="bi bi-box-arrow-in-right"></i> {{ t('channels.join_existing') }}
                         </button>
                     </div>
 
                     <!-- Add Channel Form (collapsed) -->
                     <div class="collapse" id="addChannelForm">
                         <div class="card card-body mb-3">
-                            <h6>Create New Channel</h6>
+                            <h6>{{ t('channels.create_title') }}</h6>
                             <form id="createChannelForm">
                                 <div class="mb-2">
-                                    <label for="newChannelName" class="form-label">Channel Name</label>
+                                    <label for="newChannelName" class="form-label">{{ t('channels.name') }}</label>
                                     <input type="text" class="form-control" id="newChannelName"
-                                           placeholder="e.g., Malopolska"
+                                           placeholder="{{ t('channels.name_ph') }}"
                                            pattern="[a-zA-Z0-9_\-]+"
                                            required>
-                                    <small class="text-muted">Only letters, numbers, _ and -</small>
+                                    <small class="text-muted">{{ t('channels.name_hint') }}</small>
                                 </div>
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-plus-circle"></i> Create & Auto-generate Key
+                                    <i class="bi bi-plus-circle"></i> {{ t('channels.create_btn') }}
                                 </button>
                             </form>
                         </div>
@@ -316,25 +316,25 @@
                     <!-- Join Channel Form (collapsed) -->
                     <div class="collapse" id="joinChannelForm">
                         <div class="card card-body mb-3">
-                            <h6>Join Existing Channel</h6>
+                            <h6>{{ t('channels.join_title') }}</h6>
                             <form id="joinChannelFormSubmit">
                                 <div class="mb-2">
-                                    <label for="joinChannelName" class="form-label">Channel Name</label>
+                                    <label for="joinChannelName" class="form-label">{{ t('channels.name') }}</label>
                                     <input type="text" class="form-control" id="joinChannelName" required>
                                 </div>
                                 <div class="mb-2">
-                                    <label for="joinChannelKey" class="form-label">Channel Key (32 hex chars) <small class="text-muted">- optional for channels starting with #</small></label>
+                                    <label for="joinChannelKey" class="form-label">{{ t('channels.key_label') }} <small class="text-muted">{{ t('channels.key_optional') }}</small></label>
                                     <input type="text" class="form-control" id="joinChannelKey"
-                                           placeholder="485af7e164459d280d8818d9c99fb30d (leave empty for # channels)"
+                                           placeholder="{{ t('channels.key_ph') }}"
                                            pattern="[a-fA-F0-9]{32}"
                                            maxlength="32">
                                 </div>
                                 <div class="d-flex gap-2">
                                     <button type="submit" class="btn btn-success">
-                                        <i class="bi bi-box-arrow-in-right"></i> Join Channel
+                                        <i class="bi bi-box-arrow-in-right"></i> {{ t('channels.join_btn') }}
                                     </button>
                                     <button type="button" class="btn btn-secondary" id="scanQRBtn">
-                                        <i class="bi bi-qr-code-scan"></i> Scan QR Code
+                                        <i class="bi bi-qr-code-scan"></i> {{ t('channels.scan_qr') }}
                                     </button>
                                 </div>
                             </form>
@@ -352,19 +352,19 @@
                 <div class="modal-header">
                     <h5 class="modal-title">
                         <i class="bi bi-pin-map"></i>
-                        Set Region Scope for <span id="regionPickerChannelName" class="fw-bold"></span>
+                        {{ t('channels.region_scope_for') }} <span id="regionPickerChannelName" class="fw-bold"></span>
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info py-2 small mb-3">
-                        <i class="bi bi-info-circle"></i> Only repeaters allowing the selected region will forward messages from this channel.
+                        <i class="bi bi-info-circle"></i> {{ t('channels.region_hint') }}
                     </div>
                     <div id="regionPickerList" class="list-group mb-0"></div>
                 </div>
                 <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary btn-sm" id="regionPickerSaveBtn">Save</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="regionPickerSaveBtn">{{ t('common.save') }}</button>
                 </div>
             </div>
         </div>
@@ -375,7 +375,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-share"></i> Share Channel</h5>
+                    <h5 class="modal-title"><i class="bi bi-share"></i> {{ t('channels.share_title') }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -383,23 +383,23 @@
 
                     <!-- QR Code -->
                     <div class="text-center mb-3">
-                        <img id="shareChannelQR" src="" alt="QR Code" class="img-fluid" style="max-width: 300px;">
+                        <img id="shareChannelQR" src="" alt="{{ t('channels.qr_alt') }}" class="img-fluid" style="max-width: 300px;">
                     </div>
 
                     <!-- Channel Details -->
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Channel Key:</label>
+                        <label class="form-label fw-bold">{{ t('channels.key') }}</label>
                         <div class="input-group">
                             <input type="text" class="form-control font-monospace" id="shareChannelKey" readonly>
                             <button class="btn btn-outline-secondary" type="button" onclick="copyChannelKey()">
-                                <i class="bi bi-clipboard"></i> Copy
+                                <i class="bi bi-clipboard"></i> {{ t('common.copy') }}
                             </button>
                         </div>
                     </div>
 
                     <div class="alert alert-info small">
                         <i class="bi bi-info-circle"></i>
-                        Share this QR code or key with others to let them join this channel.
+                        {{ t('channels.share_hint') }}
                     </div>
                 </div>
             </div>
@@ -411,40 +411,40 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-cpu"></i> Device</h5>
+                    <h5 class="modal-title"><i class="bi bi-cpu"></i> {{ t('device.title') }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <ul class="nav nav-tabs mb-3" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabDeviceInfo" type="button">Info</button>
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabDeviceInfo" type="button">{{ t('device.tab.info') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDeviceStats" type="button" id="statsTabBtn">Stats</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDeviceStats" type="button" id="statsTabBtn">{{ t('device.tab.stats') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDeviceShare" type="button" id="shareTabBtn">Share</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDeviceShare" type="button" id="shareTabBtn">{{ t('device.tab.share') }}</button>
                         </li>
                     </ul>
                     <div class="tab-content">
                         <div class="tab-pane fade show active" id="tabDeviceInfo">
                             <div id="deviceInfoContent">
                                 <div class="text-center py-3">
-                                    <div class="spinner-border spinner-border-sm"></div> Loading...
+                                    <div class="spinner-border spinner-border-sm"></div> {{ t('common.loading') }}
                                 </div>
                             </div>
                         </div>
                         <div class="tab-pane fade" id="tabDeviceStats">
                             <div id="deviceStatsContent">
                                 <div class="text-center py-3 text-muted">
-                                    Click to load stats
+                                    {{ t('device.stats_hint') }}
                                 </div>
                             </div>
                         </div>
                         <div class="tab-pane fade" id="tabDeviceShare">
                             <div id="deviceShareContent">
                                 <div class="text-center py-3 text-muted">
-                                    Click to generate share code
+                                    {{ t('device.share_hint') }}
                                 </div>
                             </div>
                         </div>
@@ -1150,32 +1150,32 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header py-2">
-                    <h6 class="modal-title"><i class="bi bi-clipboard-data"></i> <span id="analyzerEditModalTitle">Add analyzer</span></h6>
+                    <h6 class="modal-title"><i class="bi bi-clipboard-data"></i> <span id="analyzerEditModalTitle">{{ t('analyzer.add') }}</span></h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="analyzerEditForm">
                     <div class="modal-body">
                         <input type="hidden" id="analyzerEditId" value="">
                         <div class="mb-3">
-                            <label class="form-label small mb-1" for="analyzerEditName">Name</label>
+                            <label class="form-label small mb-1" for="analyzerEditName">{{ t('common.name') }}</label>
                             <input type="text" class="form-control form-control-sm" id="analyzerEditName"
-                                   placeholder="e.g. MarWoj Analyzer" required maxlength="60" autocomplete="off">
+                                   placeholder="{{ t('analyzer.name_ph') }}" required maxlength="60" autocomplete="off">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label small mb-1" for="analyzerEditUrl">URL template</label>
+                            <label class="form-label small mb-1" for="analyzerEditUrl">{{ t('analyzer.url') }}</label>
                             <input type="text" class="form-control form-control-sm" id="analyzerEditUrl"
                                    placeholder="https://analyzer.example.com/#/packets/{packetHash}" required autocomplete="off">
-                            <div class="form-text small">Must include <code>{packetHash}</code>.</div>
+                            <div class="form-text small">{{ t_html('analyzer.url_hint') }}</div>
                         </div>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="analyzerEditEnabled" checked>
-                            <label class="form-check-label small" for="analyzerEditEnabled">Enabled</label>
+                            <label class="form-check-label small" for="analyzerEditEnabled">{{ t('common.enabled') }}</label>
                         </div>
                         <div id="analyzerEditError" class="alert alert-danger py-1 small mt-3 d-none"></div>
                     </div>
                     <div class="modal-footer py-2">
-                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
+                        <button type="submit" class="btn btn-primary btn-sm">{{ t('common.save') }}</button>
                     </div>
                 </form>
             </div>
@@ -1187,7 +1187,7 @@
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
                 <div class="modal-header py-2">
-                    <h6 class="modal-title"><i class="bi bi-clipboard-data"></i> Choose analyzer</h6>
+                    <h6 class="modal-title"><i class="bi bi-clipboard-data"></i> {{ t('analyzer.choose') }}</h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-2">
@@ -1202,62 +1202,62 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header py-2">
-                    <h6 class="modal-title"><i class="bi bi-broadcast"></i> <span id="observerBrokerEditModalTitle">Add broker</span></h6>
+                    <h6 class="modal-title"><i class="bi bi-broadcast"></i> <span id="observerBrokerEditModalTitle">{{ t('observer.add_broker') }}</span></h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="observerBrokerEditForm">
                     <div class="modal-body">
                         <input type="hidden" id="observerBrokerEditId" value="">
                         <div class="mb-2">
-                            <label class="form-label small mb-1" for="observerBrokerEditName">Name</label>
+                            <label class="form-label small mb-1" for="observerBrokerEditName">{{ t('common.name') }}</label>
                             <input type="text" class="form-control form-control-sm" id="observerBrokerEditName"
-                                   placeholder="e.g. My MQTT server" required maxlength="60" autocomplete="off">
+                                   placeholder="{{ t('observer.name_ph') }}" required maxlength="60" autocomplete="off">
                         </div>
                         <div class="row g-2 mb-1">
                             <div class="col-8">
-                                <label class="form-label small mb-1" for="observerBrokerEditHost">Host</label>
+                                <label class="form-label small mb-1" for="observerBrokerEditHost">{{ t('observer.host') }}</label>
                                 <input type="text" class="form-control form-control-sm" id="observerBrokerEditHost"
                                        placeholder="mqtt.example.com" required autocomplete="off">
                             </div>
                             <div class="col-4">
-                                <label class="form-label small mb-1" for="observerBrokerEditPort">Port</label>
+                                <label class="form-label small mb-1" for="observerBrokerEditPort">{{ t('observer.port') }}</label>
                                 <input type="number" class="form-control form-control-sm" id="observerBrokerEditPort"
                                        min="1" max="65535" value="1883" required>
                             </div>
                         </div>
-                        <div class="form-text small mb-2">Typical ports: 1883 (plain), 8883 (TLS).</div>
+                        <div class="form-text small mb-2">{{ t('observer.ports_hint') }}</div>
                         <div class="row g-2 mb-2">
                             <div class="col-6">
-                                <label class="form-label small mb-1" for="observerBrokerEditUsername">Username</label>
+                                <label class="form-label small mb-1" for="observerBrokerEditUsername">{{ t('observer.username') }}</label>
                                 <input type="text" class="form-control form-control-sm" id="observerBrokerEditUsername"
                                        autocomplete="off">
                             </div>
                             <div class="col-6">
-                                <label class="form-label small mb-1" for="observerBrokerEditPassword">Password</label>
+                                <label class="form-label small mb-1" for="observerBrokerEditPassword">{{ t('observer.password') }}</label>
                                 <input type="password" class="form-control form-control-sm" id="observerBrokerEditPassword"
                                        autocomplete="new-password">
                             </div>
                         </div>
                         <div class="form-text small mb-2 d-none" id="observerBrokerPasswordHint">
-                            Leave the password blank to keep the current one.
+                            {{ t('observer.password_hint') }}
                         </div>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="observerBrokerEditTls">
-                            <label class="form-check-label small" for="observerBrokerEditTls">Use TLS</label>
+                            <label class="form-check-label small" for="observerBrokerEditTls">{{ t('observer.use_tls') }}</label>
                         </div>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="observerBrokerEditTlsVerify" checked>
-                            <label class="form-check-label small" for="observerBrokerEditTlsVerify">Verify TLS certificate</label>
+                            <label class="form-check-label small" for="observerBrokerEditTlsVerify">{{ t('observer.verify_tls') }}</label>
                         </div>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="observerBrokerEditEnabled" checked>
-                            <label class="form-check-label small" for="observerBrokerEditEnabled">Enabled</label>
+                            <label class="form-check-label small" for="observerBrokerEditEnabled">{{ t('common.enabled') }}</label>
                         </div>
                         <div id="observerBrokerEditError" class="alert alert-danger py-1 small mt-3 d-none"></div>
                     </div>
                     <div class="modal-footer py-2">
-                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
+                        <button type="submit" class="btn btn-primary btn-sm">{{ t('common.save') }}</button>
                     </div>
                 </form>
             </div>
@@ -1269,16 +1269,16 @@
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header py-2">
-                    <h6 class="modal-title"><i class="bi bi-geo-alt"></i> Pick Coordinates</h6>
+                    <h6 class="modal-title"><i class="bi bi-geo-alt"></i> {{ t('coord.title') }}</h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-0">
                     <div id="coordPickerMap" style="height: 400px; width: 100%;"></div>
                 </div>
                 <div class="modal-footer py-2">
-                    <span class="me-auto small text-muted" id="coordPickerLabel">Click on the map to select coordinates</span>
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-sm btn-primary" id="coordPickerConfirmBtn" disabled>Confirm</button>
+                    <span class="me-auto small text-muted" id="coordPickerLabel">{{ t('coord.hint') }}</span>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="coordPickerConfirmBtn" disabled>{{ t('coord.confirm') }}</button>
                 </div>
             </div>
         </div>
@@ -1289,19 +1289,19 @@
         <div class="modal-dialog modal-sm modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header py-2">
-                    <h6 class="modal-title"><i class="bi bi-quote"></i> Quote message</h6>
+                    <h6 class="modal-title"><i class="bi bi-quote"></i> {{ t('quote.title') }}</h6>
                     <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body py-2">
                     <p class="text-muted small mb-2" id="quotePreview"></p>
                     <div class="d-flex gap-2 align-items-center mb-2">
-                        <label class="form-label mb-0 small text-nowrap" for="quoteBytesInput">Max bytes:</label>
+                        <label class="form-label mb-0 small text-nowrap" for="quoteBytesInput">{{ t('quote.max_bytes') }}</label>
                         <input type="number" class="form-control form-control-sm" id="quoteBytesInput" min="5" max="120" style="width:5rem">
                     </div>
                 </div>
                 <div class="modal-footer py-1">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="quoteTruncatedBtn">Truncated</button>
-                    <button type="button" class="btn btn-primary btn-sm" id="quoteFullBtn">Full quote</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="quoteTruncatedBtn">{{ t('quote.truncated') }}</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="quoteFullBtn">{{ t('quote.full') }}</button>
                 </div>
             </div>
         </div>
@@ -1312,7 +1312,7 @@
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-geo-alt"></i> <span id="mapModalTitle">Map</span></h5>
+                    <h5 class="modal-title"><i class="bi bi-geo-alt"></i> <span id="mapModalTitle">{{ t('menu.map') }}</span></h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-0">
@@ -1325,7 +1325,7 @@
                             <span class="map-filter-badge active" data-type="4" id="mapFilterSENS">SENS</span>
                             <div class="form-check form-switch ms-auto mb-0">
                                 <input class="form-check-input" type="checkbox" id="mapCachedSwitch">
-                                <label class="form-check-label small" for="mapCachedSwitch">Cached</label>
+                                <label class="form-check-label small" for="mapCachedSwitch">{{ t('repeaters.map.cached') }}</label>
                             </div>
                         </div>
                     </div>
@@ -1340,22 +1340,22 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-cloud-download"></i> Update mc-webui</h5>
+                    <h5 class="modal-title"><i class="bi bi-cloud-download"></i> {{ t('update.title') }}</h5>
                 </div>
                 <div class="modal-body text-center py-4">
                     <div id="updateStatus">
                         <div class="spinner-border text-primary mb-3" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                            <span class="visually-hidden">{{ t('common.loading') }}</span>
                         </div>
-                        <p id="updateMessage" class="mb-0">Checking for updates...</p>
-                        <p id="updateWhatsNew" class="d-none mt-2 mb-0"><a href="#" target="_blank" class="text-muted small"><i class="bi bi-github"></i> What's new?</a></p>
+                        <p id="updateMessage" class="mb-0">{{ t('update.checking') }}</p>
+                        <p id="updateWhatsNew" class="d-none mt-2 mb-0"><a href="#" target="_blank" class="text-muted small"><i class="bi bi-github"></i> {{ t('update.whats_new') }}</a></p>
                     </div>
                     <div id="updateProgress" class="d-none">
                         <div class="progress mb-3" style="height: 8px;">
                             <div class="progress-bar progress-bar-striped progress-bar-animated"
                                  role="progressbar" style="width: 100%"></div>
                         </div>
-                        <p id="updateProgressMessage" class="text-muted mb-0">Updating...</p>
+                        <p id="updateProgressMessage" class="text-muted mb-0">{{ t('update.updating') }}</p>
                     </div>
                     <div id="updateResult" class="d-none">
                         <i id="updateResultIcon" class="bi fs-1 mb-3 d-block"></i>
@@ -1363,9 +1363,9 @@
                     </div>
                 </div>
                 <div class="modal-footer justify-content-center" id="updateFooter">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="updateCancelBtn">Cancel</button>
-                    <button type="button" class="btn btn-primary d-none" id="updateConfirmBtn">Update Now</button>
-                    <button type="button" class="btn btn-primary d-none" id="updateReloadBtn" onclick="location.reload()">Reload Page</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="updateCancelBtn">{{ t('common.cancel') }}</button>
+                    <button type="button" class="btn btn-primary d-none" id="updateConfirmBtn">{{ t('update.now') }}</button>
+                    <button type="button" class="btn btn-primary d-none" id="updateReloadBtn" onclick="location.reload()">{{ t('update.reload') }}</button>
                 </div>
             </div>
         </div>
@@ -1376,32 +1376,31 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-database-down"></i> Database Backup</h5>
+                    <h5 class="modal-title"><i class="bi bi-database-down"></i> {{ t('backup.title') }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <button class="btn btn-primary" id="createBackupBtn" onclick="createBackup()">
-                            <i class="bi bi-plus-circle"></i> Create Backup
+                            <i class="bi bi-plus-circle"></i> {{ t('backup.create') }}
                         </button>
                         <span id="backupAutoStatus" class="text-muted small"></span>
                     </div>
                     <div id="backupList">
                         <div class="text-center text-muted py-3">
-                            <div class="spinner-border spinner-border-sm"></div> Loading...
+                            <div class="spinner-border spinner-border-sm"></div> {{ t('common.loading') }}
                         </div>
                     </div>
                     <hr class="my-3">
-                    <h6 class="mb-2"><i class="bi bi-arrows-collapse"></i> Optimize database</h6>
+                    <h6 class="mb-2"><i class="bi bi-arrows-collapse"></i> {{ t('backup.optimize_title') }}</h6>
                     <p class="text-muted small mb-2">
-                        Reclaim space freed by message retention. Runs SQLite <code>VACUUM</code>;
-                        readers keep working but writes are paused for a few seconds.
+                        {{ t_html('backup.optimize_hint') }}
                     </p>
                     <div class="d-flex justify-content-between align-items-center">
                         <button class="btn btn-outline-primary btn-sm" id="vacuumDbBtn" onclick="optimizeDatabase()">
-                            <i class="bi bi-arrows-collapse"></i> Optimize now
+                            <i class="bi bi-arrows-collapse"></i> {{ t('backup.optimize_now') }}
                         </button>
-                        <span id="vacuumDbStatus" class="text-muted small">Current size: …</span>
+                        <span id="vacuumDbStatus" class="text-muted small">{{ t('backup.current_size') }}</span>
                     </div>
                 </div>
             </div>
@@ -1413,35 +1412,35 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-search"></i> Search Messages</h5>
+                    <h5 class="modal-title"><i class="bi bi-search"></i> {{ t('chat.fab.search_title') }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="input-group mb-3">
-                        <input type="text" class="form-control" id="searchInput" placeholder="Search all messages..." autofocus>
+                        <input type="text" class="form-control" id="searchInput" placeholder="{{ t('search.ph') }}" autofocus>
                         <button class="btn btn-primary" type="button" id="searchBtn">
                             <i class="bi bi-search"></i>
                         </button>
-                        <button class="btn btn-outline-secondary" type="button" id="searchHelpBtn" title="Search syntax help">
+                        <button class="btn btn-outline-secondary" type="button" id="searchHelpBtn" title="{{ t('search.help_title') }}">
                             <i class="bi bi-question-circle"></i>
                         </button>
                     </div>
                     <div id="searchHelp" class="alert alert-light small mb-3" style="display:none;">
-                        <strong>Search tips:</strong>
+                        <strong>{{ t('search.tips') }}</strong>
                         <ul class="mb-1 ps-3">
-                            <li><code>hello world</code> — messages containing both words</li>
-                            <li><code>"hello world"</code> — exact phrase</li>
-                            <li><code>hello OR world</code> — either word</li>
-                            <li><code>hello NOT world</code> — hello but not world</li>
-                            <li><code>hell*</code> — prefix match (hello,hellas...)</li>
+                            <li><code>hello world</code> — {{ t('search.tip_and') }}</li>
+                            <li><code>"hello world"</code> — {{ t('search.tip_phrase') }}</li>
+                            <li><code>hello OR world</code> — {{ t('search.tip_or') }}</li>
+                            <li><code>hello NOT world</code> — {{ t('search.tip_not') }}</li>
+                            <li><code>hell*</code> — {{ t('search.tip_prefix') }}</li>
                         </ul>
-                        <div class="text-muted">Special characters (<code>. , - :</code>) should be wrapped in quotes.<br>
-                        <a href="https://www.sqlite.org/fts5.html#full_text_query_syntax" target="_blank" rel="noopener">Full FTS5 syntax reference <i class="bi bi-box-arrow-up-right"></i></a></div>
+                        <div class="text-muted">{{ t_html('search.special_chars') }}<br>
+                        <a href="https://www.sqlite.org/fts5.html#full_text_query_syntax" target="_blank" rel="noopener">{{ t('search.fts5_ref') }} <i class="bi bi-box-arrow-up-right"></i></a></div>
                     </div>
                     <div id="searchResults">
                         <div class="text-center text-muted py-4">
                             <i class="bi bi-search" style="font-size: 2rem;"></i>
-                            <p class="mt-2 mb-0">Search across all channel and direct messages</p>
+                            <p class="mt-2 mb-0">{{ t('search.empty') }}</p>
                         </div>
                     </div>
                 </div>

@@ -248,7 +248,7 @@ function updateMapMarkers() {
 async function showAllContactsOnMap() {
     const modalEl = document.getElementById('mapModal');
     const modal = new bootstrap.Modal(modalEl);
-    document.getElementById('mapModalTitle').textContent = 'All Contacts';
+    document.getElementById('mapModalTitle').textContent = t('map.all_contacts');
 
     // Show type filter panel
     const filterPanel = document.getElementById('mapTypeFilter');
@@ -2443,7 +2443,7 @@ function openCoordPicker() {
     const confirmBtn = document.getElementById('coordPickerConfirmBtn');
     const label = document.getElementById('coordPickerLabel');
     if (confirmBtn) confirmBtn.disabled = true;
-    if (label) label.textContent = 'Click on the map to select coordinates';
+    if (label) label.textContent = t('coord.hint');
 
     const modal = new bootstrap.Modal(modalEl);
 
@@ -3529,13 +3529,13 @@ function openAnalyzerEditModal(id) {
     if (id) {
         const a = (window.analyzerCache.analyzers || []).find(x => x.id === id);
         if (!a) return;
-        titleEl.textContent = 'Edit analyzer';
+        titleEl.textContent = t('analyzer.edit');
         idEl.value = String(a.id);
         nameEl.value = a.name || '';
         urlEl.value = a.url_template || '';
         enabledEl.checked = !a.is_disabled;
     } else {
-        titleEl.textContent = 'Add analyzer';
+        titleEl.textContent = t('analyzer.add');
         idEl.value = '';
         nameEl.value = '';
         urlEl.value = '';
@@ -3878,7 +3878,7 @@ function openObserverBrokerModal(id) {
     if (id) {
         const b = (window.observerCache.brokers || []).find(x => x.id === id);
         if (!b) return;
-        titleEl.textContent = 'Edit broker';
+        titleEl.textContent = t('observer.edit_broker');
         idEl.value = String(b.id);
         nameEl.value = b.name || '';
         hostEl.value = b.host || '';
@@ -3889,7 +3889,7 @@ function openObserverBrokerModal(id) {
         enabledEl.checked = !b.is_disabled;
         passHintEl.classList.toggle('d-none', !b.has_password);
     } else {
-        titleEl.textContent = 'Add broker';
+        titleEl.textContent = t('observer.add_broker');
         idEl.value = '';
         nameEl.value = '';
         hostEl.value = '';
@@ -7024,7 +7024,7 @@ async function loadDatabaseSize() {
         const response = await fetch('/api/db/size');
         const data = await response.json();
         if (data.success) {
-            statusEl.textContent = `Current size: ${_formatBytes(data.size)}`;
+            statusEl.textContent = t('backup.size', { size: _formatBytes(data.size) });
         } else {
             statusEl.textContent = 'Size: unknown';
         }
@@ -7082,7 +7082,7 @@ async function optimizeDatabase() {
             if (status.success === true && status.size_after !== undefined) {
                 const freed = status.freed > 0 ? `freed ${_formatBytes(status.freed)}` : 'no space to reclaim';
                 showNotification(`Optimized: ${freed} in ${status.elapsed_seconds}s`, 'success');
-                if (statusEl) statusEl.textContent = `Current size: ${_formatBytes(status.size_after)}`;
+                if (statusEl) statusEl.textContent = t('backup.size', { size: _formatBytes(status.size_after) });
             } else if (status.error) {
                 showNotification('Optimize failed: ' + status.error, 'danger');
                 loadDatabaseSize();
