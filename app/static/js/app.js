@@ -3126,20 +3126,20 @@ function updateNotificationToggleUI() {
 
     if (permission === 'unsupported') {
         statusBadge.className = 'badge bg-secondary';
-        statusBadge.textContent = 'Unavailable';
+        statusBadge.textContent = t('settings.notif.unavailable');
         toggleBtn.disabled = true;
     } else if (permission === 'denied') {
         statusBadge.className = 'badge bg-danger';
-        statusBadge.textContent = 'Blocked';
+        statusBadge.textContent = t('settings.notif.blocked');
         toggleBtn.disabled = false;
     } else if (permission === 'granted' && isEnabled) {
         statusBadge.className = 'badge bg-success';
-        statusBadge.textContent = 'Enabled';
+        statusBadge.textContent = t('common.enabled');
         toggleBtn.disabled = false;
     } else {
         // permission === 'default' OR (permission === 'granted' AND !isEnabled)
         statusBadge.className = 'badge bg-secondary';
-        statusBadge.textContent = 'Disabled';
+        statusBadge.textContent = t('common.disabled');
         toggleBtn.disabled = false;
     }
 }
