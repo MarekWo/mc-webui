@@ -56,6 +56,16 @@ when a translation drops one of these terms.
 
 ## 2. Adding a language
 
+### Name the file correctly
+
+The filename **is** the language code, and it must be a two-letter code, optionally
+followed by an uppercase region: `hu.json`, `de.json`, `pt-BR.json`, `zh-CN.json`.
+
+A file that does not match that shape is **ignored silently** — no error, no entry in the
+Language dropdown, nothing in the log. `pt-br.json`, `PT-BR.json`, `hungarian.json` and
+`hu_HU.json` all fail this way. If your language does not appear after a refresh and the
+⟳ button, check the filename first.
+
 ### Get the file to work from
 
 ```bash
@@ -81,12 +91,18 @@ itself. The other `meta.*` keys are optional.
 ### Install it on your server
 
 Drop the file into the `translations` folder inside your config directory — the same
-volume that holds the database. With the stock `docker-compose.yml` that is:
+volume that holds the database (`/data` inside the container, `MC_CONFIG_DIR` on the
+host). With the stock `docker-compose.yml` that is:
 
 ```bash
 mkdir -p ./data/translations
 cp hu.json ./data/translations/
 ```
+
+> Putting the file in `app/translations/` instead also works, but that folder is baked
+> into the container image — it needs `docker compose up -d --build`. Use it only when
+> you are contributing the language back to the project. The config directory is the
+> one that needs no rebuild and survives an update.
 
 Refresh the browser. The language appears in **Settings → Appearance → Language**
 immediately; no restart is needed. If it does not show up (some network filesystems
