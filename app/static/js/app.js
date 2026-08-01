@@ -193,13 +193,13 @@ function updateMapMarkers() {
         });
         L.marker([_selfInfo.adv_lat, _selfInfo.adv_lon], { icon: ownIcon })
             .addTo(markersGroup)
-            .bindPopup(`<b>${_selfInfo.name || 'This device'}</b><br><span class="text-muted">Own device</span>`);
+            .bindPopup(`<b>${_selfInfo.name || t('map.this_device')}</b><br><span class="text-muted">${tHtml('map.own_device')}</span>`);
         bounds.push([_selfInfo.adv_lat, _selfInfo.adv_lon]);
     }
 
     filteredContacts.forEach(c => {
         const color = CONTACT_TYPE_COLORS[c.type] || '#2196F3';
-        const typeName = CONTACT_TYPE_NAMES[c.type] || 'Unknown';
+        const typeName = CONTACT_TYPE_NAMES[c.type] || t('common.unknown');
         const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
 
         L.circleMarker([c.adv_lat, c.adv_lon], {
@@ -211,7 +211,7 @@ function updateMapMarkers() {
             fillOpacity: 0.8
         })
             .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>${lastSeen ? `<br><small class="text-muted">Last seen: ${lastSeen}</small>` : ''}`);
+            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
 
         bounds.push([c.adv_lat, c.adv_lon]);
     });
@@ -230,7 +230,7 @@ function updateMapMarkers() {
             fillOpacity: 0.5
         })
             .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${c.type_label || 'Cache'} (cached)</span>${lastSeen ? `<br><small class="text-muted">Last seen: ${lastSeen}</small>` : ''}`);
+            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${tHtml('map.cached_label', { type: c.type_label || t('map.cache') })}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
 
         bounds.push([c.adv_lat, c.adv_lon]);
     });
@@ -423,10 +423,10 @@ async function resyncFromServer(reason, { toast = false } = {}) {
         loadStatus();
         updatePendingContactsBadge();
         checkDmUpdates();
-        if (toast) showNotification('Messages refreshed', 'success');
+        if (toast) showNotification(t('chat.toast.refreshed'), 'success');
     } catch (error) {
         console.error('[resync] failed:', error);
-        if (toast) showNotification('Refresh failed', 'danger');
+        if (toast) showNotification(t('chat.toast.refresh_failed'), 'danger');
     } finally {
         resyncInFlight = false;
     }
@@ -914,8 +914,8 @@ function setupEventListeners() {
 
             if (data.success) {
                 const msg = data.already_existed
-                    ? `Channel "${name}" already exists.`
-                    : `Channel "${name}" created!`;
+                    ? t('channels.toast.exists', { name })
+                    : t('channels.toast.created', { name });
                 showNotification(msg, data.already_existed ? 'info' : 'success');
 
                 // Show warning if returned (e.g., exceeding soft limit of 7 channels)
@@ -932,10 +932,10 @@ function setupEventListeners() {
                 await loadChannels();
                 loadChannelsList();
             } else {
-                showNotification('Failed to create channel: ' + data.error, 'danger');
+                showNotification(t('channels.toast.create_failed', { error: data.error }), 'danger');
             }
         } catch (error) {
-            showNotification('Failed to create channel', 'danger');
+            showNotification(t('channels.toast.create_error'), 'danger');
         } finally {
             if (submitBtn) submitBtn.disabled = false;
         }
@@ -953,13 +953,13 @@ function setupEventListeners() {
 
         // Validate: key is optional for channels starting with #, but required for others
         if (!name.startsWith('#') && !key) {
-            showNotification('Channel key is required for channels not starting with #', 'warning');
+            showNotification(t('channels.toast.key_required'), 'warning');
             return;
         }
 
         // Validate key format if provided
         if (key && !/^[a-f0-9]{32}$/.test(key)) {
-            showNotification('Invalid key format. Must be 32 hex characters.', 'warning');
+            showNotification(t('channels.toast.key_invalid'), 'warning');
             return;
         }
 
@@ -982,8 +982,8 @@ function setupEventListeners() {
 
             if (data.success) {
                 const msg = data.already_existed
-                    ? `Already joined channel "${name}".`
-                    : `Joined channel "${name}"!`;
+                    ? t('channels.toast.already_joined', { name })
+                    : t('channels.toast.joined', { name });
                 showNotification(msg, data.already_existed ? 'info' : 'success');
 
                 // Show warning if returned (e.g., exceeding soft limit of 7 channels)
@@ -1001,10 +1001,10 @@ function setupEventListeners() {
                 await loadChannels();
                 loadChannelsList();
             } else {
-                showNotification('Failed to join channel: ' + data.error, 'danger');
+                showNotification(t('channels.toast.join_failed', { error: data.error }), 'danger');
             }
         } catch (error) {
-            showNotification('Failed to join channel', 'danger');
+            showNotification(t('channels.toast.join_error'), 'danger');
         } finally {
             if (submitBtn) submitBtn.disabled = false;
         }
@@ -1012,7 +1012,7 @@ function setupEventListeners() {
 
     // Scan QR button (placeholder)
     document.getElementById('scanQRBtn').addEventListener('click', function() {
-        showNotification('QR scanning feature coming soon! For now, manually enter the channel details.', 'info');
+        showNotification(t('channels.toast.qr_soon'), 'info');
     });
 
     // Network Commands: Advert button
@@ -1022,7 +1022,7 @@ function setupEventListeners() {
 
     // Network Commands: Flood Advert button (with confirmation)
     document.getElementById('floodadvBtn').addEventListener('click', async function() {
-        if (!confirm('Flood Advertisement uses high airtime and should only be used for network recovery.\n\nAre you sure you want to proceed?')) {
+        if (!confirm(t('menu.confirm.flood_advert'))) {
             return;
         }
         await executeSpecialCommand('floodadv');
@@ -1033,7 +1033,7 @@ function setupEventListeners() {
         await executeSpecialCommand('advert');
     });
     document.getElementById('fab-floodadvert')?.addEventListener('click', async () => {
-        if (!confirm('Flood Advertisement uses high airtime and should only be used for network recovery.\n\nAre you sure you want to proceed?')) {
+        if (!confirm(t('menu.confirm.flood_advert'))) {
             return;
         }
         await executeSpecialCommand('floodadv');
@@ -1098,7 +1098,7 @@ async function loadMessages() {
             updateLastRefresh();
             updateRegionIndicator();
         } else {
-            showNotification('Error loading messages: ' + data.error, 'danger');
+            showNotification(t('chat.toast.load_error', { error: data.error }), 'danger');
             clearLoadingSpinner();
         }
     } catch (error) {
@@ -1106,10 +1106,10 @@ async function loadMessages() {
         updateStatus('disconnected');
         clearLoadingSpinner();
         if (error.name === 'AbortError') {
-            showNotification('Loading messages timed out — retrying...', 'warning');
+            showNotification(t('chat.toast.load_timeout'), 'warning');
             setTimeout(loadMessages, 2000);
         } else {
-            showNotification('Failed to load messages', 'danger');
+            showNotification(t('chat.toast.load_failed'), 'danger');
         }
     }
 }
@@ -1120,8 +1120,8 @@ function clearLoadingSpinner() {
         container.innerHTML = `
             <div class="empty-state">
                 <i class="bi bi-exclamation-triangle"></i>
-                <p>Could not load messages</p>
-                <small>Will retry automatically</small>
+                <p>${tHtml('chat.error.load_title')}</p>
+                <small>${tHtml('chat.error.load_retry')}</small>
             </div>
         `;
     }
@@ -1141,8 +1141,8 @@ function displayMessages(messages) {
         container.innerHTML = `
             <div class="empty-state">
                 <i class="bi bi-chat-dots"></i>
-                <p>No messages yet</p>
-                <small>Send a message to get started!</small>
+                <p>${tHtml('chat.empty.no_messages')}</p>
+                <small>${tHtml('chat.empty.no_messages_hint')}</small>
             </div>
         `;
         return;
@@ -1255,7 +1255,7 @@ async function refreshMessagesMeta(forceIds = []) {
             const metaEl = wrapper.querySelector('.message-meta');
             const actionsEl = wrapper.querySelector('.message-actions');
             const hasRoute = metaEl && metaEl.querySelector('.path-info');
-            const hasAnalyzer = actionsEl && actionsEl.querySelector('[title="View in Analyzer"]');
+            const hasAnalyzer = actionsEl && actionsEl.querySelector('.btn-msg-analyzer');
             if (hasRoute && hasAnalyzer) continue;
         }
 
@@ -1296,7 +1296,7 @@ function updateMessageMetaDOM(wrapper, meta) {
     }
     const hopCount = meta.hop_count ?? (meta.path_len !== null && meta.path_len !== undefined ? (meta.path_len & 0x3F) : null);
     if (hopCount !== null) {
-        metaParts.push(`Hops: ${hopCount}`);
+        metaParts.push(tHtml('chat.route_hops', { count: hopCount }));
     }
 
     // Build paths from echo data
@@ -1321,8 +1321,10 @@ function updateMessageMetaDOM(wrapper, meta) {
             ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
             : segments.join('\u2192');
         const pathsData = encodeURIComponent(JSON.stringify(paths));
-        const routeLabel = paths.length > 1 ? `Route (${paths.length})` : 'Route';
-        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${meta.packet_hash || ''}')">${routeLabel}: ${shortPath}</span>`);
+        const routeText = paths.length > 1
+            ? tHtml('chat.route_multi', { count: paths.length, route: shortPath })
+            : tHtml('chat.route', { route: shortPath });
+        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${meta.packet_hash || ''}')">${routeText}</span>`);
     }
     const metaInfo = metaParts.join(' | ');
 
@@ -1344,12 +1346,12 @@ function updateMessageMetaDOM(wrapper, meta) {
         // Add analyzer button if not already present
         if (meta.packet_hash) {
             const actionsEl = msgDiv.querySelector('.message-actions');
-            if (actionsEl && !actionsEl.querySelector('[title="View in Analyzer"]')) {
-                const ignoreBtn = actionsEl.querySelector('[title^="Ignore"]');
+            if (actionsEl && !actionsEl.querySelector('.btn-msg-analyzer')) {
+                const ignoreBtn = actionsEl.querySelector('.btn-msg-ignore');
                 const analyzerBtn = document.createElement('button');
-                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action';
+                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action btn-msg-analyzer';
                 analyzerBtn.setAttribute('onclick', `openMessageAnalyzer('${meta.packet_hash}')`);
-                analyzerBtn.title = 'View in Analyzer';
+                analyzerBtn.title = t('chat.msg.analyzer_title');
                 analyzerBtn.innerHTML = '<i class="bi bi-clipboard-data"></i>';
                 actionsEl.insertBefore(analyzerBtn, ignoreBtn);
             }
@@ -1376,7 +1378,7 @@ function updateMessageMetaDOM(wrapper, meta) {
                     badge.className = 'echo-badge';
                     actionsEl.insertBefore(badge, actionsEl.firstChild);
                 }
-                badge.title = `Heard by ${echoCount} repeater(s): ${echoPaths.join(', ')}`;
+                badge.title = tn('chat.msg.echo_title', echoCount, { paths: echoPaths.join(', ') });
                 badge.innerHTML = `<i class="bi bi-broadcast"></i> ${echoCount}${pathDisplay}`;
             }
         }
@@ -1384,16 +1386,15 @@ function updateMessageMetaDOM(wrapper, meta) {
         // Add analyzer button
         if (meta.packet_hash) {
             const actionsEl = msgDiv.querySelector('.message-actions');
-            if (actionsEl && !actionsEl.querySelector('[title="View in Analyzer"]')) {
-                // Anchor analyzer before whichever action button comes first
-                // (post-rename: "Edit message"; legacy renders may still say "Resend")
-                const anchor = actionsEl.querySelector('[title="Edit message"]')
-                    || actionsEl.querySelector('[title="Resend"]')
-                    || actionsEl.querySelector('[title^="Resend"]');
+            if (actionsEl && !actionsEl.querySelector('.btn-msg-analyzer')) {
+                // Anchor the analyzer button before the edit button. Matched on a
+                // class, not on the title: titles are translated, and a title
+                // selector would silently miss in every language but English.
+                const anchor = actionsEl.querySelector('.btn-msg-edit');
                 const analyzerBtn = document.createElement('button');
-                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action';
+                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action btn-msg-analyzer';
                 analyzerBtn.setAttribute('onclick', `openMessageAnalyzer('${meta.packet_hash}')`);
-                analyzerBtn.title = 'View in Analyzer';
+                analyzerBtn.title = t('chat.msg.analyzer_title');
                 analyzerBtn.innerHTML = '<i class="bi bi-clipboard-data"></i>';
                 if (anchor) actionsEl.insertBefore(analyzerBtn, anchor);
                 else actionsEl.appendChild(analyzerBtn);
@@ -1411,7 +1412,7 @@ function updateMessageMetaDOM(wrapper, meta) {
                 const rawBtn = document.createElement('button');
                 rawBtn.className = 'btn btn-outline-secondary btn-msg-action btn-raw-resend';
                 rawBtn.setAttribute('onclick', `resendChannelMessageRaw(${msgId}, this)`);
-                rawBtn.title = 'Resend (rebroadcast same packet so unreached repeaters can pick it up)';
+                rawBtn.title = t('chat.msg.raw_resend_title');
                 rawBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
                 actionsEl.appendChild(rawBtn);
             }
@@ -1447,7 +1448,7 @@ function createMessageElement(msg) {
     }
     const msgHopCount = msg.hop_count ?? (msg.path_len !== null && msg.path_len !== undefined ? (msg.path_len & 0x3F) : null);
     if (msgHopCount !== null) {
-        metaParts.push(`Hops: ${msgHopCount}`);
+        metaParts.push(tHtml('chat.route_hops', { count: msgHopCount }));
     }
     if (msg.paths && msg.paths.length > 0) {
         // Show first path inline (shortest/first arrival)
@@ -1463,8 +1464,10 @@ function createMessageElement(msg) {
             ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
             : segments.join('\u2192');
         const pathsData = encodeURIComponent(JSON.stringify(msg.paths));
-        const routeLabel = msg.paths.length > 1 ? `Route (${msg.paths.length})` : 'Route';
-        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${msg.packet_hash || ''}')">${routeLabel}: ${shortPath}</span>`);
+        const routeText = msg.paths.length > 1
+            ? tHtml('chat.route_multi', { count: msg.paths.length, route: shortPath })
+            : tHtml('chat.route', { route: shortPath });
+        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${msg.packet_hash || ''}')">${routeText}</span>`);
     }
     const metaInfo = metaParts.join(' | ');
 
@@ -1479,7 +1482,7 @@ function createMessageElement(msg) {
         const echoCount = echoPaths.length;
         const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
         const echoDisplay = echoCount > 0
-            ? `<span class="echo-badge" title="Heard by ${echoCount} repeater(s): ${echoPaths.join(', ')}">
+            ? `<span class="echo-badge" title="${escapeHtml(tn('chat.msg.echo_title', echoCount, { paths: echoPaths.join(', ') }))}">
                  <i class="bi bi-broadcast"></i> ${echoCount}${pathDisplay}
                </span>`
             : '';
@@ -1495,15 +1498,15 @@ function createMessageElement(msg) {
                     <div class="message-actions justify-content-end">
                         ${echoDisplay}
                         ${msg.packet_hash ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="View in Analyzer">
+                            <button class="btn btn-outline-secondary btn-msg-action btn-msg-analyzer" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="${tHtml('chat.msg.analyzer_title')}">
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
-                        <button class="btn btn-outline-secondary btn-msg-action" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Edit message">
+                        <button class="btn btn-outline-secondary btn-msg-action btn-msg-edit" onclick='resendMessage(${JSON.stringify(msg.content)})' title="${tHtml('chat.edit_title')}">
                             <i class="bi bi-pencil-square"></i>
                         </button>
                         ${window.deviceCaps?.supports_raw_resend && typeof msg.id === 'number' ? `
-                            <button class="btn btn-outline-secondary btn-msg-action btn-raw-resend" onclick="resendChannelMessageRaw(${msg.id}, this)" title="Resend (rebroadcast same packet so unreached repeaters can pick it up)">
+                            <button class="btn btn-outline-secondary btn-msg-action btn-raw-resend" onclick="resendChannelMessageRaw(${msg.id}, this)" title="${tHtml('chat.msg.raw_resend_title')}">
                                 <i class="bi bi-arrow-repeat"></i>
                             </button>
                         ` : ''}
@@ -1532,29 +1535,29 @@ function createMessageElement(msg) {
                     <div class="message-content">${processMessageContent(msg.content)}</div>
                     ${metaInfo ? `<div class="message-meta">${metaInfo}</div>` : ''}
                     <div class="message-actions">
-                        <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="Reply">
+                        <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="${tHtml('chat.msg.reply_title')}">
                             <i class="bi bi-reply"></i>
                         </button>
-                        <button class="btn btn-outline-secondary btn-msg-action" onclick='quoteTo(${JSON.stringify(msg.sender)}, ${JSON.stringify(msg.content)})' title="Quote">
+                        <button class="btn btn-outline-secondary btn-msg-action" onclick='quoteTo(${JSON.stringify(msg.sender)}, ${JSON.stringify(msg.content)})' title="${tHtml('chat.msg.quote_title')}">
                             <i class="bi bi-quote"></i>
                         </button>
                         ${contactsGeoCache[msg.sender] ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="Show on map">
+                            <button class="btn btn-outline-secondary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="${tHtml('chat.msg.map_title')}">
                                 <i class="bi bi-geo-alt"></i>
                             </button>
                         ` : ''}
                         ${msg.packet_hash ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="View in Analyzer">
+                            <button class="btn btn-outline-secondary btn-msg-action btn-msg-analyzer" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="${tHtml('chat.msg.analyzer_title')}">
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
                         ${contactsPubkeyMap[msg.sender] && !isContactProtectedByName(msg.sender) ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="ignoreContactFromChat('${contactsPubkeyMap[msg.sender]}')" title="Ignore ${escapeHtml(msg.sender)}">
+                            <button class="btn btn-outline-secondary btn-msg-action btn-msg-ignore" onclick="ignoreContactFromChat('${contactsPubkeyMap[msg.sender]}')" title="${tHtml('chat.msg.ignore_title', { name: msg.sender })}">
                                 <i class="bi bi-eye-slash"></i>
                             </button>
                         ` : ''}
                         ${!isContactProtectedByName(msg.sender) ? `
-                        <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat('${escapeHtml(msg.sender)}')" title="Block ${escapeHtml(msg.sender)}">
+                        <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat('${escapeHtml(msg.sender)}')" title="${tHtml('chat.msg.block_title', { name: msg.sender })}">
                             <i class="bi bi-slash-circle"></i>
                         </button>
                         ` : ''}
@@ -1607,7 +1610,7 @@ async function sendMessage() {
         const data = await response.json();
 
         if (data.success) {
-            showNotification('Message sent', 'success');
+            showNotification(t('chat.toast.sent'), 'success');
 
             // Replace optimistic ID with real DB id so echo WebSocket updates work
             if (data.id) {
@@ -1626,11 +1629,11 @@ async function sendMessage() {
                 markChannelAsRead(currentChannelIdx, data.timestamp);
             }
         } else {
-            showNotification('Failed to send: ' + data.error, 'danger');
+            showNotification(t('chat.toast.send_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error sending message:', error);
-        showNotification('Failed to send message', 'danger');
+        showNotification(t('chat.toast.send_error'), 'danger');
     } finally {
         sendBtn.disabled = false;
         input.focus();
@@ -1761,12 +1764,12 @@ async function resendChannelMessageRaw(msgId, btn) {
         const resp = await fetch(`/api/messages/${msgId}/resend`, { method: 'POST' });
         const data = await resp.json().catch(() => ({}));
         if (resp.ok && data.success) {
-            showNotification(`Resent (${data.bytes ?? '?'} B) — waiting for echoes…`, 'info');
+            showNotification(t('chat.toast.resent', { bytes: data.bytes ?? '?' }), 'info');
         } else {
-            showNotification(`Resend failed: ${data.error || resp.statusText}`, 'danger');
+            showNotification(t('chat.toast.resend_failed', { error: data.error || resp.statusText }), 'danger');
         }
     } catch (err) {
-        showNotification(`Resend network error: ${err.message || err}`, 'danger');
+        showNotification(t('chat.toast.resend_network_error', { error: err.message || err }), 'danger');
     } finally {
         if (btn) {
             btn.dataset.busy = '0';
@@ -1787,15 +1790,15 @@ async function ignoreContactFromChat(pubkey) {
         if (data.success) {
             showNotification(data.message, 'info');
         } else {
-            showNotification('Failed: ' + data.error, 'danger');
+            showNotification(t('common.failed_with', { error: data.error }), 'danger');
         }
     } catch (err) {
-        showNotification('Network error', 'danger');
+        showNotification(t('common.network_error'), 'danger');
     }
 }
 
 async function blockContactFromChat(senderName) {
-    if (!confirm(`Block ${senderName}? Their messages will be hidden from chat.`)) return;
+    if (!confirm(t('chat.confirm.block', { name: senderName }))) return;
     try {
         const pubkey = contactsPubkeyMap[senderName];
         let response;
@@ -1821,11 +1824,11 @@ async function blockContactFromChat(senderName) {
             await loadBlockedNames();
             await loadMessages();
         } else {
-            showNotification('Failed: ' + data.error, 'danger');
+            showNotification(t('common.failed_with', { error: data.error }), 'danger');
         }
     } catch (err) {
         console.error('Error blocking contact from chat:', err);
-        showNotification('Network error', 'danger');
+        showNotification(t('common.network_error'), 'danger');
     }
 }
 
@@ -1859,12 +1862,12 @@ function showPathsPopup(element, encodedPaths, packetHash) {
 
         const body = document.createElement('span');
         body.className = 'path-route';
-        body.innerHTML = `${fullRoute}<span class="path-detail">SNR: ${snr} | Hops: ${hops}</span>`;
+        body.innerHTML = `${fullRoute}<span class="path-detail">SNR: ${snr} | ${tHtml('chat.route_hops', { count: hops })}</span>`;
         entry.appendChild(body);
 
         const copyBtn = document.createElement('i');
         copyBtn.className = 'bi bi-clipboard path-copy';
-        copyBtn.title = 'Copy route';
+        copyBtn.title = t('common.copy_route');
         copyBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             navigator.clipboard.writeText(commaRoute).then(() => {
@@ -1875,7 +1878,7 @@ function showPathsPopup(element, encodedPaths, packetHash) {
         entry.appendChild(copyBtn);
 
         if (packetHash && p.path && segments.length > 0) {
-            entry.title = 'Show this route on the Path Analyzer map';
+            entry.title = t('chat.route_analyzer_title');
             entry.addEventListener('click', (e) => {
                 e.stopPropagation();
                 popup.remove();
@@ -1883,7 +1886,7 @@ function showPathsPopup(element, encodedPaths, packetHash) {
             });
         } else {
             // No packet hash (or direct message): keep the copy behavior
-            entry.title = 'Tap to copy route';
+            entry.title = t('chat.copy_route_title');
             entry.addEventListener('click', (e) => {
                 e.stopPropagation();
                 navigator.clipboard.writeText(commaRoute).then(() => {
@@ -1981,7 +1984,7 @@ function injectRawResendButtonsForVisibleMessages() {
         const rawBtn = document.createElement('button');
         rawBtn.className = 'btn btn-outline-secondary btn-msg-action btn-raw-resend';
         rawBtn.setAttribute('onclick', `resendChannelMessageRaw(${msgId}, this)`);
-        rawBtn.title = 'Resend (rebroadcast same packet so unreached repeaters can pick it up)';
+        rawBtn.title = t('chat.msg.raw_resend_title');
         rawBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
         actionsEl.appendChild(rawBtn);
     }
@@ -5224,7 +5227,7 @@ function renderChannelDropdownItems(query) {
         const empty = document.createElement('div');
         empty.className = 'channel-selector-item text-muted';
         empty.style.cursor = 'default';
-        empty.textContent = q ? 'No matches' : 'No channels';
+        empty.textContent = q ? t('channels.dropdown.no_matches') : t('channels.dropdown.none');
         dropdown.appendChild(empty);
         return;
     }
@@ -5306,7 +5309,7 @@ function selectChannelFromDropdown(idx, name) {
 
     loadMessages();
     updateChannelSidebarActive();
-    showNotification(`Switched to channel: ${name}`, 'info');
+    showNotification(t('channels.toast.switched', { name }), 'info');
 }
 
 /**
@@ -5325,7 +5328,7 @@ function updateChannelInputDisplay() {
  */
 async function loadChannelsList() {
     const listEl = document.getElementById('channelsList');
-    listEl.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    listEl.innerHTML = `<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const [chResp, scResp] = await Promise.all([
@@ -5339,10 +5342,10 @@ async function loadChannelsList() {
         if (data.success) {
             displayChannelsList(data.channels);
         } else {
-            listEl.innerHTML = '<div class="alert alert-danger">Error loading channels</div>';
+            listEl.innerHTML = `<div class="alert alert-danger">${tHtml('channels.list.load_error')}</div>`;
         }
     } catch (error) {
-        listEl.innerHTML = '<div class="alert alert-danger">Failed to load channels</div>';
+        listEl.innerHTML = `<div class="alert alert-danger">${tHtml('channels.list.load_failed')}</div>`;
     }
 }
 
@@ -5353,7 +5356,7 @@ function displayChannelsList(channels) {
     const listEl = document.getElementById('channelsList');
 
     if (channels.length === 0) {
-        listEl.innerHTML = '<div class="text-muted text-center py-3">No channels configured</div>';
+        listEl.innerHTML = `<div class="text-muted text-center py-3">${tHtml('channels.list.empty')}</div>`;
         return;
     }
 
@@ -5370,8 +5373,8 @@ function displayChannelsList(channels) {
         const scope = (window.channelScopes || {})[String(channel.index)];
         const hasScope = !!scope;
         const scopeTitle = hasScope
-            ? `Region: ${scope.name} — click to change`
-            : 'Set region scope';
+            ? tHtml('channels.scope_title', { name: scope.name })
+            : tHtml('channels.scope_set_title');
         item.innerHTML = `
             <div>
                 <strong>${escapeHtml(channel.name)}</strong>
@@ -5380,23 +5383,23 @@ function displayChannelsList(channels) {
             <div class="btn-group btn-group-sm">
                 <button class="btn ${isFavorite ? 'btn-warning' : 'btn-outline-warning'}"
                         onclick="toggleChannelFavorite(${channel.index})"
-                        title="${isFavorite ? 'Unfavorite channel' : 'Favorite channel'}">
+                        title="${tHtml(isFavorite ? 'channels.unfav_title' : 'channels.fav_title')}">
                     <i class="bi ${isFavorite ? 'bi-star-fill' : 'bi-star'}"></i>
                 </button>
                 <button class="btn ${isMuted ? 'btn-secondary' : 'btn-outline-secondary'}"
                         onclick="toggleChannelMute(${channel.index})"
-                        title="${isMuted ? 'Unmute notifications' : 'Mute notifications'}">
+                        title="${tHtml(isMuted ? 'channels.unmute_title' : 'channels.mute_title')}">
                     <i class="bi ${isMuted ? 'bi-bell-slash' : 'bi-bell'}"></i>
                 </button>
                 <button class="btn ${hasScope ? 'btn-info' : 'btn-outline-info'}"
                         onclick="openRegionPicker(${channel.index})" title="${scopeTitle}">
                     <i class="bi bi-pin-map"></i>
                 </button>
-                <button class="btn btn-outline-primary" onclick="shareChannel(${channel.index})" title="Share">
+                <button class="btn btn-outline-primary" onclick="shareChannel(${channel.index})" title="${tHtml('common.share')}">
                     <i class="bi bi-share"></i>
                 </button>
                 ${!isPublic ? `
-                    <button class="btn btn-outline-danger" onclick="deleteChannel(${channel.index})" title="Delete">
+                    <button class="btn btn-outline-danger" onclick="deleteChannel(${channel.index})" title="${tHtml('common.delete')}">
                         <i class="bi bi-trash"></i>
                     </button>
                 ` : ''}
@@ -5625,10 +5628,10 @@ async function toggleChannelMute(index) {
             loadChannelsList();
             updateUnreadBadges();
         } else {
-            showNotification('Failed to update mute state', 'danger');
+            showNotification(t('channels.toast.mute_failed'), 'danger');
         }
     } catch (error) {
-        showNotification('Failed to update mute state', 'danger');
+        showNotification(t('channels.toast.mute_failed'), 'danger');
     }
 }
 
@@ -5656,10 +5659,10 @@ async function toggleChannelFavorite(index) {
             loadChannelsList();
             populateChannelSelector(availableChannels);
         } else {
-            showNotification('Failed to update favorite state', 'danger');
+            showNotification(t('channels.toast.favorite_failed'), 'danger');
         }
     } catch (error) {
-        showNotification('Failed to update favorite state', 'danger');
+        showNotification(t('channels.toast.favorite_failed'), 'danger');
     }
 }
 
@@ -5670,7 +5673,7 @@ async function deleteChannel(index) {
     const channel = availableChannels.find(ch => ch.index === index);
     if (!channel) return;
 
-    if (!confirm(`Remove channel "${channel.name}"?`)) {
+    if (!confirm(t('channels.confirm.remove', { name: channel.name }))) {
         return;
     }
 
@@ -5682,7 +5685,7 @@ async function deleteChannel(index) {
         const data = await response.json();
 
         if (data.success) {
-            showNotification(`Channel "${channel.name}" removed`, 'success');
+            showNotification(t('channels.toast.removed', { name: channel.name }), 'success');
 
             // If deleted current channel, switch to Public
             if (currentChannelIdx === index) {
@@ -5695,10 +5698,10 @@ async function deleteChannel(index) {
             await loadChannels();
             loadChannelsList();
         } else {
-            showNotification('Failed to remove channel: ' + data.error, 'danger');
+            showNotification(t('channels.toast.remove_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
-        showNotification('Failed to remove channel', 'danger');
+        showNotification(t('channels.toast.remove_error'), 'danger');
     }
 }
 
@@ -5712,7 +5715,7 @@ async function shareChannel(index) {
 
         if (data.success) {
             // Populate share modal
-            document.getElementById('shareChannelName').textContent = `Channel: ${data.qr_data.name}`;
+            document.getElementById('shareChannelName').textContent = t('channels.share_name', { name: data.qr_data.name });
             document.getElementById('shareChannelQR').src = data.qr_image;
             document.getElementById('shareChannelKey').value = data.qr_data.key;
 
@@ -5720,10 +5723,10 @@ async function shareChannel(index) {
             const modal = new bootstrap.Modal(document.getElementById('shareChannelModal'));
             modal.show();
         } else {
-            showNotification('Failed to generate QR code: ' + data.error, 'danger');
+            showNotification(t('channels.toast.qr_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
-        showNotification('Failed to generate QR code', 'danger');
+        showNotification(t('channels.toast.qr_error'), 'danger');
     }
 }
 
@@ -5735,15 +5738,15 @@ async function copyChannelKey() {
     try {
         // Use modern Clipboard API
         await navigator.clipboard.writeText(input.value);
-        showNotification('Channel key copied to clipboard!', 'success');
+        showNotification(t('channels.toast.key_copied'), 'success');
     } catch (error) {
         // Fallback for older browsers
         input.select();
         try {
             document.execCommand('copy');
-            showNotification('Channel key copied to clipboard!', 'success');
+            showNotification(t('channels.toast.key_copied'), 'success');
         } catch (fallbackError) {
-            showNotification('Failed to copy to clipboard', 'danger');
+            showNotification(t('channels.toast.copy_failed'), 'danger');
         }
     }
 }

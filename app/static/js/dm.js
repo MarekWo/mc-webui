@@ -196,7 +196,7 @@ function connectChatSocket() {
                 statusEl.className = 'bi bi-check2 dm-status delivered';
                 const tooltip = [];
                 if (data.snr != null) tooltip.push(`SNR: ${data.snr}`);
-                if (data.route_type) tooltip.push(t('dm.route', { route: data.route_type }));
+                if (data.route_type) tooltip.push(t('chat.route', { route: data.route_type }));
                 statusEl.title = tooltip.length > 0 ? tooltip.join(', ') : t('dm.status.delivered');
                 // Unwrap status icon from wrapper span
                 const wrapper = statusEl.closest('[data-dm-id]');
@@ -252,7 +252,7 @@ function connectChatSocket() {
         const parts = [];
         if (data.attempt && data.max_attempts) parts.push(t('dm.attempt', { n: data.attempt, max: data.max_attempts }));
         const hexRoute = formatDmRoute(data.path, data.hash_size);
-        if (hexRoute) parts.push(t('dm.route', { route: hexRoute }));
+        if (hexRoute) parts.push(t('chat.route', { route: hexRoute }));
         if (parts.length > 0) {
             let metaEl = msgDiv.querySelector('.dm-delivery-meta');
             if (!metaEl) {
@@ -1224,7 +1224,7 @@ async function loadMessages() {
         }
     } catch (error) {
         console.error('Error loading messages:', error);
-        container.innerHTML = `<div class="text-center text-danger py-4">${tHtml('dm.load_messages_failed')}</div>`;
+        container.innerHTML = `<div class="text-center text-danger py-4">${tHtml('chat.toast.load_failed')}</div>`;
     }
 }
 
@@ -1239,7 +1239,7 @@ function displayMessages(messages) {
         container.innerHTML = `
             <div class="dm-empty-state">
                 <i class="bi bi-chat-dots"></i>
-                <p>${tHtml('dm.empty.no_messages')}</p>
+                <p>${tHtml('chat.empty.no_messages')}</p>
                 <small class="text-muted">${tHtml('dm.empty.no_messages_hint')}</small>
             </div>
         `;
@@ -1270,7 +1270,7 @@ function displayMessages(messages) {
                     title += ` (${msg.delivery_attempt}/${msg.delivery_max_attempts})`;
                 }
                 const route = formatDmRoute(msg.delivery_path, msg.delivery_path_hash_size || msg.path_hash_size);
-                if (route) title += `, ${t('dm.route', { route: route })}`;
+                if (route) title += `, ${t('chat.route', { route: route })}`;
                 else if (msg.delivery_route) title += `, ${msg.delivery_route.replace('PATH_', '')}`;
                 if (msg.delivery_snr !== null && msg.delivery_snr !== undefined) {
                     title += `, SNR: ${msg.delivery_snr.toFixed(1)} dB`;
@@ -1334,7 +1334,7 @@ function displayMessages(messages) {
         // only raw resend (arrow-repeat).
         const resendBtn = msg.is_own ? `
             <div class="dm-actions">
-                <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${JSON.stringify(msg.content)})' title="${tHtml('dm.edit_title')}">
+                <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${JSON.stringify(msg.content)})' title="${tHtml('chat.edit_title')}">
                     <i class="bi bi-pencil-square"></i>
                 </button>
             </div>
@@ -1399,17 +1399,17 @@ async function sendMessage() {
         if (data.success) {
             input.value = '';
             updateCharCounter();
-            showNotification(t('dm.toast.sent'), 'success');
+            showNotification(t('chat.toast.sent'), 'success');
 
             // Reload messages once to show sent message
             // ACK delivery updates arrive via SocketIO in real-time
             await loadMessages();
         } else {
-            showNotification(t('dm.toast.send_failed', { error: data.error }), 'danger');
+            showNotification(t('chat.toast.send_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error sending message:', error);
-        showNotification(t('dm.toast.send_error'), 'danger');
+        showNotification(t('chat.toast.send_error'), 'danger');
     } finally {
         if (sendBtn) sendBtn.disabled = false;
         input.focus();
@@ -1542,10 +1542,10 @@ function buildDmRouteHtml(hexPath, hashSize) {
     const short = segments.length > 4
         ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
         : segments.join('\u2192');
-    if (segments.length <= 4) return tHtml('dm.route', { route: short });
+    if (segments.length <= 4) return tHtml('chat.route', { route: short });
     const hs = hashSize || 1;
     const escaped = hexPath.replace(/'/g, "\\'");
-    return `<span class="dm-route-link" onclick="showDmRoutePopup(this, '${escaped}', ${hs})">${tHtml('dm.route', { route: short })}</span>`;
+    return `<span class="dm-route-link" onclick="showDmRoutePopup(this, '${escaped}', ${hs})">${tHtml('chat.route', { route: short })}</span>`;
 }
 
 /**
