@@ -4146,12 +4146,12 @@ function updateRegionIndicator() {
         nameEl.textContent = scope.name;
         el.classList.remove('bg-light', 'text-secondary', 'border');
         el.classList.add('bg-info', 'text-dark');
-        el.title = 'Click to change region for this channel';
+        el.title = t('chat.region_title');
     } else {
-        nameEl.textContent = 'No region';
+        nameEl.textContent = t('chat.region_none');
         el.classList.remove('bg-info', 'text-dark');
         el.classList.add('bg-light', 'text-secondary', 'border');
-        el.title = 'Click to set a region for this channel';
+        el.title = t('chat.region_set_title');
     }
 }
 
@@ -4334,9 +4334,9 @@ function updateStatus(status) {
     const statusEl = document.getElementById('statusText');
 
     const icons = {
-        connected: '<i class="bi bi-circle-fill status-connected"></i> Connected',
-        disconnected: '<i class="bi bi-circle-fill status-disconnected"></i> Disconnected',
-        connecting: '<i class="bi bi-circle-fill status-connecting"></i> Connecting...'
+        connected: `<i class="bi bi-circle-fill status-connected"></i> ${tHtml('common.connected')}`,
+        disconnected: `<i class="bi bi-circle-fill status-disconnected"></i> ${tHtml('common.disconnected')}`,
+        connecting: `<i class="bi bi-circle-fill status-connecting"></i> ${tHtml('common.connecting')}`
     };
 
     statusEl.innerHTML = icons[status] || icons.connecting;
@@ -4348,7 +4348,7 @@ function updateStatus(status) {
 function updateLastRefresh() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString();
-    document.getElementById('lastRefresh').textContent = `Updated: ${timeStr}`;
+    document.getElementById('lastRefresh').textContent = t('chat.updated', { time: timeStr });
 }
 
 /**
@@ -6339,13 +6339,13 @@ function initializeFabToggle() {
     // Restore collapsed state
     if (localStorage.getItem('mc-webui-fab-collapsed') === '1') {
         container.classList.add('collapsed');
-        toggle.title = 'Show buttons';
+        toggle.title = t('chat.fab.show');
     }
 
     toggle.addEventListener('click', () => {
         container.classList.toggle('collapsed');
         const isCollapsed = container.classList.contains('collapsed');
-        toggle.title = isCollapsed ? 'Show buttons' : 'Hide buttons';
+        toggle.title = isCollapsed ? t('chat.fab.show') : t('chat.fab.hide');
         localStorage.setItem('mc-webui-fab-collapsed', isCollapsed ? '1' : '0');
     });
 
@@ -6620,7 +6620,7 @@ function applyFilter(query) {
         noMatchesDiv.className = 'filter-no-matches';
         noMatchesDiv.innerHTML = `
             <i class="bi bi-search"></i>
-            <p>No messages match "${escapeHtml(currentFilterQuery)}"</p>
+            <p>${tHtml('chat.filter.no_matches', { query: currentFilterQuery })}</p>
         `;
         container.appendChild(noMatchesDiv);
     }

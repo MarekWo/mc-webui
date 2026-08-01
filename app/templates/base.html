@@ -63,13 +63,13 @@
                 <small class="text-white-50 d-none d-sm-inline">- {{ device_name }}</small>
                 {% endif %}
                 {% if transport_type == 'ble' %}
-                <span class="badge bg-info ms-1 d-none d-sm-inline" title="Bluetooth Low Energy">BLE</span>
+                <span class="badge bg-info ms-1 d-none d-sm-inline" title="{{ t('nav.ble_title') }}">BLE</span>
                 {% elif transport_type == 'tcp' %}
-                <span class="badge bg-warning text-dark ms-1 d-none d-sm-inline" title="TCP connection">TCP</span>
+                <span class="badge bg-warning text-dark ms-1 d-none d-sm-inline" title="{{ t('nav.tcp_title') }}">TCP</span>
                 {% endif %}
             </span>
             <div class="d-flex align-items-center gap-2">
-                <div id="notificationBell" class="btn btn-outline-light position-relative navbar-touch-btn" style="cursor: pointer;" onclick="markAllChannelsRead()" title="Mark all as read">
+                <div id="notificationBell" class="btn btn-outline-light position-relative navbar-touch-btn" style="cursor: pointer;" onclick="markAllChannelsRead()" title="{{ t('nav.mark_all_read_title') }}">
                     <i class="bi bi-bell"></i>
                 </div>
                 <div class="position-relative channel-mobile-selector" id="channelSelectorWrapper" style="min-width: 80px; max-width: 140px;">
@@ -78,11 +78,11 @@
                            class="form-control form-select navbar-touch-select"
                            placeholder="Public"
                            autocomplete="off"
-                           title="Select channel"
+                           title="{{ t('nav.select_channel_title') }}"
                            style="cursor: pointer;">
                     <div id="channelSelectorDropdown" class="channel-selector-dropdown" style="display: none;"></div>
                 </div>
-                <button class="btn btn-outline-light navbar-touch-btn" data-bs-toggle="offcanvas" data-bs-target="#mainMenu" title="Menu">
+                <button class="btn btn-outline-light navbar-touch-btn" data-bs-toggle="offcanvas" data-bs-target="#mainMenu" title="{{ t('menu.title') }}">
                     <i class="bi bi-list"></i>
                 </button>
             </div>
@@ -92,7 +92,7 @@
     <!-- Offcanvas Menu -->
     <div class="offcanvas offcanvas-end" tabindex="-1" id="mainMenu">
         <div class="offcanvas-header">
-            <h5 class="offcanvas-title"><i class="bi bi-menu-button-wide"></i> Menu</h5>
+            <h5 class="offcanvas-title"><i class="bi bi-menu-button-wide"></i> {{ t('menu.title') }}</h5>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="px-3 pb-2 text-muted small border-bottom">
@@ -102,9 +102,9 @@
                     <span class="badge bg-secondary ms-1" id="branchBadge">{{ git_branch }}</span>
                     <!-- Exact build: what pins a deployment down, and what the
                          update poller compares - keep it as its own element -->
-                    <span id="versionText" class="d-block opacity-75" title="Exact build">{{ version }}</span>
+                    <span id="versionText" class="d-block opacity-75" title="{{ t('menu.exact_build_title') }}">{{ version }}</span>
                 </span>
-                <button id="checkUpdateBtn" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Check for updates">
+                <button id="checkUpdateBtn" class="btn btn-sm btn-outline-secondary py-0 px-1" title="{{ t('menu.check_updates_title') }}">
                     <i class="bi bi-arrow-repeat" id="checkUpdateIcon"></i>
                 </button>
             </div>
@@ -116,26 +116,26 @@
                 <!-- The Android wrapper has no pull-to-refresh of its own, so
                      this is the manual way out of a list that fell behind -->
                 <button id="refreshBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" type="button"
-                        data-bs-dismiss="offcanvas" title="Reload messages from the server">
+                        data-bs-dismiss="offcanvas" title="{{ t('menu.refresh_title') }}">
                     <i class="bi bi-arrow-clockwise" style="font-size: 1.5rem;"></i>
                     <div class="flex-grow-1">
-                        <div>Refresh</div>
-                        <small class="d-block text-muted">Reload messages from server</small>
+                        <div>{{ t('common.refresh') }}</div>
+                        <small class="d-block text-muted">{{ t('menu.refresh_desc') }}</small>
                     </div>
                 </button>
                 <button id="menu-filter" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" type="button">
                     <i class="bi bi-funnel" style="font-size: 1.5rem;"></i>
                     <div class="flex-grow-1">
-                        <div>Filter messages</div>
-                        <small class="d-block text-muted">Filter current chat</small>
+                        <div>{{ t('menu.filter') }}</div>
+                        <small class="d-block text-muted">{{ t('menu.filter_desc') }}</small>
                     </div>
                 </button>
                 <button id="menu-search" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" type="button"
                         data-bs-toggle="modal" data-bs-target="#searchModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-search" style="font-size: 1.5rem;"></i>
                     <div class="flex-grow-1">
-                        <div>Search messages</div>
-                        <small class="d-block text-muted">Search all messages</small>
+                        <div>{{ t('menu.search') }}</div>
+                        <small class="d-block text-muted">{{ t('menu.search_desc') }}</small>
                     </div>
                 </button>
                 <button id="menu-dm" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" type="button"
@@ -143,10 +143,10 @@
                     <i class="bi bi-envelope-fill" style="font-size: 1.5rem;"></i>
                     <div class="flex-grow-1">
                         <div class="d-flex justify-content-between align-items-center">
-                            <span>Direct Messages</span>
+                            <span>{{ t('dm.title') }}</span>
                             <span class="badge rounded-pill bg-danger d-none menu-badge-dm">0</span>
                         </div>
-                        <small class="d-block text-muted">Private conversations</small>
+                        <small class="d-block text-muted">{{ t('menu.dm_desc') }}</small>
                     </div>
                 </button>
                 <button id="menu-contacts" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" type="button"
@@ -154,107 +154,107 @@
                     <i class="bi bi-person-lines-fill" style="font-size: 1.5rem;"></i>
                     <div class="flex-grow-1">
                         <div class="d-flex justify-content-between align-items-center">
-                            <span>Contact Management</span>
+                            <span>{{ t('contacts.title') }}</span>
                             <span class="badge rounded-pill bg-warning d-none menu-badge-contacts">0</span>
                         </div>
-                        <small class="d-block text-muted">Manage known contacts</small>
+                        <small class="d-block text-muted">{{ t('menu.contacts_desc') }}</small>
                     </div>
                 </button>
                 <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#channelsModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-broadcast-pin" style="font-size: 1.5rem;"></i>
-                    <span>Manage Channels</span>
+                    <span>{{ t('menu.channels') }}</span>
                 </button>
                 <div class="list-group-item">
                     <div class="d-flex align-items-center gap-3 mb-2">
                         <i class="bi bi-calendar3" style="font-size: 1.5rem;"></i>
-                        <label for="dateSelector" class="form-label mb-0">Message History</label>
+                        <label for="dateSelector" class="form-label mb-0">{{ t('menu.history') }}</label>
                     </div>
-                    <select id="dateSelector" class="form-select" title="Select date">
-                        <option value="">Today (Live)</option>
+                    <select id="dateSelector" class="form-select" title="{{ t('menu.select_date_title') }}">
+                        <option value="">{{ t('menu.today_live') }}</option>
                         <!-- Archive dates loaded dynamically via JavaScript -->
                     </select>
                 </div>
 
                 <!-- Network -->
                 <div class="list-group-item py-2 mt-2">
-                    <small class="text-muted fw-bold text-uppercase">Network</small>
+                    <small class="text-muted fw-bold text-uppercase">{{ t('menu.section.network') }}</small>
                 </div>
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" id="advertBtn" title="Send single advertisement (recommended for normal operation)">
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" id="advertBtn" title="{{ t('menu.advert_title') }}">
                     <i class="bi bi-megaphone" style="font-size: 1.5rem;"></i>
                     <div>
-                        <span>Send Advert</span>
-                        <small class="d-block text-muted">Announce presence (normal)</small>
+                        <span>{{ t('menu.advert') }}</span>
+                        <small class="d-block text-muted">{{ t('menu.advert_desc') }}</small>
                     </div>
                 </button>
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 text-warning" id="floodadvBtn" title="Flood advertisement - use sparingly! High airtime usage.">
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 text-warning" id="floodadvBtn" title="{{ t('menu.flood_advert_title') }}">
                     <i class="bi bi-broadcast" style="font-size: 1.5rem;"></i>
                     <div>
-                        <span>Flood Advert</span>
-                        <small class="d-block text-muted">Network recovery only!</small>
+                        <span>{{ t('menu.flood_advert') }}</span>
+                        <small class="d-block text-muted">{{ t('menu.flood_advert_desc') }}</small>
                     </div>
                 </button>
 
                 <!-- Tools -->
                 <div class="list-group-item py-2 mt-2">
-                    <small class="text-muted fw-bold text-uppercase">Tools</small>
+                    <small class="text-muted fw-bold text-uppercase">{{ t('menu.section.tools') }}</small>
                 </div>
                 <button class="list-group-item list-group-item-action d-flex align-items-center gap-3"
-                        id="mapBtn" title="Show all contacts with GPS on map">
+                        id="mapBtn" title="{{ t('menu.map_title') }}">
                     <i class="bi bi-map" style="font-size: 1.5rem;"></i>
                     <div>
-                        <span>Map</span>
-                        <small class="d-block text-muted">All contacts with GPS</small>
+                        <span>{{ t('menu.map') }}</span>
+                        <small class="d-block text-muted">{{ t('menu.map_desc') }}</small>
                     </div>
                 </button>
                 <button id="consoleBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#consoleModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-terminal" style="font-size: 1.5rem;"></i>
                     <div>
-                        <span>Console</span>
-                        <small class="d-block text-muted">Direct meshcli commands</small>
+                        <span>{{ t('console.title') }}</span>
+                        <small class="d-block text-muted">{{ t('menu.console_desc') }}</small>
                     </div>
                 </button>
                 <button id="repeatersBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#repeatersModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-diagram-3" style="font-size: 1.5rem;"></i>
                     <div>
-                        <span>My Repeaters</span>
-                        <small class="d-block text-muted">Repeater administration</small>
+                        <span>{{ t('repeaters.title') }}</span>
+                        <small class="d-block text-muted">{{ t('menu.repeaters_desc') }}</small>
                     </div>
                 </button>
                 <button id="pathAnalyzerBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#pathAnalyzerModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-signpost-split" style="font-size: 1.5rem;"></i>
                     <div>
-                        <span>Path Analyzer</span>
-                        <small class="d-block text-muted">Routing path analysis</small>
+                        <span>{{ t('pa.title') }}</span>
+                        <small class="d-block text-muted">{{ t('menu.pa_desc') }}</small>
                     </div>
                 </button>
 
                 <!-- System -->
                 <div class="list-group-item py-2 mt-2">
-                    <small class="text-muted fw-bold text-uppercase">System</small>
+                    <small class="text-muted fw-bold text-uppercase">{{ t('menu.section.system') }}</small>
                 </div>
                 <button id="deviceInfoBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#deviceInfoModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-cpu" style="font-size: 1.5rem;"></i>
-                    <span>Device Info</span>
+                    <span>{{ t('menu.device_info') }}</span>
                 </button>
                 <button id="logsBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#logsModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-journal-text" style="font-size: 1.5rem;"></i>
                     <div>
-                        <span>System Log</span>
-                        <small class="d-block text-muted">Real-time application logs</small>
+                        <span>{{ t('logs.title') }}</span>
+                        <small class="d-block text-muted">{{ t('menu.logs_desc') }}</small>
                     </div>
                 </button>
                 <button id="menu-settings" class="list-group-item list-group-item-action d-flex align-items-center gap-3 d-none" data-bs-toggle="modal" data-bs-target="#settingsModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-gear" style="font-size: 1.5rem;"></i>
                     <div>
-                        <span>Settings</span>
-                        <small class="d-block text-muted">Application settings</small>
+                        <span>{{ t('common.settings') }}</span>
+                        <small class="d-block text-muted">{{ t('menu.settings_desc') }}</small>
                     </div>
                 </button>
                 <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#backupModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-database-down" style="font-size: 1.5rem;"></i>
                     <div>
-                        <span>Backup</span>
-                        <small class="d-block text-muted">Database backup & restore</small>
+                        <span>{{ t('menu.backup') }}</span>
+                        <small class="d-block text-muted">{{ t('menu.backup_desc') }}</small>
                     </div>
                 </button>
             </div>
