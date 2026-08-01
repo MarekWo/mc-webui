@@ -2560,7 +2560,7 @@ async function saveChatSettings() {
         const el = document.getElementById(elId);
         const val = parseInt(el.value, 10);
         if (isNaN(val) || val < parseInt(el.min) || val > parseInt(el.max)) {
-            showNotification(`Invalid value for ${el.previousElementSibling?.textContent || key}`, 'danger');
+            showNotification(t('settings.toast.invalid_value', { field: el.previousElementSibling?.textContent || key }), 'danger');
             el.focus();
             return;
         }
@@ -2778,7 +2778,7 @@ async function saveDmRetrySettings() {
         const el = document.getElementById(elId);
         const val = parseInt(el.value, 10);
         if (isNaN(val) || val < parseInt(el.min) || val > parseInt(el.max)) {
-            showNotification(`Invalid value for ${el.previousElementSibling?.textContent || key}`, 'danger');
+            showNotification(t('settings.toast.invalid_value', { field: el.previousElementSibling?.textContent || key }), 'danger');
             el.focus();
             return;
         }
@@ -3054,7 +3054,7 @@ async function executeSpecialCommand(command) {
 
     } catch (error) {
         console.error(`Error executing ${command}:`, error);
-        showNotification(`Failed to execute ${command}`, 'danger');
+        showNotification(t('device.cmd.exec_failed', { command }), 'danger');
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -3367,7 +3367,7 @@ async function addRegion(name, inputEl) {
 }
 
 async function deleteRegion(id, name) {
-    if (!confirm(`Delete region "${name}"?\nChannels using this region will revert to no scope.`)) return;
+    if (!confirm(t('settings.regions.confirm.delete', { name }))) return;
     try {
         const resp = await fetch(`/api/regions/${id}`, { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
@@ -3570,7 +3570,7 @@ async function saveAnalyzerFromForm() {
         return;
     }
     if (!url_template.includes(ANALYZER_PLACEHOLDER)) {
-        showAnalyzerFormError(`URL must contain the ${ANALYZER_PLACEHOLDER} placeholder`);
+        showAnalyzerFormError(t('analyzer.url_placeholder_missing', { placeholder: ANALYZER_PLACEHOLDER }));
         return;
     }
 
@@ -3613,7 +3613,7 @@ function showAnalyzerFormError(msg) {
 }
 
 async function deleteAnalyzer(id, name) {
-    if (!confirm(`Delete analyzer "${name}"?`)) return;
+    if (!confirm(t('analyzer.confirm.delete', { name }))) return;
     try {
         const resp = await fetch(`/api/analyzers/${id}`, { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
@@ -3960,7 +3960,7 @@ async function saveObserverBrokerFromForm() {
 }
 
 async function deleteObserverBroker(id, name) {
-    if (!confirm(`Delete broker "${name}"?`)) return;
+    if (!confirm(t('observer.confirm.delete', { name }))) return;
     try {
         const resp = await fetch(`/api/observer/brokers/${id}`, { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
@@ -4212,18 +4212,18 @@ function sendBrowserNotification(channelCount, dmCount, pendingCount) {
     const parts = [];
 
     if (channelCount > 0) {
-        parts.push(`${channelCount} ${channelCount === 1 ? 'channel' : 'channels'}`);
+        parts.push(tn('notify.channels', channelCount));
     }
     if (dmCount > 0) {
-        parts.push(`${dmCount} ${dmCount === 1 ? 'private message' : 'private messages'}`);
+        parts.push(tn('notify.dms', dmCount));
     }
     if (pendingCount > 0) {
-        parts.push(`${pendingCount} ${pendingCount === 1 ? 'pending contact' : 'pending contacts'}`);
+        parts.push(tn('notify.pending', pendingCount));
     }
 
     if (parts.length === 0) return;
 
-    message = `New: ${parts.join(', ')}`;
+    message = t('notify.new', { parts: parts.join(', ') });
 
     try {
         const notification = new Notification('mc-webui', {
@@ -4407,22 +4407,22 @@ async function checkForAppUpdates() {
                 if (updaterStatus.available) {
                     // Show "Update Now" link below version
                     if (updateLinkContainer) {
-                        updateLinkContainer.innerHTML = `<a href="#" onclick="openUpdateModal('${newVersion}', '${githubUrl}'); return false;" class="text-success" title="Click to update"><i class="bi bi-arrow-up-circle-fill"></i> Update now</a>`;
+                        updateLinkContainer.innerHTML = `<a href="#" onclick="openUpdateModal('${newVersion}', '${githubUrl}'); return false;" class="text-success" title="${tHtml('update.link_now_title')}"><i class="bi bi-arrow-up-circle-fill"></i> ${tHtml('update.link_now')}</a>`;
                         updateLinkContainer.classList.remove('d-none');
                     }
                 } else {
                     // Show link to GitHub (no remote update available)
                     if (updateLinkContainer) {
-                        updateLinkContainer.innerHTML = `<a href="${githubUrl}" target="_blank" class="text-success" title="Update available: ${newVersion}"><i class="bi bi-arrow-up-circle-fill"></i> Update available</a>`;
+                        updateLinkContainer.innerHTML = `<a href="${githubUrl}" target="_blank" class="text-success" title="${tHtml('update.link_available_title', { version: newVersion })}"><i class="bi bi-arrow-up-circle-fill"></i> ${tHtml('update.link_available')}</a>`;
                         updateLinkContainer.classList.remove('d-none');
                     }
                 }
                 icon.className = 'bi bi-check-circle-fill text-success';
-                showNotification(`Update available: ${data.latest_date}+${data.latest_commit}`, 'success');
+                showNotification(t('update.toast.available', { version: `${data.latest_date}+${data.latest_commit}` }), 'success');
             } else {
                 // Up to date
                 icon.className = 'bi bi-check-circle text-success';
-                showNotification('You are running the latest version', 'success');
+                showNotification(t('update.toast.latest'), 'success');
                 // Reset icon after 3 seconds
                 setTimeout(() => {
                     icon.className = 'bi bi-arrow-repeat';
@@ -4431,7 +4431,7 @@ async function checkForAppUpdates() {
         } else {
             // Error
             icon.className = 'bi bi-exclamation-triangle text-warning';
-            showNotification(data.error || 'Failed to check for updates', 'warning');
+            showNotification(data.error || t('update.toast.check_failed'), 'warning');
             setTimeout(() => {
                 icon.className = 'bi bi-arrow-repeat';
             }, 3000);
@@ -4439,7 +4439,7 @@ async function checkForAppUpdates() {
     } catch (error) {
         console.error('Error checking for updates:', error);
         icon.className = 'bi bi-exclamation-triangle text-danger';
-        showNotification('Network error checking for updates', 'danger');
+        showNotification(t('update.toast.check_error'), 'danger');
         setTimeout(() => {
             icon.className = 'bi bi-arrow-repeat';
         }, 3000);
@@ -4468,7 +4468,7 @@ function openUpdateModal(newVersion, githubUrl) {
     document.getElementById('updateCancelBtn').classList.remove('d-none');
     document.getElementById('updateConfirmBtn').classList.remove('d-none');
     document.getElementById('updateReloadBtn').classList.add('d-none');
-    document.getElementById('updateMessage').textContent = `New version available: ${newVersion}`;
+    document.getElementById('updateMessage').textContent = t('update.new_version', { version: newVersion });
 
     // Set up "What's new" link
     const whatsNewEl = document.getElementById('updateWhatsNew');
@@ -4500,7 +4500,7 @@ async function performRemoteUpdate() {
     document.getElementById('updateProgress').classList.remove('d-none');
     document.getElementById('updateCancelBtn').classList.add('d-none');
     document.getElementById('updateConfirmBtn').classList.add('d-none');
-    document.getElementById('updateProgressMessage').textContent = 'Starting update...';
+    document.getElementById('updateProgressMessage').textContent = t('update.starting');
 
     try {
         // Trigger update
@@ -4508,11 +4508,11 @@ async function performRemoteUpdate() {
         const data = await response.json();
 
         if (!data.success) {
-            showUpdateResult(false, data.error || 'Failed to start update');
+            showUpdateResult(false, data.error || t('update.start_failed'));
             return;
         }
 
-        document.getElementById('updateProgressMessage').textContent = 'Update started. Waiting for server to restart...';
+        document.getElementById('updateProgressMessage').textContent = t('update.waiting');
 
         // Poll for server to come back up with new version
         let attempts = 0;
@@ -4534,20 +4534,20 @@ async function performRemoteUpdate() {
 
                     // Check if version changed
                     if (newVersion !== currentVersion) {
-                        showUpdateResult(true, `Updated to ${newVersion}`);
+                        showUpdateResult(true, t('update.done', { version: newVersion }));
                         return;
                     }
                 }
             } catch (e) {
                 // Server not responding yet - this is expected during restart
                 document.getElementById('updateProgressMessage').textContent =
-                    `Rebuilding containers... (${attempts}/${maxAttempts})`;
+                    t('update.rebuilding', { attempt: attempts, max: maxAttempts });
             }
 
             if (attempts < maxAttempts) {
                 setTimeout(pollForCompletion, pollInterval);
             } else {
-                showUpdateResult(false, 'Update timed out. Please check server manually.');
+                showUpdateResult(false, t('update.timed_out'));
             }
         };
 
@@ -4556,7 +4556,7 @@ async function performRemoteUpdate() {
 
     } catch (error) {
         console.error('Update error:', error);
-        showUpdateResult(false, 'Network error during update');
+        showUpdateResult(false, t('update.network_error'));
     }
 }
 
@@ -4666,7 +4666,7 @@ function populateDateSelector(archives) {
     archives.forEach(archive => {
         const option = document.createElement('option');
         option.value = archive.date;
-        option.textContent = `${archive.date} (${archive.message_count} msgs)`;
+        option.textContent = t('menu.archive_option', { date: archive.date, count: archive.message_count });
         selector.appendChild(option);
     });
 
@@ -4859,7 +4859,7 @@ async function markAllChannelsRead() {
     for (const [idx, count] of Object.entries(unreadCounts)) {
         if (count > 0) {
             const channel = availableChannels.find(ch => ch.index === parseInt(idx));
-            const name = channel ? channel.name : `Channel ${idx}`;
+            const name = channel ? channel.name : t('chat.unnamed_channel', { index: idx });
             unreadChannels.push({ idx, count, name });
         }
     }
@@ -4868,7 +4868,7 @@ async function markAllChannelsRead() {
 
     // Show confirmation dialog with list of unread channels
     const channelList = unreadChannels.map(ch => `  - ${ch.name} (${ch.count})`).join('\n');
-    if (!confirm(`Mark all messages as read?\n\nUnread channels:\n${channelList}`)) return;
+    if (!confirm(t('chat.confirm.mark_all_read', { channels: channelList }))) return;
 
     // Collect latest timestamps
     const now = Math.floor(Date.now() / 1000);
@@ -6090,7 +6090,7 @@ function showMentionsPopup(query) {
     const filtered = filterContacts(query);
 
     if (filtered.length === 0) {
-        list.innerHTML = '<div class="mentions-empty">No contacts found</div>';
+        list.innerHTML = `<div class="mentions-empty">${tHtml('chat.mentions.none')}</div>`;
         popup.classList.remove('hidden');
         return;
     }
@@ -6773,7 +6773,7 @@ function showFilterMentionsPopup(query) {
     const filtered = filterContacts(query);
 
     if (filtered.length === 0) {
-        list.innerHTML = '<div class="mentions-empty">No contacts found</div>';
+        list.innerHTML = `<div class="mentions-empty">${tHtml('chat.mentions.none')}</div>`;
         popup.classList.remove('hidden');
         return;
     }
@@ -6911,11 +6911,11 @@ async function performSearch(query) {
     if (!container) return;
 
     if (query.length < 2) {
-        container.innerHTML = '<div class="text-center text-muted py-4"><p>Type at least 2 characters to search</p></div>';
+        container.innerHTML = `<div class="text-center text-muted py-4"><p>${tHtml('search.min_chars')}</p></div>`;
         return;
     }
 
-    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Searching...</div>';
+    container.innerHTML = `<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> ${tHtml('search.searching')}</div>`;
 
     try {
         const response = await fetch(`/api/messages/search?q=${encodeURIComponent(query)}&limit=50`);
@@ -6927,11 +6927,11 @@ async function performSearch(query) {
         }
 
         if (data.results.length === 0) {
-            container.innerHTML = `<div class="text-center text-muted py-4"><i class="bi bi-inbox" style="font-size: 2rem;"></i><p class="mt-2">No results for "${escapeHtml(query)}"</p></div>`;
+            container.innerHTML = `<div class="text-center text-muted py-4"><i class="bi bi-inbox" style="font-size: 2rem;"></i><p class="mt-2">${tHtml('search.no_results', { query })}</p></div>`;
             return;
         }
 
-        container.innerHTML = `<div class="text-muted small mb-2">${data.count} result${data.count !== 1 ? 's' : ''}</div>`;
+        container.innerHTML = `<div class="text-muted small mb-2">${tn('search.count', data.count)}</div>`;
 
         const list = document.createElement('div');
         list.className = 'list-group';
@@ -6968,7 +6968,7 @@ async function performSearch(query) {
                         <div>
                             <span class="badge bg-success me-1">DM</span>
                             <strong class="small">${escapeHtml(r.contact_name || '')}</strong>
-                            <span class="text-muted small">${r.direction === 'out' ? '(sent)' : '(received)'}</span>
+                            <span class="text-muted small">${tHtml(r.direction === 'out' ? 'search.dm_sent' : 'search.dm_received')}</span>
                         </div>
                         <small class="text-muted">${time}</small>
                     </div>
@@ -6987,7 +6987,7 @@ async function performSearch(query) {
 
     } catch (error) {
         console.error('Search error:', error);
-        container.innerHTML = '<div class="alert alert-danger">Search failed. Please try again.</div>';
+        container.innerHTML = `<div class="alert alert-danger">${tHtml('search.failed')}</div>`;
     }
 }
 
