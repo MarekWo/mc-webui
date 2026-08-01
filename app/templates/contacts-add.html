@@ -1,6 +1,6 @@
 {% extends "contacts_base.html" %}
 
-{% block title %}Add Contact - mc-webui{% endblock %}
+{% block title %}{{ t('contacts.add.title') }} - mc-webui{% endblock %}
 
 {% block extra_head %}
 <!-- html5-qrcode for QR scanning -->
@@ -12,7 +12,7 @@
     <!-- Page Header -->
     <div class="mb-3">
         <h4 class="mb-2">
-            <i class="bi bi-person-plus"></i> Add Contact
+            <i class="bi bi-person-plus"></i> {{ t('contacts.add.title') }}
         </h4>
     </div>
 
@@ -32,12 +32,12 @@
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-qr" data-bs-toggle="tab" data-bs-target="#pane-qr" type="button" role="tab">
-                <i class="bi bi-qr-code-scan"></i> QR Code
+                <i class="bi bi-qr-code-scan"></i> {{ t('channels.qr_alt') }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-manual" data-bs-toggle="tab" data-bs-target="#pane-manual" type="button" role="tab">
-                <i class="bi bi-pencil"></i> Manual
+                <i class="bi bi-pencil"></i> {{ t('contacts.add.tab_manual') }}
             </button>
         </li>
     </ul>
@@ -59,7 +59,7 @@
                 <div><span class="text-muted">{{ t('contacts.add.type_short') }}</span> <span id="uriPreviewType"></span></div>
             </div>
             <button class="btn btn-success" id="addFromUriBtn" disabled>
-                <i class="bi bi-plus-circle"></i> Add Contact
+                <i class="bi bi-plus-circle"></i> {{ t('contacts.add.title') }}
             </button>
         </div>
 
@@ -70,10 +70,10 @@
                 <div id="qrReader" style="width: 100%; max-width: 500px;"></div>
                 <div id="qrCameraButtons" class="d-flex gap-2 mt-2">
                     <button class="btn btn-primary btn-sm" id="startCameraBtn">
-                        <i class="bi bi-camera-video"></i> Start Camera
+                        <i class="bi bi-camera-video"></i> {{ t('contacts.add.start_camera') }}
                     </button>
                     <button class="btn btn-outline-secondary btn-sm d-none" id="stopCameraBtn">
-                        <i class="bi bi-stop-circle"></i> Stop Camera
+                        <i class="bi bi-stop-circle"></i> {{ t('contacts.add.stop_camera') }}
                     </button>
                 </div>
             </div>
@@ -91,7 +91,7 @@
             </div>
             <div id="qrError" class="alert alert-danger d-none mb-3"></div>
             <button class="btn btn-success d-none" id="addFromQrBtn">
-                <i class="bi bi-plus-circle"></i> Add Contact
+                <i class="bi bi-plus-circle"></i> {{ t('contacts.add.title') }}
             </button>
         </div>
 
@@ -105,7 +105,7 @@
                 <label for="manualKey" class="form-label">{{ t('contacts.add.pubkey') }}</label>
                 <input type="text" class="form-control font-monospace" id="manualKey"
                     placeholder="{{ t('contacts.add.pubkey_ph') }}" maxlength="64" pattern="[0-9a-fA-F]{64}">
-                <small class="form-text text-muted" id="manualKeyCount">0 / 64 characters</small>
+                <small class="form-text text-muted" id="manualKeyCount">{{ t('contacts.add.key_count', n=0) }}</small>
             </div>
             <div class="mb-3">
                 <label for="manualType" class="form-label">{{ t('contacts.add.type') }}</label>
@@ -117,7 +117,7 @@
                 </select>
             </div>
             <button class="btn btn-success" id="addManualBtn" disabled>
-                <i class="bi bi-plus-circle"></i> Add Contact
+                <i class="bi bi-plus-circle"></i> {{ t('contacts.add.title') }}
             </button>
         </div>
     </div>

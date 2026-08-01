@@ -2661,7 +2661,7 @@ function handleManualKeyInput() {
     const input = document.getElementById('manualKey');
     // Allow only hex characters
     input.value = input.value.replace(/[^0-9a-fA-F]/g, '').toLowerCase();
-    document.getElementById('manualKeyCount').textContent = `${input.value.length} / 64 characters`;
+    document.getElementById('manualKeyCount').textContent = t('contacts.add.key_count', { n: input.value.length });
     validateManualForm();
 }
 
@@ -2729,7 +2729,7 @@ function resetAddForm(mode) {
     } else if (mode === 'manual') {
         document.getElementById('manualName').value = '';
         document.getElementById('manualKey').value = '';
-        document.getElementById('manualKeyCount').textContent = '0 / 64 characters';
+        document.getElementById('manualKeyCount').textContent = t('contacts.add.key_count', { n: 0 });
         document.getElementById('addManualBtn').disabled = true;
     }
 }

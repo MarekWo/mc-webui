@@ -1,13 +1,13 @@
 {% extends "contacts_base.html" %}
 
-{% block title %}Pending Contacts - mc-webui{% endblock %}
+{% block title %}{{ t('contacts.pending.title') }} - mc-webui{% endblock %}
 
 {% block page_content %}
 <div id="pendingPageContent" class="p-3">
     <!-- Page Header -->
     <div class="mb-3">
         <h4 class="mb-2">
-            <i class="bi bi-hourglass-split"></i> Pending Contacts
+            <i class="bi bi-hourglass-split"></i> {{ t('contacts.pending.title') }}
             <span class="badge bg-primary rounded-pill" id="pendingCountBadge" style="display: none; font-size: 0.8rem;">0</span>
         </h4>
     </div>
@@ -18,7 +18,7 @@
             <i class="bi bi-arrow-left"></i> {{ t('common.back') }}
         </button>
         <button class="btn btn-outline-primary btn-sm" id="refreshPendingBtn">
-            <i class="bi bi-arrow-clockwise"></i> Refresh
+            <i class="bi bi-arrow-clockwise"></i> {{ t('common.refresh') }}
         </button>
     </div>
 
@@ -27,7 +27,7 @@
         <div class="card">
             <div class="card-body p-3">
                 <h6 class="mb-2">
-                    <i class="bi bi-funnel"></i> Filters
+                    <i class="bi bi-funnel"></i> {{ t('pa.filters') }}
                     <i class="bi bi-info-circle text-muted ms-1" role="button" tabindex="0"
                        data-bs-toggle="tooltip" data-bs-placement="right"
                        title="{{ t('contacts.pending.filter_hint') }}"></i>
@@ -46,10 +46,10 @@
                     <input type="text" class="form-control form-control-sm" id="pendingSearchInput"
                            placeholder="{{ t('logs.filter.search_ph') }}" style="min-width: 0;">
                     <button class="btn btn-success btn-sm flex-shrink-0" id="addFilteredBtn">
-                        <i class="bi bi-check-circle-fill"></i> Approve
+                        <i class="bi bi-check-circle-fill"></i> {{ t('contacts.btn.approve') }}
                     </button>
                     <button class="btn btn-outline-secondary btn-sm flex-shrink-0" id="ignoreFilteredBtn">
-                        <i class="bi bi-eye-slash"></i> Ignore
+                        <i class="bi bi-eye-slash"></i> {{ t('contacts.btn.ignore') }}
                     </button>
                 </div>
             </div>
@@ -59,7 +59,7 @@
     <!-- Loading State -->
     <div id="pendingLoading" class="text-center py-5" style="display: none;">
         <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
+            <span class="visually-hidden">{{ t('common.loading') }}</span>
         </div>
         <p class="mt-3 text-muted">{{ t('contacts.pending.loading') }}</p>
     </div>
@@ -89,12 +89,12 @@
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title" id="batchApprovalModalLabel">
-                    <i class="bi bi-check-circle"></i> Confirm Batch Approval
+                    <i class="bi bi-check-circle"></i> {{ t('contacts.pending.confirm_approve_title') }}
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{{ t('common.close') }}"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-2">You are about to approve <strong id="batchApprovalCount">0</strong> contacts:</p>
+                <p class="mb-2">{{ t_html('contacts.pending.approve_confirm') }}</p>
 
                 <!-- List of contacts to approve -->
                 <div class="list-group mb-3" id="batchApprovalList" style="max-height: 300px; overflow-y: auto;">
@@ -102,13 +102,13 @@
                 </div>
 
                 <div class="alert alert-info mb-0">
-                    <i class="bi bi-info-circle"></i> These contacts will be added to your device and can receive/send messages.
+                    <i class="bi bi-info-circle"></i> {{ t('contacts.pending.approve_note') }}
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
                 <button type="button" class="btn btn-success" id="confirmBatchApprovalBtn">
-                    <i class="bi bi-check-circle-fill"></i> Approve All
+                    <i class="bi bi-check-circle-fill"></i> {{ t('contacts.btn.approve_all') }}
                 </button>
             </div>
         </div>
@@ -121,24 +121,24 @@
         <div class="modal-content">
             <div class="modal-header bg-secondary text-white">
                 <h5 class="modal-title" id="batchIgnoreModalLabel">
-                    <i class="bi bi-eye-slash"></i> Confirm Batch Ignore
+                    <i class="bi bi-eye-slash"></i> {{ t('contacts.pending.confirm_ignore_title') }}
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="{{ t('common.close') }}"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-2">You are about to ignore <strong id="batchIgnoreCount">0</strong> contacts:</p>
+                <p class="mb-2">{{ t_html('contacts.pending.ignore_confirm') }}</p>
 
                 <div class="list-group mb-3" id="batchIgnoreList" style="max-height: 300px; overflow-y: auto;">
                 </div>
 
                 <div class="alert alert-warning mb-0">
-                    <i class="bi bi-info-circle"></i> Ignored contacts will not trigger new pending requests. You can unignore them later from the Existing Contacts page.
+                    <i class="bi bi-info-circle"></i> {{ t('contacts.pending.ignore_note') }}
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
                 <button type="button" class="btn btn-outline-secondary" id="confirmBatchIgnoreBtn">
-                    <i class="bi bi-eye-slash"></i> Ignore All
+                    <i class="bi bi-eye-slash"></i> {{ t('contacts.btn.ignore_all') }}
                 </button>
             </div>
         </div>
