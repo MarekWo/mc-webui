@@ -2410,7 +2410,7 @@ async function saveDeviceRadioSettings() {
 function populateRadioPresets() {
     const select = document.getElementById('settRadioPreset');
     if (!select) return;
-    select.innerHTML = '<option value="">Load preset...</option>';
+    select.innerHTML = `<option value="">${tHtml('settings.device.load_preset')}</option>`;
     RADIO_PRESETS.forEach((preset, idx) => {
         const opt = document.createElement('option');
         opt.value = idx;

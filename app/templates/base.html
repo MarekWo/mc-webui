@@ -459,40 +459,40 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-gear"></i> Settings</h5>
+                    <h5 class="modal-title"><i class="bi bi-gear"></i> {{ t('common.settings') }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <ul class="nav nav-tabs mb-3" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabSettingsDevice" type="button">Device</button>
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabSettingsDevice" type="button">{{ t('device.title') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsMessages" type="button">Messages</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsMessages" type="button">{{ t('settings.tab.messages') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsChat" type="button">Group Chat</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsChat" type="button">{{ t('settings.tab.chat') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsInterface" type="button">Interface</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsInterface" type="button">{{ t('settings.tab.interface') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsAppearance" type="button">Appearance</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsAppearance" type="button">{{ t('settings.tab.appearance') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsContacts" type="button">Contacts</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsContacts" type="button">{{ t('settings.tab.contacts') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsRegions" type="button">Regions</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsRegions" type="button">{{ t('settings.tab.regions') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsAnalyzer" type="button">Analyzer</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsAnalyzer" type="button">{{ t('settings.tab.analyzer') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsObserver" type="button">Observer</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsObserver" type="button">{{ t('settings.tab.observer') }}</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsNotifications" type="button">Notifications</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsNotifications" type="button">{{ t('settings.tab.notifications') }}</button>
                         </li>
                     </ul>
                     <div class="tab-content">
@@ -501,11 +501,11 @@
                             <ul class="nav nav-pills nav-fill mb-3" role="tablist">
                                 <li class="nav-item" role="presentation">
                                     <button class="nav-link active py-1 px-2" data-bs-toggle="pill"
-                                            data-bs-target="#tabDevicePublicInfo" type="button">Public Info</button>
+                                            data-bs-target="#tabDevicePublicInfo" type="button">{{ t('settings.device.public_info') }}</button>
                                 </li>
                                 <li class="nav-item" role="presentation">
                                     <button class="nav-link py-1 px-2" data-bs-toggle="pill"
-                                            data-bs-target="#tabDeviceRadio" type="button">Radio Settings</button>
+                                            data-bs-target="#tabDeviceRadio" type="button">{{ t('settings.device.radio') }}</button>
                                 </li>
                             </ul>
                             <div class="tab-content">
@@ -515,30 +515,30 @@
                                         <table class="table table-sm table-borderless mb-3 align-middle">
                                             <tbody>
                                                 <tr>
-                                                    <td class="ps-0">Name</td>
+                                                    <td class="ps-0">{{ t('common.name') }}</td>
                                                     <td class="pe-0"><input type="text" class="form-control form-control-sm"
-                                                        id="settDeviceName" maxlength="32" placeholder="Device name"></td>
+                                                        id="settDeviceName" maxlength="32" placeholder="{{ t('settings.device.name_ph') }}"></td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="ps-0">Latitude</td>
+                                                    <td class="ps-0">{{ t('rptmgmt.set.lat') }}</td>
                                                     <td class="pe-0">
                                                         <div class="input-group input-group-sm">
                                                             <input type="number" class="form-control form-control-sm"
                                                                 id="settDeviceLat" step="0.000001" min="-90" max="90" placeholder="0.000000">
                                                             <button type="button" class="btn btn-outline-secondary" id="settDevicePickMapBtn"
-                                                                title="Pick from map"><i class="bi bi-geo-alt"></i></button>
+                                                                title="{{ t('rptmgmt.set.map_pick') }}"><i class="bi bi-geo-alt"></i></button>
                                                         </div>
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="ps-0">Longitude</td>
+                                                    <td class="ps-0">{{ t('rptmgmt.set.lon') }}</td>
                                                     <td class="pe-0"><input type="number" class="form-control form-control-sm"
                                                         id="settDeviceLon" step="0.000001" min="-180" max="180" placeholder="0.000000"></td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="ps-0">Share position in advert
+                                                    <td class="ps-0">{{ t('settings.device.share_pos') }}
                                                         <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip"
-                                                            title="Include GPS coordinates in device advertisement"><i class="bi bi-info-circle"></i></span>
+                                                            title="{{ t('settings.device.share_pos_help') }}"><i class="bi bi-info-circle"></i></span>
                                                     </td>
                                                     <td class="pe-0">
                                                         <div class="form-check form-switch mb-0">
@@ -547,22 +547,22 @@
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="ps-0">Path hash mode
+                                                    <td class="ps-0">{{ t('settings.device.path_hash_mode') }}
                                                         <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip"
-                                                            title="Bytes per hop in routing paths. 1B = shortest path, more collisions; 3B = longest, fewest collisions."><i class="bi bi-info-circle"></i></span>
+                                                            title="{{ t('settings.device.path_hash_mode_help') }}"><i class="bi bi-info-circle"></i></span>
                                                     </td>
                                                     <td class="pe-0">
                                                         <select class="form-select form-select-sm" id="settDevicePathHashMode">
-                                                            <option value="0">1 byte (default)</option>
-                                                            <option value="1">2 bytes</option>
-                                                            <option value="2">3 bytes</option>
+                                                            <option value="0">{{ t('settings.device.hash_1b') }}</option>
+                                                            <option value="1">{{ t('settings.device.hash_2b') }}</option>
+                                                            <option value="2">{{ t('settings.device.hash_3b') }}</option>
                                                         </select>
                                                     </td>
                                                 </tr>
                                             </tbody>
                                         </table>
                                         <div class="d-flex gap-2">
-                                            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                            <button type="submit" class="btn btn-primary btn-sm">{{ t('common.save') }}</button>
                                         </div>
                                     </form>
                                 </div>
@@ -574,17 +574,17 @@
                                                 <tr>
                                                     <td class="ps-0" colspan="2">
                                                         <select class="form-select form-select-sm" id="settRadioPreset">
-                                                            <option value="">Load preset...</option>
+                                                            <option value="">{{ t('settings.device.load_preset') }}</option>
                                                         </select>
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="ps-0">Frequency (MHz)</td>
+                                                    <td class="ps-0">{{ t('settings.device.freq') }}</td>
                                                     <td class="pe-0" style="width:7rem"><input type="number" class="form-control form-control-sm"
                                                         id="settRadioFreq" step="0.001" min="100" max="1000"></td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="ps-0">Bandwidth (kHz)</td>
+                                                    <td class="ps-0">{{ t('settings.device.bw') }}</td>
                                                     <td class="pe-0">
                                                         <select class="form-select form-select-sm" id="settRadioBw" style="width:7rem">
                                                             <option value="7.8">7.8</option>
@@ -601,24 +601,24 @@
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="ps-0">Spreading Factor</td>
+                                                    <td class="ps-0">{{ t('settings.device.sf') }}</td>
                                                     <td class="pe-0" style="width:7rem"><input type="number" class="form-control form-control-sm"
                                                         id="settRadioSf" min="5" max="12"></td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="ps-0">Coding Rate</td>
+                                                    <td class="ps-0">{{ t('settings.device.cr') }}</td>
                                                     <td class="pe-0" style="width:7rem"><input type="number" class="form-control form-control-sm"
                                                         id="settRadioCr" min="5" max="8"></td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="ps-0">TX Power (dBm)</td>
+                                                    <td class="ps-0">{{ t('settings.device.tx_power') }}</td>
                                                     <td class="pe-0" style="width:7rem"><input type="number" class="form-control form-control-sm"
                                                         id="settRadioTxPower" min="0" max="30"></td>
                                                 </tr>
                                             </tbody>
                                         </table>
                                         <div class="d-flex gap-2">
-                                            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                            <button type="submit" class="btn btn-primary btn-sm">{{ t('common.save') }}</button>
                                         </div>
                                     </form>
                                 </div>
@@ -627,78 +627,78 @@
                         <div class="tab-pane fade" id="tabSettingsMessages">
                             <div id="settingsMessagesContent">
                                 <form id="dmRetrySettingsForm">
-                                    <p class="text-muted small mb-3">Retries are counted after the initial send, e.g. 3 retries = 4 total attempts.</p>
-                                    <h6 class="text-muted mb-2">When path is known (DIRECT)</h6>
+                                    <p class="text-muted small mb-3">{{ t('settings.msg.intro') }}</p>
+                                    <h6 class="text-muted mb-2">{{ t('settings.msg.direct_header') }}</h6>
                                     <table class="table table-sm table-borderless mb-3 align-middle">
                                         <tbody>
                                             <tr>
-                                                <td class="ps-0">Direct retries <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Attempts via known path before switching to flood"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="ps-0">{{ t('settings.msg.direct_retries') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.msg.direct_retries_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                                 <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settDirectMaxRetries" min="0" max="20" value="3"></td>
                                             </tr>
                                             <tr>
-                                                <td class="ps-0">Flood retries <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Flood attempts after direct retries exhausted (when no configured paths)"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="ps-0">{{ t('settings.msg.flood_retries') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.msg.flood_retries_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                                 <td class="pe-0"><input type="number" class="form-control form-control-sm" id="settDirectFloodRetries" min="0" max="5" value="1"></td>
                                             </tr>
                                             <tr>
-                                                <td class="ps-0">Interval (s) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Seconds to wait between direct retries"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="ps-0">{{ t('settings.msg.interval') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.msg.direct_interval_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                                 <td class="pe-0"><input type="number" class="form-control form-control-sm" id="settDirectInterval" min="5" max="300" value="30"></td>
                                             </tr>
                                         </tbody>
                                     </table>
 
-                                    <h6 class="text-muted mb-2">When no path (FLOOD)</h6>
+                                    <h6 class="text-muted mb-2">{{ t('settings.msg.flood_header') }}</h6>
                                     <table class="table table-sm table-borderless mb-3 align-middle">
                                         <tbody>
                                             <tr>
-                                                <td class="ps-0">Max retries <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Flood retry attempts (also used after path rotation)"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="ps-0">{{ t('settings.msg.max_retries') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.msg.max_retries_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                                 <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settFloodMaxRetries" min="0" max="10" value="3"></td>
                                             </tr>
                                             <tr>
-                                                <td class="ps-0">Interval (s) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Seconds to wait between flood retries"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="ps-0">{{ t('settings.msg.interval') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.msg.flood_interval_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                                 <td class="pe-0"><input type="number" class="form-control form-control-sm" id="settFloodInterval" min="5" max="300" value="60"></td>
                                             </tr>
                                         </tbody>
                                     </table>
 
-                                    <h6 class="text-muted mb-2">Other</h6>
+                                    <h6 class="text-muted mb-2">{{ t('settings.msg.other') }}</h6>
                                     <table class="table table-sm table-borderless mb-3 align-middle">
                                         <tbody>
                                             <tr>
-                                                <td class="ps-0">Grace period (s) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Wait for late ACKs after all retries exhausted"><i class="bi bi-info-circle"></i></span></td>
+                                                <td class="ps-0">{{ t('settings.msg.grace') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.msg.grace_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                                 <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settGracePeriod" min="10" max="300" value="60"></td>
                                             </tr>
                                         </tbody>
                                     </table>
 
                                     <div class="d-flex gap-2">
-                                        <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="settingsResetBtn">Reset to defaults</button>
+                                        <button type="submit" class="btn btn-primary btn-sm">{{ t('common.save') }}</button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="settingsResetBtn">{{ t('settings.reset_defaults') }}</button>
                                     </div>
                                 </form>
                             </div>
                         </div>
                         <div class="tab-pane fade" id="tabSettingsChat">
                             <form id="chatSettingsForm">
-                                <h6 class="text-muted mb-2">Quote</h6>
+                                <h6 class="text-muted mb-2">{{ t('settings.chat.quote') }}</h6>
                                 <table class="table table-sm table-borderless mb-3 align-middle">
                                     <tbody>
                                         <tr>
-                                            <td class="ps-0">Quote length (bytes) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Default max UTF-8 bytes for truncated quotes"><i class="bi bi-info-circle"></i></span></td>
+                                            <td class="ps-0">{{ t('settings.chat.quote_len') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.chat.quote_len_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                             <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settQuoteMaxBytes" min="5" max="120" value="20"></td>
                                         </tr>
                                     </tbody>
                                 </table>
 
-                                <h6 class="text-muted mb-2">Route popup</h6>
-                                <p class="text-muted small mb-2">The popup shown when tapping "SNR | Hops" under a message. Also applies to DMs.</p>
+                                <h6 class="text-muted mb-2">{{ t('settings.chat.route_popup') }}</h6>
+                                <p class="text-muted small mb-2">{{ t('settings.chat.route_popup_desc') }}</p>
                                 <table class="table table-sm table-borderless mb-3 align-middle">
                                     <tbody>
                                         <tr>
-                                            <td class="ps-0">Auto-close after (s) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Seconds before the route popup closes automatically"><i class="bi bi-info-circle"></i></span></td>
+                                            <td class="ps-0">{{ t('settings.chat.autoclose') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.chat.autoclose_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                             <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settPathPopupTimeout" min="1" max="60" value="8"></td>
                                         </tr>
                                         <tr>
-                                            <td class="ps-0">Don't close automatically <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Popup stays open until you tap outside it"><i class="bi bi-info-circle"></i></span></td>
+                                            <td class="ps-0">{{ t('settings.chat.no_autoclose') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.chat.no_autoclose_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                             <td class="pe-0">
                                                 <div class="form-check form-switch mb-0">
                                                     <input class="form-check-input" type="checkbox" id="settPathPopupNoAutoclose">
@@ -708,22 +708,22 @@
                                     </tbody>
                                 </table>
                                 <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="chatSettingsResetBtn">Reset to defaults</button>
+                                    <button type="submit" class="btn btn-primary btn-sm">{{ t('common.save') }}</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="chatSettingsResetBtn">{{ t('settings.reset_defaults') }}</button>
                                 </div>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="tabSettingsInterface">
-                            <h6 class="text-muted mb-2">Layout</h6>
-                            <p class="text-muted small mb-2">Window width above which the channel/contact list is shown as a sidebar. Below this width it collapses to a dropdown at the top of the screen. Saved per device (browser).</p>
+                            <h6 class="text-muted mb-2">{{ t('settings.iface.layout') }}</h6>
+                            <p class="text-muted small mb-2">{{ t('settings.iface.layout_desc') }}</p>
                             <table class="table table-sm table-borderless mb-3 align-middle">
                                 <tbody>
                                     <tr>
-                                        <td class="ps-0">Sidebar breakpoint (px) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Default: 992. Range: 600-2000."><i class="bi bi-info-circle"></i></span></td>
+                                        <td class="ps-0">{{ t('settings.iface.breakpoint') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.iface.breakpoint_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                         <td class="pe-0" style="width:10rem">
                                             <div class="d-flex gap-1">
                                                 <input type="number" class="form-control form-control-sm" id="settSidebarBreakpoint" min="600" max="2000" step="1" value="992">
-                                                <button type="button" class="btn btn-outline-secondary btn-sm" id="settSidebarBreakpointReset" title="Reset to default (992)"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" id="settSidebarBreakpointReset" title="{{ t('settings.iface.breakpoint_reset_title') }}"><i class="bi bi-arrow-counterclockwise"></i></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -731,16 +731,16 @@
                             </table>
                             <hr>
                             <form id="uiSettingsForm">
-                                <h6 class="text-muted mb-2">Notifications</h6>
-                                <p class="text-muted small mb-2">Controls the small toasts shown after actions (e.g. "Advert Sent", errors).</p>
+                                <h6 class="text-muted mb-2">{{ t('settings.tab.notifications') }}</h6>
+                                <p class="text-muted small mb-2">{{ t('settings.iface.toast_desc') }}</p>
                                 <table class="table table-sm table-borderless mb-3 align-middle">
                                     <tbody>
                                         <tr>
-                                            <td class="ps-0">Auto-close after (s) <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Seconds before a notification closes automatically"><i class="bi bi-info-circle"></i></span></td>
+                                            <td class="ps-0">{{ t('settings.chat.autoclose') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.iface.toast_autoclose_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                             <td class="pe-0" style="width:5rem"><input type="number" class="form-control form-control-sm" id="settToastTimeout" min="1" max="60" step="0.5" value="2"></td>
                                         </tr>
                                         <tr>
-                                            <td class="ps-0">Don't close automatically <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="Notifications stay until dismissed via their close button"><i class="bi bi-info-circle"></i></span></td>
+                                            <td class="ps-0">{{ t('settings.chat.no_autoclose') }} <span class="badge rounded-pill text-muted" data-bs-toggle="tooltip" title="{{ t('settings.iface.toast_no_autoclose_help') }}"><i class="bi bi-info-circle"></i></span></td>
                                             <td class="pe-0">
                                                 <div class="form-check form-switch mb-0">
                                                     <input class="form-check-input" type="checkbox" id="settToastNoAutoclose">
@@ -748,22 +748,22 @@
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td class="ps-0">Position on screen</td>
+                                            <td class="ps-0">{{ t('settings.iface.position') }}</td>
                                             <td class="pe-0">
                                                 <select class="form-select form-select-sm" id="settToastPosition">
-                                                    <option value="top-left">Top left</option>
-                                                    <option value="top-right">Top right</option>
-                                                    <option value="bottom-left">Bottom left</option>
-                                                    <option value="bottom-right">Bottom right</option>
-                                                    <option value="center">Center</option>
+                                                    <option value="top-left">{{ t('settings.iface.pos_top_left') }}</option>
+                                                    <option value="top-right">{{ t('settings.iface.pos_top_right') }}</option>
+                                                    <option value="bottom-left">{{ t('settings.iface.pos_bottom_left') }}</option>
+                                                    <option value="bottom-right">{{ t('settings.iface.pos_bottom_right') }}</option>
+                                                    <option value="center">{{ t('settings.iface.pos_center') }}</option>
                                                 </select>
                                             </td>
                                         </tr>
                                     </tbody>
                                 </table>
                                 <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="uiSettingsResetBtn">Reset to defaults</button>
+                                    <button type="submit" class="btn btn-primary btn-sm">{{ t('common.save') }}</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="uiSettingsResetBtn">{{ t('settings.reset_defaults') }}</button>
                                 </div>
                             </form>
                         </div>
