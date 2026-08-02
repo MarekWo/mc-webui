@@ -139,7 +139,7 @@
   "chat.msg.quote_title": "Cytuj",
   "chat.msg.raw_resend_title": "Wyślij ponownie (rozgłoś ten sam pakiet, aby odebrały go repeatery, które go nie usłyszały)",
   "chat.msg.reply_title": "Odpowiedz",
-  "chat.region_none": "Bez regionu",
+  "chat.region_none": "Region --",
   "chat.region_set_title": "Kliknij, aby ustawić region dla tego kanału",
   "chat.region_title": "Kliknij, aby zmienić region dla tego kanału",
   "chat.route": "Trasa: {route}",

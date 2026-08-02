@@ -137,7 +137,7 @@
   "chat.msg.quote_title": "Quote",
   "chat.msg.raw_resend_title": "Resend (rebroadcast same packet so unreached repeaters can pick it up)",
   "chat.msg.reply_title": "Reply",
-  "chat.region_none": "No region",
+  "chat.region_none": "Region --",
   "chat.region_set_title": "Click to set a region for this channel",
   "chat.region_title": "Click to change region for this channel",
   "chat.route": "Route: {route}",
