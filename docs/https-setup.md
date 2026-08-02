@@ -108,18 +108,29 @@ Go to **Hosts → Proxy Hosts → Add Proxy Host** and fill in the **Details** t
 
 Save. `http://mesh.example.com` should now show mc-webui. Certificates come next.
 
+> **Tip:** if you create the certificate *first* (Step 4), it appears in the proxy host's
+> SSL tab as a ready-made choice and you can attach it while creating the host, saving a
+> round trip. The order below is written the other way only because the proxy host is the
+> part everyone needs.
+
 ## Step 4 — Choose a certificate
 
 Three routes, depending on whether you have a domain name and whether your server is
-reachable from the internet.
+reachable from the internet. All of them start on the **Certificates** page →
+**Add Certificate**, which offers *Let's Encrypt via HTTP*, *Let's Encrypt via DNS* and
+*Custom Certificate*. Whatever you create there is then selected on the proxy host's
+**SSL** tab.
 
 ### Option A — Let's Encrypt with a public domain (the easy case)
 
 **Requires:** a domain name pointing at your public IP, and port 80 forwarded from your
 router to this host.
 
-Edit the proxy host → **SSL** tab → SSL Certificate: *Request a new SSL Certificate* →
-enable **Force SSL** and **HTTP/2 Support** → agree to the terms → Save.
+**Certificates → Add Certificate → Let's Encrypt via HTTP**, type your domain into
+*Domain Names* and press Enter, then Save.
+
+Then edit the proxy host → **SSL** tab → pick the certificate from the list → enable
+**Force SSL** and **HTTP/2 Support** → Save.
 
 That is it. The certificate is trusted by every browser and phone with no warnings, and
 NPM renews it automatically.
@@ -137,10 +148,43 @@ pointing at a private address such as `192.168.1.50`.
 **Requires:** a domain you own, hosted at a DNS provider NPM supports (Cloudflare,
 deSEC, DuckDNS, Hetzner, OVH, and around a hundred others), and an API token from it.
 
+First, create the token at your DNS provider. Two things matter, and both bite later
+rather than now:
+
+- **Scope it to the single zone** you are certifying, with permission to edit DNS records
+  and nothing else. On Cloudflare that is *My Profile → API Tokens → Create Token →
+  "Edit zone DNS" template → Zone Resources: Include → Specific zone*.
+- **Give it no expiry date.** The certificate renews itself roughly every 60 days using
+  this token; a token with a TTL will break a renewal months from now, silently, and the
+  first you hear of it is an expired certificate.
+
+Then, in NPM:
+
 1. In your DNS, point `mesh.example.com` at the server's LAN address, e.g. `192.168.1.50`.
-2. Edit the proxy host → **SSL** tab → *Request a new SSL Certificate*.
-3. Enable **Use a DNS Challenge**, pick your provider and paste its API credentials.
-4. Enable **Force SSL**, save, and give it a minute or two for DNS to propagate.
+2. **Certificates → Add Certificate → Let's Encrypt via DNS.**
+3. Type the domain into *Domain Names* and press Enter.
+4. *Key Type* — leave **ECDSA 256** unless you must support genuinely ancient clients.
+5. Pick your provider under *DNS Provider*. NPM then shows a *Credentials File Content*
+   box pre-filled with a template for that plugin — replace the placeholder with your
+   real token, keeping the key name. For Cloudflare that is exactly two lines:
+
+   ```ini
+   # Cloudflare API token
+   dns_cloudflare_api_token=<your token>
+   ```
+
+   NPM warns, correctly, that this is stored in plain text in its database and in a file
+   on the server. Certbot needs to read it at every automatic renewal, which is why it is
+   kept — and why scoping the token to one zone matters.
+6. Leave *Propagation Seconds* empty to use the plugin's default. If issuing fails on a
+   timeout, come back and try 60.
+7. Save, and give it up to a minute. The certificate appears in the list with an expiry
+   date and the status *Not Used* — that just means no proxy host has claimed it yet.
+8. Edit the proxy host → **SSL** tab → select the certificate → **Force SSL** and
+   **HTTP/2 Support** → Save.
+
+Leave **HSTS** off until you have run this way for a while. Browsers remember it for
+months, and backing out of it is awkward.
 
 Certificate renewal is automatic and equally invisible. Everyone on the LAN reaches
 `https://mesh.example.com` with a green padlock, including phones and the Android app.
@@ -173,9 +217,9 @@ openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
 Replace the IP with your server's. List every name and address you will actually type
 into the browser — each one needs to be in that SAN list.
 
-Then in NPM: **SSL Certificates → Add SSL Certificate → Custom**, upload `mc-webui.key`
-as the key and `mc-webui.crt` as the certificate (leave the intermediate field empty),
-and select it on the proxy host's SSL tab.
+Then in NPM: **Certificates → Add Certificate → Custom Certificate**, upload
+`mc-webui.key` as the key and `mc-webui.crt` as the certificate (leave the intermediate
+field empty), and select it on the proxy host's SSL tab.
 
 **What you get:** real encryption, and the secure-context browser features work. **What
 you do not get:** a green padlock. Every browser shows an interstitial warning the first
