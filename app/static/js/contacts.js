@@ -1446,7 +1446,7 @@ async function approveContact(contact, index) {
 }
 
 function copyPublicKey(publicKey, buttonEl) {
-    navigator.clipboard.writeText(publicKey).then(() => {
+    copyTextToClipboard(publicKey).then(() => {
         // Visual feedback
         const originalHTML = buttonEl.innerHTML;
         buttonEl.innerHTML = `<i class="bi bi-check"></i> ${tHtml('common.copied')}`;
@@ -2312,47 +2312,20 @@ function createExistingContactCard(contact, index) {
 }
 
 /**
- * Copy text to clipboard with fallback for HTTP contexts.
+ * Copy text to clipboard with visual feedback on the given element.
+ * The HTTP fallback lives in clipboard-utils.js, shared by every page.
  * @param {string} text - Text to copy
  * @param {HTMLElement} element - Element for visual feedback
  */
 function copyToClipboard(text, element) {
     const originalText = element.textContent;
 
-    // Try modern clipboard API first (requires HTTPS)
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => {
-            showCopyFeedback(element, originalText);
-        }).catch(() => {
-            // Fallback to legacy method
-            legacyCopy(text, element, originalText);
-        });
-    } else {
-        // Fallback for HTTP contexts
-        legacyCopy(text, element, originalText);
-    }
-}
-
-/**
- * Legacy copy method using execCommand (works on HTTP).
- */
-function legacyCopy(text, element, originalText) {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-9999px';
-    document.body.appendChild(textArea);
-    textArea.select();
-
-    try {
-        document.execCommand('copy');
+    copyTextToClipboard(text).then(() => {
         showCopyFeedback(element, originalText);
-    } catch (err) {
+    }).catch((err) => {
         console.error('Failed to copy:', err);
         showToast(t('contacts.toast.copy_failed'), 'danger');
-    }
-
-    document.body.removeChild(textArea);
+    });
 }
 
 /**

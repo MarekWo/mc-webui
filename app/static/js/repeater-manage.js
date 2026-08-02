@@ -1850,7 +1850,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('copyPubkeyBtn').addEventListener('click', async () => {
         try {
-            await navigator.clipboard.writeText(_repeater ? _repeater.public_key : _pubkey);
+            await copyTextToClipboard(_repeater ? _repeater.public_key : _pubkey);
             showNotification(t('rptmgmt.pubkey_copied'), 'info');
         } catch (e) {
             showNotification(t('common.copy_failed'), 'warning');

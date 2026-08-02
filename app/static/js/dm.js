@@ -1058,7 +1058,7 @@ function populateContactInfoModal() {
     keyDiv.title = t('dm.copy_pubkey_title');
     keyDiv.onclick = () => {
         const pk = contact.public_key || contact.public_key_prefix || '';
-        navigator.clipboard.writeText(pk).then(() => {
+        copyTextToClipboard(pk).then(() => {
             showNotification(t('contacts.toast.pubkey_copied'), 'info');
         }).catch(() => {});
     };
@@ -1568,7 +1568,7 @@ function showDmRoutePopup(element, hexPath, hashSize) {
     entry.title = t('chat.copy_route_title');
     entry.addEventListener('click', (e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(commaRoute).then(() => {
+        copyTextToClipboard(commaRoute).then(() => {
             const orig = entry.innerHTML;
             entry.innerHTML = `<span style="opacity:0.8">${tHtml('common.copied')}</span>`;
             setTimeout(() => { entry.innerHTML = orig; }, 1000);

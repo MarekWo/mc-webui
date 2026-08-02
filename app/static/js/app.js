@@ -1870,7 +1870,7 @@ function showPathsPopup(element, encodedPaths, packetHash) {
         copyBtn.title = t('common.copy_route');
         copyBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            navigator.clipboard.writeText(commaRoute).then(() => {
+            copyTextToClipboard(commaRoute).then(() => {
                 copyBtn.className = 'bi bi-clipboard-check path-copy';
                 setTimeout(() => { copyBtn.className = 'bi bi-clipboard path-copy'; }, 1000);
             });
@@ -1889,7 +1889,7 @@ function showPathsPopup(element, encodedPaths, packetHash) {
             entry.title = t('chat.copy_route_title');
             entry.addEventListener('click', (e) => {
                 e.stopPropagation();
-                navigator.clipboard.writeText(commaRoute).then(() => {
+                copyTextToClipboard(commaRoute).then(() => {
                     copyBtn.className = 'bi bi-clipboard-check path-copy';
                     setTimeout(() => { copyBtn.className = 'bi bi-clipboard path-copy'; }, 1000);
                 });
@@ -1995,7 +1995,7 @@ function injectRawResendButtonsForVisibleMessages() {
  */
 async function copyToClipboard(text, btnElement) {
     try {
-        await navigator.clipboard.writeText(text);
+        await copyTextToClipboard(text);
         const icon = btnElement.querySelector('i');
         const originalClass = icon.className;
         icon.className = 'bi bi-check';
@@ -5738,18 +5738,10 @@ async function shareChannel(index) {
 async function copyChannelKey() {
     const input = document.getElementById('shareChannelKey');
     try {
-        // Use modern Clipboard API
-        await navigator.clipboard.writeText(input.value);
+        await copyTextToClipboard(input.value);
         showNotification(t('channels.toast.key_copied'), 'success');
     } catch (error) {
-        // Fallback for older browsers
-        input.select();
-        try {
-            document.execCommand('copy');
-            showNotification(t('channels.toast.key_copied'), 'success');
-        } catch (fallbackError) {
-            showNotification(t('channels.toast.copy_failed'), 'danger');
-        }
+        showNotification(t('channels.toast.copy_failed'), 'danger');
     }
 }
 

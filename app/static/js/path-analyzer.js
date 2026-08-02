@@ -195,7 +195,7 @@ function paFormatTime(msg) {
 }
 
 function paCopyText(text, label) {
-    navigator.clipboard.writeText(text).then(
+    copyTextToClipboard(text).then(
         () => showNotification(t('pa.toast.copied', { what: label }), 'success'),
         () => showNotification(t('pa.toast.copy_failed', { what: label }), 'danger')
     );

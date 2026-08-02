@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 from flask import Flask, request as flask_request
 from flask_socketio import SocketIO, emit
+from werkzeug.middleware.proxy_fix import ProxyFix
 from app import i18n
 from app.config import config, runtime_config
 from app.database import Database
@@ -227,6 +228,14 @@ def create_app():
     # Load configuration
     app.config['DEBUG'] = config.FLASK_DEBUG
     app.config['SECRET_KEY'] = 'mc-webui-secret-key-change-in-production'
+
+    # Behind a reverse proxy (Nginx Proxy Manager, see docs/https-setup.md) every
+    # request arrives from the proxy over plain HTTP, so without this the app sees
+    # the proxy's address as the client and thinks the scheme is http. One hop only:
+    # the proxy is the single trusted intermediary.
+    if config.MC_TRUST_PROXY:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+        logger.info("Trusting X-Forwarded-* headers from one proxy hop (MC_TRUST_PROXY=true)")
 
     # Inject version, branch, transport type, and UI language into all templates.
     # This is the single injection point for i18n — it covers every render_template()
