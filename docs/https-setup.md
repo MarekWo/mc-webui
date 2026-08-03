@@ -97,6 +97,10 @@ Go to **Hosts → Proxy Hosts → Add Proxy Host** and fill in the **Details** t
 | Block Common Exploits | on |
 | **Websockets Support** | **on — this one is not optional** |
 
+<p align="center">
+  <img src="../images/npm-01-proxy-host-details.png" width="480" alt="Nginx Proxy Manager - Add Proxy Host, Details tab filled in">
+</p>
+
 > ### Websockets Support must be on
 >
 > mc-webui pushes new messages to open pages over a WebSocket. Without this switch, nginx
@@ -132,6 +136,14 @@ router to this host.
 
 Then edit the proxy host → **SSL** tab → pick the certificate from the list → enable
 **Force SSL** and **HTTP/2 Support** → Save.
+
+<p align="center">
+  <img src="../images/npm-02-ssl-letsencrypt.png" width="480" alt="Nginx Proxy Manager - SSL tab with Force SSL and HTTP/2 enabled">
+</p>
+
+The screenshot shows the shortcut mentioned above: **Request a new Certificate** right on
+the proxy host's SSL tab, which creates the certificate and attaches it in one step
+instead of visiting the Certificates page first. Leave **HSTS Enabled** off for now.
 
 That is it. The certificate is trusted by every browser and phone with no warnings, and
 NPM renews it automatically.
@@ -177,6 +189,12 @@ Then, in NPM:
    NPM warns, correctly, that this is stored in plain text in its database and in a file
    on the server. Certbot needs to read it at every automatic renewal, which is why it is
    kept — and why scoping the token to one zone matters.
+
+   <p align="center">
+     <img src="../images/npm-03-ssl-dns-challenge.png" width="480" alt="Nginx Proxy Manager - Use DNS Challenge with the Cloudflare credentials box">
+   </p>
+
+   The token shown in that box is NPM's own placeholder, not a real one — replace it.
 6. Leave *Propagation Seconds* empty to use the plugin's default. If issuing fails on a
    timeout, come back and try 60.
 7. Save, and give it up to a minute. The certificate appears in the list with an expiry
@@ -298,14 +316,34 @@ front of everything.
    on, satisfying *any one* condition is enough, which is not what you want when the
    password is the only condition. Leave **Pass Auth to Upstream** off too; mc-webui does
    not read the `Authorization` header, so there is nothing to pass on
+
+   <p align="center">
+     <img src="../images/npm-04-access-list-details.png" width="440" alt="Nginx Proxy Manager - Add Access List, Details tab">
+   </p>
+
 3. On **Authorizations**, add a username and password. Add more than one if several people
    use the instance — each gets their own
+
+   <p align="center">
+     <img src="../images/npm-05-access-list-users.png" width="440" alt="Nginx Proxy Manager - Add Access List, Authorizations tab">
+   </p>
+
 4. **Rules** is optional: it allows or denies whole IP addresses and ranges, on top of the
    password
 5. Save, then go to **Hosts → Proxy Hosts**, open your host's **⋮ → Edit**, and set
    **Access List** to the one you just created. Save
 
-The host's **ACCESS** column should now name your list instead of *Publicly Accessible*.
+   <p align="center">
+     <img src="../images/npm-06-proxy-host-access-list.png" width="440" alt="Nginx Proxy Manager - Edit Proxy Host with the Access List selected">
+   </p>
+
+The host's **ACCESS** column should now name your list instead of *Publicly Accessible*,
+and the Access Lists page counts the hosts using it:
+
+<p align="center">
+  <img src="../images/npm-07-access-lists-overview.png" width="700" alt="Nginx Proxy Manager - Access Lists page showing one user and one proxy host">
+</p>
+
 Every path is covered — the interface, the API, and the websocket — so there is no way in
 that skips the prompt.
 
