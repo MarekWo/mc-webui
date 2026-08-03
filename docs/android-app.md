@@ -32,9 +32,9 @@ along the way. The steps below cover those warnings.
 | **File** | [`android/mc-webui-wrapper.apk`](../android/mc-webui-wrapper.apk) |
 | **Direct link** | https://github.com/MarekWo/mc-webui/raw/main/android/mc-webui-wrapper.apk |
 | **Size** | 4.6 MB |
-| **App version** | 1.2 |
+| **App version** | 1.3 |
 | **Package** | `it.wojtaszek.mc.wrapper` |
-| **SHA-256** | `2622e6d85c65f4d43125b720862211989718456744d45193234b5d27ee28db0c` |
+| **SHA-256** | `6309880b9453b0577485a84c3aeef2bcc620940c01c5d75006631cfa7ee22e04` |
 
 Download it directly on the phone, or copy it over from a computer.
 
@@ -140,6 +140,13 @@ Tapping **Cancel** returns to the address form.
 This only ever appears when the server actually asks for a password. On an
 instance without one — local `http://` or a proxy with no access control — you
 will never see this screen, and nothing about the app changes.
+
+> **Turning the password on, or changing it, while the app is open.** The prompt
+> comes up when the app loads a page, not when a request it makes in the
+> background is refused. So if you switch authentication on — or change the
+> password — with the app already running, it keeps trying the old credentials
+> and the interface stops updating rather than asking you anything. Close the
+> app and open it again, and it will ask properly.
 
 ---
 

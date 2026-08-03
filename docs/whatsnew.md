@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Features
+
+- **The Android app can now sign in to a server that asks for a password.** Putting mc-webui behind a reverse proxy is what makes publishing it to the internet reasonable, and the usual next step is to make that proxy demand a username and password — an **Access List** in Nginx Proxy Manager, for instance. The app had no answer for that: it showed the proxy's bare "401 Authorization Required" page and stopped there, which meant the phone was the one thing you could not protect. It now asks for the login the first time it connects and remembers it per server address, so later launches go straight in; get it wrong and the same prompt returns with the username already filled in. This appears **only** when your server actually asks for a password — an instance without one, local `http://` or a proxy with no access control, behaves exactly as it always has and never shows this screen. One thing worth knowing: if you turn the password on, or change it, while the app is already open, the app cannot notice mid-session — close it and open it again. This is **app version 1.3** — install the new `.apk` over the one you have; it is signed with the same key, so it goes in as an update and keeps your server address. See [android-app.md](android-app.md).
+
 ---
 
 ## 2.5.0 — 2026-08-03
