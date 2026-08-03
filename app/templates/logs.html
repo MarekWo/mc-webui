@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>System Log - mc-webui</title>
+    <title>{{ t('logs.title') }} - mc-webui</title>
+
+    {% include "_head_i18n.html" %}
 
     <!-- Favicon -->
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
@@ -152,14 +154,14 @@
         <!-- Header -->
         <div class="log-header d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
-                <span class="log-count" id="logCount">0 entries</span>
+                <span class="log-count" id="logCount">{{ tn('logs.entries', 0) }}</span>
                 <span class="status-indicator" id="statusDot"></span>
             </div>
             <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-sm btn-log" id="pauseBtn" title="Pause/Resume">
+                <button class="btn btn-sm btn-log" id="pauseBtn" title="{{ t('logs.pause_title') }}">
                     <i class="bi bi-pause-fill" id="pauseIcon"></i>
                 </button>
-                <button class="btn btn-sm btn-log" id="clearBtn" title="Clear display">
+                <button class="btn btn-sm btn-log" id="clearBtn" title="{{ t('logs.clear_title') }}">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
@@ -169,18 +171,19 @@
         <div class="log-filters">
             <div class="d-flex gap-2 flex-wrap align-items-center">
                 <select class="form-select form-select-sm filter-select" id="levelFilter" style="width: auto; min-width: 90px;">
-                    <option value="">All levels</option>
+                    <option value="">{{ t('logs.filter.all_levels') }}</option>
+                    {# Level names are protocol-side identifiers — never translated. #}
                     <option value="DEBUG">DEBUG</option>
                     <option value="INFO" selected>INFO</option>
                     <option value="WARNING">WARNING</option>
                     <option value="ERROR">ERROR</option>
                 </select>
                 <select class="form-select form-select-sm filter-select" id="loggerFilter" style="width: auto; min-width: 120px;">
-                    <option value="">All modules</option>
+                    <option value="">{{ t('logs.filter.all_modules') }}</option>
                 </select>
                 <input type="text" class="form-control form-control-sm filter-input" id="searchFilter"
-                       placeholder="Search..." style="width: auto; min-width: 150px; flex: 1;">
-                <button class="btn btn-sm btn-log" id="resetFilters" title="Reset filters">
+                       placeholder="{{ t('logs.filter.search_ph') }}" style="width: auto; min-width: 150px; flex: 1;">
+                <button class="btn btn-sm btn-log" id="resetFilters" title="{{ t('logs.filter.reset_title') }}">
                     <i class="bi bi-x-circle"></i>
                 </button>
             </div>
@@ -188,7 +191,7 @@
 
         <!-- Log entries -->
         <div class="log-entries" id="logEntries">
-            <div class="text-muted text-center py-3" id="loadingMsg">Loading logs...</div>
+            <div class="text-muted text-center py-3" id="loadingMsg">{{ t('logs.loading') }}</div>
         </div>
     </div>
 

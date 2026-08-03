@@ -17,6 +17,7 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file, current_app
+from app import i18n
 from app.meshcore import cli, parser
 from app.meshcore.regions import derive_scope_key_hex, is_valid_region_name
 from app.config import config, runtime_config
@@ -319,6 +320,7 @@ UI_SETTINGS_DEFAULTS = {
     'toast_timeout_sec': 2.0,           # auto-hide delay for notification toasts
     'toast_no_autoclose': False,        # when True, toasts stay until dismissed
     'toast_position': 'top-left',       # one of TOAST_POSITIONS
+    'language': 'en',                   # server-wide default UI language (see app/i18n.py)
 }
 
 TOAST_POSITIONS = {'top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'}
@@ -378,12 +380,20 @@ def get_ui_settings() -> dict:
 
 
 def save_ui_settings(settings: dict) -> bool:
-    """Save UI settings to database."""
+    """
+    Merge `settings` into the stored UI settings.
+
+    Must merge, not replace: the Interface form and the language dropdown each POST only
+    their own keys, so a replace would wipe whichever group was not submitted. Merging
+    over the stored blob rather than over UI_SETTINGS_DEFAULTS keeps unset keys tracking
+    the defaults instead of freezing today's values into the database.
+    """
     db = _get_db()
     if not db:
         return False
     try:
-        db.set_setting_json('ui_settings', settings)
+        current = db.get_setting_json('ui_settings', {}) or {}
+        db.set_setting_json('ui_settings', {**current, **settings})
         return True
     except Exception as e:
         logger.error(f"Failed to save UI settings: {e}")
@@ -3002,6 +3012,12 @@ def set_ui_config():
             if val not in TOAST_POSITIONS:
                 return jsonify({'success': False, 'error': 'Invalid value for toast_position'}), 400
             settings['toast_position'] = val
+
+        if 'language' in data:
+            val = data['language']
+            if val not in i18n.available_languages():
+                return jsonify({'success': False, 'error': 'Invalid value for language'}), 400
+            settings['language'] = val
 
         if not settings:
             return jsonify({'success': False, 'error': 'No valid settings provided'}), 400

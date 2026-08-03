@@ -461,6 +461,7 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 |----------|-------------|
 | [User Guide](docs/user-guide.md) | Complete feature documentation |
 | [Android App](docs/android-app.md) | Installing the Android companion app and connecting it to your instance |
+| [HTTPS Setup](docs/https-setup.md) | Optional encrypted access via Nginx Proxy Manager (Let's Encrypt, self-signed, IP address) |
 | [Architecture](docs/architecture.md) | Technical details, API reference |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 | [Docker Installation](docs/docker-install.md) | How to install Docker on Debian/Ubuntu |

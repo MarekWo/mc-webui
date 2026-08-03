@@ -177,6 +177,9 @@ class MainActivity : AppCompatActivity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             cacheMode = WebSettings.LOAD_DEFAULT
+            // WebView scales text by the system font-size setting, Chrome does not.
+            // Pin it so the wrapper renders the page exactly like the browser does.
+            textZoom = 100
         }
 
         installNotificationShim()

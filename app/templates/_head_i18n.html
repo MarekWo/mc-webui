@@ -1,0 +1,12 @@
+{# Translation catalog + runtime.
+
+   Both must block: window.t has to exist before any inline handler or page script runs,
+   so never add defer/async. Include this in every <head>, immediately after the theme
+   pre-apply IIFE, giving a uniform ordering: theme -> i18n -> everything else.
+
+   The catalog URL is content-hashed and served immutable, so all 8 entry points
+   (including the 6 iframes) share a single cached fetch. #}
+<script src="{{ i18n_catalog_url }}"></script>
+<script src="{{ url_for('static', filename='js/i18n-runtime.js') }}"></script>
+<script src="{{ url_for('static', filename='js/datetime-utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/clipboard-utils.js') }}"></script>

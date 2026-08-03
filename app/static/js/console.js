@@ -60,7 +60,7 @@ function connectWebSocket() {
             updateStatus('disconnected');
             enableInput(false);
             // Transient session event — show inline but don't persist to transcript
-            addMessage('Disconnected', 'error', false);
+            addMessage(t('common.disconnected'), 'error', false);
 
             // Clear pending command indicator
             if (pendingCommandDiv) {
@@ -91,12 +91,12 @@ function connectWebSocket() {
                 pendingCommandDiv = null;
             }
 
-            // Display response
+            // Display response. data.output and data.error are CLI output composed by
+            // the device/backend — English by design, only the wrapper is translated.
             if (data.success) {
-                const output = data.output || '(no output)';
-                addMessage(output, 'response');
+                addMessage(data.output || t('console.no_output'), 'response');
             } else {
-                addMessage(`Error: ${data.error}`, 'error');
+                addMessage(t('console.error_prefix', { error: data.error }), 'error');
             }
             scrollToBottom();
         });
@@ -104,7 +104,7 @@ function connectWebSocket() {
     } catch (error) {
         console.error('Failed to create WebSocket connection:', error);
         updateStatus('disconnected');
-        addMessage('Failed to connect: ' + error.message, 'error', false);
+        addMessage(t('console.connect_failed', { error: error.message }), 'error', false);
     }
 }
 
@@ -245,15 +245,15 @@ function updateStatus(status) {
 
     switch (status) {
         case 'connected':
-            text.textContent = 'Connected';
+            text.textContent = t('common.connected');
             text.className = 'text-success';
             break;
         case 'disconnected':
-            text.textContent = 'Disconnected';
+            text.textContent = t('common.disconnected');
             text.className = 'text-danger';
             break;
         case 'connecting':
-            text.textContent = 'Connecting...';
+            text.textContent = t('common.connecting');
             text.className = 'text-warning';
             break;
     }
@@ -391,7 +391,7 @@ function populateHistoryDropdown() {
     historyMenu.innerHTML = '';
 
     if (serverHistory.length === 0) {
-        historyMenu.innerHTML = '<div class="history-empty">No commands in history</div>';
+        historyMenu.innerHTML = `<div class="history-empty">${tHtml('console.history_empty')}</div>`;
         return;
     }
 

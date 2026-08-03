@@ -1,18 +1,20 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light" data-bs-theme="light">
+<html lang="{{ lang }}" data-theme="light" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Repeater Management - mc-webui</title>
+    <title>{{ t('rptmgmt.title') }} - mc-webui</title>
 
     <!-- Theme: apply saved preference before CSS loads to prevent flash -->
     <script>
         (function() {
-            var t = localStorage.getItem('mc-webui-theme') || 'light';
-            document.documentElement.setAttribute('data-theme', t);
-            document.documentElement.setAttribute('data-bs-theme', t);
+            var theme = localStorage.getItem('mc-webui-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-bs-theme', theme);
         })();
     </script>
+
+    {% include "_head_i18n.html" %}
 
     <!-- Favicon -->
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
@@ -272,12 +274,12 @@
 <body>
     <!-- Toolbar -->
     <div class="manage-toolbar">
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="backBtn" title="Back to My Repeaters">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="backBtn" title="{{ t('rptmgmt.back_title') }}">
             <i class="bi bi-arrow-left"></i>
         </button>
-        <span class="fw-semibold flex-grow-1">Repeater Management</span>
-        <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="logoutBtn" title="Log out of this repeater">
-            <i class="bi bi-box-arrow-right"></i> Logout
+        <span class="fw-semibold flex-grow-1">{{ t('rptmgmt.title') }}</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="logoutBtn" title="{{ t('rptmgmt.logout_title') }}">
+            <i class="bi bi-box-arrow-right"></i> {{ t('rptmgmt.logout') }}
         </button>
     </div>
 
@@ -285,19 +287,19 @@
         <!-- Loading / logging-in state -->
         <div class="state-screen" id="loadingState">
             <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;"></div>
-            <p class="mt-3 mb-0" id="loadingText">Loading…</p>
+            <p class="mt-3 mb-0" id="loadingText">{{ t('common.loading') }}</p>
         </div>
 
         <!-- Error state -->
         <div class="state-screen" id="errorState" style="display: none;">
             <i class="bi bi-exclamation-triangle text-warning"></i>
-            <p class="mb-3" id="errorText">Something went wrong.</p>
+            <p class="mb-3" id="errorText">{{ t('rptmgmt.error_generic') }}</p>
             <div class="d-flex gap-2 justify-content-center">
                 <button type="button" class="btn btn-sm btn-outline-secondary" id="errorBackBtn">
-                    <i class="bi bi-arrow-left"></i> Back to list
+                    <i class="bi bi-arrow-left"></i> {{ t('rptmgmt.back_to_list') }}
                 </button>
                 <button type="button" class="btn btn-sm btn-primary" id="errorRetryBtn">
-                    <i class="bi bi-arrow-clockwise"></i> Try again
+                    <i class="bi bi-arrow-clockwise"></i> {{ t('common.try_again') }}
                 </button>
             </div>
         </div>
@@ -314,7 +316,7 @@
                     </div>
                     <div class="rpt-pubkey text-muted mt-1">
                         <span id="rptPubkey"></span>
-                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" id="copyPubkeyBtn" title="Copy full public key">
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" id="copyPubkeyBtn" title="{{ t('rptmgmt.copy_pubkey_title') }}">
                             <i class="bi bi-copy"></i>
                         </button>
                     </div>
@@ -327,14 +329,14 @@
 
             <!-- Tools grid -->
             <div id="toolsGrid">
-                <div class="text-muted small text-uppercase fw-bold mb-2">Management Tools</div>
+                <div class="text-muted small text-uppercase fw-bold mb-2">{{ t('rptmgmt.tools_heading') }}</div>
                 <div class="row g-3" id="toolsRow"></div>
             </div>
 
             <!-- Tool pane (shown instead of the grid when a tool is open) -->
             <div id="toolPane" style="display: none;">
                 <div class="tool-pane-header">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="paneBackBtn" title="Back to tools">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="paneBackBtn" title="{{ t('rptmgmt.back_tools_title') }}">
                         <i class="bi bi-arrow-left"></i>
                     </button>
                     <span class="tool-icon" id="paneIcon" style="width: 32px; height: 32px; font-size: 1rem;"></span>
@@ -350,27 +352,27 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header py-2">
-                    <h6 class="modal-title"><i class="bi bi-key"></i> <span id="passwordModalTitle">Log in</span></h6>
+                    <h6 class="modal-title"><i class="bi bi-key"></i> <span id="passwordModalTitle">{{ t('repeaters.password.login_title') }}</span></h6>
                 </div>
                 <div class="modal-body">
                     <div class="mb-2 small text-muted" id="passwordModalInfo"></div>
                     <div class="input-group input-group-sm mb-2">
                         <input type="password" class="form-control" id="passwordInput"
-                               placeholder="Repeater password" autocomplete="off">
-                        <button type="button" class="btn btn-outline-secondary" id="togglePasswordBtn" title="Show/hide password">
+                               placeholder="{{ t('repeaters.password.input_ph') }}" autocomplete="off">
+                        <button type="button" class="btn btn-outline-secondary" id="togglePasswordBtn" title="{{ t('repeaters.password.toggle_title') }}">
                             <i class="bi bi-eye"></i>
                         </button>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="savePasswordCheck" checked>
                         <label class="form-check-label small" for="savePasswordCheck">
-                            Remember password (stored in the app database)
+                            {{ t('repeaters.password.remember') }}
                         </label>
                     </div>
                 </div>
                 <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-sm btn-secondary" id="passwordCancelBtn">Back to list</button>
-                    <button type="button" class="btn btn-sm btn-primary" id="passwordSubmitBtn">Log in</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="passwordCancelBtn">{{ t('rptmgmt.back_to_list') }}</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="passwordSubmitBtn">{{ t('repeaters.password.login_btn') }}</button>
                 </div>
             </div>
         </div>
@@ -381,19 +383,19 @@
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header py-2">
-                    <h6 class="modal-title"><i class="bi bi-geo-alt"></i> Pick Location</h6>
+                    <h6 class="modal-title"><i class="bi bi-geo-alt"></i> {{ t('rptmgmt.loc.title') }}</h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-0">
                     <div class="px-3 py-2 border-bottom small text-muted">
-                        Click the map to set the repeater location.
+                        {{ t('rptmgmt.loc.hint') }}
                     </div>
                     <div id="locLeafletMap" style="height: 400px; width: 100%;"></div>
                 </div>
                 <div class="modal-footer py-2">
                     <span class="me-auto small font-monospace" id="locMapSelected">—</span>
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-sm btn-primary" id="locMapUseBtn" disabled>Use this location</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="locMapUseBtn" disabled>{{ t('rptmgmt.loc.use') }}</button>
                 </div>
             </div>
         </div>
@@ -403,7 +405,7 @@
     <div class="toast-container position-fixed top-0 start-0 p-3" data-toast-container>
         <div id="notificationToast" class="toast" role="alert">
             <div class="toast-header">
-                <strong class="me-auto">Repeater Management</strong>
+                <strong class="me-auto">{{ t('rptmgmt.title') }}</strong>
                 <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
             </div>
             <div class="toast-body"></div>

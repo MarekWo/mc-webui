@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Chat - mc-webui{% endblock %}
+{% block title %}{{ t('chat.title') }} - mc-webui{% endblock %}
 
 {% block extra_head %}
 <!-- Emoji Picker (local) -->
@@ -14,7 +14,7 @@
         <!-- Channel Sidebar (visible on lg+ screens) -->
         <div id="channelSidebar" class="channel-sidebar">
             <div class="channel-sidebar-header">
-                <i class="bi bi-broadcast-pin"></i> Channels
+                <i class="bi bi-broadcast-pin"></i> {{ t('chat.channels') }}
             </div>
             <div class="channel-sidebar-list" id="channelSidebarList">
                 <!-- Populated by JavaScript -->
@@ -28,20 +28,20 @@
                 <div id="filterBar" class="filter-bar">
                     <div class="filter-bar-inner">
                         <div class="filter-input-wrapper">
-                            <input type="text" id="filterInput" class="filter-bar-input" placeholder="Filter messages..." autocomplete="off">
+                            <input type="text" id="filterInput" class="filter-bar-input" placeholder="{{ t('chat.filter.ph') }}" autocomplete="off">
                             <!-- Filter mentions autocomplete popup -->
                             <div id="filterMentionsPopup" class="mentions-popup filter-mentions-popup hidden">
                                 <div class="mentions-list" id="filterMentionsList"></div>
                             </div>
                         </div>
-                        <button type="button" id="filterMeBtn" class="filter-bar-btn filter-bar-btn-me" title="Filter my messages">
+                        <button type="button" id="filterMeBtn" class="filter-bar-btn filter-bar-btn-me" title="{{ t('chat.filter.me_title') }}">
                             <i class="bi bi-person-fill"></i>
                         </button>
                         <span id="filterMatchCount" class="filter-match-count"></span>
-                        <button type="button" id="filterClearBtn" class="filter-bar-btn filter-bar-btn-clear" title="Clear">
+                        <button type="button" id="filterClearBtn" class="filter-bar-btn filter-bar-btn-clear" title="{{ t('chat.filter.clear_title') }}">
                             <i class="bi bi-x"></i>
                         </button>
-                        <button type="button" id="filterCloseBtn" class="filter-bar-btn filter-bar-btn-close" title="Close">
+                        <button type="button" id="filterCloseBtn" class="filter-bar-btn filter-bar-btn-close" title="{{ t('common.close') }}">
                             <i class="bi bi-x-lg"></i>
                         </button>
                     </div>
@@ -51,14 +51,14 @@
                         <!-- Messages will be loaded here via JavaScript -->
                         <div class="text-center text-muted py-5">
                             <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                                <span class="visually-hidden">{{ t('common.loading') }}</span>
                             </div>
-                            <p class="mt-3">Loading messages...</p>
+                            <p class="mt-3">{{ t('chat.loading_messages') }}</p>
                         </div>
                     </div>
                 </div>
                 <!-- Scroll to bottom button -->
-                <button id="scrollToBottomBtn" class="scroll-to-bottom-btn" title="Scroll to bottom">
+                <button id="scrollToBottomBtn" class="scroll-to-bottom-btn" title="{{ t('chat.scroll_bottom_title') }}">
                     <i class="bi bi-chevron-double-down"></i>
                 </button>
             </div>
@@ -70,12 +70,12 @@
                             <textarea
                                 id="messageInput"
                                 class="form-control"
-                                placeholder="Type a message..."
+                                placeholder="{{ t('chat.input_ph') }}"
                                 rows="2"
                                 maxlength="500"
                                 required
                             ></textarea>
-                            <button type="button" class="btn btn-outline-secondary" id="emojiBtn" title="Insert emoji">
+                            <button type="button" class="btn btn-outline-secondary" id="emojiBtn" title="{{ t('chat.emoji_title') }}">
                                 <i class="bi bi-emoji-smile"></i>
                             </button>
                             <button type="submit" class="btn btn-primary px-4" id="sendBtn">
@@ -96,17 +96,17 @@
             </div>
             <!-- Status Bar -->
             <div class="border-top">
-                <div class="p-2 small text-muted d-flex justify-content-between align-items-center">
-                    <div class="d-flex gap-2 align-items-center">
-                        <span id="statusText">
-                            <i class="bi bi-circle-fill text-secondary"></i> Connecting...
+                <div class="p-2 small text-muted d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <span id="statusText" class="text-nowrap">
+                            <i class="bi bi-circle-fill text-secondary"></i> {{ t('common.connecting') }}
                         </span>
                         <span id="regionIndicator" class="badge bg-info text-dark d-none" role="button"
-                              title="Click to change region for this channel">
+                              title="{{ t('chat.region_title') }}">
                             <i class="bi bi-pin-map"></i> <span id="regionIndicatorName"></span>
                         </span>
                     </div>
-                    <span id="lastRefresh">Updated: Never</span>
+                    <span id="lastRefresh" class="text-nowrap">{{ t('chat.updated', time=t('common.never')) }}</span>
                 </div>
             </div>
         </div>
@@ -115,46 +115,46 @@
 
 <!-- Floating Action Buttons -->
 <div class="fab-container" id="fabContainer">
-    <button class="fab fab-toggle" id="fabToggle" title="Hide buttons">
+    <button class="fab fab-toggle" id="fabToggle" title="{{ t('chat.fab.hide') }}">
         <i class="bi bi-chevron-right"></i>
     </button>
-    <button class="fab fab-filter" id="filterFab" title="Filter Messages">
+    <button class="fab fab-filter" id="filterFab" title="{{ t('chat.filter.fab_title') }}">
         <i class="bi bi-funnel-fill"></i>
     </button>
-    <button class="fab fab-search" id="globalSearchBtn" data-bs-toggle="modal" data-bs-target="#searchModal" title="Search Messages">
+    <button class="fab fab-search" id="globalSearchBtn" data-bs-toggle="modal" data-bs-target="#searchModal" title="{{ t('chat.fab.search_title') }}">
         <i class="bi bi-search"></i>
     </button>
-    <button class="fab fab-dm" data-bs-toggle="modal" data-bs-target="#dmModal" title="Direct Messages">
+    <button class="fab fab-dm" data-bs-toggle="modal" data-bs-target="#dmModal" title="{{ t('dm.title') }}">
         <i class="bi bi-envelope-fill"></i>
     </button>
-    <button class="fab fab-contacts" data-bs-toggle="modal" data-bs-target="#contactsModal" title="Contact Management">
+    <button class="fab fab-contacts" data-bs-toggle="modal" data-bs-target="#contactsModal" title="{{ t('contacts.title') }}">
         <i class="bi bi-person-fill"></i>
     </button>
-    <button class="fab fab-settings" data-bs-toggle="modal" data-bs-target="#settingsModal" title="Settings">
+    <button class="fab fab-settings" data-bs-toggle="modal" data-bs-target="#settingsModal" title="{{ t('common.settings') }}">
         <i class="bi bi-gear-fill"></i>
     </button>
-    <button class="fab fab-advert d-none" id="fab-advert" title="Send Advert">
+    <button class="fab fab-advert d-none" id="fab-advert" title="{{ t('menu.advert') }}">
         <i class="bi bi-megaphone"></i>
     </button>
-    <button class="fab fab-floodadvert d-none" id="fab-floodadvert" title="Flood Advert">
+    <button class="fab fab-floodadvert d-none" id="fab-floodadvert" title="{{ t('menu.flood_advert') }}">
         <i class="bi bi-broadcast"></i>
     </button>
-    <button class="fab fab-map d-none" id="fab-map" title="Map">
+    <button class="fab fab-map d-none" id="fab-map" title="{{ t('menu.map') }}">
         <i class="bi bi-map"></i>
     </button>
-    <button class="fab fab-console d-none" id="fab-console" data-bs-toggle="modal" data-bs-target="#consoleModal" title="Console">
+    <button class="fab fab-console d-none" id="fab-console" data-bs-toggle="modal" data-bs-target="#consoleModal" title="{{ t('console.title') }}">
         <i class="bi bi-terminal"></i>
     </button>
-    <button class="fab fab-repeaters d-none" id="fab-repeaters" data-bs-toggle="modal" data-bs-target="#repeatersModal" title="My Repeaters">
+    <button class="fab fab-repeaters d-none" id="fab-repeaters" data-bs-toggle="modal" data-bs-target="#repeatersModal" title="{{ t('repeaters.title') }}">
         <i class="bi bi-diagram-3"></i>
     </button>
-    <button class="fab fab-pathanalyzer d-none" id="fab-pathanalyzer" data-bs-toggle="modal" data-bs-target="#pathAnalyzerModal" title="Path Analyzer">
+    <button class="fab fab-pathanalyzer d-none" id="fab-pathanalyzer" data-bs-toggle="modal" data-bs-target="#pathAnalyzerModal" title="{{ t('pa.title') }}">
         <i class="bi bi-signpost-split"></i>
     </button>
-    <button class="fab fab-deviceinfo d-none" id="fab-deviceinfo" data-bs-toggle="modal" data-bs-target="#deviceInfoModal" title="Device Info">
+    <button class="fab fab-deviceinfo d-none" id="fab-deviceinfo" data-bs-toggle="modal" data-bs-target="#deviceInfoModal" title="{{ t('menu.device_info') }}">
         <i class="bi bi-cpu"></i>
     </button>
-    <button class="fab fab-syslog d-none" id="fab-syslog" data-bs-toggle="modal" data-bs-target="#logsModal" title="System Log">
+    <button class="fab fab-syslog d-none" id="fab-syslog" data-bs-toggle="modal" data-bs-target="#logsModal" title="{{ t('logs.title') }}">
         <i class="bi bi-journal-text"></i>
     </button>
 </div>
@@ -164,9 +164,9 @@
     <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-envelope"></i> Direct Messages</h5>
+                <h5 class="modal-title"><i class="bi bi-envelope"></i> {{ t('dm.title') }}</h5>
                 <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
-                    <i class="bi bi-x-lg"></i> Close
+                    <i class="bi bi-x-lg"></i> {{ t('common.close') }}
                 </button>
             </div>
             <div class="modal-body p-0">
@@ -181,9 +181,9 @@
     <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="bi bi-person-check"></i> Contact Management</h5>
+                <h5 class="modal-title"><i class="bi bi-person-check"></i> {{ t('contacts.title') }}</h5>
                 <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
-                    <i class="bi bi-x-lg"></i> Close
+                    <i class="bi bi-x-lg"></i> {{ t('common.close') }}
                 </button>
             </div>
             <div class="modal-body p-0">
@@ -198,9 +198,9 @@
     <div class="modal-dialog modal-fullscreen">
         <div class="modal-content" style="background-color: #1a1a2e;">
             <div class="modal-header" style="background-color: #16213e; border-bottom: 1px solid #0f3460;">
-                <h5 class="modal-title text-white"><i class="bi bi-terminal"></i> mc-webui Console</h5>
+                <h5 class="modal-title text-white"><i class="bi bi-terminal"></i> mc-webui {{ t('console.title') }}</h5>
                 <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
-                    <i class="bi bi-x-lg"></i> Close
+                    <i class="bi bi-x-lg"></i> {{ t('common.close') }}
                 </button>
             </div>
             <div class="modal-body p-0">
@@ -215,9 +215,9 @@
     <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-diagram-3"></i> My Repeaters</h5>
+                <h5 class="modal-title"><i class="bi bi-diagram-3"></i> {{ t('repeaters.title') }}</h5>
                 <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
-                    <i class="bi bi-x-lg"></i> Close
+                    <i class="bi bi-x-lg"></i> {{ t('common.close') }}
                 </button>
             </div>
             <div class="modal-body p-0">
@@ -232,9 +232,9 @@
     <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
             <div class="modal-header pathanalyzer-header text-white">
-                <h5 class="modal-title"><i class="bi bi-signpost-split"></i> Path Analyzer</h5>
+                <h5 class="modal-title"><i class="bi bi-signpost-split"></i> {{ t('pa.title') }}</h5>
                 <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
-                    <i class="bi bi-x-lg"></i> Close
+                    <i class="bi bi-x-lg"></i> {{ t('common.close') }}
                 </button>
             </div>
             <div class="modal-body p-0">
@@ -249,9 +249,9 @@
     <div class="modal-dialog modal-fullscreen">
         <div class="modal-content" style="background-color: #1a1a2e;">
             <div class="modal-header" style="background-color: #16213e; border-bottom: 1px solid #0f3460;">
-                <h5 class="modal-title text-white"><i class="bi bi-journal-text"></i> System Log</h5>
+                <h5 class="modal-title text-white"><i class="bi bi-journal-text"></i> {{ t('logs.title') }}</h5>
                 <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
-                    <i class="bi bi-x-lg"></i> Close
+                    <i class="bi bi-x-lg"></i> {{ t('common.close') }}
                 </button>
             </div>
             <div class="modal-body p-0">

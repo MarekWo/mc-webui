@@ -88,19 +88,20 @@ function esc(s) {
 // Tools configuration
 // ================================================================
 
+// title/desc hold catalog KEYS, resolved with t() at render time.
 const TOOLS = [
-    { key: 'status',    icon: 'bi-bar-chart-line', title: 'Status',
-      desc: 'Battery, radio and packet statistics', adminOnly: false },
-    { key: 'telemetry', icon: 'bi-activity',       title: 'Telemetry',
-      desc: 'Sensor channels (Cayenne LPP)', adminOnly: false },
-    { key: 'neighbors', icon: 'bi-people',         title: 'Neighbors',
-      desc: 'Zero-hop repeaters heard', adminOnly: false },
-    { key: 'cli',       icon: 'bi-terminal',       title: 'CLI',
-      desc: 'Send text commands to the repeater', adminOnly: true },
-    { key: 'settings',  icon: 'bi-gear',           title: 'Settings',
-      desc: 'Configure repeater parameters', adminOnly: true },
-    { key: 'actions',   icon: 'bi-lightning',      title: 'Actions',
-      desc: 'Advert, clock sync, reboot', adminOnly: true },
+    { key: 'status',    icon: 'bi-bar-chart-line', title: 'rptmgmt.tools.status',
+      desc: 'rptmgmt.tools.status_desc', adminOnly: false },
+    { key: 'telemetry', icon: 'bi-activity',       title: 'rptmgmt.tools.telemetry',
+      desc: 'rptmgmt.tools.telemetry_desc', adminOnly: false },
+    { key: 'neighbors', icon: 'bi-people',         title: 'rptmgmt.tools.neighbors',
+      desc: 'rptmgmt.tools.neighbors_desc', adminOnly: false },
+    { key: 'cli',       icon: 'bi-terminal',       title: 'rptmgmt.tools.cli',
+      desc: 'rptmgmt.tools.cli_desc', adminOnly: true },
+    { key: 'settings',  icon: 'bi-gear',           title: 'rptmgmt.tools.settings',
+      desc: 'rptmgmt.tools.settings_desc', adminOnly: true },
+    { key: 'actions',   icon: 'bi-lightning',      title: 'rptmgmt.tools.actions',
+      desc: 'rptmgmt.tools.actions_desc', adminOnly: true },
 ];
 
 // ================================================================
@@ -118,7 +119,7 @@ let _passwordModal = null;
 
 function showLoading(text) {
     document.getElementById('loadingState').style.display = '';
-    document.getElementById('loadingText').textContent = text || 'Loading…';
+    document.getElementById('loadingText').textContent = text || t('common.loading');
     document.getElementById('errorState').style.display = 'none';
     document.getElementById('panelContent').style.display = 'none';
 }
@@ -126,7 +127,7 @@ function showLoading(text) {
 function showError(text) {
     document.getElementById('loadingState').style.display = 'none';
     document.getElementById('errorState').style.display = '';
-    document.getElementById('errorText').textContent = text || 'Something went wrong.';
+    document.getElementById('errorText').textContent = text || t('rptmgmt.error_generic');
     document.getElementById('panelContent').style.display = 'none';
 }
 
@@ -185,11 +186,11 @@ function renderTools() {
         col.className = 'col-12 col-sm-6 col-lg-4';
         col.innerHTML = `
             <div class="tool-tile${locked ? ' disabled' : ''}" data-tool="${tool.key}"
-                 ${locked ? 'title="Admin login required"' : ''}>
+                 ${locked ? `title="${tHtml('rptmgmt.admin_required')}"` : ''}>
                 <div class="tool-icon ${tool.key}"><i class="bi ${tool.icon}"></i></div>
                 <div class="flex-grow-1" style="min-width: 0;">
-                    <h6>${esc(tool.title)}${locked ? ' <i class="bi bi-lock-fill small text-muted"></i>' : ''}</h6>
-                    <p class="tool-desc">${esc(tool.desc)}</p>
+                    <h6>${esc(t(tool.title))}${locked ? ' <i class="bi bi-lock-fill small text-muted"></i>' : ''}</h6>
+                    <p class="tool-desc">${esc(t(tool.desc))}</p>
                 </div>
                 <i class="bi bi-chevron-right text-muted"></i>
             </div>
@@ -197,7 +198,7 @@ function renderTools() {
         const tile = col.querySelector('.tool-tile');
         tile.addEventListener('click', () => {
             if (locked) {
-                showNotification('Admin login required for this tool', 'warning');
+                showNotification(t('rptmgmt.toast.admin_required'), 'warning');
                 return;
             }
             openToolPane(tool);
@@ -226,7 +227,7 @@ function openToolPane(tool) {
     icon.style.height = '32px';
     icon.style.fontSize = '1rem';
     icon.innerHTML = `<i class="bi ${tool.icon}"></i>`;
-    document.getElementById('paneTitle').textContent = tool.title;
+    document.getElementById('paneTitle').textContent = t(tool.title);
 
     const body = document.getElementById('paneBody');
     if (tool.key === 'status') {
@@ -256,7 +257,7 @@ function openToolPane(tool) {
     body.innerHTML = `
         <div class="text-center text-muted py-4">
             <i class="bi ${tool.icon}" style="font-size: 2rem;"></i>
-            <p class="mt-2 mb-0">The <strong>${esc(tool.title)}</strong> tool is coming in a later stage.</p>
+            <p class="mt-2 mb-0">${tHtml('rptmgmt.tool_coming', { tool: t(tool.title) })}</p>
         </div>
     `;
 }
@@ -278,9 +279,11 @@ function fmtDuration(seconds) {
     return parts.join(' ');
 }
 
+// Delegates to datetime-utils.js; no longer forces en-US thousands separators, so
+// numbers follow the reader's locale. Kept as a declaration (not const) so it stays
+// hoisted, like the implementation it replaced.
 function fmtInt(n) {
-    if (n == null || isNaN(n)) return '—';
-    return Number(n).toLocaleString('en-US');
+    return formatInt(n);
 }
 
 function batteryPercent(mv) {
@@ -301,8 +304,8 @@ function renderStatusPane(body) {
     body.innerHTML = `
         <div class="d-flex align-items-center mb-2">
             <span class="text-muted small flex-grow-1" id="statusUpdated"></span>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="statusRefreshBtn" title="Refresh status">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="statusRefreshBtn" title="${tHtml('rptmgmt.status.refresh_title')}">
+                <i class="bi bi-arrow-clockwise"></i> ${tHtml('common.refresh')}
             </button>
         </div>
         <div id="statusContainer"></div>
@@ -320,9 +323,9 @@ function setStatusUpdatedLabel() {
         const label = document.getElementById('statusUpdated');
         if (!label) { clearInterval(_statusTimer); _statusTimer = null; return; }
         const secs = Math.floor((Date.now() - _statusUpdatedAt) / 1000);
-        if (secs < 2) label.textContent = 'Updated just now';
-        else if (secs < 60) label.textContent = `Updated ${secs}s ago`;
-        else label.textContent = `Updated ${fmtDuration(secs)} ago`;
+        if (secs < 2) label.textContent = t('rptmgmt.updated_just_now');
+        else if (secs < 60) label.textContent = t('rptmgmt.updated_ago', { time: `${secs}s` });
+        else label.textContent = t('rptmgmt.updated_ago', { time: fmtDuration(secs) });
     };
     tick();
     _statusTimer = setInterval(tick, 5000);
@@ -336,7 +339,7 @@ async function loadStatus() {
     container.innerHTML = `
         <div class="text-center text-muted py-4">
             <div class="spinner-border text-primary" role="status"></div>
-            <p class="mt-2 mb-0">Requesting status from the repeater…</p>
+            <p class="mt-2 mb-0">${tHtml('rptmgmt.status.loading')}</p>
         </div>
     `;
 
@@ -345,7 +348,7 @@ async function loadStatus() {
         const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/status`);
         data = await resp.json();
     } catch (e) {
-        data = { success: false, error: 'Request failed' };
+        data = { success: false, error: t('rptmgmt.request_failed') };
     }
     if (btn) btn.disabled = false;
 
@@ -353,9 +356,9 @@ async function loadStatus() {
         container.innerHTML = `
             <div class="text-center py-4">
                 <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
-                <p class="mt-2 mb-2">${esc((data && data.error) || 'Failed to get status')}</p>
+                <p class="mt-2 mb-2">${esc((data && data.error) || t('rptmgmt.status_failed'))}</p>
                 <button type="button" class="btn btn-sm btn-primary" id="statusRetryBtn">
-                    <i class="bi bi-arrow-clockwise"></i> Try again
+                    <i class="bi bi-arrow-clockwise"></i> ${tHtml('common.try_again')}
                 </button>
             </div>
         `;
@@ -390,26 +393,30 @@ function renderStatusTable(container, s) {
         ? (((s.airtime + s.rx_airtime) / s.uptime) * 100).toFixed(2) + '%'
         : '—';
 
-    const system = statusSection('System Information', [
-        ['Battery', batStr],
-        ['Uptime', fmtDuration(s.uptime)],
-        ['Clock', '<span id="statusClock" class="text-muted">…</span>'],
-        ['Queue length', fmtInt(s.tx_queue_len)],
-        ['Debug / error events', fmtInt(s.full_evts)],
+    // Row labels use t(), not tHtml(): statusSection() runs esc() over the
+    // title and every label, so a pre-escaped value would be escaped twice.
+    // "flood" / "direct" inside the values are protocol terms and stay
+    // English (see docs/translations.md).
+    const system = statusSection(t('rptmgmt.status.system'), [
+        [t('rptmgmt.status.battery'), batStr],
+        [t('rptmgmt.status.uptime'), fmtDuration(s.uptime)],
+        [t('rptmgmt.status.clock'), '<span id="statusClock" class="text-muted">…</span>'],
+        [t('rptmgmt.status.queue'), fmtInt(s.tx_queue_len)],
+        [t('rptmgmt.status.events'), fmtInt(s.full_evts)],
     ]);
-    const radio = statusSection('Radio Statistics', [
-        ['Last RSSI', s.last_rssi != null ? `${s.last_rssi} dBm` : '—'],
-        ['Last SNR', s.last_snr != null ? `${s.last_snr} dB` : '—'],
-        ['Noise floor', s.noise_floor != null ? `${s.noise_floor} dBm` : '—'],
-        ['TX airtime', fmtDuration(s.airtime)],
-        ['RX airtime', fmtDuration(s.rx_airtime)],
+    const radio = statusSection(t('rptmgmt.status.radio'), [
+        [t('rptmgmt.status.last_rssi'), s.last_rssi != null ? `${s.last_rssi} dBm` : '—'],
+        [t('rptmgmt.status.last_snr'), s.last_snr != null ? `${s.last_snr} dB` : '—'],
+        [t('rptmgmt.status.noise'), s.noise_floor != null ? `${s.noise_floor} dBm` : '—'],
+        [t('rptmgmt.status.tx_airtime'), fmtDuration(s.airtime)],
+        [t('rptmgmt.status.rx_airtime'), fmtDuration(s.rx_airtime)],
     ]);
-    const packets = statusSection('Packet Statistics', [
-        ['Sent', `${fmtInt(s.nb_sent)} <span class="text-muted small">(flood ${fmtInt(s.sent_flood)} · direct ${fmtInt(s.sent_direct)})</span>`],
-        ['Received', `${fmtInt(s.nb_recv)} <span class="text-muted small">(flood ${fmtInt(s.recv_flood)} · direct ${fmtInt(s.recv_direct)})</span>`],
-        ['Duplicates', `<span class="text-muted small">flood</span> ${fmtInt(s.flood_dups)} · <span class="text-muted small">direct</span> ${fmtInt(s.direct_dups)}`],
-        ...(s.recv_errors != null ? [['RX errors', fmtInt(s.recv_errors)]] : []),
-        ['Channel utilization', util],
+    const packets = statusSection(t('rptmgmt.status.packets'), [
+        [t('rptmgmt.status.sent'), `${fmtInt(s.nb_sent)} <span class="text-muted small">(flood ${fmtInt(s.sent_flood)} · direct ${fmtInt(s.sent_direct)})</span>`],
+        [t('rptmgmt.status.received'), `${fmtInt(s.nb_recv)} <span class="text-muted small">(flood ${fmtInt(s.recv_flood)} · direct ${fmtInt(s.recv_direct)})</span>`],
+        [t('rptmgmt.status.duplicates'), `<span class="text-muted small">flood</span> ${fmtInt(s.flood_dups)} · <span class="text-muted small">direct</span> ${fmtInt(s.direct_dups)}`],
+        ...(s.recv_errors != null ? [[t('rptmgmt.status.rx_errors'), fmtInt(s.recv_errors)]] : []),
+        [t('rptmgmt.status.utilization'), util],
     ]);
 
     container.innerHTML = system + radio + packets;
@@ -475,8 +482,8 @@ function renderTelemetryPane(body) {
     body.innerHTML = `
         <div class="d-flex align-items-center mb-2">
             <span class="text-muted small flex-grow-1" id="telemetryUpdated"></span>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="telemetryRefreshBtn" title="Refresh telemetry">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="telemetryRefreshBtn" title="${tHtml('rptmgmt.tel.refresh_title')}">
+                <i class="bi bi-arrow-clockwise"></i> ${tHtml('common.refresh')}
             </button>
         </div>
         <div id="telemetryContainer"></div>
@@ -492,9 +499,9 @@ function setTelemetryUpdatedLabel() {
         const label = document.getElementById('telemetryUpdated');
         if (!label) { clearInterval(_telemetryTimer); _telemetryTimer = null; return; }
         const secs = Math.floor((Date.now() - _telemetryUpdatedAt) / 1000);
-        if (secs < 2) label.textContent = 'Updated just now';
-        else if (secs < 60) label.textContent = `Updated ${secs}s ago`;
-        else label.textContent = `Updated ${fmtDuration(secs)} ago`;
+        if (secs < 2) label.textContent = t('rptmgmt.updated_just_now');
+        else if (secs < 60) label.textContent = t('rptmgmt.updated_ago', { time: `${secs}s` });
+        else label.textContent = t('rptmgmt.updated_ago', { time: fmtDuration(secs) });
     };
     tick();
     _telemetryTimer = setInterval(tick, 5000);
@@ -508,8 +515,8 @@ async function loadTelemetry() {
     container.innerHTML = `
         <div class="text-center text-muted py-4">
             <div class="spinner-border text-primary" role="status"></div>
-            <p class="mt-2 mb-0">Requesting telemetry from the repeater…<br>
-            <span class="small">Multi-hop paths can take up to a minute.</span></p>
+            <p class="mt-2 mb-0">${tHtml('rptmgmt.tel.loading')}<br>
+            <span class="small">${tHtml('rptmgmt.tel.loading_hint')}</span></p>
         </div>
     `;
 
@@ -518,7 +525,7 @@ async function loadTelemetry() {
         const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/telemetry`);
         data = await resp.json();
     } catch (e) {
-        data = { success: false, error: 'Request failed' };
+        data = { success: false, error: t('rptmgmt.request_failed') };
     }
     if (btn) btn.disabled = false;
 
@@ -526,9 +533,9 @@ async function loadTelemetry() {
         container.innerHTML = `
             <div class="text-center py-4">
                 <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
-                <p class="mt-2 mb-2">${esc((data && data.error) || 'Failed to get telemetry')}</p>
+                <p class="mt-2 mb-2">${esc((data && data.error) || t('rptmgmt.telemetry_failed'))}</p>
                 <button type="button" class="btn btn-sm btn-primary" id="telemetryRetryBtn">
-                    <i class="bi bi-arrow-clockwise"></i> Try again
+                    <i class="bi bi-arrow-clockwise"></i> ${tHtml('common.try_again')}
                 </button>
             </div>
         `;
@@ -544,7 +551,7 @@ async function loadTelemetry() {
 
 function renderTelemetryCards(container, lpp) {
     if (!lpp.length) {
-        container.innerHTML = '<div class="text-muted text-center py-4">No telemetry data reported.</div>';
+        container.innerHTML = `<div class="text-muted text-center py-4">${tHtml('rptmgmt.telemetry_none')}</div>`;
         return;
     }
 
@@ -571,7 +578,9 @@ function renderTelemetryCards(container, lpp) {
             `;
         }).join('');
         // Channel 1 carries the repeater's own vitals (battery, MCU temp)
-        const chLabel = ch === 1 ? `Channel ${ch} <span class="text-muted fw-normal">· device</span>` : `Channel ${ch}`;
+        const chLabel = ch === 1
+            ? `${tHtml('rptmgmt.tel.channel', { n: ch })} <span class="text-muted fw-normal">· ${tHtml('rptmgmt.tel.device_suffix')}</span>`
+            : tHtml('rptmgmt.tel.channel', { n: ch });
         html += `
             <div class="col-12 col-md-6 col-xl-4">
                 <div class="border rounded p-2 h-100">
@@ -623,12 +632,12 @@ function renderCliPane(body) {
     ).join('');
     body.innerHTML = `
         <div class="cli-terminal" id="cliOutput">
-            <div class="cli-line meta">Commands go to ${esc(_repeater ? _repeater.name : 'the repeater')}. One command at a time — replies travel over the mesh.</div>
+            <div class="cli-line meta">${tHtml('rptmgmt.cli.intro', { name: _repeater ? _repeater.name : t('rptmgmt.cli.the_repeater') })}</div>
         </div>
         <div class="d-flex flex-wrap gap-1 mt-2">${chips}</div>
         <form id="cliForm" class="d-flex gap-2 mt-2">
             <input type="text" id="cliInput" class="form-control form-control-sm font-monospace"
-                   placeholder="Enter command (e.g. get name)" autocomplete="off"
+                   placeholder="${tHtml('rptmgmt.cli.input_ph')}" autocomplete="off"
                    autocapitalize="off" spellcheck="false">
             <button type="submit" class="btn btn-sm btn-success" id="cliSendBtn">
                 <i class="bi bi-send"></i>
@@ -697,7 +706,7 @@ async function sendCliCommand(raw) {
     pushCliHistory(command);
 
     cliAppend('cmd', command);
-    const pendingLine = cliAppend('meta cli-pending', 'Waiting for reply…');
+    const pendingLine = cliAppend('meta cli-pending', t('rptmgmt.cli.waiting'));
 
     let data = null;
     try {
@@ -708,17 +717,17 @@ async function sendCliCommand(raw) {
         });
         data = await resp.json();
     } catch (e) {
-        data = { success: false, error: 'Request failed' };
+        data = { success: false, error: t('rptmgmt.request_failed') };
     }
 
     if (pendingLine) pendingLine.remove();
     if (data && data.success) {
-        cliAppend('reply', data.output || '(empty reply)');
+        cliAppend('reply', data.output || t('rptmgmt.cli.empty_reply'));
         if (data.elapsed_ms != null) {
             cliAppend('meta', `(${(data.elapsed_ms / 1000).toFixed(1)} s)`);
         }
     } else {
-        cliAppend('error', (data && data.error) || 'Command failed');
+        cliAppend('error', (data && data.error) || t('rptmgmt.command_failed'));
     }
 
     _cliPending = false;
@@ -743,14 +752,14 @@ function renderNeighborsPane(body) {
             <span class="text-muted small flex-grow-1" id="neighborsCount"></span>
             <div class="btn-group btn-group-sm" role="group" id="neighborsViewToggle" style="display: none;">
                 <button type="button" class="btn btn-outline-secondary active" id="nbListBtn">
-                    <i class="bi bi-list-ul"></i> List
+                    <i class="bi bi-list-ul"></i> ${tHtml('rptmgmt.neigh.list')}
                 </button>
                 <button type="button" class="btn btn-outline-secondary" id="nbMapBtn">
-                    <i class="bi bi-map"></i> Map
+                    <i class="bi bi-map"></i> ${tHtml('rptmgmt.neigh.map')}
                 </button>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="neighborsRefreshBtn" title="Refresh neighbours">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="neighborsRefreshBtn" title="${tHtml('rptmgmt.neigh.refresh_title')}">
+                <i class="bi bi-arrow-clockwise"></i> ${tHtml('common.refresh')}
             </button>
         </div>
         <div id="neighborsContainer"></div>
@@ -774,8 +783,8 @@ async function loadNeighbors() {
     container.innerHTML = `
         <div class="text-center text-muted py-4">
             <div class="spinner-border text-primary" role="status"></div>
-            <p class="mt-2 mb-0">Requesting neighbours from the repeater…<br>
-            <span class="small">Long lists are fetched in pages and can take a while.</span></p>
+            <p class="mt-2 mb-0">${tHtml('rptmgmt.neigh.loading')}<br>
+            <span class="small">${tHtml('rptmgmt.neigh.loading_hint')}</span></p>
         </div>
     `;
 
@@ -784,7 +793,7 @@ async function loadNeighbors() {
         const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/neighbours`);
         data = await resp.json();
     } catch (e) {
-        data = { success: false, error: 'Request failed' };
+        data = { success: false, error: t('rptmgmt.request_failed') };
     }
     if (btn) btn.disabled = false;
 
@@ -794,9 +803,9 @@ async function loadNeighbors() {
         container.innerHTML = `
             <div class="text-center py-4">
                 <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
-                <p class="mt-2 mb-2">${esc((data && data.error) || 'Failed to get neighbours')}</p>
+                <p class="mt-2 mb-2">${esc((data && data.error) || t('rptmgmt.neighbours_failed'))}</p>
                 <button type="button" class="btn btn-sm btn-primary" id="neighborsRetryBtn">
-                    <i class="bi bi-arrow-clockwise"></i> Try again
+                    <i class="bi bi-arrow-clockwise"></i> ${tHtml('common.try_again')}
                 </button>
             </div>
         `;
@@ -822,8 +831,8 @@ function renderNeighborsList() {
 
     const entries = data.entries || [];
     if (countEl) {
-        let label = `${data.total} neighbor${data.total === 1 ? '' : 's'}`;
-        if (data.fetched < data.total) label += ` (showing ${data.fetched})`;
+        let label = tn('rptmgmt.neigh.count', data.total);
+        if (data.fetched < data.total) label += ` ${t('rptmgmt.neigh.showing', { count: data.fetched })}`;
         countEl.textContent = label;
     }
 
@@ -833,7 +842,7 @@ function renderNeighborsList() {
     if (toggle) toggle.style.display = mappable ? '' : 'none';
 
     if (!entries.length) {
-        container.innerHTML = '<div class="text-muted text-center py-4">No neighbours reported yet.<br><small>Neighbours are learned from zero-hop repeater adverts.</small></div>';
+        container.innerHTML = `<div class="text-muted text-center py-4">${tHtml('rptmgmt.neighbours_none')}<br><small>${tHtml('rptmgmt.neighbours_none_hint')}</small></div>`;
         return;
     }
 
@@ -841,7 +850,7 @@ function renderNeighborsList() {
         <tr>
             <td class="text-truncate" style="max-width: 220px;">
                 ${n.name ? esc(n.name) : `<span class="font-monospace text-muted">[${esc(n.pubkey_prefix)}]</span>`}
-                ${n.lat != null ? '<i class="bi bi-geo-alt text-muted small ms-1" title="Position known"></i>' : ''}
+                ${n.lat != null ? `<i class="bi bi-geo-alt text-muted small ms-1" title="${tHtml('rptmgmt.neigh.position_title')}"></i>` : ''}
             </td>
             <td class="text-muted text-nowrap">${fmtHeardAgo(n.secs_ago)}</td>
             <td class="text-end text-nowrap fw-medium">${n.snr != null ? n.snr + ' dB' : '—'}</td>
@@ -850,8 +859,8 @@ function renderNeighborsList() {
     container.innerHTML = `
         <table class="table table-sm align-middle mb-0">
             <thead><tr class="small text-muted">
-                <th class="fw-normal">Repeater</th>
-                <th class="fw-normal">Heard</th>
+                <th class="fw-normal">${tHtml('rptmgmt.neigh.repeater')}</th>
+                <th class="fw-normal">${tHtml('rptmgmt.neigh.heard')}</th>
                 <th class="fw-normal text-end">SNR</th>
             </tr></thead>
             <tbody>${rows}</tbody>
@@ -861,10 +870,10 @@ function renderNeighborsList() {
 
 function fmtHeardAgo(secs) {
     if (secs == null) return '—';
-    if (secs < 60) return `${secs}s ago`;
-    if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s ago`;
-    if (secs < 86400) return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m ago`;
-    return `${Math.floor(secs / 86400)}d ${Math.floor((secs % 86400) / 3600)}h ago`;
+    if (secs < 60) return t('rptmgmt.ago_s', { s: secs });
+    if (secs < 3600) return t('rptmgmt.ago_ms', { m: Math.floor(secs / 60), s: secs % 60 });
+    if (secs < 86400) return t('rptmgmt.ago_hm', { h: Math.floor(secs / 3600), m: Math.floor((secs % 3600) / 60) });
+    return t('rptmgmt.ago_dh', { d: Math.floor(secs / 86400), h: Math.floor((secs % 86400) / 3600) });
 }
 
 function setNeighborsView(view) {
@@ -908,7 +917,7 @@ function renderNeighborsMap() {
             opacity: 1,
             fillOpacity: 0.9
         }).addTo(_nbMapLayers);
-        centerMarker.bindPopup(`<b>${esc(_repeater.name || 'This repeater')}</b><br>managed repeater`);
+        centerMarker.bindPopup(`<b>${esc(_repeater.name || t('rptmgmt.this_repeater'))}</b><br>${tHtml('rptmgmt.managed_repeater')}`);
         bounds.push(center);
     }
 
@@ -928,7 +937,7 @@ function renderNeighborsMap() {
         marker.bindPopup(
             `<b>${esc(neighborLabel(n))}</b><br>` +
             `SNR: ${n.snr != null ? n.snr + ' dB' : '—'}<br>` +
-            `Heard: ${fmtHeardAgo(n.secs_ago)}`
+            tHtml('rptmgmt.neigh.heard_at', { time: fmtHeardAgo(n.secs_ago) })
         );
         if (hasCenter) {
             const line = L.polyline([center, pos], {
@@ -977,13 +986,13 @@ async function loadClock() {
             el.textContent = d.toLocaleString();
         } else {
             el.className = '';
-            el.innerHTML = `<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="clockRetryBtn">fetch</button>`;
+            el.innerHTML = `<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="clockRetryBtn">${tHtml('rptmgmt.status.clock_fetch')}</button>`;
             const b = document.getElementById('clockRetryBtn');
             if (b) b.addEventListener('click', loadClock);
         }
     } catch (e) {
         el.className = '';
-        el.innerHTML = `<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="clockRetryBtn">fetch</button>`;
+        el.innerHTML = `<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="clockRetryBtn">${tHtml('rptmgmt.status.clock_fetch')}</button>`;
         const b = document.getElementById('clockRetryBtn');
         if (b) b.addEventListener('click', loadClock);
     }
@@ -995,52 +1004,54 @@ async function loadClock() {
 
 // Sections and fields mirror _REPEATER_SETTINGS_FIELDS in api.py.
 // Values travel as raw CLI strings (`get X` → `> value`, `set X value`).
+// title/label/help/note hold catalog KEYS, resolved with t() at render time.
+// `key` is the firmware CLI parameter and is never translated.
 const SETTINGS_SECTIONS = [
-    { key: 'basic', title: 'Basic', icon: 'bi-tag', fields: [
-        { key: 'name', label: 'Repeater name', type: 'text' },
-        { key: 'password', label: 'Admin password', type: 'password', writeOnly: true,
-          help: 'Write-only — the current password is never shown. Changing it does not log out already active sessions.' },
-        { key: 'guest.password', label: 'Guest password', type: 'text',
-          help: 'Password for read-only guest logins.' },
+    { key: 'basic', title: 'rptmgmt.set.basic', icon: 'bi-tag', fields: [
+        { key: 'name', label: 'rptmgmt.set.name', type: 'text' },
+        { key: 'password', label: 'rptmgmt.set.password', type: 'password', writeOnly: true,
+          help: 'rptmgmt.set.password_help' },
+        { key: 'guest.password', label: 'rptmgmt.set.guest_password', type: 'text',
+          help: 'rptmgmt.set.guest_password_help' },
     ]},
-    { key: 'radio', title: 'Radio', icon: 'bi-broadcast',
-      note: 'Frequency, bandwidth, SF and CR are applied after a reboot. TX power applies immediately.',
+    { key: 'radio', title: 'rptmgmt.set.radio', icon: 'bi-broadcast',
+      note: 'rptmgmt.set.radio_note',
       fields: [
-        { key: 'radio', label: 'Radio parameters', type: 'radio4' },
-        { key: 'tx', label: 'TX power (dBm)', type: 'number', min: 0, max: 30, step: 1 },
-        { key: 'radio.rxgain', label: 'RX boosted gain', type: 'onoff' },
+        { key: 'radio', label: 'rptmgmt.set.radio_params', type: 'radio4' },
+        { key: 'tx', label: 'rptmgmt.set.tx', type: 'number', min: 0, max: 30, step: 1 },
+        { key: 'radio.rxgain', label: 'rptmgmt.set.rxgain', type: 'onoff' },
     ]},
-    { key: 'location', title: 'Location', icon: 'bi-geo-alt', fields: [
-        { key: 'lat', label: 'Latitude', type: 'text' },
-        { key: 'lon', label: 'Longitude', type: 'text' },
+    { key: 'location', title: 'rptmgmt.set.location', icon: 'bi-geo-alt', fields: [
+        { key: 'lat', label: 'rptmgmt.set.lat', type: 'text' },
+        { key: 'lon', label: 'rptmgmt.set.lon', type: 'text' },
     ]},
-    { key: 'features', title: 'Features', icon: 'bi-toggles', fields: [
-        { key: 'repeat', label: 'Repeat packets', type: 'onoff' },
-        { key: 'allow.read.only', label: 'Allow read-only (guest) access', type: 'onoff' },
-        { key: 'multi.acks', label: 'Send multiple ACKs', type: 'zeroone' },
+    { key: 'features', title: 'rptmgmt.set.features', icon: 'bi-toggles', fields: [
+        { key: 'repeat', label: 'rptmgmt.set.repeat', type: 'onoff' },
+        { key: 'allow.read.only', label: 'rptmgmt.set.allow_read_only', type: 'onoff' },
+        { key: 'multi.acks', label: 'rptmgmt.set.multi_acks', type: 'zeroone' },
     ]},
-    { key: 'network', title: 'Network health', icon: 'bi-heart-pulse', fields: [
-        { key: 'loop.detect', label: 'Loop detection', type: 'select',
+    { key: 'network', title: 'rptmgmt.set.network', icon: 'bi-heart-pulse', fields: [
+        { key: 'loop.detect', label: 'rptmgmt.set.loop_detect', type: 'select',
           options: ['off', 'minimal', 'moderate', 'strict'] },
-        { key: 'dutycycle', label: 'Duty cycle (%)', type: 'number', min: 1, max: 100, step: 1 },
+        { key: 'dutycycle', label: 'rptmgmt.set.dutycycle', type: 'number', min: 1, max: 100, step: 1 },
     ]},
-    { key: 'advert', title: 'Advertisement', icon: 'bi-megaphone', fields: [
-        { key: 'advert.interval', label: 'Local advert interval (minutes)', type: 'number', min: 0, max: 240, step: 1,
-          help: 'Firmware accepts 60–240 minutes, or 0 to disable.' },
-        { key: 'flood.advert.interval', label: 'Flood advert interval (hours)', type: 'number', min: 0, step: 1 },
-        { key: 'flood.max', label: 'Max flood hops', type: 'number', min: 0, max: 64, step: 1 },
+    { key: 'advert', title: 'rptmgmt.set.advert', icon: 'bi-megaphone', fields: [
+        { key: 'advert.interval', label: 'rptmgmt.set.advert_interval', type: 'number', min: 0, max: 240, step: 1,
+          help: 'rptmgmt.set.advert_interval_help' },
+        { key: 'flood.advert.interval', label: 'rptmgmt.set.flood_advert_interval', type: 'number', min: 0, step: 1 },
+        { key: 'flood.max', label: 'rptmgmt.set.flood_max', type: 'number', min: 0, max: 64, step: 1 },
     ]},
-    { key: 'operator', title: 'Operator info', icon: 'bi-person-vcard', fields: [
-        { key: 'owner.info', label: 'Owner info', type: 'textarea',
-          help: 'Free-form operator / contact info shown to clients. Multiple lines allowed.' },
+    { key: 'operator', title: 'rptmgmt.set.operator', icon: 'bi-person-vcard', fields: [
+        { key: 'owner.info', label: 'rptmgmt.set.owner_info', type: 'textarea',
+          help: 'rptmgmt.set.owner_info_help' },
     ]},
-    { key: 'advanced', title: 'Advanced', icon: 'bi-sliders', fields: [
-        { key: 'path.hash.mode', label: 'Path hash mode (0–2)', type: 'number', min: 0, max: 2, step: 1 },
-        { key: 'txdelay', label: 'TX delay factor (0–2)', type: 'number', min: 0, max: 2, step: 'any' },
-        { key: 'direct.txdelay', label: 'Direct TX delay factor (0–2)', type: 'number', min: 0, max: 2, step: 'any' },
-        { key: 'int.thresh', label: 'Interference threshold', type: 'number', step: 1 },
-        { key: 'agc.reset.interval', label: 'AGC reset interval', type: 'number', min: 0, step: 4,
-          help: 'Multiple of 4; 0 disables periodic AGC resets.' },
+    { key: 'advanced', title: 'rptmgmt.set.advanced', icon: 'bi-sliders', fields: [
+        { key: 'path.hash.mode', label: 'rptmgmt.set.path_hash_mode', type: 'number', min: 0, max: 2, step: 1 },
+        { key: 'txdelay', label: 'rptmgmt.set.txdelay', type: 'number', min: 0, max: 2, step: 'any' },
+        { key: 'direct.txdelay', label: 'rptmgmt.set.direct_txdelay', type: 'number', min: 0, max: 2, step: 'any' },
+        { key: 'int.thresh', label: 'rptmgmt.set.int_thresh', type: 'number', step: 1 },
+        { key: 'agc.reset.interval', label: 'rptmgmt.set.agc_reset', type: 'number', min: 0, step: 4,
+          help: 'rptmgmt.set.agc_reset_help' },
     ]},
 ];
 
@@ -1075,14 +1086,14 @@ function settingsControlHtml(f) {
     if (f.type === 'password') {
         // Write-only: usable without loading, never prefilled
         return `<input type="password" class="form-control form-control-sm sf-input" ${df}
-                       placeholder="(unchanged)" autocomplete="new-password">`;
+                       placeholder="${tHtml('rptmgmt.set.pw_unchanged_ph')}" autocomplete="new-password">`;
     }
     if (f.type === 'radio4') {
         const subs = [
-            ['Frequency (MHz)', 'any'],
-            ['Bandwidth (kHz)', 'any'],
-            ['Spreading factor', '1'],
-            ['Coding rate', '1'],
+            [tHtml('settings.device.freq'), 'any'],
+            [tHtml('settings.device.bw'), 'any'],
+            [tHtml('settings.device.sf'), '1'],
+            [tHtml('settings.device.cr'), '1'],
         ].map(([lbl, step], i) => `
             <div class="col-6 col-lg-3">
                 <label class="form-label small text-muted mb-0">${lbl}</label>
@@ -1102,10 +1113,10 @@ function settingsControlHtml(f) {
 function settingsFieldHtml(f) {
     return `
         <div class="sf-row mb-3" data-field-row="${esc(f.key)}">
-            <label class="form-label small fw-semibold mb-1">${esc(f.label)} <span class="sf-badge ms-1"></span></label>
+            <label class="form-label small fw-semibold mb-1">${esc(t(f.label))} <span class="sf-badge ms-1"></span></label>
             ${settingsControlHtml(f)}
             <div class="sf-msg small text-danger d-none"></div>
-            ${f.help ? `<div class="form-text small mb-0">${esc(f.help)}</div>` : ''}
+            ${f.help ? `<div class="form-text small mb-0">${esc(t(f.help))}</div>` : ''}
         </div>`;
 }
 
@@ -1118,29 +1129,29 @@ function renderSettingsPane(body) {
             <h2 class="accordion-header">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
                         data-bs-target="#secCollapse-${sec.key}">
-                    <i class="bi ${sec.icon} me-2"></i>${esc(sec.title)}
+                    <i class="bi ${sec.icon} me-2"></i>${esc(t(sec.title))}
                     <span class="badge bg-warning text-dark ms-2 sec-dirty-badge d-none"></span>
                 </button>
             </h2>
             <div id="secCollapse-${sec.key}" class="accordion-collapse collapse">
                 <div class="accordion-body pt-2">
-                    ${sec.note ? `<div class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>${esc(sec.note)}</div>` : ''}
+                    ${sec.note ? `<div class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>${esc(t(sec.note))}</div>` : ''}
                     <div class="sec-status small text-muted mb-2 d-none"></div>
                     <div class="sec-reboot alert alert-warning py-1 px-2 small d-none mb-2">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Some changes take effect after a reboot — use Actions → Reboot.
+                        <i class="bi bi-arrow-clockwise me-1"></i>${tHtml('rptmgmt.set.reboot_note')}
                     </div>
                     <div class="sec-fields">${sec.fields.map(settingsFieldHtml).join('')}</div>
                     ${sec.key === 'location' ? `
                     <button type="button" class="btn btn-sm btn-outline-primary sec-map-pick" disabled
-                            title="Refresh the section first, then pick a point">
-                        <i class="bi bi-geo-alt"></i> Pick from map
+                            title="${tHtml('rptmgmt.set.map_pick_title')}">
+                        <i class="bi bi-geo-alt"></i> ${tHtml('rptmgmt.set.map_pick')}
                     </button>` : ''}
                     <div class="d-flex align-items-center gap-2 mt-3">
                         <button type="button" class="btn btn-sm btn-outline-secondary sec-refresh">
-                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                            <i class="bi bi-arrow-clockwise"></i> ${tHtml('common.refresh')}
                         </button>
                         <button type="button" class="btn btn-sm btn-success sec-apply" disabled>
-                            <i class="bi bi-check-lg"></i> Apply
+                            <i class="bi bi-check-lg"></i> ${tHtml('common.apply')}
                         </button>
                     </div>
                 </div>
@@ -1149,10 +1160,7 @@ function renderSettingsPane(body) {
     }).join('');
 
     body.innerHTML = `
-        <p class="text-muted small mb-2">
-            Settings are read live from the repeater. Expand a section to load it —
-            every field is one mesh round-trip, so a section can take a few seconds.
-        </p>
+        <p class="text-muted small mb-2">${tHtml('rptmgmt.set.intro')}</p>
         <div class="accordion" id="settingsAccordion">${items}</div>
     `;
 
@@ -1239,7 +1247,7 @@ function setFieldBadge(item, fieldKey, kind, text) {
     } else if (kind === 'ok') {
         badge.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
     } else if (kind === 'reboot') {
-        badge.innerHTML = '<span class="badge bg-warning text-dark">reboot required</span>';
+        badge.innerHTML = `<span class="badge bg-warning text-dark">${tHtml('rptmgmt.reboot_required')}</span>`;
     } else if (kind === 'error') {
         badge.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-danger"></i>';
         if (text) {
@@ -1274,7 +1282,7 @@ function updateSectionDirty(secKey) {
     });
     const applyBtn = item.querySelector('.sec-apply');
     applyBtn.disabled = count === 0 || st.loading || st.applying;
-    applyBtn.innerHTML = `<i class="bi bi-check-lg"></i> Apply${count ? ` (${count})` : ''}`;
+    applyBtn.innerHTML = `<i class="bi bi-check-lg"></i> ${count ? tHtml('rptmgmt.set.apply_count', { count }) : tHtml('common.apply')}`;
     const badge = item.querySelector('.sec-dirty-badge');
     badge.classList.toggle('d-none', count === 0);
     badge.textContent = count;
@@ -1291,8 +1299,8 @@ async function loadSettingsSection(secKey) {
     const statusEl = item.querySelector('.sec-status');
     statusEl.classList.remove('d-none', 'text-danger');
     statusEl.classList.add('text-muted');
-    statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' +
-        'Reading from repeater… (one mesh round-trip per field)';
+    statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>'
+        + tHtml('rptmgmt.set.reading');
     item.querySelector('.sec-refresh').disabled = true;
     item.querySelector('.sec-apply').disabled = true;
     const mapPickBtn = item.querySelector('.sec-map-pick');
@@ -1308,7 +1316,7 @@ async function loadSettingsSection(secKey) {
         const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/settings?section=${encodeURIComponent(secKey)}`);
         data = await resp.json();
     } catch (e) {
-        data = { success: false, error: 'Request failed' };
+        data = { success: false, error: t('rptmgmt.request_failed') };
     }
 
     st.loading = false;
@@ -1317,7 +1325,7 @@ async function loadSettingsSection(secKey) {
     if (!data || !data.success) {
         statusEl.classList.remove('text-muted');
         statusEl.classList.add('text-danger');
-        statusEl.textContent = (data && data.error) || 'Failed to read settings';
+        statusEl.textContent = (data && data.error) || t('rptmgmt.settings_read_failed');
         updateSectionDirty(secKey);
         return;
     }
@@ -1338,7 +1346,7 @@ async function loadSettingsSection(secKey) {
         } else {
             errCount++;
             disableSettingsField(item, f, true);
-            setFieldBadge(item, f.key, 'error', errors[f.key] || 'Failed to read');
+            setFieldBadge(item, f.key, 'error', errors[f.key] || t('rptmgmt.read_failed'));
         }
     });
     if (mapPickBtn) mapPickBtn.disabled = !('lat' in st.loaded && 'lon' in st.loaded);
@@ -1347,7 +1355,7 @@ async function loadSettingsSection(secKey) {
     if (errCount) {
         statusEl.classList.remove('text-muted');
         statusEl.classList.add('text-danger');
-        statusEl.textContent = `${errCount} field${errCount > 1 ? 's' : ''} failed to load — Refresh retries the whole section.`;
+        statusEl.textContent = tn('rptmgmt.set.load_errors', errCount);
     } else {
         statusEl.classList.add('d-none');
     }
@@ -1371,14 +1379,12 @@ async function applySettingsSection(secKey) {
 
     const emptyKey = keys.find(k => dirty[k] === '' && k !== 'owner.info');
     if (emptyKey) {
-        showNotification(`"${emptyKey}" cannot be empty`, 'warning');
+        showNotification(t('rptmgmt.toast.field_empty', { field: emptyKey }), 'warning');
         return;
     }
 
     if ('radio' in dirty && !window.confirm(
-        `Change radio parameters to ${dirty.radio}?\n\n` +
-        'Wrong values can make the repeater unreachable over the mesh. ' +
-        'The change takes effect after a reboot.')) {
+            t('rptmgmt.confirm.radio', { params: dirty.radio }))) {
         return;
     }
 
@@ -1396,7 +1402,7 @@ async function applySettingsSection(secKey) {
         });
         data = await resp.json();
     } catch (e) {
-        data = { success: false, error: 'Request failed' };
+        data = { success: false, error: t('rptmgmt.request_failed') };
     }
 
     st.applying = false;
@@ -1404,7 +1410,7 @@ async function applySettingsSection(secKey) {
 
     if (!data || !data.success) {
         keys.forEach(k => setFieldBadge(item, k, 'error'));
-        showNotification((data && data.error) || 'Failed to apply settings', 'danger');
+        showNotification((data && data.error) || t('rptmgmt.settings_apply_failed'), 'danger');
         updateSectionDirty(secKey);
         return;
     }
@@ -1413,7 +1419,7 @@ async function applySettingsSection(secKey) {
     let okCount = 0, failCount = 0, rebootCount = 0;
     for (const f of sec.fields) {
         if (!(f.key in dirty)) continue;
-        const res = results[f.key] || { status: 'failed', error: 'No result' };
+        const res = results[f.key] || { status: 'failed', error: t('rptmgmt.no_result') };
         if (res.status === 'ok' || res.status === 'reboot_required') {
             if (res.status === 'reboot_required') {
                 rebootCount++;
@@ -1434,7 +1440,7 @@ async function applySettingsSection(secKey) {
             }
         } else {
             failCount++;
-            setFieldBadge(item, f.key, 'error', res.error || res.reply || 'Failed');
+            setFieldBadge(item, f.key, 'error', res.error || res.reply || t('rptmgmt.failed'));
         }
     }
 
@@ -1442,9 +1448,9 @@ async function applySettingsSection(secKey) {
     updateSectionDirty(secKey);
 
     if (failCount === 0) {
-        showNotification(rebootCount ? 'Applied — reboot required for some changes' : 'Settings applied', 'success');
+        showNotification(rebootCount ? t('rptmgmt.toast.applied_reboot') : t('rptmgmt.toast.applied'), 'success');
     } else {
-        showNotification(`${failCount} setting${failCount > 1 ? 's' : ''} failed to apply`, 'danger');
+        showNotification(tn('rptmgmt.toast.apply_failed_count', failCount), 'danger');
     }
     if (okCount) {
         setTimeout(() => {
@@ -1470,7 +1476,7 @@ async function syncSavedPassword(newPassword) {
         });
         const data = await resp.json();
         if (data && data.success) {
-            showNotification('Saved password updated to the new one', 'success');
+            showNotification(t('rptmgmt.toast.password_synced'), 'success');
         }
     } catch (e) {
         console.error('Failed to update saved password:', e);
@@ -1568,16 +1574,17 @@ function applyLocationFromMap() {
 // ================================================================
 
 // Keys mirror _REPEATER_ACTIONS in api.py.
+// title/desc/btn hold catalog KEYS, resolved with t() at render time.
 const REPEATER_ACTIONS = [
     { key: 'zerohop_advert', icon: 'bi-megaphone', iconClass: 'text-primary',
-      title: 'Send zero-hop advert', btn: 'Send', btnClass: 'btn-outline-primary',
-      desc: 'Announce this repeater to its direct neighbours only.' },
+      title: 'rptmgmt.act.zerohop', btn: 'rptmgmt.act.send', btnClass: 'btn-outline-primary',
+      desc: 'rptmgmt.act.zerohop_desc' },
     { key: 'flood_advert', icon: 'bi-broadcast-pin', iconClass: 'text-warning',
-      title: 'Send flood advert', btn: 'Send', btnClass: 'btn-outline-warning',
-      desc: 'Not recommended — the advert is flooded across the whole mesh (high network load).' },
+      title: 'rptmgmt.act.flood', btn: 'rptmgmt.act.send', btnClass: 'btn-outline-warning',
+      desc: 'rptmgmt.act.flood_desc' },
     { key: 'clock_sync', icon: 'bi-clock-history', iconClass: 'text-primary',
-      title: 'Sync clock', btn: 'Sync', btnClass: 'btn-outline-primary',
-      desc: "Set the repeater's clock from this device's current time. The firmware refuses to move the clock backwards." },
+      title: 'rptmgmt.act.clock_sync', btn: 'rptmgmt.act.sync', btnClass: 'btn-outline-primary',
+      desc: 'rptmgmt.act.clock_sync_desc' },
 ];
 
 let _actionPending = false;
@@ -1587,12 +1594,12 @@ function actionRowHtml(a) {
         <div class="d-flex align-items-start gap-3 py-2 action-row" data-action="${a.key}">
             <i class="bi ${a.icon} fs-4 ${a.iconClass || ''}"></i>
             <div class="flex-grow-1" style="min-width: 0;">
-                <div class="fw-semibold">${esc(a.title)}</div>
-                <div class="small text-muted">${esc(a.desc)}</div>
+                <div class="fw-semibold">${esc(t(a.title))}</div>
+                <div class="small text-muted">${esc(t(a.desc))}</div>
                 <div class="small action-result d-none mt-1"></div>
             </div>
             <button type="button" class="btn btn-sm ${a.btnClass} action-btn" style="min-width: 84px;">
-                ${esc(a.btn)}
+                ${esc(t(a.btn))}
             </button>
         </div>`;
 }
@@ -1607,17 +1614,16 @@ function renderActionsPane(body) {
         </div>
         <div class="card border-danger">
             <div class="card-header py-2 text-danger">
-                <i class="bi bi-exclamation-octagon me-1"></i>Danger zone
+                <i class="bi bi-exclamation-octagon me-1"></i>${tHtml('rptmgmt.danger_zone')}
             </div>
             <div class="card-body py-2">
                 ${actionRowHtml({
                     key: 'reboot', icon: 'bi-arrow-clockwise', iconClass: 'text-danger',
-                    title: 'Reboot repeater', btn: 'Reboot', btnClass: 'btn-danger',
-                    desc: 'The repeater drops off the mesh for a few seconds while it restarts.',
+                    title: 'rptmgmt.act.reboot', btn: 'rptmgmt.act.reboot_btn', btnClass: 'btn-danger',
+                    desc: 'rptmgmt.act.reboot_desc',
                 })}
                 <div class="small text-muted mt-2">
-                    <i class="bi bi-info-circle me-1"></i>Erase file system is not available over the mesh —
-                    the firmware only accepts it on the USB serial console (use the MeshCore flasher instead).
+                    <i class="bi bi-info-circle me-1"></i>${tHtml('rptmgmt.erase_fs_note')}
                 </div>
             </div>
         </div>
@@ -1632,8 +1638,9 @@ function renderActionsPane(body) {
 async function runRepeaterAction(action) {
     if (_actionPending) return;
     if (action === 'reboot' && !window.confirm(
-        `Reboot ${(_repeater && _repeater.name) || 'this repeater'}?\n\n` +
-        'It will drop off the mesh for a few seconds. The firmware does not reply to this command.')) {
+            t('rptmgmt.confirm.reboot', {
+                name: (_repeater && _repeater.name) || t('rptmgmt.this_repeater'),
+            }))) {
         return;
     }
 
@@ -1655,7 +1662,7 @@ async function runRepeaterAction(action) {
         });
         data = await resp.json();
     } catch (e) {
-        data = { success: false, error: 'Request failed' };
+        data = { success: false, error: t('rptmgmt.request_failed') };
     }
 
     _actionPending = false;
@@ -1667,14 +1674,14 @@ async function runRepeaterAction(action) {
         if (data && data.success) {
             resultEl.classList.add(data.ok ? 'text-success' : 'text-danger');
             const elapsed = data.elapsed_ms != null ? ` (${(data.elapsed_ms / 1000).toFixed(1)} s)` : '';
-            resultEl.textContent = (data.reply || 'Done') + elapsed;
+            resultEl.textContent = (data.reply || t('rptmgmt.done')) + elapsed;
         } else {
             resultEl.classList.add('text-danger');
-            resultEl.textContent = (data && data.error) || 'Action failed';
+            resultEl.textContent = (data && data.error) || t('rptmgmt.action_failed');
         }
     }
     if (!data || !data.success) {
-        showNotification((data && data.error) || 'Action failed', 'danger');
+        showNotification((data && data.error) || t('rptmgmt.action_failed'), 'danger');
     }
 }
 
@@ -1686,15 +1693,15 @@ async function fetchRepeater() {
     const response = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}`);
     const data = await response.json();
     if (!data.success) {
-        throw new Error(data.error || 'Failed to load repeater');
+        throw new Error(data.error || t('rptmgmt.load_failed'));
     }
     _repeater = data.repeater;
     _session = data.session;
 }
 
 async function doLogin(password, save) {
-    const name = (_repeater && _repeater.name) || 'repeater';
-    showLoading(`Logging in to ${name}… (may take up to 60 s on flood paths)`);
+    const name = (_repeater && _repeater.name) || t('rptmgmt.login.repeater_fallback');
+    showLoading(t('rptmgmt.login.progress', { name }));
 
     let data = null;
     try {
@@ -1711,7 +1718,7 @@ async function doLogin(password, save) {
         data = await response.json();
     } catch (e) {
         console.error('Login request failed:', e);
-        data = { success: false, error: 'Login request failed' };
+        data = { success: false, error: t('rptmgmt.login_request_failed') };
     }
 
     if (data && data.success) {
@@ -1721,24 +1728,24 @@ async function doLogin(password, save) {
             permissions: data.permissions
         };
         const role = data.is_admin ? 'ADMIN' : 'GUEST';
-        showNotification(`Logged in as ${role}`, 'success');
+        showNotification(t('rptmgmt.login.logged_in', { role }), 'success');
         showPanel();
     } else {
-        const error = (data && data.error) || 'Login failed';
+        const error = (data && data.error) || t('rptmgmt.login.failed');
         openPasswordModal(error);
     }
 }
 
 function openPasswordModal(errorHint = '') {
     // Keep the loading screen behind the modal but stop the spinner text
-    showLoading('Waiting for password…');
+    showLoading(t('rptmgmt.login.waiting'));
 
     const name = (_repeater && _repeater.name) || _pubkey.substring(0, 12);
-    document.getElementById('passwordModalTitle').textContent = `Log in — ${name}`;
+    document.getElementById('passwordModalTitle').textContent = t('rptmgmt.login.modal_title', { name });
     const info = document.getElementById('passwordModalInfo');
     info.innerHTML = errorHint
-        ? `<span class="text-danger">${esc(errorHint)}</span><br>Check the password and try again.`
-        : 'Enter the repeater password to log in.';
+        ? `<span class="text-danger">${esc(errorHint)}</span><br>${tHtml('rptmgmt.login.retry_hint')}`
+        : tHtml('rptmgmt.login.prompt');
     const input = document.getElementById('passwordInput');
     input.value = '';
     input.type = 'password';
@@ -1752,7 +1759,7 @@ async function submitPasswordModal() {
     const input = document.getElementById('passwordInput');
     const password = input.value;
     if (!password) {
-        showNotification('Password cannot be empty', 'warning');
+        showNotification(t('rptmgmt.login.empty_password'), 'warning');
         return;
     }
     const save = document.getElementById('savePasswordCheck').checked;
@@ -1767,7 +1774,7 @@ async function logout() {
         const response = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/logout`, { method: 'POST' });
         const data = await response.json();
         if (!data.success) {
-            showNotification(data.error || 'Logout failed', 'danger');
+            showNotification(data.error || t('rptmgmt.logout_failed'), 'danger');
             logoutBtn.disabled = false;
             return;
         }
@@ -1785,11 +1792,11 @@ async function init() {
     const params = new URLSearchParams(window.location.search);
     _pubkey = (params.get('pubkey') || '').toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(_pubkey)) {
-        showError('Invalid repeater public key in URL.');
+        showError(t('rptmgmt.invalid_pubkey'));
         return;
     }
 
-    showLoading('Loading…');
+    showLoading(t('common.loading'));
     try {
         await fetchRepeater();
     } catch (e) {
@@ -1798,7 +1805,7 @@ async function init() {
     }
 
     if (!_repeater.on_device) {
-        showError('This repeater is not stored on the device — it cannot be managed.');
+        showError(t('rptmgmt.not_on_device'));
         return;
     }
 
@@ -1843,10 +1850,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('copyPubkeyBtn').addEventListener('click', async () => {
         try {
-            await navigator.clipboard.writeText(_repeater ? _repeater.public_key : _pubkey);
-            showNotification('Public key copied', 'info');
+            await copyTextToClipboard(_repeater ? _repeater.public_key : _pubkey);
+            showNotification(t('rptmgmt.pubkey_copied'), 'info');
         } catch (e) {
-            showNotification('Copy failed', 'warning');
+            showNotification(t('common.copy_failed'), 'warning');
         }
     });
 

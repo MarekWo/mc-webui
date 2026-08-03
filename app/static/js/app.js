@@ -193,13 +193,13 @@ function updateMapMarkers() {
         });
         L.marker([_selfInfo.adv_lat, _selfInfo.adv_lon], { icon: ownIcon })
             .addTo(markersGroup)
-            .bindPopup(`<b>${_selfInfo.name || 'This device'}</b><br><span class="text-muted">Own device</span>`);
+            .bindPopup(`<b>${_selfInfo.name || t('map.this_device')}</b><br><span class="text-muted">${tHtml('map.own_device')}</span>`);
         bounds.push([_selfInfo.adv_lat, _selfInfo.adv_lon]);
     }
 
     filteredContacts.forEach(c => {
         const color = CONTACT_TYPE_COLORS[c.type] || '#2196F3';
-        const typeName = CONTACT_TYPE_NAMES[c.type] || 'Unknown';
+        const typeName = CONTACT_TYPE_NAMES[c.type] || t('common.unknown');
         const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
 
         L.circleMarker([c.adv_lat, c.adv_lon], {
@@ -211,7 +211,7 @@ function updateMapMarkers() {
             fillOpacity: 0.8
         })
             .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>${lastSeen ? `<br><small class="text-muted">Last seen: ${lastSeen}</small>` : ''}`);
+            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
 
         bounds.push([c.adv_lat, c.adv_lon]);
     });
@@ -230,7 +230,7 @@ function updateMapMarkers() {
             fillOpacity: 0.5
         })
             .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${c.type_label || 'Cache'} (cached)</span>${lastSeen ? `<br><small class="text-muted">Last seen: ${lastSeen}</small>` : ''}`);
+            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${tHtml('map.cached_label', { type: c.type_label || t('map.cache') })}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
 
         bounds.push([c.adv_lat, c.adv_lon]);
     });
@@ -248,7 +248,7 @@ function updateMapMarkers() {
 async function showAllContactsOnMap() {
     const modalEl = document.getElementById('mapModal');
     const modal = new bootstrap.Modal(modalEl);
-    document.getElementById('mapModalTitle').textContent = 'All Contacts';
+    document.getElementById('mapModalTitle').textContent = t('map.all_contacts');
 
     // Show type filter panel
     const filterPanel = document.getElementById('mapTypeFilter');
@@ -423,10 +423,10 @@ async function resyncFromServer(reason, { toast = false } = {}) {
         loadStatus();
         updatePendingContactsBadge();
         checkDmUpdates();
-        if (toast) showNotification('Messages refreshed', 'success');
+        if (toast) showNotification(t('chat.toast.refreshed'), 'success');
     } catch (error) {
         console.error('[resync] failed:', error);
-        if (toast) showNotification('Refresh failed', 'danger');
+        if (toast) showNotification(t('chat.toast.refresh_failed'), 'danger');
     } finally {
         resyncInFlight = false;
     }
@@ -914,8 +914,8 @@ function setupEventListeners() {
 
             if (data.success) {
                 const msg = data.already_existed
-                    ? `Channel "${name}" already exists.`
-                    : `Channel "${name}" created!`;
+                    ? t('channels.toast.exists', { name })
+                    : t('channels.toast.created', { name });
                 showNotification(msg, data.already_existed ? 'info' : 'success');
 
                 // Show warning if returned (e.g., exceeding soft limit of 7 channels)
@@ -932,10 +932,10 @@ function setupEventListeners() {
                 await loadChannels();
                 loadChannelsList();
             } else {
-                showNotification('Failed to create channel: ' + data.error, 'danger');
+                showNotification(t('channels.toast.create_failed', { error: data.error }), 'danger');
             }
         } catch (error) {
-            showNotification('Failed to create channel', 'danger');
+            showNotification(t('channels.toast.create_error'), 'danger');
         } finally {
             if (submitBtn) submitBtn.disabled = false;
         }
@@ -953,13 +953,13 @@ function setupEventListeners() {
 
         // Validate: key is optional for channels starting with #, but required for others
         if (!name.startsWith('#') && !key) {
-            showNotification('Channel key is required for channels not starting with #', 'warning');
+            showNotification(t('channels.toast.key_required'), 'warning');
             return;
         }
 
         // Validate key format if provided
         if (key && !/^[a-f0-9]{32}$/.test(key)) {
-            showNotification('Invalid key format. Must be 32 hex characters.', 'warning');
+            showNotification(t('channels.toast.key_invalid'), 'warning');
             return;
         }
 
@@ -982,8 +982,8 @@ function setupEventListeners() {
 
             if (data.success) {
                 const msg = data.already_existed
-                    ? `Already joined channel "${name}".`
-                    : `Joined channel "${name}"!`;
+                    ? t('channels.toast.already_joined', { name })
+                    : t('channels.toast.joined', { name });
                 showNotification(msg, data.already_existed ? 'info' : 'success');
 
                 // Show warning if returned (e.g., exceeding soft limit of 7 channels)
@@ -1001,10 +1001,10 @@ function setupEventListeners() {
                 await loadChannels();
                 loadChannelsList();
             } else {
-                showNotification('Failed to join channel: ' + data.error, 'danger');
+                showNotification(t('channels.toast.join_failed', { error: data.error }), 'danger');
             }
         } catch (error) {
-            showNotification('Failed to join channel', 'danger');
+            showNotification(t('channels.toast.join_error'), 'danger');
         } finally {
             if (submitBtn) submitBtn.disabled = false;
         }
@@ -1012,7 +1012,7 @@ function setupEventListeners() {
 
     // Scan QR button (placeholder)
     document.getElementById('scanQRBtn').addEventListener('click', function() {
-        showNotification('QR scanning feature coming soon! For now, manually enter the channel details.', 'info');
+        showNotification(t('channels.toast.qr_soon'), 'info');
     });
 
     // Network Commands: Advert button
@@ -1022,7 +1022,7 @@ function setupEventListeners() {
 
     // Network Commands: Flood Advert button (with confirmation)
     document.getElementById('floodadvBtn').addEventListener('click', async function() {
-        if (!confirm('Flood Advertisement uses high airtime and should only be used for network recovery.\n\nAre you sure you want to proceed?')) {
+        if (!confirm(t('menu.confirm.flood_advert'))) {
             return;
         }
         await executeSpecialCommand('floodadv');
@@ -1033,7 +1033,7 @@ function setupEventListeners() {
         await executeSpecialCommand('advert');
     });
     document.getElementById('fab-floodadvert')?.addEventListener('click', async () => {
-        if (!confirm('Flood Advertisement uses high airtime and should only be used for network recovery.\n\nAre you sure you want to proceed?')) {
+        if (!confirm(t('menu.confirm.flood_advert'))) {
             return;
         }
         await executeSpecialCommand('floodadv');
@@ -1098,7 +1098,7 @@ async function loadMessages() {
             updateLastRefresh();
             updateRegionIndicator();
         } else {
-            showNotification('Error loading messages: ' + data.error, 'danger');
+            showNotification(t('chat.toast.load_error', { error: data.error }), 'danger');
             clearLoadingSpinner();
         }
     } catch (error) {
@@ -1106,10 +1106,10 @@ async function loadMessages() {
         updateStatus('disconnected');
         clearLoadingSpinner();
         if (error.name === 'AbortError') {
-            showNotification('Loading messages timed out — retrying...', 'warning');
+            showNotification(t('chat.toast.load_timeout'), 'warning');
             setTimeout(loadMessages, 2000);
         } else {
-            showNotification('Failed to load messages', 'danger');
+            showNotification(t('chat.toast.load_failed'), 'danger');
         }
     }
 }
@@ -1120,8 +1120,8 @@ function clearLoadingSpinner() {
         container.innerHTML = `
             <div class="empty-state">
                 <i class="bi bi-exclamation-triangle"></i>
-                <p>Could not load messages</p>
-                <small>Will retry automatically</small>
+                <p>${tHtml('chat.error.load_title')}</p>
+                <small>${tHtml('chat.error.load_retry')}</small>
             </div>
         `;
     }
@@ -1141,8 +1141,8 @@ function displayMessages(messages) {
         container.innerHTML = `
             <div class="empty-state">
                 <i class="bi bi-chat-dots"></i>
-                <p>No messages yet</p>
-                <small>Send a message to get started!</small>
+                <p>${tHtml('chat.empty.no_messages')}</p>
+                <small>${tHtml('chat.empty.no_messages_hint')}</small>
             </div>
         `;
         return;
@@ -1255,7 +1255,7 @@ async function refreshMessagesMeta(forceIds = []) {
             const metaEl = wrapper.querySelector('.message-meta');
             const actionsEl = wrapper.querySelector('.message-actions');
             const hasRoute = metaEl && metaEl.querySelector('.path-info');
-            const hasAnalyzer = actionsEl && actionsEl.querySelector('[title="View in Analyzer"]');
+            const hasAnalyzer = actionsEl && actionsEl.querySelector('.btn-msg-analyzer');
             if (hasRoute && hasAnalyzer) continue;
         }
 
@@ -1296,7 +1296,7 @@ function updateMessageMetaDOM(wrapper, meta) {
     }
     const hopCount = meta.hop_count ?? (meta.path_len !== null && meta.path_len !== undefined ? (meta.path_len & 0x3F) : null);
     if (hopCount !== null) {
-        metaParts.push(`Hops: ${hopCount}`);
+        metaParts.push(tHtml('chat.route_hops', { count: hopCount }));
     }
 
     // Build paths from echo data
@@ -1321,8 +1321,10 @@ function updateMessageMetaDOM(wrapper, meta) {
             ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
             : segments.join('\u2192');
         const pathsData = encodeURIComponent(JSON.stringify(paths));
-        const routeLabel = paths.length > 1 ? `Route (${paths.length})` : 'Route';
-        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${meta.packet_hash || ''}')">${routeLabel}: ${shortPath}</span>`);
+        const routeText = paths.length > 1
+            ? tHtml('chat.route_multi', { count: paths.length, route: shortPath })
+            : tHtml('chat.route', { route: shortPath });
+        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${meta.packet_hash || ''}')">${routeText}</span>`);
     }
     const metaInfo = metaParts.join(' | ');
 
@@ -1344,12 +1346,12 @@ function updateMessageMetaDOM(wrapper, meta) {
         // Add analyzer button if not already present
         if (meta.packet_hash) {
             const actionsEl = msgDiv.querySelector('.message-actions');
-            if (actionsEl && !actionsEl.querySelector('[title="View in Analyzer"]')) {
-                const ignoreBtn = actionsEl.querySelector('[title^="Ignore"]');
+            if (actionsEl && !actionsEl.querySelector('.btn-msg-analyzer')) {
+                const ignoreBtn = actionsEl.querySelector('.btn-msg-ignore');
                 const analyzerBtn = document.createElement('button');
-                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action';
+                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action btn-msg-analyzer';
                 analyzerBtn.setAttribute('onclick', `openMessageAnalyzer('${meta.packet_hash}')`);
-                analyzerBtn.title = 'View in Analyzer';
+                analyzerBtn.title = t('chat.msg.analyzer_title');
                 analyzerBtn.innerHTML = '<i class="bi bi-clipboard-data"></i>';
                 actionsEl.insertBefore(analyzerBtn, ignoreBtn);
             }
@@ -1376,7 +1378,7 @@ function updateMessageMetaDOM(wrapper, meta) {
                     badge.className = 'echo-badge';
                     actionsEl.insertBefore(badge, actionsEl.firstChild);
                 }
-                badge.title = `Heard by ${echoCount} repeater(s): ${echoPaths.join(', ')}`;
+                badge.title = tn('chat.msg.echo_title', echoCount, { paths: echoPaths.join(', ') });
                 badge.innerHTML = `<i class="bi bi-broadcast"></i> ${echoCount}${pathDisplay}`;
             }
         }
@@ -1384,16 +1386,15 @@ function updateMessageMetaDOM(wrapper, meta) {
         // Add analyzer button
         if (meta.packet_hash) {
             const actionsEl = msgDiv.querySelector('.message-actions');
-            if (actionsEl && !actionsEl.querySelector('[title="View in Analyzer"]')) {
-                // Anchor analyzer before whichever action button comes first
-                // (post-rename: "Edit message"; legacy renders may still say "Resend")
-                const anchor = actionsEl.querySelector('[title="Edit message"]')
-                    || actionsEl.querySelector('[title="Resend"]')
-                    || actionsEl.querySelector('[title^="Resend"]');
+            if (actionsEl && !actionsEl.querySelector('.btn-msg-analyzer')) {
+                // Anchor the analyzer button before the edit button. Matched on a
+                // class, not on the title: titles are translated, and a title
+                // selector would silently miss in every language but English.
+                const anchor = actionsEl.querySelector('.btn-msg-edit');
                 const analyzerBtn = document.createElement('button');
-                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action';
+                analyzerBtn.className = 'btn btn-outline-secondary btn-msg-action btn-msg-analyzer';
                 analyzerBtn.setAttribute('onclick', `openMessageAnalyzer('${meta.packet_hash}')`);
-                analyzerBtn.title = 'View in Analyzer';
+                analyzerBtn.title = t('chat.msg.analyzer_title');
                 analyzerBtn.innerHTML = '<i class="bi bi-clipboard-data"></i>';
                 if (anchor) actionsEl.insertBefore(analyzerBtn, anchor);
                 else actionsEl.appendChild(analyzerBtn);
@@ -1411,7 +1412,7 @@ function updateMessageMetaDOM(wrapper, meta) {
                 const rawBtn = document.createElement('button');
                 rawBtn.className = 'btn btn-outline-secondary btn-msg-action btn-raw-resend';
                 rawBtn.setAttribute('onclick', `resendChannelMessageRaw(${msgId}, this)`);
-                rawBtn.title = 'Resend (rebroadcast same packet so unreached repeaters can pick it up)';
+                rawBtn.title = t('chat.msg.raw_resend_title');
                 rawBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
                 actionsEl.appendChild(rawBtn);
             }
@@ -1447,7 +1448,7 @@ function createMessageElement(msg) {
     }
     const msgHopCount = msg.hop_count ?? (msg.path_len !== null && msg.path_len !== undefined ? (msg.path_len & 0x3F) : null);
     if (msgHopCount !== null) {
-        metaParts.push(`Hops: ${msgHopCount}`);
+        metaParts.push(tHtml('chat.route_hops', { count: msgHopCount }));
     }
     if (msg.paths && msg.paths.length > 0) {
         // Show first path inline (shortest/first arrival)
@@ -1463,8 +1464,10 @@ function createMessageElement(msg) {
             ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
             : segments.join('\u2192');
         const pathsData = encodeURIComponent(JSON.stringify(msg.paths));
-        const routeLabel = msg.paths.length > 1 ? `Route (${msg.paths.length})` : 'Route';
-        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${msg.packet_hash || ''}')">${routeLabel}: ${shortPath}</span>`);
+        const routeText = msg.paths.length > 1
+            ? tHtml('chat.route_multi', { count: msg.paths.length, route: shortPath })
+            : tHtml('chat.route', { route: shortPath });
+        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${msg.packet_hash || ''}')">${routeText}</span>`);
     }
     const metaInfo = metaParts.join(' | ');
 
@@ -1479,7 +1482,7 @@ function createMessageElement(msg) {
         const echoCount = echoPaths.length;
         const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
         const echoDisplay = echoCount > 0
-            ? `<span class="echo-badge" title="Heard by ${echoCount} repeater(s): ${echoPaths.join(', ')}">
+            ? `<span class="echo-badge" title="${escapeHtml(tn('chat.msg.echo_title', echoCount, { paths: echoPaths.join(', ') }))}">
                  <i class="bi bi-broadcast"></i> ${echoCount}${pathDisplay}
                </span>`
             : '';
@@ -1495,15 +1498,15 @@ function createMessageElement(msg) {
                     <div class="message-actions justify-content-end">
                         ${echoDisplay}
                         ${msg.packet_hash ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="View in Analyzer">
+                            <button class="btn btn-outline-secondary btn-msg-action btn-msg-analyzer" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="${tHtml('chat.msg.analyzer_title')}">
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
-                        <button class="btn btn-outline-secondary btn-msg-action" onclick='resendMessage(${JSON.stringify(msg.content)})' title="Edit message">
+                        <button class="btn btn-outline-secondary btn-msg-action btn-msg-edit" onclick='resendMessage(${JSON.stringify(msg.content)})' title="${tHtml('chat.edit_title')}">
                             <i class="bi bi-pencil-square"></i>
                         </button>
                         ${window.deviceCaps?.supports_raw_resend && typeof msg.id === 'number' ? `
-                            <button class="btn btn-outline-secondary btn-msg-action btn-raw-resend" onclick="resendChannelMessageRaw(${msg.id}, this)" title="Resend (rebroadcast same packet so unreached repeaters can pick it up)">
+                            <button class="btn btn-outline-secondary btn-msg-action btn-raw-resend" onclick="resendChannelMessageRaw(${msg.id}, this)" title="${tHtml('chat.msg.raw_resend_title')}">
                                 <i class="bi bi-arrow-repeat"></i>
                             </button>
                         ` : ''}
@@ -1532,29 +1535,29 @@ function createMessageElement(msg) {
                     <div class="message-content">${processMessageContent(msg.content)}</div>
                     ${metaInfo ? `<div class="message-meta">${metaInfo}</div>` : ''}
                     <div class="message-actions">
-                        <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="Reply">
+                        <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="${tHtml('chat.msg.reply_title')}">
                             <i class="bi bi-reply"></i>
                         </button>
-                        <button class="btn btn-outline-secondary btn-msg-action" onclick='quoteTo(${JSON.stringify(msg.sender)}, ${JSON.stringify(msg.content)})' title="Quote">
+                        <button class="btn btn-outline-secondary btn-msg-action" onclick='quoteTo(${JSON.stringify(msg.sender)}, ${JSON.stringify(msg.content)})' title="${tHtml('chat.msg.quote_title')}">
                             <i class="bi bi-quote"></i>
                         </button>
                         ${contactsGeoCache[msg.sender] ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="Show on map">
+                            <button class="btn btn-outline-secondary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="${tHtml('chat.msg.map_title')}">
                                 <i class="bi bi-geo-alt"></i>
                             </button>
                         ` : ''}
                         ${msg.packet_hash ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="View in Analyzer">
+                            <button class="btn btn-outline-secondary btn-msg-action btn-msg-analyzer" onclick="openMessageAnalyzer('${msg.packet_hash}')" title="${tHtml('chat.msg.analyzer_title')}">
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
                         ${contactsPubkeyMap[msg.sender] && !isContactProtectedByName(msg.sender) ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="ignoreContactFromChat('${contactsPubkeyMap[msg.sender]}')" title="Ignore ${escapeHtml(msg.sender)}">
+                            <button class="btn btn-outline-secondary btn-msg-action btn-msg-ignore" onclick="ignoreContactFromChat('${contactsPubkeyMap[msg.sender]}')" title="${tHtml('chat.msg.ignore_title', { name: msg.sender })}">
                                 <i class="bi bi-eye-slash"></i>
                             </button>
                         ` : ''}
                         ${!isContactProtectedByName(msg.sender) ? `
-                        <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat('${escapeHtml(msg.sender)}')" title="Block ${escapeHtml(msg.sender)}">
+                        <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat('${escapeHtml(msg.sender)}')" title="${tHtml('chat.msg.block_title', { name: msg.sender })}">
                             <i class="bi bi-slash-circle"></i>
                         </button>
                         ` : ''}
@@ -1607,7 +1610,7 @@ async function sendMessage() {
         const data = await response.json();
 
         if (data.success) {
-            showNotification('Message sent', 'success');
+            showNotification(t('chat.toast.sent'), 'success');
 
             // Replace optimistic ID with real DB id so echo WebSocket updates work
             if (data.id) {
@@ -1626,11 +1629,11 @@ async function sendMessage() {
                 markChannelAsRead(currentChannelIdx, data.timestamp);
             }
         } else {
-            showNotification('Failed to send: ' + data.error, 'danger');
+            showNotification(t('chat.toast.send_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error sending message:', error);
-        showNotification('Failed to send message', 'danger');
+        showNotification(t('chat.toast.send_error'), 'danger');
     } finally {
         sendBtn.disabled = false;
         input.focus();
@@ -1761,12 +1764,12 @@ async function resendChannelMessageRaw(msgId, btn) {
         const resp = await fetch(`/api/messages/${msgId}/resend`, { method: 'POST' });
         const data = await resp.json().catch(() => ({}));
         if (resp.ok && data.success) {
-            showNotification(`Resent (${data.bytes ?? '?'} B) — waiting for echoes…`, 'info');
+            showNotification(t('chat.toast.resent', { bytes: data.bytes ?? '?' }), 'info');
         } else {
-            showNotification(`Resend failed: ${data.error || resp.statusText}`, 'danger');
+            showNotification(t('chat.toast.resend_failed', { error: data.error || resp.statusText }), 'danger');
         }
     } catch (err) {
-        showNotification(`Resend network error: ${err.message || err}`, 'danger');
+        showNotification(t('chat.toast.resend_network_error', { error: err.message || err }), 'danger');
     } finally {
         if (btn) {
             btn.dataset.busy = '0';
@@ -1787,15 +1790,15 @@ async function ignoreContactFromChat(pubkey) {
         if (data.success) {
             showNotification(data.message, 'info');
         } else {
-            showNotification('Failed: ' + data.error, 'danger');
+            showNotification(t('common.failed_with', { error: data.error }), 'danger');
         }
     } catch (err) {
-        showNotification('Network error', 'danger');
+        showNotification(t('common.network_error'), 'danger');
     }
 }
 
 async function blockContactFromChat(senderName) {
-    if (!confirm(`Block ${senderName}? Their messages will be hidden from chat.`)) return;
+    if (!confirm(t('chat.confirm.block', { name: senderName }))) return;
     try {
         const pubkey = contactsPubkeyMap[senderName];
         let response;
@@ -1821,11 +1824,11 @@ async function blockContactFromChat(senderName) {
             await loadBlockedNames();
             await loadMessages();
         } else {
-            showNotification('Failed: ' + data.error, 'danger');
+            showNotification(t('common.failed_with', { error: data.error }), 'danger');
         }
     } catch (err) {
         console.error('Error blocking contact from chat:', err);
-        showNotification('Network error', 'danger');
+        showNotification(t('common.network_error'), 'danger');
     }
 }
 
@@ -1859,15 +1862,15 @@ function showPathsPopup(element, encodedPaths, packetHash) {
 
         const body = document.createElement('span');
         body.className = 'path-route';
-        body.innerHTML = `${fullRoute}<span class="path-detail">SNR: ${snr} | Hops: ${hops}</span>`;
+        body.innerHTML = `${fullRoute}<span class="path-detail">SNR: ${snr} | ${tHtml('chat.route_hops', { count: hops })}</span>`;
         entry.appendChild(body);
 
         const copyBtn = document.createElement('i');
         copyBtn.className = 'bi bi-clipboard path-copy';
-        copyBtn.title = 'Copy route';
+        copyBtn.title = t('common.copy_route');
         copyBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            navigator.clipboard.writeText(commaRoute).then(() => {
+            copyTextToClipboard(commaRoute).then(() => {
                 copyBtn.className = 'bi bi-clipboard-check path-copy';
                 setTimeout(() => { copyBtn.className = 'bi bi-clipboard path-copy'; }, 1000);
             });
@@ -1875,7 +1878,7 @@ function showPathsPopup(element, encodedPaths, packetHash) {
         entry.appendChild(copyBtn);
 
         if (packetHash && p.path && segments.length > 0) {
-            entry.title = 'Show this route on the Path Analyzer map';
+            entry.title = t('chat.route_analyzer_title');
             entry.addEventListener('click', (e) => {
                 e.stopPropagation();
                 popup.remove();
@@ -1883,10 +1886,10 @@ function showPathsPopup(element, encodedPaths, packetHash) {
             });
         } else {
             // No packet hash (or direct message): keep the copy behavior
-            entry.title = 'Tap to copy route';
+            entry.title = t('chat.copy_route_title');
             entry.addEventListener('click', (e) => {
                 e.stopPropagation();
-                navigator.clipboard.writeText(commaRoute).then(() => {
+                copyTextToClipboard(commaRoute).then(() => {
                     copyBtn.className = 'bi bi-clipboard-check path-copy';
                     setTimeout(() => { copyBtn.className = 'bi bi-clipboard path-copy'; }, 1000);
                 });
@@ -1981,7 +1984,7 @@ function injectRawResendButtonsForVisibleMessages() {
         const rawBtn = document.createElement('button');
         rawBtn.className = 'btn btn-outline-secondary btn-msg-action btn-raw-resend';
         rawBtn.setAttribute('onclick', `resendChannelMessageRaw(${msgId}, this)`);
-        rawBtn.title = 'Resend (rebroadcast same packet so unreached repeaters can pick it up)';
+        rawBtn.title = t('chat.msg.raw_resend_title');
         rawBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
         actionsEl.appendChild(rawBtn);
     }
@@ -1992,7 +1995,7 @@ function injectRawResendButtonsForVisibleMessages() {
  */
 async function copyToClipboard(text, btnElement) {
     try {
-        await navigator.clipboard.writeText(text);
+        await copyTextToClipboard(text);
         const icon = btnElement.querySelector('i');
         const originalClass = icon.className;
         icon.className = 'bi bi-check';
@@ -2007,7 +2010,7 @@ async function copyToClipboard(text, btnElement) {
  */
 async function loadDeviceInfo() {
     const container = document.getElementById('deviceInfoContent');
-    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch('/api/device/info');
@@ -2021,13 +2024,13 @@ async function loadDeviceInfo() {
         // API returns info as a dict directly (v2 DeviceManager)
         const info = data.info;
         if (!info || typeof info !== 'object') {
-            container.innerHTML = `<div class="alert alert-warning mb-0">No device info available</div>`;
+            container.innerHTML = `<div class="alert alert-warning mb-0">${tHtml('device.info.none')}</div>`;
             return;
         }
 
         // Type mapping
         const typeNames = { 1: 'Companion', 2: 'Repeater', 3: 'Room Server', 4: 'Sensor' };
-        const typeName = typeNames[info.adv_type] || `Unknown (${info.adv_type})`;
+        const typeName = typeNames[info.adv_type] || t('device.info.type_unknown', { code: info.adv_type });
 
         // Shorten public key for display
         const pubKey = info.public_key || '';
@@ -2035,22 +2038,22 @@ async function loadDeviceInfo() {
 
         // Location
         const hasLocation = info.adv_lat && info.adv_lon && (info.adv_lat !== 0 || info.adv_lon !== 0);
-        const coords = hasLocation ? `${info.adv_lat.toFixed(6)}, ${info.adv_lon.toFixed(6)}` : 'Not available';
+        const coords = hasLocation ? `${info.adv_lat.toFixed(6)}, ${info.adv_lon.toFixed(6)}` : tHtml('device.info.location_none');
 
         // Build table rows
         const rows = [
-            { label: 'Name', value: escapeHtml(info.name || 'Unknown'), copyValue: info.name },
-            { label: 'Type', value: typeName },
-            { label: 'Public Key', value: `<code class="small">${escapeHtml(shortKey)}</code>`, copyValue: pubKey },
-            { label: 'Location', value: coords, showMap: hasLocation, lat: info.adv_lat, lon: info.adv_lon, name: info.name },
-            { label: 'TX Power', value: `${info.tx_power || 0} / ${info.max_tx_power || 0} dBm` },
-            { label: 'Frequency', value: `${info.radio_freq || 0} MHz` },
-            { label: 'Bandwidth', value: `${info.radio_bw || 0} kHz` },
-            { label: 'Spreading Factor', value: info.radio_sf || 0 },
-            { label: 'Coding Rate', value: `4/${info.radio_cr || 0}` },
-            { label: 'Multi Acks', value: info.multi_acks ? 'Enabled' : 'Disabled' },
-            { label: 'Location Sharing', value: info.adv_loc_policy ? 'Enabled' : 'Disabled' },
-            { label: 'Manual Add Contacts', value: info.manual_add_contacts ? 'Yes' : 'No' }
+            { label: tHtml('device.info.name'), value: escapeHtml(info.name || t('common.unknown')), copyValue: info.name },
+            { label: tHtml('device.info.type'), value: typeName },
+            { label: tHtml('device.info.pubkey'), value: `<code class="small">${escapeHtml(shortKey)}</code>`, copyValue: pubKey },
+            { label: tHtml('device.info.location'), value: coords, showMap: hasLocation, lat: info.adv_lat, lon: info.adv_lon, name: info.name },
+            { label: tHtml('device.info.tx_power'), value: `${info.tx_power || 0} / ${info.max_tx_power || 0} dBm` },
+            { label: tHtml('device.info.freq'), value: `${info.radio_freq || 0} MHz` },
+            { label: tHtml('device.info.bw'), value: `${info.radio_bw || 0} kHz` },
+            { label: tHtml('device.info.sf'), value: info.radio_sf || 0 },
+            { label: tHtml('device.info.cr'), value: `4/${info.radio_cr || 0}` },
+            { label: tHtml('device.info.multi_acks'), value: tHtml(info.multi_acks ? 'common.enabled' : 'common.disabled') },
+            { label: tHtml('device.info.loc_sharing'), value: tHtml(info.adv_loc_policy ? 'common.enabled' : 'common.disabled') },
+            { label: tHtml('device.info.manual_add'), value: tHtml(info.manual_add_contacts ? 'common.yes' : 'common.no') }
         ];
 
         let html = '<table class="table table-sm mb-0">';
@@ -2064,12 +2067,12 @@ async function loadDeviceInfo() {
 
             // Copy button
             if (row.copyValue) {
-                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="copyToClipboard('${escapeHtml(row.copyValue)}', this)" title="Copy to clipboard"><i class="bi bi-clipboard"></i></button>`;
+                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="copyToClipboard('${escapeHtml(row.copyValue)}', this)" title="${tHtml('device.info.copy_title')}"><i class="bi bi-clipboard"></i></button>`;
             }
 
             // Map button
             if (row.showMap) {
-                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="showContactOnMap('${escapeHtml(row.name)}', ${row.lat}, ${row.lon})" title="Show on map"><i class="bi bi-geo-alt"></i></button>`;
+                html += ` <button class="btn btn-link btn-sm p-0 ms-1" onclick="showContactOnMap('${escapeHtml(row.name)}', ${row.lat}, ${row.lon})" title="${tHtml('chat.msg.map_title')}"><i class="bi bi-geo-alt"></i></button>`;
             }
 
             html += '</td>';
@@ -2081,7 +2084,7 @@ async function loadDeviceInfo() {
 
     } catch (error) {
         console.error('Error loading device info:', error);
-        container.innerHTML = '<div class="alert alert-danger mb-0">Failed to load device info</div>';
+        container.innerHTML = `<div class="alert alert-danger mb-0">${tHtml('device.info.load_failed')}</div>`;
     }
 }
 
@@ -2092,7 +2095,7 @@ async function loadDeviceStats() {
     const container = document.getElementById('deviceStatsContent');
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch('/api/device/stats');
@@ -2109,9 +2112,9 @@ async function loadDeviceStats() {
 
         // Battery (from dedicated get_bat or from core stats)
         if (bat && typeof bat === 'object' && bat.voltage) {
-            html += `<tr><td class="text-muted">Battery</td><td>${bat.voltage}V</td></tr>`;
+            html += `<tr><td class="text-muted">${tHtml('device.stats.battery')}</td><td>${bat.voltage}V</td></tr>`;
         } else if (stats.core && stats.core.battery_mv) {
-            html += `<tr><td class="text-muted">Battery</td><td>${(stats.core.battery_mv / 1000).toFixed(2)}V</td></tr>`;
+            html += `<tr><td class="text-muted">${tHtml('device.stats.battery')}</td><td>${(stats.core.battery_mv / 1000).toFixed(2)}V</td></tr>`;
         }
 
         // Core stats
@@ -2121,58 +2124,58 @@ async function loadDeviceStats() {
                 const d = Math.floor(c.uptime / 86400);
                 const h = Math.floor((c.uptime % 86400) / 3600);
                 const m = Math.floor((c.uptime % 3600) / 60);
-                html += `<tr><td class="text-muted">Uptime</td><td>${d}d ${h}h ${m}m</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.uptime')}</td><td>${d}d ${h}h ${m}m</td></tr>`;
             }
             if (c.queue_length !== undefined)
-                html += `<tr><td class="text-muted">Queue</td><td>${c.queue_length}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.queue')}</td><td>${c.queue_length}</td></tr>`;
             if (c.errors !== undefined)
-                html += `<tr><td class="text-muted">Errors</td><td>${c.errors}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.errors')}</td><td>${c.errors}</td></tr>`;
         }
 
         // Radio stats
         if (stats.radio) {
             const r = stats.radio;
             if (r.tx_air_time !== undefined)
-                html += `<tr><td class="text-muted">TX Air Time</td><td>${r.tx_air_time.toFixed(1)} min</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.tx_air')}</td><td>${r.tx_air_time.toFixed(1)} min</td></tr>`;
             if (r.rx_air_time !== undefined)
-                html += `<tr><td class="text-muted">RX Air Time</td><td>${r.rx_air_time.toFixed(1)} min</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.rx_air')}</td><td>${r.rx_air_time.toFixed(1)} min</td></tr>`;
         }
 
         // Packet stats
         if (stats.packets) {
             const p = stats.packets;
             if (p.sent !== undefined)
-                html += `<tr><td class="text-muted">Packets TX</td><td>${p.sent.toLocaleString()}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.packets_tx')}</td><td>${p.sent.toLocaleString()}</td></tr>`;
             if (p.received !== undefined)
-                html += `<tr><td class="text-muted">Packets RX</td><td>${p.received.toLocaleString()}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.packets_rx')}</td><td>${p.received.toLocaleString()}</td></tr>`;
         }
 
         // DB stats (included in same response)
         if (data.db_stats) {
             const db = data.db_stats;
             if (db.contacts !== undefined)
-                html += `<tr><td class="text-muted">Contacts (DB)</td><td>${db.contacts}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.contacts_db')}</td><td>${db.contacts}</td></tr>`;
             if (db.channel_messages !== undefined)
-                html += `<tr><td class="text-muted">Channel Msgs</td><td>${db.channel_messages.toLocaleString()}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.channel_msgs')}</td><td>${db.channel_messages.toLocaleString()}</td></tr>`;
             if (db.direct_messages !== undefined)
-                html += `<tr><td class="text-muted">Direct Msgs</td><td>${db.direct_messages.toLocaleString()}</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.direct_msgs')}</td><td>${db.direct_messages.toLocaleString()}</td></tr>`;
             if (db.db_size_bytes !== undefined) {
                 const sizeMB = (db.db_size_bytes / (1024 * 1024)).toFixed(1);
-                html += `<tr><td class="text-muted">DB Size</td><td>${sizeMB} MB</td></tr>`;
+                html += `<tr><td class="text-muted">${tHtml('device.stats.db_size')}</td><td>${sizeMB} MB</td></tr>`;
             }
         }
 
         html += '</tbody></table>';
 
         if (html === '<table class="table table-sm mb-0"><tbody></tbody></table>') {
-            container.innerHTML = '<div class="text-center text-muted py-3">No statistics available</div>';
+            container.innerHTML = `<div class="text-center text-muted py-3">${tHtml('device.stats.none')}</div>`;
         } else {
             container.innerHTML = html;
         }
 
     } catch (error) {
         console.error('Error loading device stats:', error);
-        container.innerHTML = '<div class="alert alert-danger mb-0">Failed to load stats</div>';
+        container.innerHTML = `<div class="alert alert-danger mb-0">${tHtml('device.stats.load_failed')}</div>`;
     }
 }
 
@@ -2189,7 +2192,7 @@ async function loadDeviceShare() {
     const container = document.getElementById('deviceShareContent');
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch('/api/device/info');
@@ -2202,7 +2205,7 @@ async function loadDeviceShare() {
 
         const info = data.info;
         if (!info || !info.public_key || !info.name) {
-            container.innerHTML = '<div class="alert alert-warning mb-0">Device info not available</div>';
+            container.innerHTML = `<div class="alert alert-warning mb-0">${tHtml('device.share.unavailable')}</div>`;
             return;
         }
 
@@ -2212,17 +2215,17 @@ async function loadDeviceShare() {
         const typeNames = { 1: 'Companion', 2: 'Repeater', 3: 'Room Server', 4: 'Sensor' };
 
         let html = '<div class="text-center">';
-        html += '<p class="text-muted small mb-3">Share this QR code or URI so others can add your device as a contact.</p>';
+        html += `<p class="text-muted small mb-3">${tHtml('device.share.hint')}</p>`;
         html += '<div id="shareQrCode" class="d-inline-block mb-3"></div>';
         html += '<div class="mb-2"><strong>' + escapeHtml(info.name) + '</strong></div>';
-        html += '<div class="text-muted small mb-3">' + escapeHtml(typeNames[contactType] || 'Unknown') + '</div>';
+        html += '<div class="text-muted small mb-3">' + escapeHtml(typeNames[contactType] || t('common.unknown')) + '</div>';
         html += '</div>';
 
         html += '<div class="mb-3">';
-        html += '<label class="form-label text-muted small">Contact URI:</label>';
+        html += `<label class="form-label text-muted small">${tHtml('device.share.uri')}</label>`;
         html += '<div class="input-group">';
         html += '<input type="text" class="form-control form-control-sm font-monospace" value="' + escapeHtml(uri) + '" readonly id="shareUriInput">';
-        html += '<button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard(document.getElementById(\'shareUriInput\').value, this)" title="Copy URI"><i class="bi bi-clipboard"></i></button>';
+        html += '<button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard(document.getElementById(\'shareUriInput\').value, this)" title="' + tHtml('device.share.copy_uri') + '"><i class="bi bi-clipboard"></i></button>';
         html += '</div>';
         html += '</div>';
 
@@ -2243,7 +2246,7 @@ async function loadDeviceShare() {
 
     } catch (error) {
         console.error('Error loading device share:', error);
-        container.innerHTML = '<div class="alert alert-danger mb-0">Failed to load device info</div>';
+        container.innerHTML = `<div class="alert alert-danger mb-0">${tHtml('device.info.load_failed')}</div>`;
     }
 }
 
@@ -2319,7 +2322,7 @@ async function loadDeviceConfig() {
 async function saveDevicePublicInfo() {
     const name = document.getElementById('settDeviceName').value.trim();
     if (!name) {
-        showNotification('Device name cannot be empty', 'danger');
+        showNotification(t('settings.device.toast.name_empty'), 'danger');
         document.getElementById('settDeviceName').focus();
         return;
     }
@@ -2347,14 +2350,14 @@ async function saveDevicePublicInfo() {
         });
         const data = await resp.json();
         if (data.success) {
-            showNotification('Public info saved', 'success');
+            showNotification(t('settings.device.toast.info_saved'), 'success');
             _selfInfo = null;
             if (phmSel) phmSel.dataset.initial = phmSel.value;
         } else {
-            showNotification(data.error || 'Failed to save', 'danger');
+            showNotification(data.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save public info', 'danger');
+        showNotification(t('settings.device.toast.info_save_failed'), 'danger');
     }
 }
 
@@ -2366,23 +2369,23 @@ async function saveDeviceRadioSettings() {
     const txPower = parseInt(document.getElementById('settRadioTxPower').value, 10);
 
     if (isNaN(freq) || freq < 100 || freq > 1000) {
-        showNotification('Invalid frequency', 'danger');
+        showNotification(t('settings.device.toast.freq_invalid'), 'danger');
         return;
     }
     if (isNaN(sf) || sf < 5 || sf > 12) {
-        showNotification('Spreading factor must be 5-12', 'danger');
+        showNotification(t('settings.device.toast.sf_invalid'), 'danger');
         return;
     }
     if (isNaN(cr) || cr < 5 || cr > 8) {
-        showNotification('Coding rate must be 5-8', 'danger');
+        showNotification(t('settings.device.toast.cr_invalid'), 'danger');
         return;
     }
     if (isNaN(txPower) || txPower < 0 || txPower > 30) {
-        showNotification('TX power must be 0-30 dBm', 'danger');
+        showNotification(t('settings.device.toast.tx_invalid'), 'danger');
         return;
     }
 
-    if (!confirm('Changing radio settings will disconnect from the mesh network. Continue?')) return;
+    if (!confirm(t('settings.device.confirm.radio'))) return;
 
     try {
         const resp = await fetch('/api/device/config', {
@@ -2398,19 +2401,19 @@ async function saveDeviceRadioSettings() {
         });
         const data = await resp.json();
         if (data.success) {
-            showNotification('Radio settings saved', 'success');
+            showNotification(t('settings.device.toast.radio_saved'), 'success');
         } else {
-            showNotification(data.error || 'Failed to save', 'danger');
+            showNotification(data.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save radio settings', 'danger');
+        showNotification(t('settings.device.toast.radio_save_failed'), 'danger');
     }
 }
 
 function populateRadioPresets() {
     const select = document.getElementById('settRadioPreset');
     if (!select) return;
-    select.innerHTML = '<option value="">Load preset...</option>';
+    select.innerHTML = `<option value="">${tHtml('settings.device.load_preset')}</option>`;
     RADIO_PRESETS.forEach((preset, idx) => {
         const opt = document.createElement('option');
         opt.value = idx;
@@ -2443,7 +2446,7 @@ function openCoordPicker() {
     const confirmBtn = document.getElementById('coordPickerConfirmBtn');
     const label = document.getElementById('coordPickerLabel');
     if (confirmBtn) confirmBtn.disabled = true;
-    if (label) label.textContent = 'Click on the map to select coordinates';
+    if (label) label.textContent = t('coord.hint');
 
     const modal = new bootstrap.Modal(modalEl);
 
@@ -2557,7 +2560,7 @@ async function saveChatSettings() {
         const el = document.getElementById(elId);
         const val = parseInt(el.value, 10);
         if (isNaN(val) || val < parseInt(el.min) || val > parseInt(el.max)) {
-            showNotification(`Invalid value for ${el.previousElementSibling?.textContent || key}`, 'danger');
+            showNotification(t('settings.toast.invalid_value', { field: el.previousElementSibling?.textContent || key }), 'danger');
             el.focus();
             return;
         }
@@ -2577,13 +2580,13 @@ async function saveChatSettings() {
             const data = await resp.json();
             chatSettingsCache = { ...CHAT_SETTINGS_DEFAULTS, ...data };
             window.chatSettingsCache = chatSettingsCache;
-            showNotification('Settings saved', 'success');
+            showNotification(t('settings.toast.saved'), 'success');
         } else {
             const err = await resp.json();
-            showNotification(err.error || 'Failed to save', 'danger');
+            showNotification(err.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save settings', 'danger');
+        showNotification(t('settings.toast.save_failed'), 'danger');
     }
 }
 
@@ -2592,7 +2595,8 @@ async function saveChatSettings() {
 const UI_SETTINGS_DEFAULTS = {
     toast_timeout_sec: 2,
     toast_no_autoclose: false,
-    toast_position: 'top-left'
+    toast_position: 'top-left',
+    language: 'en'
 };
 
 const TOAST_POSITION_CLASSES = {
@@ -2618,8 +2622,9 @@ function applyToastPosition(position) {
 window.applyToastPosition = applyToastPosition;
 
 function populateUiSettingsForm(data) {
-    const t = document.getElementById('settToastTimeout');
-    if (t) t.value = data.toast_timeout_sec ?? UI_SETTINGS_DEFAULTS.toast_timeout_sec;
+    // Not `t` — that would shadow the global translation helper for this whole function.
+    const timeout = document.getElementById('settToastTimeout');
+    if (timeout) timeout.value = data.toast_timeout_sec ?? UI_SETTINGS_DEFAULTS.toast_timeout_sec;
     const noClose = document.getElementById('settToastNoAutoclose');
     if (noClose) noClose.checked = !!(data.toast_no_autoclose ?? UI_SETTINGS_DEFAULTS.toast_no_autoclose);
     const pos = document.getElementById('settToastPosition');
@@ -2645,7 +2650,7 @@ async function saveUiSettings() {
     const timeoutEl = document.getElementById('settToastTimeout');
     const timeout = parseFloat(timeoutEl.value);
     if (isNaN(timeout) || timeout < 1 || timeout > 60) {
-        showNotification('Invalid auto-close duration', 'danger');
+        showNotification(t('settings.iface.toast.autoclose_invalid'), 'danger');
         timeoutEl.focus();
         return;
     }
@@ -2665,13 +2670,66 @@ async function saveUiSettings() {
             uiSettingsCache = { ...UI_SETTINGS_DEFAULTS, ...data };
             window.uiSettingsCache = uiSettingsCache;
             applyToastPosition(uiSettingsCache.toast_position);
-            showNotification('Settings saved', 'success');
+            showNotification(t('settings.toast.saved'), 'success');
         } else {
             const err = await resp.json();
-            showNotification(err.error || 'Failed to save', 'danger');
+            showNotification(err.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save settings', 'danger');
+        showNotification(t('settings.toast.save_failed'), 'danger');
+    }
+}
+
+// --- UI Language ---
+
+/**
+ * Switch the interface language.
+ *
+ * The cookie is what the server reads when rendering, and same-origin iframes send it
+ * automatically — so reloading the top-level page is all the propagation needed. The
+ * existing modal-open wiring in index.html re-assigns every iframe src, and each one
+ * then renders in the new language. The POST additionally makes this the server-wide
+ * default for browsers that have no cookie of their own.
+ */
+async function changeLanguage(code) {
+    if (!code || code === window.MC_LANG) return;
+
+    document.cookie = `mc_lang=${encodeURIComponent(code)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+
+    try {
+        await fetch('/api/ui/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ language: code })
+        });
+    } catch (e) {
+        // The cookie is already set, so the reload still switches this browser.
+        console.error('Failed to save server default language:', e);
+    }
+
+    location.reload();
+}
+
+/**
+ * Re-scan the translations folder without restarting the app.
+ *
+ * Catalogs are fingerprinted with stat() on every render, so a dropped-in file is
+ * normally live on the next refresh already. This covers network filesystems whose
+ * mtime granularity is too coarse for that to be noticed.
+ */
+async function reloadTranslations() {
+    try {
+        const resp = await fetch('/api/i18n/reload', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            const names = Object.values(data.languages || {}).join(', ');
+            showNotification(t('settings.appear.toast.reloaded', { names }), 'success');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showNotification(data.error || t('settings.appear.toast.reload_failed'), 'danger');
+        }
+    } catch (e) {
+        showNotification(t('settings.appear.toast.reload_failed'), 'danger');
     }
 }
 
@@ -2720,7 +2778,7 @@ async function saveDmRetrySettings() {
         const el = document.getElementById(elId);
         const val = parseInt(el.value, 10);
         if (isNaN(val) || val < parseInt(el.min) || val > parseInt(el.max)) {
-            showNotification(`Invalid value for ${el.previousElementSibling?.textContent || key}`, 'danger');
+            showNotification(t('settings.toast.invalid_value', { field: el.previousElementSibling?.textContent || key }), 'danger');
             el.focus();
             return;
         }
@@ -2733,13 +2791,13 @@ async function saveDmRetrySettings() {
             body: JSON.stringify(payload)
         });
         if (resp.ok) {
-            showNotification('Settings saved', 'success');
+            showNotification(t('settings.toast.saved'), 'success');
         } else {
             const err = await resp.json();
-            showNotification(err.error || 'Failed to save', 'danger');
+            showNotification(err.error || t('common.save_failed'), 'danger');
         }
     } catch (e) {
-        showNotification('Failed to save settings', 'danger');
+        showNotification(t('settings.toast.save_failed'), 'danger');
     }
 }
 
@@ -2821,7 +2879,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('observerIataInput')?.addEventListener('change', (e) => {
         const iata = (e.target.value || '').trim();
         if (iata && !/^[A-Za-z]{3}$/.test(iata)) {
-            showNotification('Location code must be empty or exactly 3 letters', 'warning');
+            showNotification(t('observer.iata_invalid'), 'warning');
             return;
         }
         saveObserverSettings({ iata });
@@ -2876,6 +2934,12 @@ document.addEventListener('DOMContentLoaded', () => {
         populateUiSettingsForm(UI_SETTINGS_DEFAULTS);
     });
 
+    document.getElementById('settLanguage')?.addEventListener('change', (e) => {
+        changeLanguage(e.target.value);
+    });
+
+    document.getElementById('reloadTranslationsBtn')?.addEventListener('click', reloadTranslations);
+
     // --- Device Settings ---
     const devicePublicInfoForm = document.getElementById('devicePublicInfoForm');
     if (devicePublicInfoForm) {
@@ -2922,7 +2986,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function cleanupContacts() {
     const hours = parseInt(document.getElementById('inactiveHours').value);
 
-    if (!confirm(`Remove all contacts inactive for more than ${hours} hours?`)) {
+    if (!confirm(t('contacts.cleanup.confirm', { hours }))) {
         return;
     }
 
@@ -2943,11 +3007,11 @@ async function cleanupContacts() {
         if (data.success) {
             showNotification(data.message, 'success');
         } else {
-            showNotification('Cleanup failed: ' + data.error, 'danger');
+            showNotification(t('contacts.cleanup.failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error cleaning contacts:', error);
-        showNotification('Cleanup failed', 'danger');
+        showNotification(t('contacts.cleanup.error'), 'danger');
     } finally {
         btn.disabled = false;
     }
@@ -2977,9 +3041,9 @@ async function executeSpecialCommand(command) {
         const data = await response.json();
 
         if (data.success) {
-            showNotification(data.message || `${command} sent successfully`, 'success');
+            showNotification(data.message || t('device.cmd.sent', { command }), 'success');
         } else {
-            showNotification(`Command failed: ${data.error}`, 'danger');
+            showNotification(t('device.cmd.failed', { error: data.error }), 'danger');
         }
 
         // Close offcanvas menu after command execution
@@ -2990,7 +3054,7 @@ async function executeSpecialCommand(command) {
 
     } catch (error) {
         console.error(`Error executing ${command}:`, error);
-        showNotification(`Failed to execute ${command}`, 'danger');
+        showNotification(t('device.cmd.exec_failed', { command }), 'danger');
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -3008,7 +3072,7 @@ async function executeSpecialCommand(command) {
  */
 async function requestNotificationPermission() {
     if (!('Notification' in window)) {
-        showNotification('Notifications are not supported in this browser', 'warning');
+        showNotification(t('settings.notif.toast.unsupported'), 'warning');
         return false;
     }
 
@@ -3018,17 +3082,17 @@ async function requestNotificationPermission() {
         if (permission === 'granted') {
             localStorage.setItem('mc_notifications_enabled', 'true');
             updateNotificationToggleUI();
-            showNotification('Notifications enabled', 'success');
+            showNotification(t('settings.notif.toast.enabled'), 'success');
             return true;
         } else if (permission === 'denied') {
             localStorage.setItem('mc_notifications_enabled', 'false');
             updateNotificationToggleUI();
-            showNotification('Notifications blocked. Change browser settings to enable them.', 'warning');
+            showNotification(t('settings.notif.toast.denied'), 'warning');
             return false;
         }
     } catch (error) {
         console.error('Error requesting notification permission:', error);
-        showNotification('Error enabling notifications', 'danger');
+        showNotification(t('settings.notif.toast.error'), 'danger');
         return false;
     }
 }
@@ -3065,20 +3129,20 @@ function updateNotificationToggleUI() {
 
     if (permission === 'unsupported') {
         statusBadge.className = 'badge bg-secondary';
-        statusBadge.textContent = 'Unavailable';
+        statusBadge.textContent = t('settings.notif.unavailable');
         toggleBtn.disabled = true;
     } else if (permission === 'denied') {
         statusBadge.className = 'badge bg-danger';
-        statusBadge.textContent = 'Blocked';
+        statusBadge.textContent = t('settings.notif.blocked');
         toggleBtn.disabled = false;
     } else if (permission === 'granted' && isEnabled) {
         statusBadge.className = 'badge bg-success';
-        statusBadge.textContent = 'Enabled';
+        statusBadge.textContent = t('common.enabled');
         toggleBtn.disabled = false;
     } else {
         // permission === 'default' OR (permission === 'granted' AND !isEnabled)
         statusBadge.className = 'badge bg-secondary';
-        statusBadge.textContent = 'Disabled';
+        statusBadge.textContent = t('common.disabled');
         toggleBtn.disabled = false;
     }
 }
@@ -3097,16 +3161,16 @@ async function handleNotificationToggle() {
             // Turn OFF
             localStorage.setItem('mc_notifications_enabled', 'false');
             updateNotificationToggleUI();
-            showNotification('Notifications disabled', 'info');
+            showNotification(t('settings.notif.toast.disabled'), 'info');
         } else {
             // Turn ON
             localStorage.setItem('mc_notifications_enabled', 'true');
             updateNotificationToggleUI();
-            showNotification('Notifications enabled', 'success');
+            showNotification(t('settings.notif.toast.enabled'), 'success');
         }
     } else if (permission === 'denied') {
         // Blocked - show help message
-        showNotification('Notifications are blocked. Change browser settings: Settings → Site Settings → Notifications', 'warning');
+        showNotification(t('settings.notif.toast.blocked_help'), 'warning');
     } else {
         // Not yet requested - ask for permission
         await requestNotificationPermission();
@@ -3176,7 +3240,7 @@ async function saveContactsSetting(key, value, inputEl) {
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
             if (inputEl) inputEl.checked = !value;
-            showNotification(data.error || 'Failed to save setting', 'danger');
+            showNotification(data.error || t('settings.toast.setting_save_failed'), 'danger');
             return;
         }
         window.contactsSettings[key] = !!value;
@@ -3193,7 +3257,7 @@ async function saveContactsSetting(key, value, inputEl) {
     } catch (e) {
         console.error('Error saving contacts setting:', e);
         if (inputEl) inputEl.checked = !value;
-        showNotification('Network error saving setting', 'danger');
+        showNotification(t('settings.toast.setting_network_error'), 'danger');
     }
 }
 
@@ -3228,7 +3292,7 @@ async function loadRegions() {
         renderRegionsList();
     } catch (e) {
         console.error('Error loading regions:', e);
-        listEl.innerHTML = '<div class="text-center text-danger small py-2">Failed to load regions</div>';
+        listEl.innerHTML = `<div class="text-center text-danger small py-2">${tHtml('settings.regions.load_failed')}</div>`;
     }
 }
 
@@ -3237,7 +3301,7 @@ function renderRegionsList() {
     if (!listEl) return;
     const regions = window.regionRegistry || [];
     if (regions.length === 0) {
-        listEl.innerHTML = '<div class="text-center text-muted small py-3">No regions defined. Add one below.</div>';
+        listEl.innerHTML = `<div class="text-center text-muted small py-3">${tHtml('settings.regions.empty')}</div>`;
         return;
     }
     const noDefault = !regions.some(r => r.is_default);
@@ -3249,7 +3313,7 @@ function renderRegionsList() {
                        onchange="clearDefaultRegion()">
             </div>
             <div class="flex-grow-1 text-muted">
-                <i class="bi bi-dash-circle"></i> None — use firmware default
+                <i class="bi bi-dash-circle"></i> ${tHtml('settings.regions.none_row')}
             </div>
         </div>
     `;
@@ -3269,7 +3333,7 @@ function renderRegionsList() {
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-danger"
                         onclick="deleteRegion(${r.id}, '${escapeHtml(r.name).replace(/'/g, "\\'")}')"
-                        title="Delete region">
+                        title="${tHtml('settings.regions.delete_title')}">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
@@ -3280,7 +3344,7 @@ function renderRegionsList() {
 
 async function addRegion(name, inputEl) {
     if (!isValidRegionName(name)) {
-        showNotification('Invalid region name. Allowed: letters, digits, - $ # (max 30 bytes, no spaces).', 'warning');
+        showNotification(t('settings.regions.toast.name_invalid'), 'warning');
         return;
     }
     try {
@@ -3291,30 +3355,30 @@ async function addRegion(name, inputEl) {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to add region', 'danger');
+            showNotification(data.error || t('settings.regions.toast.add_failed'), 'danger');
             return;
         }
         if (inputEl) inputEl.value = '';
         await loadRegions();
     } catch (e) {
         console.error('Error adding region:', e);
-        showNotification('Network error adding region', 'danger');
+        showNotification(t('settings.regions.toast.add_error'), 'danger');
     }
 }
 
 async function deleteRegion(id, name) {
-    if (!confirm(`Delete region "${name}"?\nChannels using this region will revert to no scope.`)) return;
+    if (!confirm(t('settings.regions.confirm.delete', { name }))) return;
     try {
         const resp = await fetch(`/api/regions/${id}`, { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to delete region', 'danger');
+            showNotification(data.error || t('settings.regions.toast.delete_failed'), 'danger');
             return;
         }
         await loadRegions();
     } catch (e) {
         console.error('Error deleting region:', e);
-        showNotification('Network error deleting region', 'danger');
+        showNotification(t('settings.regions.toast.delete_error'), 'danger');
     }
 }
 
@@ -3323,7 +3387,7 @@ async function setDefaultRegion(id) {
         const resp = await fetch(`/api/regions/${id}/default`, { method: 'POST' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to set default region', 'danger');
+            showNotification(data.error || t('settings.regions.toast.default_failed'), 'danger');
             await loadRegions();  // snap UI back to server truth
             return;
         }
@@ -3334,7 +3398,7 @@ async function setDefaultRegion(id) {
         (window.regionRegistry || []).forEach(r => { r.is_default = (r.id === id) ? 1 : 0; });
     } catch (e) {
         console.error('Error setting default region:', e);
-        showNotification('Network error setting default', 'danger');
+        showNotification(t('settings.regions.toast.default_error'), 'danger');
         await loadRegions();
     }
 }
@@ -3344,7 +3408,7 @@ async function clearDefaultRegion() {
         const resp = await fetch('/api/regions/default', { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to clear default region', 'danger');
+            showNotification(data.error || t('settings.regions.toast.clear_failed'), 'danger');
             await loadRegions();  // snap UI back to server truth
             return;
         }
@@ -3354,7 +3418,7 @@ async function clearDefaultRegion() {
         (window.regionRegistry || []).forEach(r => { r.is_default = 0; });
     } catch (e) {
         console.error('Error clearing default region:', e);
-        showNotification('Network error clearing default', 'danger');
+        showNotification(t('settings.regions.toast.clear_error'), 'danger');
         await loadRegions();
     }
 }
@@ -3396,7 +3460,7 @@ async function loadAnalyzers() {
         console.error('Error loading analyzers:', e);
         const listEl = document.getElementById('analyzersList');
         if (listEl) {
-            listEl.innerHTML = '<div class="text-center text-danger small py-2">Failed to load analyzers</div>';
+            listEl.innerHTML = `<div class="text-center text-danger small py-2">${tHtml('analyzer.load_failed')}</div>`;
         }
     }
 }
@@ -3408,7 +3472,7 @@ function renderAnalyzersList() {
 
     if (analyzers.length === 0) {
         listEl.innerHTML =
-            '<div class="text-center text-muted small py-3">No analyzers configured. Click "Add analyzer" to add one.</div>';
+            `<div class="text-center text-muted small py-3">${tHtml('analyzer.empty')}</div>`;
         return;
     }
 
@@ -3418,31 +3482,31 @@ function renderAnalyzersList() {
         const isDefault = !!a.is_default;
         const starIcon = isDefault ? 'bi-star-fill text-warning' : 'bi-star';
         const disabledBadge = disabled
-            ? '<span class="badge bg-secondary ms-1">Disabled</span>' : '';
+            ? `<span class="badge bg-secondary ms-1">${tHtml('common.disabled')}</span>` : '';
         const nameClass = disabled ? 'text-muted text-decoration-line-through' : '';
         const safeName = escapeHtml(a.name);
         return `
             <div class="list-group-item d-flex align-items-center gap-2 py-2">
                 <button type="button" class="btn btn-link p-0 text-decoration-none"
                         onclick="toggleAnalyzerDefault(${a.id}, ${isDefault})"
-                        title="${isDefault ? 'Clear default' : 'Mark as default'}">
+                        title="${tHtml(isDefault ? 'analyzer.clear_default_title' : 'analyzer.set_default_title')}">
                     <i class="bi ${starIcon}"></i>
                 </button>
                 <div class="flex-grow-1" style="min-width: 0;">
                     <div class="${nameClass}"><strong>${safeName}</strong>${disabledBadge}</div>
                     <code class="small text-muted text-break" style="word-break: break-all;">${escapeHtml(a.url_template)}</code>
                 </div>
-                <div class="form-check form-switch mb-0" title="${enabled ? 'Enabled' : 'Disabled'}">
+                <div class="form-check form-switch mb-0" title="${tHtml(enabled ? 'common.enabled' : 'common.disabled')}">
                     <input class="form-check-input" type="checkbox"
                            id="analyzerEnabled_${a.id}" ${enabled ? 'checked' : ''}
                            onchange="toggleAnalyzerDisabled(${a.id}, !this.checked)">
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary"
-                        onclick="openAnalyzerEditModal(${a.id})" title="Edit">
+                        onclick="openAnalyzerEditModal(${a.id})" title="${tHtml('common.edit')}">
                     <i class="bi bi-pencil"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        onclick="deleteAnalyzer(${a.id}, '${safeName.replace(/'/g, "\\'")}')" title="Delete">
+                        onclick="deleteAnalyzer(${a.id}, '${safeName.replace(/'/g, "\\'")}')" title="${tHtml('common.delete')}">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
@@ -3468,13 +3532,13 @@ function openAnalyzerEditModal(id) {
     if (id) {
         const a = (window.analyzerCache.analyzers || []).find(x => x.id === id);
         if (!a) return;
-        titleEl.textContent = 'Edit analyzer';
+        titleEl.textContent = t('analyzer.edit');
         idEl.value = String(a.id);
         nameEl.value = a.name || '';
         urlEl.value = a.url_template || '';
         enabledEl.checked = !a.is_disabled;
     } else {
-        titleEl.textContent = 'Add analyzer';
+        titleEl.textContent = t('analyzer.add');
         idEl.value = '';
         nameEl.value = '';
         urlEl.value = '';
@@ -3498,15 +3562,15 @@ async function saveAnalyzerFromForm() {
     const is_disabled = !enabledEl.checked;
 
     if (!name) {
-        showAnalyzerFormError('Name is required');
+        showAnalyzerFormError(t('analyzer.name_required'));
         return;
     }
     if (!url_template.startsWith('http://') && !url_template.startsWith('https://')) {
-        showAnalyzerFormError('URL must start with http:// or https://');
+        showAnalyzerFormError(t('analyzer.url_invalid'));
         return;
     }
     if (!url_template.includes(ANALYZER_PLACEHOLDER)) {
-        showAnalyzerFormError(`URL must contain the ${ANALYZER_PLACEHOLDER} placeholder`);
+        showAnalyzerFormError(t('analyzer.url_placeholder_missing', { placeholder: ANALYZER_PLACEHOLDER }));
         return;
     }
 
@@ -3521,7 +3585,7 @@ async function saveAnalyzerFromForm() {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showAnalyzerFormError(data.error || 'Failed to save analyzer');
+            showAnalyzerFormError(data.error || t('analyzer.toast.save_failed'));
             return;
         }
         // If creating a new analyzer with disabled=true, push the flag in a follow-up PUT.
@@ -3537,7 +3601,7 @@ async function saveAnalyzerFromForm() {
         await loadAnalyzers();
     } catch (e) {
         console.error('Error saving analyzer:', e);
-        showAnalyzerFormError('Network error saving analyzer');
+        showAnalyzerFormError(t('analyzer.toast.save_error'));
     }
 }
 
@@ -3549,18 +3613,18 @@ function showAnalyzerFormError(msg) {
 }
 
 async function deleteAnalyzer(id, name) {
-    if (!confirm(`Delete analyzer "${name}"?`)) return;
+    if (!confirm(t('analyzer.confirm.delete', { name }))) return;
     try {
         const resp = await fetch(`/api/analyzers/${id}`, { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to delete analyzer', 'danger');
+            showNotification(data.error || t('analyzer.toast.delete_failed'), 'danger');
             return;
         }
         await loadAnalyzers();
     } catch (e) {
         console.error('Error deleting analyzer:', e);
-        showNotification('Network error deleting analyzer', 'danger');
+        showNotification(t('analyzer.toast.delete_error'), 'danger');
     }
 }
 
@@ -3571,14 +3635,14 @@ async function toggleAnalyzerDefault(id, currentlyDefault) {
         const resp = await fetch(url, { method });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to update default', 'danger');
+            showNotification(data.error || t('analyzer.toast.default_failed'), 'danger');
             await loadAnalyzers();
             return;
         }
         await loadAnalyzers();
     } catch (e) {
         console.error('Error toggling analyzer default:', e);
-        showNotification('Network error updating default', 'danger');
+        showNotification(t('analyzer.toast.default_error'), 'danger');
         await loadAnalyzers();
     }
 }
@@ -3592,14 +3656,14 @@ async function toggleAnalyzerDisabled(id, disabled) {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to update analyzer', 'danger');
+            showNotification(data.error || t('analyzer.toast.update_failed'), 'danger');
             await loadAnalyzers();
             return;
         }
         await loadAnalyzers();
     } catch (e) {
         console.error('Error toggling analyzer disabled:', e);
-        showNotification('Network error updating analyzer', 'danger');
+        showNotification(t('analyzer.toast.update_error'), 'danger');
         await loadAnalyzers();
     }
 }
@@ -3622,7 +3686,7 @@ async function openMessageAnalyzer(packetHash) {
 
     // Nothing enabled — user has deliberately turned everything off or deleted it.
     if (enabled.length === 0) {
-        showNotification('No analyzer configured. Add one in Settings → Analyzer.', 'warning');
+        showNotification(t('analyzer.toast.none_configured'), 'warning');
         return;
     }
 
@@ -3696,7 +3760,7 @@ async function loadObserverTab() {
         console.error('Error loading observer status:', e);
         const listEl = document.getElementById('observerBrokersList');
         if (listEl) {
-            listEl.innerHTML = '<div class="text-center text-danger small py-2">Failed to load observer status</div>';
+            listEl.innerHTML = `<div class="text-center text-danger small py-2">${tHtml('observer.load_failed')}</div>`;
         }
     }
 }
@@ -3716,20 +3780,22 @@ function renderObserverStatusLine(status) {
     const el = document.getElementById('observerStatusLine');
     if (!el || !status) return;
     if (!status.enabled) {
-        el.innerHTML = 'Observer is <strong>off</strong>.';
+        el.innerHTML = tHtml('observer.off');
         return;
     }
     const state = status.running
-        ? '<span class="badge bg-success">running</span>'
-        : `<span class="badge bg-warning text-dark">waiting</span> ${escapeHtml(status.reason || '')}`;
-    el.innerHTML = `${state} &mdash; packets captured: <strong>${status.packets_seen ?? 0}</strong>,`
-        + ` published: <strong>${status.packets_published ?? 0}</strong>`;
+        ? `<span class="badge bg-success">${tHtml('observer.state.running')}</span>`
+        : `<span class="badge bg-warning text-dark">${tHtml('observer.state.waiting')}</span> ${escapeHtml(status.reason || '')}`;
+    el.innerHTML = `${state} &mdash; ` + tHtml('observer.counters', {
+        seen: status.packets_seen ?? 0,
+        published: status.packets_published ?? 0,
+    });
 }
 
 function observerBrokerBadgeParts(b) {
-    if (b.connected) return { cls: 'bg-success', txt: 'connected', title: '' };
-    if (b.last_error) return { cls: 'bg-danger', txt: 'error', title: b.last_error };
-    return { cls: 'bg-secondary', txt: 'offline', title: '' };
+    if (b.connected) return { cls: 'bg-success', txt: tHtml('observer.state.connected'), title: '' };
+    if (b.last_error) return { cls: 'bg-danger', txt: tHtml('observer.state.error'), title: b.last_error };
+    return { cls: 'bg-secondary', txt: tHtml('observer.state.offline'), title: '' };
 }
 
 function renderObserverBrokers() {
@@ -3739,7 +3805,7 @@ function renderObserverBrokers() {
 
     if (brokers.length === 0) {
         listEl.innerHTML =
-            '<div class="text-center text-muted small py-3">No brokers configured. Click "Add broker" to add one.</div>';
+            `<div class="text-center text-muted small py-3">${tHtml('observer.empty')}</div>`;
         return;
     }
 
@@ -3749,7 +3815,7 @@ function renderObserverBrokers() {
         const safeName = escapeHtml(b.name);
         const tlsBadge = b.use_tls ? '<span class="badge bg-info text-dark ms-1">TLS</span>' : '';
         const badge = b.is_disabled
-            ? '<span class="badge bg-secondary ms-1">Disabled</span>'
+            ? `<span class="badge bg-secondary ms-1">${tHtml('common.disabled')}</span>`
             : (() => {
                 const p = observerBrokerBadgeParts(b);
                 return `<span class="badge ${p.cls} ms-1" id="observerBrokerBadge_${b.id}" title="${escapeHtml(p.title)}">${p.txt}</span>`;
@@ -3761,16 +3827,16 @@ function renderObserverBrokers() {
                     <div class="${nameClass}"><strong>${safeName}</strong>${tlsBadge}${badge}</div>
                     <code class="small text-muted text-break" style="word-break: break-all;">${userInfo}${escapeHtml(b.host)}:${b.port}</code>
                 </div>
-                <div class="form-check form-switch mb-0" title="${enabled ? 'Enabled' : 'Disabled'}">
+                <div class="form-check form-switch mb-0" title="${tHtml(enabled ? 'common.enabled' : 'common.disabled')}">
                     <input class="form-check-input" type="checkbox" ${enabled ? 'checked' : ''}
                            onchange="toggleObserverBrokerDisabled(${b.id}, !this.checked)">
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary"
-                        onclick="openObserverBrokerModal(${b.id})" title="Edit">
+                        onclick="openObserverBrokerModal(${b.id})" title="${tHtml('common.edit')}">
                     <i class="bi bi-pencil"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        onclick="deleteObserverBroker(${b.id}, '${safeName.replace(/'/g, "\\'")}')" title="Delete">
+                        onclick="deleteObserverBroker(${b.id}, '${safeName.replace(/'/g, "\\'")}')" title="${tHtml('common.delete')}">
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
@@ -3817,7 +3883,7 @@ function openObserverBrokerModal(id) {
     if (id) {
         const b = (window.observerCache.brokers || []).find(x => x.id === id);
         if (!b) return;
-        titleEl.textContent = 'Edit broker';
+        titleEl.textContent = t('observer.edit_broker');
         idEl.value = String(b.id);
         nameEl.value = b.name || '';
         hostEl.value = b.host || '';
@@ -3828,7 +3894,7 @@ function openObserverBrokerModal(id) {
         enabledEl.checked = !b.is_disabled;
         passHintEl.classList.toggle('d-none', !b.has_password);
     } else {
-        titleEl.textContent = 'Add broker';
+        titleEl.textContent = t('observer.add_broker');
         idEl.value = '';
         nameEl.value = '';
         hostEl.value = '';
@@ -3863,9 +3929,9 @@ async function saveObserverBrokerFromForm() {
     const tls_verify = document.getElementById('observerBrokerEditTlsVerify').checked;
     const is_disabled = !document.getElementById('observerBrokerEditEnabled').checked;
 
-    if (!name) { showObserverBrokerFormError('Name is required'); return; }
-    if (!host) { showObserverBrokerFormError('Host is required'); return; }
-    if (!(port >= 1 && port <= 65535)) { showObserverBrokerFormError('Port must be 1-65535'); return; }
+    if (!name) { showObserverBrokerFormError(t('observer.name_required')); return; }
+    if (!host) { showObserverBrokerFormError(t('observer.host_required')); return; }
+    if (!(port >= 1 && port <= 65535)) { showObserverBrokerFormError(t('observer.port_invalid')); return; }
 
     const body = { name, host, port, username, use_tls, tls_verify, is_disabled };
     // Edit mode: an empty password field means "keep the stored password"
@@ -3880,7 +3946,7 @@ async function saveObserverBrokerFromForm() {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showObserverBrokerFormError(data.error || 'Failed to save broker');
+            showObserverBrokerFormError(data.error || t('observer.toast.save_failed'));
             return;
         }
         bootstrap.Modal.getInstance(document.getElementById('observerBrokerEditModal'))?.hide();
@@ -3889,23 +3955,23 @@ async function saveObserverBrokerFromForm() {
         setTimeout(loadObserverTab, 1500);
     } catch (e) {
         console.error('Error saving observer broker:', e);
-        showObserverBrokerFormError('Network error saving broker');
+        showObserverBrokerFormError(t('observer.toast.save_error'));
     }
 }
 
 async function deleteObserverBroker(id, name) {
-    if (!confirm(`Delete broker "${name}"?`)) return;
+    if (!confirm(t('observer.confirm.delete', { name }))) return;
     try {
         const resp = await fetch(`/api/observer/brokers/${id}`, { method: 'DELETE' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to delete broker', 'danger');
+            showNotification(data.error || t('observer.toast.delete_failed'), 'danger');
             return;
         }
         await loadObserverTab();
     } catch (e) {
         console.error('Error deleting observer broker:', e);
-        showNotification('Network error deleting broker', 'danger');
+        showNotification(t('observer.toast.delete_error'), 'danger');
     }
 }
 
@@ -3918,11 +3984,11 @@ async function toggleObserverBrokerDisabled(id, disabled) {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to update broker', 'danger');
+            showNotification(data.error || t('observer.toast.update_failed'), 'danger');
         }
     } catch (e) {
         console.error('Error toggling observer broker:', e);
-        showNotification('Network error updating broker', 'danger');
+        showNotification(t('observer.toast.update_error'), 'danger');
     }
     await loadObserverTab();
     setTimeout(loadObserverTab, 1500);
@@ -3937,7 +4003,7 @@ async function saveObserverSettings(patch) {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to save observer settings', 'danger');
+            showNotification(data.error || t('observer.toast.settings_failed'), 'danger');
             await loadObserverTab();
             return;
         }
@@ -3945,7 +4011,7 @@ async function saveObserverSettings(patch) {
         setTimeout(loadObserverTab, 1500);
     } catch (e) {
         console.error('Error saving observer settings:', e);
-        showNotification('Network error saving observer settings', 'danger');
+        showNotification(t('observer.toast.settings_error'), 'danger');
     }
 }
 
@@ -4011,9 +4077,9 @@ function renderRegionPickerList() {
         listEl.innerHTML = `
             <div class="text-center py-4 text-muted">
                 <i class="bi bi-pin-map fs-3 d-block mb-2"></i>
-                <p class="mb-2">No regions defined yet.</p>
+                <p class="mb-2">${tHtml('settings.regions.picker_empty')}</p>
                 <button type="button" class="btn btn-sm btn-primary" id="pickerManageRegionsBtn">
-                    <i class="bi bi-gear"></i> Manage Regions
+                    <i class="bi bi-gear"></i> ${tHtml('settings.regions.picker_manage')}
                 </button>
             </div>
         `;
@@ -4035,7 +4101,7 @@ function renderRegionPickerList() {
         <label class="list-group-item d-flex align-items-center gap-2">
             <input type="radio" name="regionPickerChoice" value="" class="form-check-input mt-0"
                    ${_regionPickerPending === null ? 'checked' : ''}>
-            <span class="text-muted"><i class="bi bi-dash-circle"></i> None — use firmware default</span>
+            <span class="text-muted"><i class="bi bi-dash-circle"></i> ${tHtml('settings.regions.none_row')}</span>
         </label>
     `];
     for (const r of regions) {
@@ -4045,7 +4111,7 @@ function renderRegionPickerList() {
                        ${_regionPickerPending === r.id ? 'checked' : ''}>
                 <span class="flex-grow-1">
                     <strong>${escapeHtml(r.name)}</strong>
-                    ${r.is_default ? '<span class="badge bg-secondary ms-1">default</span>' : ''}
+                    ${r.is_default ? `<span class="badge bg-secondary ms-1">${tHtml('settings.regions.is_default')}</span>` : ''}
                 </span>
             </label>
         `);
@@ -4085,12 +4151,12 @@ function updateRegionIndicator() {
         nameEl.textContent = scope.name;
         el.classList.remove('bg-light', 'text-secondary', 'border');
         el.classList.add('bg-info', 'text-dark');
-        el.title = 'Click to change region for this channel';
+        el.title = t('chat.region_title');
     } else {
-        nameEl.textContent = 'No region';
+        nameEl.textContent = t('chat.region_none');
         el.classList.remove('bg-info', 'text-dark');
         el.classList.add('bg-light', 'text-secondary', 'border');
-        el.title = 'Click to set a region for this channel';
+        el.title = t('chat.region_set_title');
     }
 }
 
@@ -4106,7 +4172,7 @@ async function saveChannelScope() {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.success) {
-            showNotification(data.error || 'Failed to save region scope', 'danger');
+            showNotification(data.error || t('settings.regions.toast.scope_failed'), 'danger');
             return;
         }
         // Update the local cache + re-render the channels list.
@@ -4126,7 +4192,7 @@ async function saveChannelScope() {
         }
     } catch (e) {
         console.error('Error saving channel scope:', e);
-        showNotification('Network error saving region scope', 'danger');
+        showNotification(t('settings.regions.toast.scope_error'), 'danger');
     }
 }
 
@@ -4146,18 +4212,18 @@ function sendBrowserNotification(channelCount, dmCount, pendingCount) {
     const parts = [];
 
     if (channelCount > 0) {
-        parts.push(`${channelCount} ${channelCount === 1 ? 'channel' : 'channels'}`);
+        parts.push(tn('notify.channels', channelCount));
     }
     if (dmCount > 0) {
-        parts.push(`${dmCount} ${dmCount === 1 ? 'private message' : 'private messages'}`);
+        parts.push(tn('notify.dms', dmCount));
     }
     if (pendingCount > 0) {
-        parts.push(`${pendingCount} ${pendingCount === 1 ? 'pending contact' : 'pending contacts'}`);
+        parts.push(tn('notify.pending', pendingCount));
     }
 
     if (parts.length === 0) return;
 
-    message = `New: ${parts.join(', ')}`;
+    message = t('notify.new', { parts: parts.join(', ') });
 
     try {
         const notification = new Notification('mc-webui', {
@@ -4273,9 +4339,9 @@ function updateStatus(status) {
     const statusEl = document.getElementById('statusText');
 
     const icons = {
-        connected: '<i class="bi bi-circle-fill status-connected"></i> Connected',
-        disconnected: '<i class="bi bi-circle-fill status-disconnected"></i> Disconnected',
-        connecting: '<i class="bi bi-circle-fill status-connecting"></i> Connecting...'
+        connected: `<i class="bi bi-circle-fill status-connected"></i> ${tHtml('common.connected')}`,
+        disconnected: `<i class="bi bi-circle-fill status-disconnected"></i> ${tHtml('common.disconnected')}`,
+        connecting: `<i class="bi bi-circle-fill status-connecting"></i> ${tHtml('common.connecting')}`
     };
 
     statusEl.innerHTML = icons[status] || icons.connecting;
@@ -4287,7 +4353,7 @@ function updateStatus(status) {
 function updateLastRefresh() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString();
-    document.getElementById('lastRefresh').textContent = `Updated: ${timeStr}`;
+    document.getElementById('lastRefresh').textContent = t('chat.updated', { time: timeStr });
 }
 
 /**
@@ -4341,22 +4407,22 @@ async function checkForAppUpdates() {
                 if (updaterStatus.available) {
                     // Show "Update Now" link below version
                     if (updateLinkContainer) {
-                        updateLinkContainer.innerHTML = `<a href="#" onclick="openUpdateModal('${newVersion}', '${githubUrl}'); return false;" class="text-success" title="Click to update"><i class="bi bi-arrow-up-circle-fill"></i> Update now</a>`;
+                        updateLinkContainer.innerHTML = `<a href="#" onclick="openUpdateModal('${newVersion}', '${githubUrl}'); return false;" class="text-success" title="${tHtml('update.link_now_title')}"><i class="bi bi-arrow-up-circle-fill"></i> ${tHtml('update.link_now')}</a>`;
                         updateLinkContainer.classList.remove('d-none');
                     }
                 } else {
                     // Show link to GitHub (no remote update available)
                     if (updateLinkContainer) {
-                        updateLinkContainer.innerHTML = `<a href="${githubUrl}" target="_blank" class="text-success" title="Update available: ${newVersion}"><i class="bi bi-arrow-up-circle-fill"></i> Update available</a>`;
+                        updateLinkContainer.innerHTML = `<a href="${githubUrl}" target="_blank" class="text-success" title="${tHtml('update.link_available_title', { version: newVersion })}"><i class="bi bi-arrow-up-circle-fill"></i> ${tHtml('update.link_available')}</a>`;
                         updateLinkContainer.classList.remove('d-none');
                     }
                 }
                 icon.className = 'bi bi-check-circle-fill text-success';
-                showNotification(`Update available: ${data.latest_date}+${data.latest_commit}`, 'success');
+                showNotification(t('update.toast.available', { version: `${data.latest_date}+${data.latest_commit}` }), 'success');
             } else {
                 // Up to date
                 icon.className = 'bi bi-check-circle text-success';
-                showNotification('You are running the latest version', 'success');
+                showNotification(t('update.toast.latest'), 'success');
                 // Reset icon after 3 seconds
                 setTimeout(() => {
                     icon.className = 'bi bi-arrow-repeat';
@@ -4365,7 +4431,7 @@ async function checkForAppUpdates() {
         } else {
             // Error
             icon.className = 'bi bi-exclamation-triangle text-warning';
-            showNotification(data.error || 'Failed to check for updates', 'warning');
+            showNotification(data.error || t('update.toast.check_failed'), 'warning');
             setTimeout(() => {
                 icon.className = 'bi bi-arrow-repeat';
             }, 3000);
@@ -4373,7 +4439,7 @@ async function checkForAppUpdates() {
     } catch (error) {
         console.error('Error checking for updates:', error);
         icon.className = 'bi bi-exclamation-triangle text-danger';
-        showNotification('Network error checking for updates', 'danger');
+        showNotification(t('update.toast.check_error'), 'danger');
         setTimeout(() => {
             icon.className = 'bi bi-arrow-repeat';
         }, 3000);
@@ -4402,7 +4468,7 @@ function openUpdateModal(newVersion, githubUrl) {
     document.getElementById('updateCancelBtn').classList.remove('d-none');
     document.getElementById('updateConfirmBtn').classList.remove('d-none');
     document.getElementById('updateReloadBtn').classList.add('d-none');
-    document.getElementById('updateMessage').textContent = `New version available: ${newVersion}`;
+    document.getElementById('updateMessage').textContent = t('update.new_version', { version: newVersion });
 
     // Set up "What's new" link
     const whatsNewEl = document.getElementById('updateWhatsNew');
@@ -4434,7 +4500,7 @@ async function performRemoteUpdate() {
     document.getElementById('updateProgress').classList.remove('d-none');
     document.getElementById('updateCancelBtn').classList.add('d-none');
     document.getElementById('updateConfirmBtn').classList.add('d-none');
-    document.getElementById('updateProgressMessage').textContent = 'Starting update...';
+    document.getElementById('updateProgressMessage').textContent = t('update.starting');
 
     try {
         // Trigger update
@@ -4442,11 +4508,11 @@ async function performRemoteUpdate() {
         const data = await response.json();
 
         if (!data.success) {
-            showUpdateResult(false, data.error || 'Failed to start update');
+            showUpdateResult(false, data.error || t('update.start_failed'));
             return;
         }
 
-        document.getElementById('updateProgressMessage').textContent = 'Update started. Waiting for server to restart...';
+        document.getElementById('updateProgressMessage').textContent = t('update.waiting');
 
         // Poll for server to come back up with new version
         let attempts = 0;
@@ -4468,20 +4534,20 @@ async function performRemoteUpdate() {
 
                     // Check if version changed
                     if (newVersion !== currentVersion) {
-                        showUpdateResult(true, `Updated to ${newVersion}`);
+                        showUpdateResult(true, t('update.done', { version: newVersion }));
                         return;
                     }
                 }
             } catch (e) {
                 // Server not responding yet - this is expected during restart
                 document.getElementById('updateProgressMessage').textContent =
-                    `Rebuilding containers... (${attempts}/${maxAttempts})`;
+                    t('update.rebuilding', { attempt: attempts, max: maxAttempts });
             }
 
             if (attempts < maxAttempts) {
                 setTimeout(pollForCompletion, pollInterval);
             } else {
-                showUpdateResult(false, 'Update timed out. Please check server manually.');
+                showUpdateResult(false, t('update.timed_out'));
             }
         };
 
@@ -4490,7 +4556,7 @@ async function performRemoteUpdate() {
 
     } catch (error) {
         console.error('Update error:', error);
-        showUpdateResult(false, 'Network error during update');
+        showUpdateResult(false, t('update.network_error'));
     }
 }
 
@@ -4530,45 +4596,14 @@ function scrollToBottom() {
 }
 
 /**
- * Format timestamp
+ * Format a message timestamp.
+ * Archive views always show the full date, since "Today" is meaningless there.
  */
 function formatTime(timestamp) {
-    const date = new Date(timestamp * 1000);
-
-    // When viewing archive, always show full date + time
-    if (currentArchiveDate) {
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-
-    // When viewing live messages, compare calendar dates
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === now.toDateString()) {
-        // Today - show time only
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (date.toDateString() === yesterday.toDateString()) {
-        // Yesterday
-        return 'Yesterday ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else {
-        // Older - show date and time
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
+    return formatTimestamp(timestamp, { absolute: !!currentArchiveDate });
 }
 
-/**
- * Format a unix timestamp as relative time (e.g., "5 min ago", "2h ago")
- */
-function formatTimeAgo(timestamp) {
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return new Date(timestamp * 1000).toLocaleDateString();
-}
+// formatTimeAgo() comes from datetime-utils.js.
 
 /**
  * Update character counter (counts UTF-8 bytes, not characters)
@@ -4631,7 +4666,7 @@ function populateDateSelector(archives) {
     archives.forEach(archive => {
         const option = document.createElement('option');
         option.value = archive.date;
-        option.textContent = `${archive.date} (${archive.message_count} msgs)`;
+        option.textContent = t('menu.archive_option', { date: archive.date, count: archive.message_count });
         selector.appendChild(option);
     });
 
@@ -4824,7 +4859,7 @@ async function markAllChannelsRead() {
     for (const [idx, count] of Object.entries(unreadCounts)) {
         if (count > 0) {
             const channel = availableChannels.find(ch => ch.index === parseInt(idx));
-            const name = channel ? channel.name : `Channel ${idx}`;
+            const name = channel ? channel.name : t('chat.unnamed_channel', { index: idx });
             unreadChannels.push({ idx, count, name });
         }
     }
@@ -4833,7 +4868,7 @@ async function markAllChannelsRead() {
 
     // Show confirmation dialog with list of unread channels
     const channelList = unreadChannels.map(ch => `  - ${ch.name} (${ch.count})`).join('\n');
-    if (!confirm(`Mark all messages as read?\n\nUnread channels:\n${channelList}`)) return;
+    if (!confirm(t('chat.confirm.mark_all_read', { channels: channelList }))) return;
 
     // Collect latest timestamps
     const now = Math.floor(Date.now() / 1000);
@@ -5194,7 +5229,7 @@ function renderChannelDropdownItems(query) {
         const empty = document.createElement('div');
         empty.className = 'channel-selector-item text-muted';
         empty.style.cursor = 'default';
-        empty.textContent = q ? 'No matches' : 'No channels';
+        empty.textContent = q ? t('channels.dropdown.no_matches') : t('channels.dropdown.none');
         dropdown.appendChild(empty);
         return;
     }
@@ -5276,7 +5311,7 @@ function selectChannelFromDropdown(idx, name) {
 
     loadMessages();
     updateChannelSidebarActive();
-    showNotification(`Switched to channel: ${name}`, 'info');
+    showNotification(t('channels.toast.switched', { name }), 'info');
 }
 
 /**
@@ -5295,7 +5330,7 @@ function updateChannelInputDisplay() {
  */
 async function loadChannelsList() {
     const listEl = document.getElementById('channelsList');
-    listEl.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    listEl.innerHTML = `<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const [chResp, scResp] = await Promise.all([
@@ -5309,10 +5344,10 @@ async function loadChannelsList() {
         if (data.success) {
             displayChannelsList(data.channels);
         } else {
-            listEl.innerHTML = '<div class="alert alert-danger">Error loading channels</div>';
+            listEl.innerHTML = `<div class="alert alert-danger">${tHtml('channels.list.load_error')}</div>`;
         }
     } catch (error) {
-        listEl.innerHTML = '<div class="alert alert-danger">Failed to load channels</div>';
+        listEl.innerHTML = `<div class="alert alert-danger">${tHtml('channels.list.load_failed')}</div>`;
     }
 }
 
@@ -5323,7 +5358,7 @@ function displayChannelsList(channels) {
     const listEl = document.getElementById('channelsList');
 
     if (channels.length === 0) {
-        listEl.innerHTML = '<div class="text-muted text-center py-3">No channels configured</div>';
+        listEl.innerHTML = `<div class="text-muted text-center py-3">${tHtml('channels.list.empty')}</div>`;
         return;
     }
 
@@ -5340,8 +5375,8 @@ function displayChannelsList(channels) {
         const scope = (window.channelScopes || {})[String(channel.index)];
         const hasScope = !!scope;
         const scopeTitle = hasScope
-            ? `Region: ${scope.name} — click to change`
-            : 'Set region scope';
+            ? tHtml('channels.scope_title', { name: scope.name })
+            : tHtml('channels.scope_set_title');
         item.innerHTML = `
             <div>
                 <strong>${escapeHtml(channel.name)}</strong>
@@ -5350,23 +5385,23 @@ function displayChannelsList(channels) {
             <div class="btn-group btn-group-sm">
                 <button class="btn ${isFavorite ? 'btn-warning' : 'btn-outline-warning'}"
                         onclick="toggleChannelFavorite(${channel.index})"
-                        title="${isFavorite ? 'Unfavorite channel' : 'Favorite channel'}">
+                        title="${tHtml(isFavorite ? 'channels.unfav_title' : 'channels.fav_title')}">
                     <i class="bi ${isFavorite ? 'bi-star-fill' : 'bi-star'}"></i>
                 </button>
                 <button class="btn ${isMuted ? 'btn-secondary' : 'btn-outline-secondary'}"
                         onclick="toggleChannelMute(${channel.index})"
-                        title="${isMuted ? 'Unmute notifications' : 'Mute notifications'}">
+                        title="${tHtml(isMuted ? 'channels.unmute_title' : 'channels.mute_title')}">
                     <i class="bi ${isMuted ? 'bi-bell-slash' : 'bi-bell'}"></i>
                 </button>
                 <button class="btn ${hasScope ? 'btn-info' : 'btn-outline-info'}"
                         onclick="openRegionPicker(${channel.index})" title="${scopeTitle}">
                     <i class="bi bi-pin-map"></i>
                 </button>
-                <button class="btn btn-outline-primary" onclick="shareChannel(${channel.index})" title="Share">
+                <button class="btn btn-outline-primary" onclick="shareChannel(${channel.index})" title="${tHtml('common.share')}">
                     <i class="bi bi-share"></i>
                 </button>
                 ${!isPublic ? `
-                    <button class="btn btn-outline-danger" onclick="deleteChannel(${channel.index})" title="Delete">
+                    <button class="btn btn-outline-danger" onclick="deleteChannel(${channel.index})" title="${tHtml('common.delete')}">
                         <i class="bi bi-trash"></i>
                     </button>
                 ` : ''}
@@ -5595,10 +5630,10 @@ async function toggleChannelMute(index) {
             loadChannelsList();
             updateUnreadBadges();
         } else {
-            showNotification('Failed to update mute state', 'danger');
+            showNotification(t('channels.toast.mute_failed'), 'danger');
         }
     } catch (error) {
-        showNotification('Failed to update mute state', 'danger');
+        showNotification(t('channels.toast.mute_failed'), 'danger');
     }
 }
 
@@ -5626,10 +5661,10 @@ async function toggleChannelFavorite(index) {
             loadChannelsList();
             populateChannelSelector(availableChannels);
         } else {
-            showNotification('Failed to update favorite state', 'danger');
+            showNotification(t('channels.toast.favorite_failed'), 'danger');
         }
     } catch (error) {
-        showNotification('Failed to update favorite state', 'danger');
+        showNotification(t('channels.toast.favorite_failed'), 'danger');
     }
 }
 
@@ -5640,7 +5675,7 @@ async function deleteChannel(index) {
     const channel = availableChannels.find(ch => ch.index === index);
     if (!channel) return;
 
-    if (!confirm(`Remove channel "${channel.name}"?`)) {
+    if (!confirm(t('channels.confirm.remove', { name: channel.name }))) {
         return;
     }
 
@@ -5652,7 +5687,7 @@ async function deleteChannel(index) {
         const data = await response.json();
 
         if (data.success) {
-            showNotification(`Channel "${channel.name}" removed`, 'success');
+            showNotification(t('channels.toast.removed', { name: channel.name }), 'success');
 
             // If deleted current channel, switch to Public
             if (currentChannelIdx === index) {
@@ -5665,10 +5700,10 @@ async function deleteChannel(index) {
             await loadChannels();
             loadChannelsList();
         } else {
-            showNotification('Failed to remove channel: ' + data.error, 'danger');
+            showNotification(t('channels.toast.remove_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
-        showNotification('Failed to remove channel', 'danger');
+        showNotification(t('channels.toast.remove_error'), 'danger');
     }
 }
 
@@ -5682,7 +5717,7 @@ async function shareChannel(index) {
 
         if (data.success) {
             // Populate share modal
-            document.getElementById('shareChannelName').textContent = `Channel: ${data.qr_data.name}`;
+            document.getElementById('shareChannelName').textContent = t('channels.share_name', { name: data.qr_data.name });
             document.getElementById('shareChannelQR').src = data.qr_image;
             document.getElementById('shareChannelKey').value = data.qr_data.key;
 
@@ -5690,10 +5725,10 @@ async function shareChannel(index) {
             const modal = new bootstrap.Modal(document.getElementById('shareChannelModal'));
             modal.show();
         } else {
-            showNotification('Failed to generate QR code: ' + data.error, 'danger');
+            showNotification(t('channels.toast.qr_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
-        showNotification('Failed to generate QR code', 'danger');
+        showNotification(t('channels.toast.qr_error'), 'danger');
     }
 }
 
@@ -5703,18 +5738,10 @@ async function shareChannel(index) {
 async function copyChannelKey() {
     const input = document.getElementById('shareChannelKey');
     try {
-        // Use modern Clipboard API
-        await navigator.clipboard.writeText(input.value);
-        showNotification('Channel key copied to clipboard!', 'success');
+        await copyTextToClipboard(input.value);
+        showNotification(t('channels.toast.key_copied'), 'success');
     } catch (error) {
-        // Fallback for older browsers
-        input.select();
-        try {
-            document.execCommand('copy');
-            showNotification('Channel key copied to clipboard!', 'success');
-        } catch (fallbackError) {
-            showNotification('Failed to copy to clipboard', 'danger');
-        }
+        showNotification(t('channels.toast.copy_failed'), 'danger');
     }
 }
 
@@ -6055,7 +6082,7 @@ function showMentionsPopup(query) {
     const filtered = filterContacts(query);
 
     if (filtered.length === 0) {
-        list.innerHTML = '<div class="mentions-empty">No contacts found</div>';
+        list.innerHTML = `<div class="mentions-empty">${tHtml('chat.mentions.none')}</div>`;
         popup.classList.remove('hidden');
         return;
     }
@@ -6309,13 +6336,13 @@ function initializeFabToggle() {
     // Restore collapsed state
     if (localStorage.getItem('mc-webui-fab-collapsed') === '1') {
         container.classList.add('collapsed');
-        toggle.title = 'Show buttons';
+        toggle.title = t('chat.fab.show');
     }
 
     toggle.addEventListener('click', () => {
         container.classList.toggle('collapsed');
         const isCollapsed = container.classList.contains('collapsed');
-        toggle.title = isCollapsed ? 'Show buttons' : 'Hide buttons';
+        toggle.title = isCollapsed ? t('chat.fab.show') : t('chat.fab.hide');
         localStorage.setItem('mc-webui-fab-collapsed', isCollapsed ? '1' : '0');
     });
 
@@ -6590,7 +6617,7 @@ function applyFilter(query) {
         noMatchesDiv.className = 'filter-no-matches';
         noMatchesDiv.innerHTML = `
             <i class="bi bi-search"></i>
-            <p>No messages match "${escapeHtml(currentFilterQuery)}"</p>
+            <p>${tHtml('chat.filter.no_matches', { query: currentFilterQuery })}</p>
         `;
         container.appendChild(noMatchesDiv);
     }
@@ -6738,7 +6765,7 @@ function showFilterMentionsPopup(query) {
     const filtered = filterContacts(query);
 
     if (filtered.length === 0) {
-        list.innerHTML = '<div class="mentions-empty">No contacts found</div>';
+        list.innerHTML = `<div class="mentions-empty">${tHtml('chat.mentions.none')}</div>`;
         popup.classList.remove('hidden');
         return;
     }
@@ -6876,11 +6903,11 @@ async function performSearch(query) {
     if (!container) return;
 
     if (query.length < 2) {
-        container.innerHTML = '<div class="text-center text-muted py-4"><p>Type at least 2 characters to search</p></div>';
+        container.innerHTML = `<div class="text-center text-muted py-4"><p>${tHtml('search.min_chars')}</p></div>`;
         return;
     }
 
-    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Searching...</div>';
+    container.innerHTML = `<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> ${tHtml('search.searching')}</div>`;
 
     try {
         const response = await fetch(`/api/messages/search?q=${encodeURIComponent(query)}&limit=50`);
@@ -6892,11 +6919,11 @@ async function performSearch(query) {
         }
 
         if (data.results.length === 0) {
-            container.innerHTML = `<div class="text-center text-muted py-4"><i class="bi bi-inbox" style="font-size: 2rem;"></i><p class="mt-2">No results for "${escapeHtml(query)}"</p></div>`;
+            container.innerHTML = `<div class="text-center text-muted py-4"><i class="bi bi-inbox" style="font-size: 2rem;"></i><p class="mt-2">${tHtml('search.no_results', { query })}</p></div>`;
             return;
         }
 
-        container.innerHTML = `<div class="text-muted small mb-2">${data.count} result${data.count !== 1 ? 's' : ''}</div>`;
+        container.innerHTML = `<div class="text-muted small mb-2">${tn('search.count', data.count)}</div>`;
 
         const list = document.createElement('div');
         list.className = 'list-group';
@@ -6933,7 +6960,7 @@ async function performSearch(query) {
                         <div>
                             <span class="badge bg-success me-1">DM</span>
                             <strong class="small">${escapeHtml(r.contact_name || '')}</strong>
-                            <span class="text-muted small">${r.direction === 'out' ? '(sent)' : '(received)'}</span>
+                            <span class="text-muted small">${tHtml(r.direction === 'out' ? 'search.dm_sent' : 'search.dm_received')}</span>
                         </div>
                         <small class="text-muted">${time}</small>
                     </div>
@@ -6952,7 +6979,7 @@ async function performSearch(query) {
 
     } catch (error) {
         console.error('Search error:', error);
-        container.innerHTML = '<div class="alert alert-danger">Search failed. Please try again.</div>';
+        container.innerHTML = `<div class="alert alert-danger">${tHtml('search.failed')}</div>`;
     }
 }
 
@@ -6994,12 +7021,12 @@ async function loadDatabaseSize() {
         const response = await fetch('/api/db/size');
         const data = await response.json();
         if (data.success) {
-            statusEl.textContent = `Current size: ${_formatBytes(data.size)}`;
+            statusEl.textContent = t('backup.size', { size: _formatBytes(data.size) });
         } else {
-            statusEl.textContent = 'Size: unknown';
+            statusEl.textContent = t('backup.size_unknown');
         }
     } catch (error) {
-        statusEl.textContent = 'Size: unknown';
+        statusEl.textContent = t('backup.size_unknown');
     }
 }
 
@@ -7009,12 +7036,12 @@ async function optimizeDatabase() {
     if (!btn) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Optimizing…';
-    if (statusEl) statusEl.textContent = 'Running VACUUM…';
+    btn.innerHTML = `<div class="spinner-border spinner-border-sm"></div> ${tHtml('backup.optimizing')}`;
+    if (statusEl) statusEl.textContent = t('backup.vacuum_running');
 
     const restoreButton = () => {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-arrows-collapse"></i> Optimize now';
+        btn.innerHTML = `<i class="bi bi-arrows-collapse"></i> ${tHtml('backup.optimize_now')}`;
     };
 
     try {
@@ -7022,7 +7049,7 @@ async function optimizeDatabase() {
         const kickoffData = await kickoff.json().catch(() => ({}));
 
         if (!kickoff.ok && kickoff.status !== 409) {
-            showNotification('Optimize failed: ' + (kickoffData.error || `HTTP ${kickoff.status}`), 'danger');
+            showNotification(t('backup.optimize_failed', { error: kickoffData.error || `HTTP ${kickoff.status}` }), 'danger');
             loadDatabaseSize();
             restoreButton();
             return;
@@ -7044,17 +7071,19 @@ async function optimizeDatabase() {
             }
 
             if (status.running) {
-                if (statusEl) statusEl.textContent = `Running VACUUM… (${status.elapsed_seconds || 0}s)`;
+                if (statusEl) statusEl.textContent = t('backup.vacuum_running_for', { seconds: status.elapsed_seconds || 0 });
                 continue;
             }
 
             // Done — either success or error.
             if (status.success === true && status.size_after !== undefined) {
-                const freed = status.freed > 0 ? `freed ${_formatBytes(status.freed)}` : 'no space to reclaim';
-                showNotification(`Optimized: ${freed} in ${status.elapsed_seconds}s`, 'success');
-                if (statusEl) statusEl.textContent = `Current size: ${_formatBytes(status.size_after)}`;
+                const freed = status.freed > 0
+                    ? t('backup.freed', { size: _formatBytes(status.freed) })
+                    : t('backup.freed_none');
+                showNotification(t('backup.optimized', { freed, seconds: status.elapsed_seconds }), 'success');
+                if (statusEl) statusEl.textContent = t('backup.size', { size: _formatBytes(status.size_after) });
             } else if (status.error) {
-                showNotification('Optimize failed: ' + status.error, 'danger');
+                showNotification(t('backup.optimize_failed', { error: status.error }), 'danger');
                 loadDatabaseSize();
             } else {
                 // No result, no error, not running — odd, just refresh size
@@ -7064,12 +7093,12 @@ async function optimizeDatabase() {
             return;
         }
 
-        showNotification('Optimize is still running after 10 minutes — check container logs', 'warning');
+        showNotification(t('backup.optimize_stuck'), 'warning');
         loadDatabaseSize();
         restoreButton();
     } catch (error) {
         console.error('Error running VACUUM:', error);
-        showNotification('Optimize failed', 'danger');
+        showNotification(t('backup.optimize_error'), 'danger');
         loadDatabaseSize();
         restoreButton();
     }
@@ -7080,7 +7109,7 @@ async function loadBackupList() {
     const statusEl = document.getElementById('backupAutoStatus');
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+    container.innerHTML = `<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
         const response = await fetch('/api/backup/list');
@@ -7094,12 +7123,15 @@ async function loadBackupList() {
         // Show auto-backup status
         if (statusEl) {
             statusEl.textContent = data.auto_backup_enabled
-                ? `Auto: daily at ${String(data.backup_hour).padStart(2, '0')}:00, keep ${data.retention_days}d`
-                : 'Auto-backup disabled';
+                ? t('backup.auto_on', {
+                    time: `${String(data.backup_hour).padStart(2, '0')}:00`,
+                    days: data.retention_days,
+                })
+                : t('backup.auto_off');
         }
 
         if (data.backups.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-inbox"></i><p class="mt-2 mb-0">No backups yet</p></div>';
+            container.innerHTML = `<div class="text-center text-muted py-3"><i class="bi bi-inbox"></i><p class="mt-2 mb-0">${tHtml('backup.empty')}</p></div>`;
             return;
         }
 
@@ -7115,7 +7147,7 @@ async function loadBackupList() {
                     <span class="ms-1">${escapeHtml(b.filename)}</span>
                     <small class="text-muted ms-2">${b.size_display}</small>
                 </div>
-                <a href="/api/backup/download?file=${encodeURIComponent(b.filename)}" class="btn btn-sm btn-outline-primary" title="Download">
+                <a href="/api/backup/download?file=${encodeURIComponent(b.filename)}" class="btn btn-sm btn-outline-primary" title="${tHtml('backup.download_title')}">
                     <i class="bi bi-download"></i>
                 </a>
             `;
@@ -7127,7 +7159,7 @@ async function loadBackupList() {
 
     } catch (error) {
         console.error('Error loading backups:', error);
-        container.innerHTML = '<div class="alert alert-danger">Failed to load backups</div>';
+        container.innerHTML = `<div class="alert alert-danger">${tHtml('backup.load_failed')}</div>`;
     }
 }
 
@@ -7136,24 +7168,24 @@ async function createBackup() {
     if (!btn) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Creating...';
+    btn.innerHTML = `<div class="spinner-border spinner-border-sm"></div> ${tHtml('backup.creating')}`;
 
     try {
         const response = await fetch('/api/backup/create', { method: 'POST' });
         const data = await response.json();
 
         if (data.success) {
-            showNotification(`Backup created: ${data.filename}`, 'success');
+            showNotification(t('backup.created', { filename: data.filename }), 'success');
             loadBackupList();
         } else {
-            showNotification('Backup failed: ' + data.error, 'danger');
+            showNotification(t('backup.failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error creating backup:', error);
-        showNotification('Backup failed', 'danger');
+        showNotification(t('backup.error'), 'danger');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-plus-circle"></i> Create Backup';
+        btn.innerHTML = `<i class="bi bi-plus-circle"></i> ${tHtml('backup.create')}`;
     }
 }
 

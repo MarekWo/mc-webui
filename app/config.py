@@ -45,6 +45,11 @@ class Config:
     MC_AUTO_RECONNECT = os.getenv('MC_AUTO_RECONNECT', 'true').lower() == 'true'
     MC_LOG_LEVEL = os.getenv('MC_LOG_LEVEL', 'INFO')
 
+    # Reverse proxy: trust X-Forwarded-* headers (see docs/https-setup.md).
+    # Only enable when mc-webui is reachable exclusively through a proxy — a client
+    # talking to the port directly can forge those headers.
+    MC_TRUST_PROXY = os.getenv('MC_TRUST_PROXY', 'false').lower() == 'true'
+
     # Flask server configuration
     FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
     FLASK_PORT = int(os.getenv('FLASK_PORT', '5000'))

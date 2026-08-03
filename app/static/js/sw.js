@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mc-webui-v9';
+const CACHE_NAME = 'mc-webui-v10';
 const ASSETS_TO_CACHE = [
     '/',
     '/static/css/style.css',
@@ -7,6 +7,8 @@ const ASSETS_TO_CACHE = [
     '/static/js/contacts.js',
     '/static/js/message-utils.js',
     '/static/js/filter-utils.js',
+    '/static/js/i18n-runtime.js',
+    '/static/js/datetime-utils.js',
     '/static/js/console.js',
     '/static/images/android-chrome-192x192.png',
     '/static/images/android-chrome-512x512.png',
@@ -52,12 +54,16 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - hybrid strategy:
 // - Cache-first for vendor libraries (static, unchanging)
+// - Cache-first for translation catalogs (URL is content-hashed, so it cannot go stale)
 // - Network-first for app content (dynamic, needs updates)
+//
+// Note: /i18n/<lang>.<hash>.js is deliberately NOT in ASSETS_TO_CACHE — the hashed
+// filename isn't known when this file is written. It gets cached on first fetch instead.
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // Cache-first for vendor libraries (Bootstrap, Icons)
-    if (url.pathname.includes('/static/vendor/')) {
+    // Cache-first for vendor libraries (Bootstrap, Icons) and translation catalogs
+    if (url.pathname.includes('/static/vendor/') || url.pathname.startsWith('/i18n/')) {
         event.respondWith(
             caches.match(event.request)
                 .then((cachedResponse) => {

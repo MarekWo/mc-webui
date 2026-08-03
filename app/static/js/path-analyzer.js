@@ -195,16 +195,16 @@ function paFormatTime(msg) {
 }
 
 function paCopyText(text, label) {
-    navigator.clipboard.writeText(text).then(
-        () => showNotification(`${label} copied to clipboard`, 'success'),
-        () => showNotification(`Failed to copy ${label}`, 'danger')
+    copyTextToClipboard(text).then(
+        () => showNotification(t('pa.toast.copied', { what: label }), 'success'),
+        () => showNotification(t('pa.toast.copy_failed', { what: label }), 'danger')
     );
 }
 
 function paBuildEchoLine(msg, echo, echoIdx) {
     const line = document.createElement('div');
     line.className = 'pa-echo-line';
-    line.title = 'Click to copy route';
+    line.title = t('pa.copy_route_title');
 
     const dirBadge = document.createElement('span');
     dirBadge.className = 'badge ' + (echo.direction === 'outgoing' ? 'text-bg-primary' : 'text-bg-secondary');
@@ -214,7 +214,7 @@ function paBuildEchoLine(msg, echo, echoIdx) {
     if (echo.hops === 0) {
         const direct = document.createElement('span');
         direct.className = 'pa-direct';
-        direct.textContent = 'Direct (flood, 0 hops)';
+        direct.textContent = t('pa.direct_flood');
         line.appendChild(direct);
     } else {
         echo.tokens.forEach((tok, i) => {
@@ -226,10 +226,10 @@ function paBuildEchoLine(msg, echo, echoIdx) {
             const chip = document.createElement('span');
             chip.className = 'pa-chip';
             chip.textContent = tok;
-            chip.title = `Copy repeater hash ${tok}`;
+            chip.title = t('pa.copy_hash_title', { hash: tok });
             chip.addEventListener('click', (e) => {
                 e.stopPropagation();
-                paCopyText(tok, 'Repeater hash');
+                paCopyText(tok, t('pa.repeater_hash'));
             });
             line.appendChild(chip);
         });
@@ -244,7 +244,7 @@ function paBuildEchoLine(msg, echo, echoIdx) {
     if (echo.hops > 0) {
         const mapBtn = document.createElement('i');
         mapBtn.className = 'bi bi-map pa-echo-mapbtn';
-        mapBtn.title = 'Show this path on the map';
+        mapBtn.title = t('pa.show_on_map_title');
         mapBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             paMapSelection = { msgId: msg.id, echoIdx: echoIdx };
@@ -286,7 +286,9 @@ function paRenderTable() {
         tr.appendChild(tdChannel);
 
         const tdSender = document.createElement('td');
-        tdSender.textContent = msg.is_own ? `${msg.sender || 'Me'} (own)` : (msg.sender || '—');
+        tdSender.textContent = msg.is_own
+            ? t('pa.sender_own', { name: msg.sender || t('pa.me') })
+            : (msg.sender || '—');
         tr.appendChild(tdSender);
 
         const tdContent = document.createElement('td');
@@ -303,14 +305,14 @@ function paRenderTable() {
             const span = document.createElement('span');
             span.className = 'pa-hash';
             span.textContent = msg.packet_hash;
-            span.title = 'Click to copy';
+            span.title = t('pa.copy_title');
             span.addEventListener('click', (e) => {
                 e.stopPropagation();
-                paCopyText(msg.packet_hash, 'Packet hash');
+                paCopyText(msg.packet_hash, t('pa.packet_hash'));
             });
             tdHash.appendChild(span);
         } else {
-            tdHash.innerHTML = '<span class="text-muted small">no path data</span>';
+            tdHash.innerHTML = `<span class="text-muted small">${tHtml('pa.no_path_data')}</span>`;
         }
         tr.appendChild(tdHash);
 
@@ -345,10 +347,10 @@ function paRenderTable() {
                 const hashSpan = document.createElement('span');
                 hashSpan.className = 'pa-hash';
                 hashSpan.textContent = msg.packet_hash;
-                hashSpan.title = 'Click to copy';
+                hashSpan.title = t('pa.copy_title');
                 hashSpan.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    paCopyText(msg.packet_hash, 'Packet hash');
+                    paCopyText(msg.packet_hash, t('pa.packet_hash'));
                 });
                 hashLine.append('Hash: ');
                 hashLine.appendChild(hashSpan);
@@ -370,13 +372,13 @@ function paRenderTable() {
 
     const counter = document.getElementById('paCounter');
     counter.textContent = paFiltersActive()
-        ? `${filtered.length} of ${paMessages.length} messages`
-        : `${paMessages.length} message${paMessages.length === 1 ? '' : 's'}`;
+        ? t('pa.counter.filtered', { shown: filtered.length, total: paMessages.length })
+        : tn('pa.counter.messages', paMessages.length);
 
     // Empty state when filters exclude everything
     if (paMessages.length > 0) {
         if (filtered.length === 0) {
-            document.getElementById('paEmptyText').textContent = 'No messages match the current filters.';
+            document.getElementById('paEmptyText').textContent = t('pa.empty_filtered');
             paSetView('empty');
         } else {
             paSetView('table');
@@ -455,7 +457,7 @@ function paRenderStats() {
     for (const s of rows) {
         const tr = document.createElement('tr');
         tr.className = 'pa-stats-row';
-        tr.title = `Filter messages by ${s.token}`;
+        tr.title = t('pa.filter_by_title', { token: s.token });
 
         const tdToken = document.createElement('td');
         tdToken.innerHTML = `<span class="pa-hash">${s.token}</span>`;
@@ -495,13 +497,13 @@ function paRenderStats() {
 
     const counter = document.getElementById('paCounter');
     counter.textContent = paFiltersActive()
-        ? `${rows.length} repeaters (${filtered.length} of ${paMessages.length} messages)`
-        : `${rows.length} repeaters (${paMessages.length} messages)`;
+        ? `${tn('pa.counter.repeaters', rows.length)} (${t('pa.counter.filtered', { shown: filtered.length, total: paMessages.length })})`
+        : `${tn('pa.counter.repeaters', rows.length)} (${tn('pa.counter.messages', paMessages.length)})`;
 
     if (rows.length === 0) {
         document.getElementById('paEmptyText').textContent =
-            filtered.length === 0 ? 'No messages match the current filters.'
-                                  : 'No routed echoes in the current selection.';
+            filtered.length === 0 ? t('pa.empty_filtered')
+                                  : t('pa.empty_no_echoes');
         paSetView('empty');
     } else {
         paSetView('stats');
@@ -561,7 +563,7 @@ function paRenderRoutes() {
     for (const r of rows) {
         const tr = document.createElement('tr');
         tr.className = 'pa-stats-row';
-        tr.title = 'Filter messages by this segment';
+        tr.title = t('pa.filter_by_segment_title');
 
         const tdRoute = document.createElement('td');
         const hashLine = document.createElement('div');
@@ -574,7 +576,7 @@ function paRenderRoutes() {
         const names = r.tokens.map(tok => {
             const cands = paMatchContacts(tok);
             if (cands.length === 1) return cands[0].name || '—';
-            return cands.length > 1 ? `ambiguous (${cands.length})` : '—';
+            return cands.length > 1 ? t('pa.ambiguous', { count: cands.length }) : '—';
         });
         if (names.some(nm => nm !== '—')) {
             const nameLine = document.createElement('div');
@@ -602,13 +604,13 @@ function paRenderRoutes() {
 
     const counter = document.getElementById('paCounter');
     counter.textContent = paFiltersActive()
-        ? `${rows.length} segments (${filtered.length} of ${paMessages.length} messages)`
-        : `${rows.length} segments (${paMessages.length} messages)`;
+        ? `${tn('pa.counter.segments', rows.length)} (${t('pa.counter.filtered', { shown: filtered.length, total: paMessages.length })})`
+        : `${tn('pa.counter.segments', rows.length)} (${tn('pa.counter.messages', paMessages.length)})`;
 
     if (rows.length === 0) {
         document.getElementById('paEmptyText').textContent =
-            filtered.length === 0 ? 'No messages match the current filters.'
-                                  : `No paths with at least ${n} hops in the current selection.`;
+            filtered.length === 0 ? t('pa.empty_filtered')
+                                  : t('pa.no_paths_min_hops', { count: n });
         paSetView('empty');
     } else {
         paSetView('routes');
@@ -672,8 +674,8 @@ function paAddMapToggles() {
     ctl.onAdd = () => {
         const box = L.DomUtil.create('div', 'pa-map-toggles');
         box.innerHTML =
-            '<label><input type="checkbox" id="paToggleRepeaters"> All repeaters</label>' +
-            '<label><input type="checkbox" id="paToggleAltPaths"> Alternative paths</label>';
+            `<label><input type="checkbox" id="paToggleRepeaters"> ${tHtml('pa.toggle_all_repeaters')}</label>` +
+            `<label><input type="checkbox" id="paToggleAltPaths"> ${tHtml('pa.toggle_alt_paths')}</label>`;
         L.DomEvent.disableClickPropagation(box);
         L.DomEvent.disableScrollPropagation(box);
         return box;
@@ -745,7 +747,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
         if (primary) {
             L.circleMarker([origin.adv_lat, origin.adv_lon], {
                 radius: 7, color: '#198754', weight: 2, fillOpacity: 0.8
-            }).bindPopup(`<strong>${origin.name}</strong><br>Origin (sender)`)
+            }).bindPopup(`<strong>${origin.name}</strong><br>${tHtml('pa.map.origin')}`)
               .bindTooltip(origin.name, { permanent: true, direction: 'right', offset: [8, 0], className: 'pa-hop-label' })
               .addTo(layer);
         }
@@ -757,7 +759,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
         if (contact) {
             if (primary) {
                 L.marker([contact.adv_lat, contact.adv_lon], { icon: paHopIcon(i + 1) })
-                    .bindPopup(`<strong>${contact.name}</strong><br>Hop ${i + 1}: <code>${tok}</code>`)
+                    .bindPopup(`<strong>${contact.name}</strong><br>${tHtml('pa.map.hop', { n: i + 1, token: `<code>${tok}</code>` })}`)
                     .bindTooltip(contact.name, { permanent: true, direction: 'right', offset: [13, 0], className: 'pa-hop-label' })
                     .addTo(layer);
             }
@@ -769,7 +771,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
                 candidates.forEach(c => {
                     L.circleMarker([c.adv_lat, c.adv_lon], {
                         radius: 6, color: '#d39e00', weight: 2, fillOpacity: 0.5, dashArray: '3'
-                    }).bindPopup(`<strong>${c.name}</strong><br>Candidate for hop ${i + 1}: <code>${tok}</code>`).addTo(layer);
+                    }).bindPopup(`<strong>${c.name}</strong><br>${tHtml('pa.map.candidate', { n: i + 1, token: `<code>${tok}</code>` })}`).addTo(layer);
                 });
             }
             gapPending = true;
@@ -781,7 +783,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
     // only once - an alternative then shows exactly where it diverges instead of
     // hiding under the primary route.
     const snr = (echo.snr === null || echo.snr === undefined) ? '?' : `${Number(echo.snr).toFixed(1)} dB`;
-    const popup = `<strong>Alternative path</strong><br>${echo.tokens.join(' → ')}<br>${snr}`;
+    const popup = `<strong>${tHtml('pa.map.alt_path')}</strong><br>${echo.tokens.join(' → ')}<br>${snr}`;
     let drawn = 0;
     for (let i = 1; i < points.length; i++) {
         const key = [String(points[i - 1].latlng), String(points[i].latlng)].sort().join('|');
@@ -850,8 +852,8 @@ function paBuildLegend(echo) {
         resetRow.className = 'text-end';
         const resetBtn = document.createElement('button');
         resetBtn.className = 'btn btn-sm btn-outline-warning py-0 pa-reset-picks';
-        resetBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> Reset picks';
-        resetBtn.title = 'Clear all manual repeater assignments on this path';
+        resetBtn.innerHTML = `<i class="bi bi-arrow-counterclockwise"></i> ${tHtml('pa.reset_picks')}`;
+        resetBtn.title = t('pa.reset_picks_title');
         resetBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             echo.tokens.forEach(tok => { delete paPicks[tok]; });
@@ -876,7 +878,7 @@ function paBuildLegend(echo) {
                 // Manually assigned - allow undoing just this hop
                 const undo = document.createElement('i');
                 undo.className = 'bi bi-x-circle pa-unpick';
-                undo.title = 'Undo this manual assignment';
+                undo.title = t('pa.undo_pick_title');
                 undo.addEventListener('click', (e) => {
                     e.stopPropagation();
                     delete paPicks[tok];
@@ -887,13 +889,13 @@ function paBuildLegend(echo) {
         } else if (candidates.length > 1) {
             const amb = document.createElement('span');
             amb.className = 'pa-ambiguous';
-            amb.textContent = `— ${candidates.length} candidates:`;
+            amb.textContent = '— ' + tn('pa.candidates', candidates.length) + ':';
             row.appendChild(amb);
             candidates.forEach(c => {
                 const chip = document.createElement('span');
                 chip.className = 'pa-pick-chip' + (paPicks[tok] === c.public_key ? ' pa-picked' : '');
                 chip.textContent = c.name || c.public_key.slice(0, 8);
-                chip.title = 'Use this contact for the hop';
+                chip.title = t('pa.use_contact_title');
                 chip.addEventListener('click', (e) => {
                     e.stopPropagation();
                     paPicks[tok] = c.public_key;
@@ -904,7 +906,7 @@ function paBuildLegend(echo) {
         } else {
             const unk = document.createElement('span');
             unk.className = 'pa-ambiguous';
-            unk.textContent = '— unknown / no position';
+            unk.textContent = t('pa.unknown_position');
             row.appendChild(unk);
         }
         legend.appendChild(row);
@@ -944,7 +946,7 @@ function paRenderMapView(fit = true) {
     }
 
     if (filtered.length === 0) {
-        list.innerHTML = '<div class="small text-muted p-2">No messages with routed echoes match the current filters.</div>';
+        list.innerHTML = `<div class="small text-muted p-2">${tHtml('pa.map.no_routed')}</div>`;
     }
 
     for (const msg of filtered) {
@@ -1032,8 +1034,8 @@ function paRenderMapView(fit = true) {
 
     const counter = document.getElementById('paCounter');
     counter.textContent = paFiltersActive()
-        ? `${filtered.length} of ${paMessages.length} messages`
-        : `${filtered.length} routed message${filtered.length === 1 ? '' : 's'}`;
+        ? t('pa.counter.filtered', { shown: filtered.length, total: paMessages.length })
+        : tn('pa.counter.routed', filtered.length);
 }
 
 function paClearMapSelection() {
@@ -1086,12 +1088,12 @@ async function paLoadMessages() {
         });
     } catch (e) {
         console.error('Failed to load messages:', e);
-        showNotification(`Failed to load messages: ${e.message}`, 'danger');
+        showNotification(t('pa.toast.load_failed', { error: e.message }), 'danger');
         paMessages = [];
     }
 
     if (paMessages.length === 0) {
-        document.getElementById('paEmptyText').textContent = 'No messages in the selected time range.';
+        document.getElementById('paEmptyText').textContent = t('pa.empty_range');
         paSetView('empty');
     } else {
         paRender();
@@ -1118,7 +1120,7 @@ async function paApplyDeepLink() {
             return;
         }
         paDeepLink = null;
-        showNotification('This message is no longer in the analyzer data (max 7 days).', 'warning');
+        showNotification(t('pa.toast.msg_gone'), 'warning');
         return;
     }
 
@@ -1129,7 +1131,7 @@ async function paApplyDeepLink() {
         e.hops > 0 && (e.path || '').toLowerCase() === (dl.path || '').toLowerCase());
     if (echoIdx === -1) echoIdx = paShortestEchoIdx(msg);
     if (echoIdx === null) {
-        showNotification('This message has no routed echoes to draw.', 'warning');
+        showNotification(t('pa.toast.no_echoes'), 'warning');
         return;
     }
 

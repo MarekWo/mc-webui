@@ -210,7 +210,7 @@ function createImageThumbnail(url) {
     // Escape URL for use in HTML attributes
     const escapedUrl = escapeHtmlAttribute(url);
 
-    return `<div class="message-image-container"><img src="${escapedUrl}" alt="Image" class="message-image-thumbnail" data-image-url="${escapedUrl}" loading="lazy" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'100\\' height=\\'100\\'%3E%3Crect fill=\\'%23ddd\\' width=\\'100\\' height=\\'100\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' fill=\\'%23999\\'%3EError%3C/text%3E%3C/svg%3E';"><div class="message-image-url"><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="message-link">${url}</a></div></div>`;
+    return `<div class="message-image-container"><img src="${escapedUrl}" alt="${tHtml('chat.image_alt')}" class="message-image-thumbnail" data-image-url="${escapedUrl}" loading="lazy" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'100\\' height=\\'100\\'%3E%3Crect fill=\\'%23ddd\\' width=\\'100\\' height=\\'100\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' fill=\\'%23999\\'%3EError%3C/text%3E%3C/svg%3E';"><div class="message-image-url"><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="message-link">${url}</a></div></div>`;
 }
 
 /**
@@ -253,11 +253,11 @@ function createImageModal() {
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content bg-dark">
                 <div class="modal-header border-0">
-                    <h5 class="modal-title text-white" id="imagePreviewModalLabel">Image Preview</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title text-white" id="imagePreviewModalLabel">${tHtml('chat.image_preview')}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="${tHtml('common.close')}"></button>
                 </div>
                 <div class="modal-body text-center p-0">
-                    <img id="imagePreviewImg" src="" alt="Preview" class="img-fluid" style="max-height: 80vh; width: auto;">
+                    <img id="imagePreviewImg" src="" alt="${tHtml('chat.image_preview_alt')}" class="img-fluid" style="max-height: 80vh; width: auto;">
                 </div>
             </div>
         </div>
@@ -360,7 +360,7 @@ async function joinAndSwitchToChannel(channelName) {
         const data = await response.json();
 
         if (data.success) {
-            showNotification(`Joined channel "${channelName}"!`, 'success');
+            showNotification(t('channels.toast.joined', { name: channelName }), 'success');
 
             // Show warning if applicable (e.g., exceeding channel limit)
             if (data.warning) {
@@ -373,11 +373,11 @@ async function joinAndSwitchToChannel(channelName) {
             await loadChannels();
             switchToChannel(data.channel.index, channelName);
         } else {
-            showNotification('Failed to join channel: ' + data.error, 'danger');
+            showNotification(t('channels.toast.join_failed', { error: data.error }), 'danger');
         }
     } catch (error) {
         console.error('Error joining channel via link:', error);
-        showNotification('Failed to join channel', 'danger');
+        showNotification(t('channels.toast.join_error'), 'danger');
     }
 }
 
