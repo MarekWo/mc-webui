@@ -18,7 +18,8 @@ changes.
   mc-webui as an app on a phone, and to browser notifications.
 - **A real hostname.** `https://mesh.example.com` instead of an IP and a port number.
 - **Optional password protection.** NPM's *Access Lists* can put HTTP authentication in
-  front of mc-webui, which has no login of its own.
+  front of mc-webui, which has no login of its own — see *Require a login* in Step 5.
+  This is what makes publishing the instance to the internet reasonable.
 
 ## How it fits together
 
@@ -276,11 +277,43 @@ updates untouched.
 
 ## Step 5 — Tighten it up (optional)
 
-Once HTTPS works, three optional steps make it the only way in.
+Once HTTPS works, four optional steps make it the only way in.
+
+Two of them do different jobs, and it is worth being clear about which is which:
+**a login** keeps strangers out of an instance published to the internet, while
+**closing port 5000** keeps your own network from reaching the app around the proxy.
+Publishing to the internet wants both.
 
 **Force HTTPS.** On the proxy host's SSL tab, enable **Force SSL** so plain HTTP requests
 redirect. Leave HSTS off until you are sure everything works — HSTS is remembered by
 browsers for months and is awkward to undo.
+
+**Require a login.** mc-webui has no accounts of its own, so anyone who can reach it can
+use it. If the instance is published to the internet, this is the step that matters most.
+NPM calls it an **Access List**, and it adds the browser's own username/password prompt in
+front of everything.
+
+1. **Access Lists** → **Add Access List**
+2. On **Details**, give it a name (`mc-webui` will do). Leave **Satisfy Any** off — with it
+   on, satisfying *any one* condition is enough, which is not what you want when the
+   password is the only condition. Leave **Pass Auth to Upstream** off too; mc-webui does
+   not read the `Authorization` header, so there is nothing to pass on
+3. On **Authorizations**, add a username and password. Add more than one if several people
+   use the instance — each gets their own
+4. **Rules** is optional: it allows or denies whole IP addresses and ranges, on top of the
+   password
+5. Save, then go to **Hosts → Proxy Hosts**, open your host's **⋮ → Edit**, and set
+   **Access List** to the one you just created. Save
+
+The host's **ACCESS** column should now name your list instead of *Publicly Accessible*.
+Every path is covered — the interface, the API, and the websocket — so there is no way in
+that skips the prompt.
+
+> **Check the Android app after turning this on.** [App version 1.3](android-app.md) or
+> newer handles the prompt; older versions do not and will show the proxy's bare "401
+> Authorization Required" page instead. Either way, an app that was *already running* when
+> you enabled the login will not notice — it keeps using the old credentials and quietly
+> stops updating. Close it and open it again.
 
 **Let the app see the real client.** In `.env`:
 
@@ -304,6 +337,14 @@ The proxy is unaffected — it reaches the app over the internal Docker network.
 **after** HTTPS works, not before, or you will lock yourself out. To undo it, delete the
 line and run `docker compose up -d`.
 
+This matters more than it looks once you have set up a login. Port 5000 bypasses the proxy
+entirely, and with it the password, the certificate and the access log — so as long as it
+answers on the network, the login only guards one of the two doors. Note the port is not
+removed, only bound to the loopback address: anyone with a shell on the server can still
+reach the app there without a password. If your testers still use `http://<server>:5000`
+on the LAN, as on this project's own test server, leave this one off and rely on the
+login instead.
+
 Apply either change with `docker compose up -d`.
 
 ## The Android app
@@ -316,6 +357,10 @@ In practice:
 - Option C (self-signed) does **not** work in the app. Android's WebView does not trust
   certificates you added to the phone manually, and there is no way around that from
   inside the app. Use the app over `http://` on the LAN, or move to Option B.
+- An **Access List** works from app version 1.3 on: the app asks for the username and
+  password on the first connection and remembers them per server address. Older versions
+  cannot answer the prompt at all. See *Servers that ask for a password* in
+  [android-app.md](android-app.md).
 
 ## Updating and removing
 
@@ -347,6 +392,8 @@ unreachable from the network. The proxy's data directories are left in place; de
 | HTTPS works by hostname but not by IP address | The proxy refuses connections that carry no hostname. See "Browsing by IP address" above. |
 | After mounting `npm-default-site.conf`, *nothing* answers — not even port 81 | The mount has `:ro`. Remove it and run `docker compose up -d`. |
 | Locked out after setting `MC_BIND_ADDRESS` | On the server itself: remove the line from `.env` and run `docker compose up -d`. |
+| The login prompt never appears, and the site opens as before | The Access List exists but is not attached to the proxy host. **Hosts → Proxy Hosts** — the **ACCESS** column must name your list, not *Publicly Accessible*. |
+| The Android app shows "401 Authorization Required", or stops updating after you enable a login | App older than 1.3 cannot answer the prompt — update it. If it is 1.3 or newer, it was running when you turned the login on: close it and open it again. |
 | Proxy container keeps restarting | Check `docker compose logs npm`. A common cause is `./data/npm` sitting on a synced folder (Synology Drive, Dropbox) — the sync client corrupts its SQLite database. Move it with `NPM_DATA_DIR`. |
 
 ## See also
