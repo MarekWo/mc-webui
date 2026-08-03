@@ -472,7 +472,7 @@ Both values ship in `GET /api/version` (`release` and `version`) and in the temp
 3. On `main`: `./scripts/release.sh` — validates the number, refuses a dirty tree, a non-`main` branch, or an existing tag, extracts the notes from that whatsnew section, then tags `v<version>`, pushes it, and publishes the GitHub release via `gh`. `--dry-run` prints the notes and changes nothing
 4. Deploy as usual (`mcupdate`), which freezes the version into the image
 
-Numbering is SemVer read through an operator's eyes: **MAJOR** when a deploy needs manual action (new env var, migration, breaking config), **MINOR** for new features, **PATCH** for fixes only. Releases start at 2.1.0 — the v2 line has been in production since 2026-03-28, and `v1` is the archived pre-migration branch, so 1.x would have been ambiguous. Everything before 2.1.0 is dated but untagged.
+Numbering is SemVer read through an operator's eyes: **MAJOR** when a deploy needs manual action (new env var, migration, breaking config), **MINOR** for new features, **PATCH** for fixes only. Releases start at 2.1.0 — the v2 line has been in production since 2026-03-28, and the pre-migration 1.x line preceded it, so 1.x would have been ambiguous. (The `v1` and `v2` archive branches were removed on 2026-08-03; both tips are ancestors of `main`, so that history is still reachable there.) Everything before 2.1.0 is dated but untagged.
 
 ---
 
