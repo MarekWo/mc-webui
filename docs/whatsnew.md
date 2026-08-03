@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.5.0 — 2026-08-03
+
 ### Features
 
 - **You can now reach mc-webui over HTTPS.** Until now the interface was served over plain HTTP only, which meant the address bar warned it was not secure, and — less obviously — that browsers quietly withheld a set of features they reserve for encrypted connections. There is now an optional HTTPS front end you switch on with a single line in `.env`; it starts [Nginx Proxy Manager](https://nginxproxymanager.com/) next to the app, and you pick your certificate in its web interface rather than editing configuration files. Three routes are covered: a free Let's Encrypt certificate for a public domain, a Let's Encrypt certificate via a DNS challenge — the one worth knowing about, because it gives a fully trusted certificate on a server that is not exposed to the internet at all, with no port forwarding — and a self-signed certificate for reaching the server by its IP address. Existing installations are untouched: nothing starts and nothing changes unless you ask for it, and updates keep working exactly as before. The guide is [https-setup.md](https-setup.md), including which switch to be careful about (Websockets Support — leave it off and several open tabs will crawl) and why a self-signed certificate cannot work with the Android app.
