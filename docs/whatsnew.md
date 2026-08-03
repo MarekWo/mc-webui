@@ -10,11 +10,14 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.6.0 — 2026-08-03
+
 ### Features
 
-- **The HTTPS guide now explains how to put a password in front of mc-webui.** The guide always mentioned that Nginx Proxy Manager can do this — mc-webui has no accounts of its own — but never said how, which made the one step that actually matters for an instance published to the internet the one step you had to work out yourself. [https-setup.md](https-setup.md) now walks through creating an **Access List** and attaching it to your proxy host, and is clearer about a distinction that is easy to miss: requiring a login keeps strangers out, while closing port 5000 (`MC_BIND_ADDRESS=127.0.0.1`) stops your own network from reaching the app around the proxy — and therefore around the password. Publishing to the internet wants both; a server whose testers still use `http://<address>:5000` wants only the first.
-
 - **The Android app can now sign in to a server that asks for a password.** Putting mc-webui behind a reverse proxy is what makes publishing it to the internet reasonable, and the usual next step is to make that proxy demand a username and password — an **Access List** in Nginx Proxy Manager, for instance. The app had no answer for that: it showed the proxy's bare "401 Authorization Required" page and stopped there, which meant the phone was the one thing you could not protect. It now asks for the login the first time it connects and remembers it per server address, so later launches go straight in; get it wrong and the same prompt returns with the username already filled in. This appears **only** when your server actually asks for a password — an instance without one, local `http://` or a proxy with no access control, behaves exactly as it always has and never shows this screen. One thing worth knowing: if you turn the password on, or change it, while the app is already open, the app cannot notice mid-session — close it and open it again. This is **app version 1.3** — install the new `.apk` over the one you have; it is signed with the same key, so it goes in as an update and keeps your server address. See [android-app.md](android-app.md).
+- **The HTTPS guide now explains how to put a password in front of mc-webui.** The guide always mentioned that Nginx Proxy Manager can do this — mc-webui has no accounts of its own — but never said how, which made the one step that actually matters for an instance published to the internet the one step you had to work out yourself. [https-setup.md](https-setup.md) now walks through creating an **Access List** and attaching it to your proxy host, and is clearer about a distinction that is easy to miss: requiring a login keeps strangers out, while closing port 5000 (`MC_BIND_ADDRESS=127.0.0.1`) stops your own network from reaching the app around the proxy — and therefore around the password. Publishing to the internet wants both; a server whose testers still use `http://<address>:5000` wants only the first.
 
 ---
 
