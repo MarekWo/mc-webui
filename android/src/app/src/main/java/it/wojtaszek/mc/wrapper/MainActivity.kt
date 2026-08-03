@@ -19,6 +19,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.view.View
 import android.webkit.CookieManager
+import android.webkit.HttpAuthHandler
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.SslErrorHandler
@@ -207,6 +208,29 @@ class MainActivity : AppCompatActivity() {
                 handler?.cancel()
                 showConfig(getString(R.string.error_ssl))
             }
+
+            /**
+             * Only ever called when the server answers 401 with a
+             * `WWW-Authenticate` header - a server that asks for no password
+             * never reaches this, so nothing changes for those users.
+             */
+            override fun onReceivedHttpAuthRequest(
+                view: WebView?,
+                handler: HttpAuthHandler?,
+                host: String?,
+                realm: String?
+            ) {
+                if (handler == null) return
+                val saved = savedCredentials(host)
+                // useHttpAuthUsernamePassword() is true only on the first ask for
+                // a request; a second one means the server turned those exact
+                // credentials down, so ask the user rather than retry forever
+                if (handler.useHttpAuthUsernamePassword() && saved != null) {
+                    handler.proceed(saved.first, saved.second)
+                    return
+                }
+                askForCredentials(handler, host, saved?.first)
+            }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -262,6 +286,63 @@ class MainActivity : AppCompatActivity() {
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(this, R.string.no_app_for_link, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // ----------------------------------------------------------- http auth
+
+    /**
+     * Asks for the username and password the server wants, then remembers them
+     * so the next launch goes straight in.
+     *
+     * They are stored before the server has had a chance to accept them: a
+     * wrong password simply comes back here on the next 401, with the username
+     * filled in, and overwrites what was saved.
+     */
+    private fun askForCredentials(handler: HttpAuthHandler, host: String?, knownUser: String?) {
+        val form = layoutInflater.inflate(R.layout.dialog_auth, null)
+        val userInput = form.findViewById<EditText>(R.id.authUser)
+        val passwordInput = form.findViewById<EditText>(R.id.authPassword)
+        form.findViewById<TextView>(R.id.authMessage).text =
+            getString(R.string.auth_message, host ?: "")
+        knownUser?.let { userInput.setText(it) }
+
+        val giveUp = {
+            handler.cancel()
+            showConfig(getString(R.string.error_auth_cancelled))
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.auth_title)
+            .setView(form)
+            .setPositiveButton(R.string.auth_sign_in) { _, _ ->
+                val user = userInput.text.toString()
+                val password = passwordInput.text.toString()
+                saveCredentials(host, user, password)
+                handler.proceed(user, password)
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> giveUp() }
+            .setOnCancelListener { giveUp() }
+            .show()
+    }
+
+    /**
+     * Credentials live in the app's own private preferences, keyed by host so
+     * that switching servers does not carry them over. That file is readable
+     * only by this app, which is as far as a wrapper can reasonably go.
+     */
+    private fun savedCredentials(host: String?): Pair<String, String>? {
+        if (host.isNullOrEmpty()) return null
+        val user = prefs.getString(KEY_AUTH_USER + host, null) ?: return null
+        val password = prefs.getString(KEY_AUTH_PASSWORD + host, null) ?: return null
+        return user to password
+    }
+
+    private fun saveCredentials(host: String?, user: String, password: String) {
+        if (host.isNullOrEmpty()) return
+        prefs.edit()
+            .putString(KEY_AUTH_USER + host, user)
+            .putString(KEY_AUTH_PASSWORD + host, password)
+            .apply()
     }
 
     // ---------------------------------------------------------- notifications
@@ -471,6 +552,9 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS = "MC_PREFS"
         private const val KEY_URL = "SERVER_URL"
         private const val KEY_ASKED_NOTIFICATIONS = "ASKED_NOTIFICATIONS"
+        // Suffixed with the host, so each server keeps its own login
+        private const val KEY_AUTH_USER = "AUTH_USER_"
+        private const val KEY_AUTH_PASSWORD = "AUTH_PASSWORD_"
         private const val REQ_CAMERA = 1
         private const val REQ_STORAGE = 2
         private const val REQ_NOTIFICATIONS = 3

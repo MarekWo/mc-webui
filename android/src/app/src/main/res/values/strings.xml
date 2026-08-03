@@ -14,9 +14,17 @@
     <string name="change_server">Change server</string>
     <string name="cancel">Cancel</string>
 
+    <!-- Sign-in, for servers that ask for a username and password -->
+    <string name="auth_title">Sign in</string>
+    <string name="auth_message">%1$s asks for a username and password.</string>
+    <string name="auth_user">Username</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_sign_in">SIGN IN</string>
+
     <!-- Connection problems -->
     <string name="error_unreachable">Could not reach the server. Check the address, and that the phone is on the right network.</string>
     <string name="error_ssl">SSL error - the certificate was rejected. Use a valid HTTPS certificate, or plain http:// on a local network.</string>
+    <string name="error_auth_cancelled">This server asks for a username and password. Connect again to enter them.</string>
     <string name="no_app_for_link">No app on the phone can open this link</string>
 
     <!-- Downloads and permissions -->
