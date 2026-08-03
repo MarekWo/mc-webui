@@ -74,7 +74,11 @@ You should see `mc-webui` and `mc-webui-proxy`.
 
 Open `http://<your-server>:81`. On first run you get a short setup form where you create
 your own administrator account — name, email and password. There is no default login to
-change afterwards.
+change afterwards. Every later visit lands on the sign-in page:
+
+<p align="center">
+  <img src="../images/npm-00-login-page.png" width="360" alt="Nginx Proxy Manager - sign-in page">
+</p>
 
 Keep this panel on the local network and **do not forward port 81 through your router**:
 it can route traffic anywhere inside your network, and it is served over plain HTTP.
@@ -345,7 +349,11 @@ and the Access Lists page counts the hosts using it:
 </p>
 
 Every path is covered — the interface, the API, and the websocket — so there is no way in
-that skips the prompt.
+that skips the prompt. From now on the browser asks before mc-webui loads:
+
+<p align="center">
+  <img src="../images/npm-08-browser-login.png" width="330" alt="Browser sign-in prompt in front of mc-webui">
+</p>
 
 > **Check the Android app after turning this on.** [App version 1.3](android-app.md) or
 > newer handles the prompt; older versions do not and will show the proxy's bare "401
