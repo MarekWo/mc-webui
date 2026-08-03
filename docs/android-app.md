@@ -32,9 +32,9 @@ along the way. The steps below cover those warnings.
 | **File** | [`android/mc-webui-wrapper.apk`](../android/mc-webui-wrapper.apk) |
 | **Direct link** | https://github.com/MarekWo/mc-webui/raw/main/android/mc-webui-wrapper.apk |
 | **Size** | 4.6 MB |
-| **App version** | 1.2 |
+| **App version** | 1.3 |
 | **Package** | `it.wojtaszek.mc.wrapper` |
-| **SHA-256** | `2622e6d85c65f4d43125b720862211989718456744d45193234b5d27ee28db0c` |
+| **SHA-256** | `6309880b9453b0577485a84c3aeef2bcc620940c01c5d75006631cfa7ee22e04` |
 
 Download it directly on the phone, or copy it over from a computer.
 
@@ -124,6 +124,30 @@ wrong address, server down, phone off the network. Either way the form opens
 **pre-filled with the address you are using**, and nothing is overwritten until
 you tap **SAVE & CONNECT**: a dropped connection never costs you the address.
 
+### Servers that ask for a password
+
+If your instance sits behind a reverse proxy configured to require a login
+(HTTP Basic authentication — for example an **Access List** in Nginx Proxy
+Manager), the app asks for it the first time it connects, from version 1.3:
+
+> **Sign in** — *mc-webui.example.com asks for a username and password.*
+
+Enter the username and password your proxy expects and tap **SIGN IN**. They are
+remembered per server address, so later launches go straight in. Get them wrong
+and the same prompt comes back on the next attempt, with the username filled in.
+Tapping **Cancel** returns to the address form.
+
+This only ever appears when the server actually asks for a password. On an
+instance without one — local `http://` or a proxy with no access control — you
+will never see this screen, and nothing about the app changes.
+
+> **Turning the password on, or changing it, while the app is open.** The prompt
+> comes up when the app loads a page, not when a request it makes in the
+> background is refused. So if you switch authentication on — or change the
+> password — with the app already running, it keeps trying the old credentials
+> and the interface stops updating rather than asking you anything. Close the
+> app and open it again, and it will ask properly.
+
 ---
 
 ## What works, and what doesn't
@@ -149,13 +173,17 @@ A couple of things depend on how your instance is reachable:
 - **Install the `.apk` only from this repository** (or from the project's
   GitHub Releases page). An `.apk` from anywhere else is a different app, no
   matter what it is called
-- The app stores exactly one thing on the phone: **the server address you
-  typed**. No messages, keys, or contacts — those stay on your server and your
-  MeshCore device
+- The app stores two things on the phone: **the server address you typed**, and
+  — only if your server asks for a login — **the username and password for it**.
+  Both live in the app's private storage, which no other app can read. No
+  messages, keys, or contacts — those stay on your server and your MeshCore
+  device
 - **Plain `http://` is allowed** so that local instances work without a
   certificate. On a home network that is fine; over the internet, put mc-webui
-  behind a reverse proxy with HTTPS and some form of access control — the app
-  adds no authentication of its own
+  behind a reverse proxy with HTTPS and some form of access control. The app has
+  no login of its own, but it does **support a proxy that requires one** (see
+  *Servers that ask for a password* above) — and over `https://` those
+  credentials are encrypted in transit like everything else
 - **Permissions:** internet access; the camera, only when you use QR scanning
   and only after you allow it; notifications, only after you turn them on in
   the menu and allow them; and file storage on Android 9 and older, only for
