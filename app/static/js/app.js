@@ -1427,6 +1427,8 @@ function createMessageElement(msg) {
     const wrapper = document.createElement('div');
     wrapper.className = `message-wrapper ${msg.is_own ? 'own' : 'other'}`;
     if (msg.id) wrapper.dataset.msgId = msg.id;
+    // Raw resend reads this back to warn before re-broadcasting an old message
+    if (msg.timestamp) wrapper.dataset.timestamp = msg.timestamp;
 
     const time = formatTime(msg.timestamp);
 
@@ -1743,6 +1745,10 @@ function resendMessage(content) {
     input.focus();
 }
 
+// A resend older than this asks for confirmation first — see the note in
+// resendChannelMessageRaw() on why an old packet spreads like a new message.
+const RAW_RESEND_STALE_AFTER_SEC = 3600;
+
 /**
  * Raw resend: re-broadcast the exact same packet bytes so repeaters that
  * already forwarded it dedupe via packet-hash, while unreached repeaters
@@ -1754,6 +1760,19 @@ function resendMessage(content) {
  */
 async function resendChannelMessageRaw(msgId, btn) {
     if (!msgId || btn?.dataset.busy === '1') return;
+
+    // Repeaters dedupe a resend through Mesh::hasSeen, but that table only
+    // holds recent packet hashes. Once it has aged out nothing suppresses the
+    // rebroadcast and the message lands on every node in the channel as new —
+    // so confirm before putting an old packet back on the air. An unknown
+    // timestamp (optimistic bubble) means the message is fresh: don't ask.
+    const sentAt = parseInt(btn?.closest('.message-wrapper')?.dataset.timestamp ?? '', 10);
+    if (Number.isFinite(sentAt)
+            && (Math.floor(Date.now() / 1000) - sentAt) > RAW_RESEND_STALE_AFTER_SEC
+            && !confirm(t('chat.confirm.stale_resend', { age: formatTimeAgo(sentAt, { long: true }) }))) {
+        return;
+    }
+
     const icon = btn?.querySelector('i');
     if (btn) {
         btn.dataset.busy = '1';

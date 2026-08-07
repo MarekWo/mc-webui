@@ -105,6 +105,7 @@
   "chat.channels": "Kanały",
   "chat.confirm.block": "Zablokować {name}? Wiadomości tego kontaktu będą ukryte w czacie.",
   "chat.confirm.mark_all_read": "Oznaczyć wszystkie wiadomości jako przeczytane?\n\nKanały z nieprzeczytanymi:\n{channels}",
+  "chat.confirm.stale_resend": "Ta wiadomość została wysłana {age}. Repeatery pamiętają tylko niedawne pakiety, więc tym razem nic jej nie wygasi — wszyscy na kanale zobaczą ją ponownie jako nową wiadomość. Wysłać mimo to?",
   "chat.copy_route_title": "Dotknij, aby skopiować trasę",
   "chat.edit_title": "Edytuj wiadomość",
   "chat.emoji_title": "Wstaw emoji",

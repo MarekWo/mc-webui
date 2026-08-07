@@ -105,6 +105,7 @@
   "chat.channels": "Channels",
   "chat.confirm.block": "Block {name}? Their messages will be hidden from chat.",
   "chat.confirm.mark_all_read": "Mark all messages as read?\n\nUnread channels:\n{channels}",
+  "chat.confirm.stale_resend": "This message was sent {age}. Repeaters only remember recent packets, so nothing will suppress it this time — everyone on the channel will see it again as a new message. Resend anyway?",
   "chat.copy_route_title": "Tap to copy route",
   "chat.edit_title": "Edit message",
   "chat.emoji_title": "Insert emoji",
