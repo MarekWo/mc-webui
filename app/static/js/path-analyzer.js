@@ -759,7 +759,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
         if (contact) {
             if (primary) {
                 L.marker([contact.adv_lat, contact.adv_lon], { icon: paHopIcon(i + 1) })
-                    .bindPopup(`<strong>${contact.name}</strong><br>${tHtml('pa.map.hop', { n: i + 1, token: `<code>${tok}</code>` })}`)
+                    .bindPopup(`<strong>${contact.name}</strong><br>${tHtml('pa.map.hop', { n: i + 1, token: tok })}`)
                     .bindTooltip(contact.name, { permanent: true, direction: 'right', offset: [13, 0], className: 'pa-hop-label' })
                     .addTo(layer);
             }
@@ -771,7 +771,7 @@ function paDrawEcho(msg, echo, primary, seen, altColor) {
                 candidates.forEach(c => {
                     L.circleMarker([c.adv_lat, c.adv_lon], {
                         radius: 6, color: '#d39e00', weight: 2, fillOpacity: 0.5, dashArray: '3'
-                    }).bindPopup(`<strong>${c.name}</strong><br>${tHtml('pa.map.candidate', { n: i + 1, token: `<code>${tok}</code>` })}`).addTo(layer);
+                    }).bindPopup(`<strong>${c.name}</strong><br>${tHtml('pa.map.candidate', { n: i + 1, token: tok })}`).addTo(layer);
                 });
             }
             gapPending = true;

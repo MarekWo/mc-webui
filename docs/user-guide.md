@@ -182,7 +182,8 @@ Long messages open a dialog first, offering the full text or a truncated version
 Your own messages carry a small row of action buttons:
 
 - **Edit message** (pencil icon) - Copies the message text back into the composer so you can tweak it and send it again as a new message.
-- **Resend** (repeat-arrow icon) - Re-broadcasts the *same* packet. Repeaters that already forwarded the original ignore the duplicate, but nodes that never heard it can still pick it up — so the resend extends the repeater list on the existing message's badge instead of creating a new message. Handy right after sending when the delivery badge shows only partial coverage. This button only appears when your device runs companion firmware **1.16 or newer**; on older firmware it is hidden.
+- **Resend** (repeat-arrow icon) - Re-broadcasts the *same* packet. Repeaters that already forwarded the original ignore the duplicate, but nodes that never heard it can still pick it up — so the resend extends the repeater list on the existing message's badge instead of creating a new message. Handy right after sending when the delivery badge shows only partial coverage, and it also works on a message that never got a badge at all. This button only appears when your device runs companion firmware **1.16 or newer**; on older firmware it is hidden.
+  - Repeaters only remember packets they saw recently, so an old packet is no longer recognised as a duplicate and spreads across the channel as if it were new — everyone sees it again, dated today. Resending a message **older than an hour** therefore asks for confirmation first, telling you how old it is; anything more recent goes out with no extra click.
 
 ### Group Chat Message Routes
 
@@ -735,10 +736,18 @@ Displays device parameters in a readable table:
 
 ### Stats Tab
 
-Shows live device statistics:
-- Uptime, free memory, battery voltage
-- Message counters (sent, received, forwarded)
-- Current airtime usage
+Shows everything the `stats` console command reports, laid out like the repeater
+[Status](#status) view:
+
+- **System Information** - Battery, uptime, TX queue length, error counter
+- **Radio Statistics** - Last RSSI / SNR, noise floor, TX and RX airtime, and channel
+  utilization (TX+RX airtime as a percentage of uptime)
+- **Packet Statistics** - Sent and received counts with their flood/direct split, plus
+  RX errors
+- **Database** - What mc-webui itself has stored: contacts, channel and direct message
+  counts, and the database file size
+
+The device numbers are counters since the last reboot, not lifetime totals.
 
 ### Share Tab
 

@@ -130,7 +130,9 @@ If your instance sits behind a reverse proxy configured to require a login
 (HTTP Basic authentication — for example an **Access List** in Nginx Proxy
 Manager), the app asks for it the first time it connects, from version 1.3:
 
-> **Sign in** — *mc-webui.example.com asks for a username and password.*
+<p align="center">
+  <img src="../images/android-wrapper-signin.png" width="330" alt="mc-webui Android app - sign-in dialog for a server that requires a password">
+</p>
 
 Enter the username and password your proxy expects and tap **SIGN IN**. They are
 remembered per server address, so later launches go straight in. Get them wrong
