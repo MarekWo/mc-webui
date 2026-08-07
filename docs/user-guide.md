@@ -182,7 +182,8 @@ Long messages open a dialog first, offering the full text or a truncated version
 Your own messages carry a small row of action buttons:
 
 - **Edit message** (pencil icon) - Copies the message text back into the composer so you can tweak it and send it again as a new message.
-- **Resend** (repeat-arrow icon) - Re-broadcasts the *same* packet. Repeaters that already forwarded the original ignore the duplicate, but nodes that never heard it can still pick it up — so the resend extends the repeater list on the existing message's badge instead of creating a new message. Handy right after sending when the delivery badge shows only partial coverage. This button only appears when your device runs companion firmware **1.16 or newer**; on older firmware it is hidden.
+- **Resend** (repeat-arrow icon) - Re-broadcasts the *same* packet. Repeaters that already forwarded the original ignore the duplicate, but nodes that never heard it can still pick it up — so the resend extends the repeater list on the existing message's badge instead of creating a new message. Handy right after sending when the delivery badge shows only partial coverage, and it also works on a message that never got a badge at all. This button only appears when your device runs companion firmware **1.16 or newer**; on older firmware it is hidden.
+  - Repeaters only remember packets they saw recently, so an old packet is no longer recognised as a duplicate and spreads across the channel as if it were new — everyone sees it again, dated today. Resending a message **older than an hour** therefore asks for confirmation first, telling you how old it is; anything more recent goes out with no extra click.
 
 ### Group Chat Message Routes
 
