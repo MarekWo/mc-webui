@@ -454,6 +454,7 @@
   "device.stats.battery": "Bateria",
   "device.stats.channel_msgs": "Wiadomości kanałowe",
   "device.stats.contacts_db": "Kontakty (DB)",
+  "device.stats.database": "Baza danych",
   "device.stats.db_size": "Rozmiar bazy",
   "device.stats.direct_msgs": "Wiadomości prywatne",
   "device.stats.errors": "Błędy",

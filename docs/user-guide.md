@@ -735,10 +735,18 @@ Displays device parameters in a readable table:
 
 ### Stats Tab
 
-Shows live device statistics:
-- Uptime, free memory, battery voltage
-- Message counters (sent, received, forwarded)
-- Current airtime usage
+Shows everything the `stats` console command reports, laid out like the repeater
+[Status](#status) view:
+
+- **System Information** - Battery, uptime, TX queue length, error counter
+- **Radio Statistics** - Last RSSI / SNR, noise floor, TX and RX airtime, and channel
+  utilization (TX+RX airtime as a percentage of uptime)
+- **Packet Statistics** - Sent and received counts with their flood/direct split, plus
+  RX errors
+- **Database** - What mc-webui itself has stored: contacts, channel and direct message
+  counts, and the database file size
+
+The device numbers are counters since the last reboot, not lifetime totals.
 
 ### Share Tab
 

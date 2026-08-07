@@ -2108,7 +2108,43 @@ async function loadDeviceInfo() {
 }
 
 /**
- * Load device statistics (Stats tab in Device modal)
+ * Duration in seconds -> "6d 14h 46m". A copy of fmtDuration() in repeater-manage.js,
+ * which runs in the My Repeaters panel and shares no scope with this file.
+ */
+function formatStatsDuration(seconds) {
+    if (seconds == null || isNaN(seconds)) return '—';
+    seconds = Math.floor(seconds);
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const parts = [];
+    if (d) parts.push(`${d}d`);
+    if (h || d) parts.push(`${h}h`);
+    parts.push(`${m}m`);
+    return parts.join(' ');
+}
+
+/**
+ * One titled block of the Stats tab, laid out like the repeater status view.
+ * Labels are escaped here, so callers pass t(); values are markup built by the
+ * caller and go in as-is.
+ */
+function deviceStatsSection(title, rows) {
+    const body = rows.map(([label, value]) =>
+        `<tr><td class="text-muted">${escapeHtml(label)}</td><td class="text-end fw-medium">${value}</td></tr>`
+    ).join('');
+    return `
+        <div class="text-muted text-uppercase small fw-bold mt-3 mb-1">${escapeHtml(title)}</div>
+        <table class="table table-sm mb-0"><tbody>${body}</tbody></table>
+    `;
+}
+
+/**
+ * Load device statistics (Stats tab in Device modal).
+ *
+ * Field names come straight from the firmware payload - the same ones the `stats`
+ * console command prints (see app/main.py). They are not the names the repeater
+ * status payload uses, even where the value means the same thing.
  */
 async function loadDeviceStats() {
     const container = document.getElementById('deviceStatsContent');
@@ -2126,67 +2162,70 @@ async function loadDeviceStats() {
         }
 
         const stats = data.stats || {};
+        const core = stats.core || {};
+        const radio = stats.radio || {};
+        const pkt = stats.packets || {};
+        const db = data.db_stats || {};
         const bat = data.battery || {};
-        let html = '<table class="table table-sm mb-0"><tbody>';
 
-        // Battery (from dedicated get_bat or from core stats)
-        if (bat && typeof bat === 'object' && bat.voltage) {
-            html += `<tr><td class="text-muted">${tHtml('device.stats.battery')}</td><td>${bat.voltage}V</td></tr>`;
-        } else if (stats.core && stats.core.battery_mv) {
-            html += `<tr><td class="text-muted">${tHtml('device.stats.battery')}</td><td>${(stats.core.battery_mv / 1000).toFixed(2)}V</td></tr>`;
+        // Battery comes from the dedicated get_bat call, or from core stats when
+        // that returned nothing.
+        const volts = (bat && bat.voltage) ? Number(bat.voltage).toFixed(2)
+            : (core.battery_mv != null ? (core.battery_mv / 1000).toFixed(2) : null);
+
+        // Share of uptime the radio spent transmitting or receiving.
+        const util = (radio.tx_air_secs != null && radio.rx_air_secs != null && core.uptime_secs)
+            ? (((radio.tx_air_secs + radio.rx_air_secs) / core.uptime_secs) * 100).toFixed(2) + '%'
+            : '—';
+
+        // "flood" and "direct" are protocol terms and stay English in every
+        // language (see docs/translations.md). The split drops to its own line
+        // below sm, where keeping it inline wraps the row label as well.
+        const split = (flood, direct) =>
+            `<span class="text-muted small d-block d-sm-inline">(flood ${formatInt(flood)} · direct ${formatInt(direct)})</span>`;
+
+        let html = '';
+
+        if (Object.keys(core).length || volts !== null) {
+            html += deviceStatsSection(t('rptmgmt.status.system'), [
+                [t('device.stats.battery'), volts !== null ? `${volts}V` : '—'],
+                [t('device.stats.uptime'), formatStatsDuration(core.uptime_secs)],
+                [t('device.stats.queue'), formatInt(core.queue_len)],
+                [t('device.stats.errors'), formatInt(core.errors)],
+            ]);
         }
 
-        // Core stats
-        if (stats.core) {
-            const c = stats.core;
-            if (c.uptime !== undefined) {
-                const d = Math.floor(c.uptime / 86400);
-                const h = Math.floor((c.uptime % 86400) / 3600);
-                const m = Math.floor((c.uptime % 3600) / 60);
-                html += `<tr><td class="text-muted">${tHtml('device.stats.uptime')}</td><td>${d}d ${h}h ${m}m</td></tr>`;
-            }
-            if (c.queue_length !== undefined)
-                html += `<tr><td class="text-muted">${tHtml('device.stats.queue')}</td><td>${c.queue_length}</td></tr>`;
-            if (c.errors !== undefined)
-                html += `<tr><td class="text-muted">${tHtml('device.stats.errors')}</td><td>${c.errors}</td></tr>`;
+        if (Object.keys(radio).length) {
+            html += deviceStatsSection(t('rptmgmt.status.radio'), [
+                [t('rptmgmt.status.last_rssi'), radio.last_rssi != null ? `${radio.last_rssi} dBm` : '—'],
+                [t('rptmgmt.status.last_snr'), radio.last_snr != null ? `${radio.last_snr} dB` : '—'],
+                [t('rptmgmt.status.noise'), radio.noise_floor != null ? `${radio.noise_floor} dBm` : '—'],
+                [t('device.stats.tx_air'), formatStatsDuration(radio.tx_air_secs)],
+                [t('device.stats.rx_air'), formatStatsDuration(radio.rx_air_secs)],
+                [t('rptmgmt.status.utilization'), util],
+            ]);
         }
 
-        // Radio stats
-        if (stats.radio) {
-            const r = stats.radio;
-            if (r.tx_air_time !== undefined)
-                html += `<tr><td class="text-muted">${tHtml('device.stats.tx_air')}</td><td>${r.tx_air_time.toFixed(1)} min</td></tr>`;
-            if (r.rx_air_time !== undefined)
-                html += `<tr><td class="text-muted">${tHtml('device.stats.rx_air')}</td><td>${r.rx_air_time.toFixed(1)} min</td></tr>`;
+        if (Object.keys(pkt).length) {
+            const rows = [
+                [t('device.stats.packets_tx'), `${formatInt(pkt.sent)} ${split(pkt.flood_tx, pkt.direct_tx)}`],
+                [t('device.stats.packets_rx'), `${formatInt(pkt.recv)} ${split(pkt.flood_rx, pkt.direct_rx)}`],
+            ];
+            if (pkt.recv_errors != null) rows.push([t('rptmgmt.status.rx_errors'), formatInt(pkt.recv_errors)]);
+            html += deviceStatsSection(t('rptmgmt.status.packets'), rows);
         }
 
-        // Packet stats
-        if (stats.packets) {
-            const p = stats.packets;
-            if (p.sent !== undefined)
-                html += `<tr><td class="text-muted">${tHtml('device.stats.packets_tx')}</td><td>${p.sent.toLocaleString()}</td></tr>`;
-            if (p.received !== undefined)
-                html += `<tr><td class="text-muted">${tHtml('device.stats.packets_rx')}</td><td>${p.received.toLocaleString()}</td></tr>`;
+        if (Object.keys(db).length) {
+            html += deviceStatsSection(t('device.stats.database'), [
+                [t('device.stats.contacts_db'), formatInt(db.contacts)],
+                [t('device.stats.channel_msgs'), formatInt(db.channel_messages)],
+                [t('device.stats.direct_msgs'), formatInt(db.direct_messages)],
+                [t('device.stats.db_size'), db.db_size_bytes != null
+                    ? `${(db.db_size_bytes / (1024 * 1024)).toFixed(1)} MB` : '—'],
+            ]);
         }
 
-        // DB stats (included in same response)
-        if (data.db_stats) {
-            const db = data.db_stats;
-            if (db.contacts !== undefined)
-                html += `<tr><td class="text-muted">${tHtml('device.stats.contacts_db')}</td><td>${db.contacts}</td></tr>`;
-            if (db.channel_messages !== undefined)
-                html += `<tr><td class="text-muted">${tHtml('device.stats.channel_msgs')}</td><td>${db.channel_messages.toLocaleString()}</td></tr>`;
-            if (db.direct_messages !== undefined)
-                html += `<tr><td class="text-muted">${tHtml('device.stats.direct_msgs')}</td><td>${db.direct_messages.toLocaleString()}</td></tr>`;
-            if (db.db_size_bytes !== undefined) {
-                const sizeMB = (db.db_size_bytes / (1024 * 1024)).toFixed(1);
-                html += `<tr><td class="text-muted">${tHtml('device.stats.db_size')}</td><td>${sizeMB} MB</td></tr>`;
-            }
-        }
-
-        html += '</tbody></table>';
-
-        if (html === '<table class="table table-sm mb-0"><tbody></tbody></table>') {
+        if (!html) {
             container.innerHTML = `<div class="text-center text-muted py-3">${tHtml('device.stats.none')}</div>`;
         } else {
             container.innerHTML = html;
