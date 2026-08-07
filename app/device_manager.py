@@ -139,6 +139,30 @@ def _build_grp_txt_raw_packet(pkt_payload_hex, scope_key_hex=None, path_hash_siz
     return out.hex()
 
 
+def _payload_from_raw_packet(raw_packet_hex) -> Optional[str]:
+    """Recover pkt_payload from a raw packet snapshot — inverse of
+    _build_grp_txt_raw_packet.
+
+    Strips header(1), the 4 transport-code bytes carried by TRANSPORT_FLOOD
+    (and route_type 3), path_len(1) and any path hashes. Lets a resend re-arm
+    echo correlation for a message that never caught its own echo: the bytes
+    we are about to put back on air are exactly the ones repeaters will echo.
+
+    Returns hex, or None when the buffer is too short to parse.
+    """
+    if not raw_packet_hex:
+        return None
+    raw = raw_packet_hex if isinstance(raw_packet_hex, bytes) else bytes.fromhex(raw_packet_hex)
+    try:
+        route_type = raw[0] & 0x03
+        off = 1 + (4 if route_type in (_ROUTE_TYPE_TRANSPORT_FLOOD, 0x03) else 0)
+        _, _, path_byte_len = decode_path_len(raw[off])
+        payload = raw[off + 1 + path_byte_len:]
+    except IndexError:
+        return None
+    return payload.hex() or None
+
+
 def parse_meshcore_uri(uri: str) -> Optional[Dict]:
     """Parse meshcore://contact/add?name=...&public_key=...&type=... URI.
 
@@ -206,7 +230,7 @@ class DeviceManager:
         self._max_channels = 8     # updated from device_info at connect
         self._fw_ver_code = None    # FIRMWARE_VER_CODE from DEVICE_INFO; gates feature support
         self._path_hash_mode = 0    # 0=1B, 1=2B, 2=3B per hop hash; refreshed on set_param
-        self._pending_echo = None   # {'timestamp': float, 'channel_idx': int, 'msg_id': int, 'pkt_payload': str|None}
+        self._pending_echoes = []   # [{'timestamp','channel_idx','msg_id','pkt_payload','expected_payloads','guess_pkt_payload'}]
         self._echo_lock = threading.Lock()
         self._send_lock = threading.Lock()  # serialize set-scope + send-channel-message pair (used in PR #4)
         self._pending_acks = {}     # {ack_code_hex: dm_id} — maps retry acks to DM
@@ -1359,52 +1383,97 @@ class DeviceManager:
             return None
         return hashlib.sha256(bytes.fromhex(secret_hex)).digest()[0:1].hex()
 
+    # Echo correlation windows. Exact payload matching is safe over a long
+    # window (the payload is unique), and repeats do trickle in minutes late,
+    # so it gets 5 min. The loose channel-hash fallback can mis-attribute a
+    # foreign message on the same channel, so it keeps the original 60 s.
+    _ECHO_MATCH_TTL = 300
+    _ECHO_FALLBACK_TTL = 60
+    _MAX_PENDING_ECHOES = 32
+
+    def _register_pending_echo(self, msg_id: int, channel_idx: int,
+                               pkt_payload: str = None,
+                               expected_payloads=None,
+                               guess_pkt_payload: str = None) -> None:
+        """Arm echo correlation for a message we just put on air.
+
+        Kept as a list, not a single slot: a resend (or a second send) used to
+        overwrite the pending entry, so an echo arriving milliseconds later was
+        filed as foreign traffic and its message stayed without a route badge.
+        """
+        entry = {
+            'timestamp': time.time(),
+            'channel_idx': channel_idx,
+            'msg_id': msg_id,
+            'pkt_payload': pkt_payload,
+            'expected_payloads': expected_payloads or None,
+            'guess_pkt_payload': guess_pkt_payload,
+        }
+        with self._echo_lock:
+            # One entry per message — a resend refreshes its own, not a pile-up
+            self._pending_echoes = [pe for pe in self._pending_echoes
+                                    if pe['msg_id'] != msg_id]
+            self._pending_echoes.append(entry)
+            if len(self._pending_echoes) > self._MAX_PENDING_ECHOES:
+                del self._pending_echoes[:-self._MAX_PENDING_ECHOES]
+
     def _process_echo(self, pkt_payload: str, path: str, snr: float = None,
                        hash_size: int = 1):
         """Classify and store an echo: sent echo or incoming echo.
 
-        For sent messages: correlate with pending echo to get pkt_payload.
+        For sent messages: correlate with a pending send to get pkt_payload.
         For incoming: store as echo keyed by pkt_payload for route display.
         """
         with self._echo_lock:
             current_time = time.time()
             direction = 'incoming'
+            matched = None
 
-            # Check if this matches a pending sent message
-            if self._pending_echo:
-                pe = self._pending_echo
-                age = current_time - pe['timestamp']
+            # Drop pending sends that are past any correlation window
+            self._pending_echoes = [
+                pe for pe in self._pending_echoes
+                if current_time - pe['timestamp'] <= self._ECHO_MATCH_TTL]
 
-                # Expire stale pending echo
-                if age > 60:
-                    self._pending_echo = None
-                elif pe['pkt_payload'] is None:
-                    expected_payloads = pe.get('expected_payloads')
-                    if expected_payloads:
-                        # Exact matching: compare echo against pre-computed payloads
-                        if pkt_payload in expected_payloads:
-                            pe['pkt_payload'] = pkt_payload
-                            direction = 'sent'
-                            self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
-                            self._refresh_raw_packet_if_drifted(pe, pkt_payload)
-                            logger.info(f"Echo: matched pkt_payload with sent msg #{pe['msg_id']}, path={path}")
-                        else:
-                            logger.debug(f"Echo: pkt_payload doesn't match expected candidates — not our sent msg")
-                    else:
-                        # Fallback: channel hash matching (no secret available)
-                        expected_hash = self._get_channel_hash(pe['channel_idx'])
-                        echo_hash = pkt_payload[:2] if pkt_payload else None
-                        if expected_hash and echo_hash and expected_hash == echo_hash:
-                            pe['pkt_payload'] = pkt_payload
-                            direction = 'sent'
-                            self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
-                            self._refresh_raw_packet_if_drifted(pe, pkt_payload)
-                            logger.info(f"Echo: correlated pkt_payload with sent msg #{pe['msg_id']} (channel hash fallback), path={path}")
-                        elif expected_hash and echo_hash and expected_hash != echo_hash:
-                            logger.debug(f"Echo: channel hash mismatch (expected {expected_hash}, got {echo_hash}) — not our sent msg")
-                elif pe['pkt_payload'] == pkt_payload:
-                    # Additional echo for same sent message
-                    direction = 'sent'
+            # 1) Another repeater echoing a send we already correlated
+            for pe in self._pending_echoes:
+                if pe['pkt_payload'] == pkt_payload:
+                    matched = pe
+                    break
+
+            # 2) Exact match against the payloads pre-computed at send time
+            if matched is None:
+                for pe in self._pending_echoes:
+                    if pe['pkt_payload'] is not None:
+                        continue
+                    if pkt_payload in (pe.get('expected_payloads') or ()):
+                        pe['pkt_payload'] = pkt_payload
+                        self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
+                        self._refresh_raw_packet_if_drifted(pe, pkt_payload)
+                        logger.info(f"Echo: matched pkt_payload with sent msg #{pe['msg_id']}, path={path}")
+                        matched = pe
+                        break
+
+            # 3) Fallback: channel hash matching (no secret available)
+            if matched is None:
+                echo_hash = pkt_payload[:2] if pkt_payload else None
+                for pe in self._pending_echoes:
+                    if pe['pkt_payload'] is not None or pe.get('expected_payloads'):
+                        continue
+                    if current_time - pe['timestamp'] > self._ECHO_FALLBACK_TTL:
+                        continue
+                    expected_hash = self._get_channel_hash(pe['channel_idx'])
+                    if expected_hash and echo_hash and expected_hash == echo_hash:
+                        pe['pkt_payload'] = pkt_payload
+                        self.db.update_message_pkt_payload(pe['msg_id'], pkt_payload)
+                        self._refresh_raw_packet_if_drifted(pe, pkt_payload)
+                        logger.info(f"Echo: correlated pkt_payload with sent msg #{pe['msg_id']} (channel hash fallback), path={path}")
+                        matched = pe
+                        break
+
+            if matched is not None:
+                direction = 'sent'
+            elif self._pending_echoes:
+                logger.debug("Echo: no pending send matches this payload — not ours")
 
             # Store echo in DB
             self.db.insert_echo(
@@ -1420,10 +1489,7 @@ class DeviceManager:
             # Carry msg_id when the echo was correlated to a sent message —
             # the UI uses it to force-refresh that specific badge, bypassing
             # the "already has route info, skip" guard in refreshMessagesMeta.
-            correlated_msg_id = (self._pending_echo.get('msg_id')
-                                 if self._pending_echo
-                                    and self._pending_echo.get('pkt_payload') == pkt_payload
-                                 else None)
+            correlated_msg_id = matched['msg_id'] if matched else None
 
             # Emit SocketIO event for real-time UI update
             if self.socketio:
@@ -1822,15 +1888,12 @@ class DeviceManager:
                     logger.warning(f"Failed to build raw_packet for msg #{msg_id}: {e}")
 
             # Register for echo correlation
-            with self._echo_lock:
-                self._pending_echo = {
-                    'timestamp': time.time(),
-                    'channel_idx': channel_idx,
-                    'msg_id': msg_id,
-                    'pkt_payload': None,
-                    'expected_payloads': expected_payloads or None,
-                    'guess_pkt_payload': guess_pkt_payload,
-                }
+            self._register_pending_echo(
+                msg_id=msg_id,
+                channel_idx=channel_idx,
+                expected_payloads=expected_payloads or None,
+                guess_pkt_payload=guess_pkt_payload,
+            )
 
             # Emit SocketIO event so sender's UI updates immediately
             if self.socketio:
@@ -1928,21 +1991,24 @@ class DeviceManager:
                 return {'success': False, 'error': f'Device rejected resend: {err}'}
             logger.info(f"Resent channel msg #{msg_id} via CMD_SEND_RAW_PACKET ({len(raw_packet)} bytes)")
 
-            # Re-arm echo correlation so the next 60s of incoming echoes for
-            # this packet hash get classified as 'sent' and carry msg_id in
-            # the SocketIO emit — that's what tells the UI to extend the
-            # repeater list on the existing badge instead of skipping it.
+            # Re-arm echo correlation so incoming echoes for this packet hash
+            # get classified as 'sent' and carry msg_id in the SocketIO emit —
+            # that's what tells the UI to extend the repeater list on the
+            # existing badge instead of skipping it.
+            # When the message never caught its own echo it has no stored
+            # payload, and that is exactly the case a resend should repair:
+            # the bytes we just put back on air carry it, so recover it from
+            # the snapshot and let the match write it onto the message row.
             stored_pkt_payload = msg.get('pkt_payload')
-            if stored_pkt_payload:
-                with self._echo_lock:
-                    self._pending_echo = {
-                        'timestamp': time.time(),
-                        'channel_idx': msg.get('channel_idx', 0),
-                        'msg_id': msg_id,
-                        'pkt_payload': stored_pkt_payload,
-                        'expected_payloads': {stored_pkt_payload},
-                        'guess_pkt_payload': stored_pkt_payload,
-                    }
+            expected = stored_pkt_payload or _payload_from_raw_packet(raw_packet)
+            if expected:
+                self._register_pending_echo(
+                    msg_id=msg_id,
+                    channel_idx=msg.get('channel_idx', 0),
+                    pkt_payload=stored_pkt_payload,
+                    expected_payloads={expected},
+                    guess_pkt_payload=expected,
+                )
 
             return {'success': True, 'message': 'Resent', 'id': msg_id, 'bytes': len(raw_packet)}
         except Exception as e:

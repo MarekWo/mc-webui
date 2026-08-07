@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Fixes
+
+- **A message you sent no longer loses the list of repeaters that heard it when something else goes out at the same moment.** Your own messages find out which repeaters picked them up by listening for their own echo coming back off the mesh a few seconds later — and while waiting, the app could only keep track of one message at a time. Send a message and then press **Resend** on an older one, or send two in quick succession, and the second action took over that slot; when the first message's echo finally arrived it was filed as somebody else's traffic. The message kept its text but never got its signal badge, its repeater list or its **Analyzer** button, and nothing would bring them back. On the test server this affected roughly one message in thirty. The app now keeps every recent send in mind at once, and listens for five minutes instead of one, because repeats do sometimes arrive minutes after the send. **Resend** repairs the damage too: a message with no badge could not be re-armed before — re-arming needed exactly the packet identifier that was missing — so it is now recovered from the copy of the packet the app keeps at send time. Press Resend on a badge-less message, wait for a repeater to pick it up, and the badge appears. One thing this cannot fix: if no repeater in range repeated your message at all, or the repeat was lost on the way, there is no echo to hear and the badge stays empty — that is the radio, not the app.
+
 ---
 
 ## 2.6.0 — 2026-08-03
