@@ -26,6 +26,7 @@ This guide covers all features and functionality of mc-webui. For installation i
 - [Network Commands](#network-commands)
 - [PWA Notifications](#pwa-notifications)
 - [Notifications Tab](#notifications-tab)
+- [Diagnostics Tab](#diagnostics-tab)
 - [Android App](#android-app)
 
 ---
@@ -923,6 +924,23 @@ Enable or disable browser push notifications for new messages received while the
 - The badge next to the button shows the current state: **Enabled** (green) or **Disabled** (gray)
 
 See [PWA Notifications](#pwa-notifications) for platform support and troubleshooting.
+
+### Diagnostics Tab
+
+Record what the app receives from the radio into a file you can hand to whoever is helping you. Use it for problems a screenshot cannot explain — most often a sent message that never gets its repeater badge, where nothing on screen distinguishes "nobody in earshot repeated it" from "the repeat came back over the air but never crossed the link between your device and mc-webui".
+
+- **Record for** — how long before recording stops by itself: 5, 15, 30 or 60 minutes
+- **Note** — a short description of what you are trying to catch, saved inside the file
+- **Record detailed logs** — raises the log level for the duration of the recording. Leave it on: most of what the analysis needs is only written at that level
+- **Start recording** / **Stop and save** — while recording, the tab shows elapsed time, the number of events and the file size, and a red **Recording** marker appears in the status bar under the chat
+
+Recording also stops on its own once the file reaches 25 MB. At most 10 recordings are kept — saving a new one drops the oldest.
+
+**What ends up in the file.** Every radio frame the app received while recording, what the app decided about each one, what it expected to hear back for each message you sent, your device's packet counters from the start and the end of the window, and the application log. That includes **the text of every message that arrived while it was running**, along with contact names and public keys. It does *not* include channel encryption keys or stored passwords. Only send one to someone you trust.
+
+**Sending it.** Each saved recording can be downloaded and forwarded however you like. If the maintainer gave you an upload token, paste it under **Sending** and use the upload button on the recording instead — you get back a link to pass on. Without a token, nothing is uploaded anywhere.
+
+See [Recording a Diagnostic Capture](troubleshooting.md#recording-a-diagnostic-capture) for the full walkthrough.
 
 ---
 

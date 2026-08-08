@@ -20,6 +20,7 @@ from app import i18n
 from app.config import config, runtime_config
 from app.database import Database
 from app.device_manager import DeviceManager, parse_meshcore_uri
+from app.diagnostics import DiagnosticsManager
 from app.log_handler import MemoryLogHandler
 from app.observer import ObserverManager
 from app.routes.views import views_bp
@@ -316,10 +317,16 @@ def create_app():
     observer_manager = ObserverManager(db, socketio)
     app.observer_manager = observer_manager
 
+    # Diagnostics: on-demand support capture (idle unless the user starts one)
+    diagnostics = DiagnosticsManager(config, db, socketio)
+    app.diagnostics = diagnostics
+
     # v2: Initialize and start device manager
-    device_manager = DeviceManager(config, db, socketio, observer=observer_manager)
+    device_manager = DeviceManager(config, db, socketio, observer=observer_manager,
+                                   diagnostics=diagnostics)
     app.device_manager = device_manager
     observer_manager.device_manager = device_manager
+    diagnostics.device_manager = device_manager
     observer_manager.start_advert_scheduler()
 
     # Start device connection in background (non-blocking)
