@@ -91,6 +91,15 @@ function esc(s) {
         .replaceAll('"', '&quot;');
 }
 
+// 'AB→CD→EF' offers the browser no line-break opportunity, so a multi-hop path
+// runs off a narrow screen. A zero-width space after each arrow lets it wrap by
+// hop. Apply after esc() — the result is HTML.
+const RPT_ZWSP = String.fromCharCode(0x200B);
+
+function wrapPath(s) {
+    return String(s ?? '').replaceAll('→', '→' + RPT_ZWSP);
+}
+
 // Relative time comes from datetime-utils.js as formatTimeAgo(). The local copy this
 // replaced also had a "Never" branch for a falsy timestamp, which was unreachable — the
 // single call site already guards it. contacts.js and dm.js have since been folded in
@@ -165,11 +174,13 @@ function renderRepeaterRows() {
             ? '<span class="spinner-border spinner-border-sm text-success" role="status"></span>'
             : '<i class="bi bi-diagram-3 text-success fs-4"></i>';
 
+        // The path line wraps (no text-truncate) so a long path stays readable
+        // on a phone; the other two variants are short and stay on one line.
         const statusLine = isLoggingIn
-            ? `<span class="text-primary">${tHtml('repeaters.row.logging_in')}</span>`
+            ? `<small class="text-muted d-block text-truncate"><span class="text-primary">${tHtml('repeaters.row.logging_in')}</span></small>`
             : (r.on_device
-                ? `<span class="rpt-path font-monospace">${esc(r.path_or_mode || '—')}</span>`
-                : `<span class="text-warning">${tHtml('repeaters.row.not_on_device')}</span>`);
+                ? `<small class="text-muted d-block"><span class="rpt-path font-monospace">${wrapPath(esc(r.path_or_mode || '—'))}</span></small>`
+                : `<small class="text-muted d-block text-truncate"><span class="text-warning">${tHtml('repeaters.row.not_on_device')}</span></small>`);
         // "last login" goes on its own line so a long path keeps the full row
         // width to itself (on narrow phones it otherwise gets truncated hard).
         const roleLine = (r.on_device && !isLoggingIn && r.last_login_at)
@@ -181,7 +192,7 @@ function renderRepeaterRows() {
                 <span class="rpt-icon flex-shrink-0">${icon}</span>
                 <div class="flex-grow-1 rpt-main">
                     <div class="fw-semibold text-truncate">${esc(r.name || r.public_key.substring(0, 12))}</div>
-                    <small class="text-muted d-block text-truncate">${statusLine}</small>
+                    ${statusLine}
                     ${roleLine}
                 </div>
                 <div class="btn-group btn-group-sm flex-shrink-0">
@@ -461,7 +472,7 @@ function renderDeviceRepeaterList() {
             <i class="bi bi-diagram-3 text-success"></i>
             <div class="flex-grow-1" style="min-width: 0;">
                 <div class="text-truncate">${esc(c.name || c.public_key_prefix)}</div>
-                <small class="text-muted font-monospace">${esc(c.public_key_prefix)} · ${esc(c.path_or_mode || '')}</small>
+                <small class="text-muted font-monospace rpt-path-wrap">${esc(c.public_key_prefix)} · ${wrapPath(esc(c.path_or_mode || ''))}</small>
             </div>
             ${added
                 ? `<span class="badge bg-secondary flex-shrink-0">${tHtml('repeaters.added_badge')}</span>`
@@ -503,7 +514,7 @@ function openPathModal(pubkey) {
     if (!r) return;
     _pathPubkey = pubkey;
     document.getElementById('pathModalName').textContent = r.name || pubkey.substring(0, 12);
-    document.getElementById('pathModalCurrent').textContent = r.path_or_mode || '—';
+    document.getElementById('pathModalCurrent').textContent = wrapPath(r.path_or_mode || '—');
     _pathModal.show();
     renderPathList(pubkey);
 }
@@ -514,7 +525,7 @@ async function refreshDevicePathDisplay() {
     await loadRepeaters();
     const r = findRepeater(_pathPubkey);
     const el = document.getElementById('pathModalCurrent');
-    if (el && r) el.textContent = r.path_or_mode || '—';
+    if (el && r) el.textContent = wrapPath(r.path_or_mode || '—');
 }
 
 async function renderPathList(pubkey) {

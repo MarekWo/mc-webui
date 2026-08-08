@@ -87,8 +87,16 @@
             opacity: 0.65;
         }
 
+        /* Paths wrap per hop (zero-width space from wrapPath()); this is the
+           fallback for a single hop token too long for the line. */
         .rpt-path {
             font-size: 0.8rem;
+        }
+
+        .rpt-path,
+        .rpt-path-wrap,
+        #pathModalCurrent {
+            overflow-wrap: anywhere;
         }
 
         .empty-state {
