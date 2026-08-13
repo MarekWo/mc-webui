@@ -266,6 +266,7 @@ The channels API reads from the `channels` DB table rather than iterating device
 | POST | `/api/contacts/<key>/paths/reorder` | Reorder paths |
 | POST | `/api/contacts/<key>/paths/<id>/apply` | Push a configured path to the firmware as the active route (mirrors `change_path`); invalidates the contacts cache |
 | POST | `/api/contacts/<key>/paths/reset_flood` | Reset to FLOOD routing |
+| POST | `/api/contacts/<key>/paths/set_direct` | Set the device path to Direct (empty path → `out_path_len = 0`); configured paths are kept |
 | POST | `/api/contacts/<key>/paths/clear` | Clear all paths |
 | GET | `/api/contacts/<key>/no_auto_flood` | Get "Keep path" flag |
 | PUT | `/api/contacts/<key>/no_auto_flood` | Set "Keep path" flag |

@@ -237,10 +237,15 @@
                     </div>
                     <div id="dmPathList"></div>
                     <!-- Path action buttons -->
-                    <div class="d-flex justify-content-end gap-2 mt-1">
+                    <div class="d-flex flex-wrap justify-content-end gap-2 mt-1">
                         <button type="button" class="btn btn-outline-secondary btn-sm" id="dmClearPathsBtn"
                                 title="{{ t('repeaters.paths.clear_title') }}">
                             <i class="bi bi-trash"></i> {{ t('repeaters.paths.clear') }}
+                        </button>
+                        {# Direct and FLOOD are the device's own mode names — kept as-is in every language. #}
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="dmSetDirectBtn"
+                                title="{{ t('repeaters.paths.set_direct_title') }}">
+                            <i class="bi bi-arrow-right-short"></i> {{ t('repeaters.paths.set_direct') }}
                         </button>
                         <button type="button" class="btn btn-outline-danger btn-sm" id="dmResetFloodBtn"
                                 title="{{ t('repeaters.paths.reset_flood_title') }}">

@@ -2341,6 +2341,7 @@ function setupPathFormHandlers(pubkey) {
     const pickBtn = document.getElementById('dmPickRepeaterBtn');
     const picker = document.getElementById('dmRepeaterPicker');
     const resetFloodBtn = document.getElementById('dmResetFloodBtn');
+    const setDirectBtn = document.getElementById('dmSetDirectBtn');
     const clearPathsBtn = document.getElementById('dmClearPathsBtn');
     const addPathModalEl = document.getElementById('addPathModal');
 
@@ -2479,6 +2480,31 @@ function setupPathFormHandlers(pubkey) {
                 }
             } catch (e) {
                 showNotification(t('repeaters.toast.reset_failed'), 'danger');
+            }
+        });
+    }
+
+    // Set Direct button (device only, keeps configured paths)
+    if (setDirectBtn) {
+        const newDirectBtn = setDirectBtn.cloneNode(true);
+        setDirectBtn.parentNode.replaceChild(newDirectBtn, setDirectBtn);
+        newDirectBtn.addEventListener('click', async () => {
+            if (!confirm(t('repeaters.confirm.set_direct'))) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/set_direct`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(t('repeaters.toast.set_direct_done'), 'info');
+                    await refreshContactInfoPath();
+                } else {
+                    showNotification(data.error || t('repeaters.toast.set_direct_failed'), 'danger');
+                }
+            } catch (e) {
+                showNotification(t('repeaters.toast.set_direct_failed'), 'danger');
             }
         });
     }

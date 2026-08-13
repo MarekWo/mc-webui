@@ -2902,6 +2902,28 @@ def reset_contact_to_flood(pubkey):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/contacts/<pubkey>/paths/set_direct', methods=['POST'])
+def set_contact_direct(pubkey):
+    """Set the device path to Direct — zero hops, no repeater in between.
+
+    An empty path hex makes the firmware store out_path_len = 0, which is the
+    Direct mode shown by `_format_path_display()`. Configured paths are kept.
+    """
+    try:
+        dm = _get_dm()
+        if not dm or not dm.is_connected:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
+        dev_result = dm.change_path(pubkey, '')
+        logger.info(f"set_direct({pubkey[:12]}...) result: {dev_result}")
+        if dev_result.get('success'):
+            invalidate_contacts_cache()
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False, 'error': dev_result.get('error', 'Device change_path failed')}), 500
+    except Exception as e:
+        logger.error(f"set_direct error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/contacts/<pubkey>/paths/clear', methods=['POST'])
 def clear_contact_paths(pubkey):
     """Delete all configured paths for a contact from the database."""

@@ -777,6 +777,7 @@
   "repeaters.addpath.title": "Add Path",
   "repeaters.confirm.clear_paths": "Clear all configured paths?\n\nThis will delete all paths from the database. The device path will not be changed.",
   "repeaters.confirm.reset_flood": "Reset device path to FLOOD?\n\nThis resets the path on the device only. Your configured paths will be kept.",
+  "repeaters.confirm.set_direct": "Set device path to Direct?\n\nMessages will go straight to the node, with no repeater in between. This changes the path on the device only — your configured paths will be kept.",
   "repeaters.count": {
     "one": "{count} repeater",
     "other": "{count} repeaters"
@@ -814,6 +815,8 @@
   "repeaters.paths.none": "No paths configured. Use + to add.",
   "repeaters.paths.reset_flood": "Reset to FLOOD",
   "repeaters.paths.reset_flood_title": "Reset device path to FLOOD mode",
+  "repeaters.paths.set_direct": "Set Direct",
+  "repeaters.paths.set_direct_title": "Set device path to Direct (no repeaters)",
   "repeaters.paths.set_primary_title": "Set as primary",
   "repeaters.paths.title": "Paths",
   "repeaters.picker.none": "No repeaters found",
@@ -870,6 +873,8 @@
   "repeaters.toast.removed": "Repeater removed from list",
   "repeaters.toast.reset_failed": "Reset failed",
   "repeaters.toast.reset_flood_done": "Device path reset to FLOOD",
+  "repeaters.toast.set_direct_done": "Device path set to Direct",
+  "repeaters.toast.set_direct_failed": "Failed to set Direct path",
   "rptmgmt.act.clock_sync": "Sync clock",
   "rptmgmt.act.clock_sync_desc": "Set the repeater's clock from this device's current time. The firmware refuses to move the clock backwards.",
   "rptmgmt.act.flood": "Send flood advert",

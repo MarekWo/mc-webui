@@ -749,6 +749,28 @@ async function resetPathToFlood() {
     }
 }
 
+async function setPathDirect() {
+    const pubkey = _pathPubkey;
+    if (!pubkey) return;
+    if (!confirm(t('repeaters.confirm.set_direct'))) {
+        return;
+    }
+    try {
+        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/set_direct`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        if (data.success) {
+            showNotification(t('repeaters.toast.set_direct_done'), 'info');
+            await refreshDevicePathDisplay();
+        } else {
+            showNotification(data.error || t('repeaters.toast.set_direct_failed'), 'danger');
+        }
+    } catch (e) {
+        showNotification(t('repeaters.toast.set_direct_failed'), 'danger');
+    }
+}
+
 async function clearAllPaths() {
     const pubkey = _pathPubkey;
     if (!pubkey) return;
@@ -1101,6 +1123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('addPathBtn').addEventListener('click', openAddPathModal);
     document.getElementById('savePathBtn').addEventListener('click', saveNewPath);
     document.getElementById('clearPathsBtn').addEventListener('click', clearAllPaths);
+    document.getElementById('setDirectBtn').addEventListener('click', setPathDirect);
     document.getElementById('resetFloodBtn').addEventListener('click', resetPathToFlood);
     document.getElementById('pickRepeaterBtn').addEventListener('click', toggleHopPicker);
     document.getElementById('pickRepeaterMapBtn').addEventListener('click', openRepeaterMapPicker);
