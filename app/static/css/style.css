@@ -604,7 +604,7 @@ main {
     }
 
     /* Navbar: Channel selector on mobile */
-    #channelSelectorInput {
+    #channelSelectorButton {
         min-width: 0 !important;
         width: 100%;
         font-size: 0.9rem;

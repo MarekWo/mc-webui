@@ -92,11 +92,11 @@ Access channel management:
 
 ### Switching Channels
 
-On narrow screens, tap the channel selector in the navbar to open a searchable picker:
+On narrow screens, tap the channel selector in the navbar to open the channel picker:
 
-- Type to filter channels by name (case-insensitive substring match)
+- It is a button, not a text field — tapping it never opens the on-screen keyboard
 - Each row shows the last message time (HH:MM today, DD.MM.YYYY otherwise) and a one-line preview of the latest message
-- Use ↑/↓ arrows + Enter to select with the keyboard, Esc to close
+- With a keyboard: Enter or Space opens it, ↑/↓ move, Enter selects, Esc closes
 - Unread channels show a red badge with the count
 
 On wide screens (tablets/desktops), use the channel sidebar on the left. Each sidebar entry shows the channel name, time of the last message, unread badge, and a two-line message preview.

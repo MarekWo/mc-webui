@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Fixes
+
+- **Switching channels on a phone no longer pops the keyboard open.** The channel picker in the top bar was a text field you could type into, so every tap on it summoned the on-screen keyboard — which on a phone covers half the screen, over a list four or five items long. The search was solving a problem nobody has: the firmware caps how many channels a device can hold, so there is never enough of them to be worth searching. The picker is now a plain button that opens the same list, with the same last-message previews, unread badges and favourites, and nothing to type into. On a computer, Enter or Space still opens it, the arrow keys move through it, Enter picks and Escape closes.
+
 ### Features
 
 - **A path can now be set straight to Direct.** The path dialog could send a node's route back to **FLOOD**, and it could push one of your configured paths — but the third option the firmware supports, *Direct*, had no button. Direct means no repeater at all: the packet goes to the node and nowhere else, which is what you want for a neighbour you can reach on your own radio, and the only way to stop your traffic from being repeated across the mesh for a node sitting on the next hill. Until now, getting there meant clearing the path through the Console. A **Set Direct** button now sits next to **Restore FLOOD**, in both places paths are managed: the contact info dialog in Direct Messages, and the path dialog under **My Repeaters**. Like Restore FLOOD it changes only the path on the device — your configured paths are left alone — and it asks before it does it.

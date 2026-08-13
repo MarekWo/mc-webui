@@ -52,7 +52,6 @@
   "channels.confirm.remove": "Usunąć kanał \"{name}\"?",
   "channels.create_btn": "Utwórz i wygeneruj klucz",
   "channels.create_title": "Utwórz nowy kanał",
-  "channels.dropdown.no_matches": "Brak wyników",
   "channels.dropdown.none": "Brak kanałów",
   "channels.fav_title": "Dodaj kanał do ulubionych",
   "channels.join_btn": "Dołącz do kanału",

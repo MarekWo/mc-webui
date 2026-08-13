@@ -52,7 +52,6 @@
   "channels.confirm.remove": "Remove channel \"{name}\"?",
   "channels.create_btn": "Create & Auto-generate Key",
   "channels.create_title": "Create New Channel",
-  "channels.dropdown.no_matches": "No matches",
   "channels.dropdown.none": "No channels",
   "channels.fav_title": "Favorite channel",
   "channels.join_btn": "Join Channel",

@@ -825,21 +825,19 @@ function setupEventListeners() {
         loadDeviceInfo();
     });
 
-    // Channel selector (custom searchable picker, visible on mobile)
-    const channelInput = document.getElementById('channelSelectorInput');
+    // Channel selector (button + dropdown, visible on narrow screens)
+    const channelButton = document.getElementById('channelSelectorButton');
     const channelDropdown = document.getElementById('channelSelectorDropdown');
     const channelWrapper = document.getElementById('channelSelectorWrapper');
 
-    if (channelInput && channelDropdown) {
-        channelInput.addEventListener('focus', () => {
-            channelInput.value = '';
-            renderChannelDropdownItems('');
-            channelDropdown.style.display = 'block';
-        });
-
-        channelInput.addEventListener('input', () => {
-            renderChannelDropdownItems(channelInput.value);
-            channelDropdown.style.display = 'block';
+    if (channelButton && channelDropdown) {
+        channelButton.addEventListener('click', () => {
+            if (channelDropdown.style.display === 'none') {
+                renderChannelDropdownItems();
+                setChannelDropdownOpen(true);
+            } else {
+                setChannelDropdownOpen(false);
+            }
         });
 
         // Prevent dropdown mousedown from stealing focus/closing dropdown
@@ -850,18 +848,18 @@ function setupEventListeners() {
         // Close dropdown when clicking outside the wrapper
         document.addEventListener('mousedown', (e) => {
             if (channelWrapper && !channelWrapper.contains(e.target)) {
-                if (channelDropdown.style.display !== 'none') {
-                    channelDropdown.style.display = 'none';
-                    updateChannelInputDisplay();
-                }
+                setChannelDropdownOpen(false);
             }
         });
 
-        channelInput.addEventListener('keydown', (e) => {
+        channelButton.addEventListener('keydown', (e) => {
+            // Closed: leave Enter/Space alone so they open the dropdown as a
+            // plain button activation.
+            if (channelDropdown.style.display === 'none') return;
+
             if (e.key === 'Escape') {
-                channelDropdown.style.display = 'none';
-                updateChannelInputDisplay();
-                channelInput.blur();
+                setChannelDropdownOpen(false);
+                channelButton.blur();
             } else if (e.key === 'Enter') {
                 e.preventDefault();
                 const active = channelDropdown.querySelector('.channel-selector-item.active[data-channel-idx]');
@@ -5589,8 +5587,8 @@ function populateChannelSelector(channels) {
     // Save data for the mobile dropdown (sorted by favorite + latest activity)
     window._channelDropdownItems = sortedChannelsByFavoriteAndActivity(channels);
 
-    // Pre-render dropdown contents (still hidden) and update input display
-    renderChannelDropdownItems('');
+    // Pre-render dropdown contents (still hidden) and update the button label
+    renderChannelDropdownItems();
     updateChannelInputDisplay();
 
     console.log(`[populateChannelSelector] Loaded ${channels.length} channels, active: ${currentChannelIdx}`);
@@ -5600,31 +5598,26 @@ function populateChannelSelector(channels) {
 }
 
 /**
- * Render channel items into the mobile dropdown, optionally filtered by query.
+ * Render channel items into the mobile dropdown.
  */
-function renderChannelDropdownItems(query) {
+function renderChannelDropdownItems() {
     const dropdown = document.getElementById('channelSelectorDropdown');
     if (!dropdown) return;
 
     dropdown.innerHTML = '';
 
     const channels = window._channelDropdownItems || [];
-    const q = (query || '').toLowerCase().trim();
 
-    const filtered = q
-        ? channels.filter(c => c && c.name && c.name.toLowerCase().includes(q))
-        : channels;
-
-    if (filtered.length === 0) {
+    if (channels.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'channel-selector-item text-muted';
         empty.style.cursor = 'default';
-        empty.textContent = q ? t('channels.dropdown.no_matches') : t('channels.dropdown.none');
+        empty.textContent = t('channels.dropdown.none');
         dropdown.appendChild(empty);
         return;
     }
 
-    filtered.forEach(channel => {
+    channels.forEach(channel => {
         if (!channel || typeof channel.index === 'undefined' || !channel.name) return;
 
         const item = document.createElement('div');
@@ -5691,13 +5684,12 @@ function selectChannelFromDropdown(idx, name) {
     currentChannelIdx = idx;
     localStorage.setItem('mc_active_channel', currentChannelIdx);
 
-    const input = document.getElementById('channelSelectorInput');
-    const dropdown = document.getElementById('channelSelectorDropdown');
-    if (input) {
-        input.value = name;
-        input.blur();
+    const button = document.getElementById('channelSelectorButton');
+    if (button) {
+        button.textContent = name;
+        button.blur();
     }
-    if (dropdown) dropdown.style.display = 'none';
+    setChannelDropdownOpen(false);
 
     loadMessages();
     updateChannelSidebarActive();
@@ -5705,14 +5697,24 @@ function selectChannelFromDropdown(idx, name) {
 }
 
 /**
- * Sync mobile selector input value with the currently active channel name.
+ * Show or hide the mobile channel dropdown, keeping aria-expanded in sync.
+ */
+function setChannelDropdownOpen(open) {
+    const dropdown = document.getElementById('channelSelectorDropdown');
+    const button = document.getElementById('channelSelectorButton');
+    if (dropdown) dropdown.style.display = open ? 'block' : 'none';
+    if (button) button.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+/**
+ * Sync the mobile selector button label with the currently active channel name.
  */
 function updateChannelInputDisplay() {
-    const input = document.getElementById('channelSelectorInput');
-    if (!input) return;
+    const button = document.getElementById('channelSelectorButton');
+    if (!button) return;
     const channels = window._channelDropdownItems || [];
     const current = channels.find(c => c && c.index === currentChannelIdx);
-    input.value = current ? current.name : 'Public';
+    button.textContent = current ? current.name : 'Public';
 }
 
 /**
@@ -5990,9 +5992,8 @@ function updateChannelSidebarBadges() {
 
     // Re-render mobile dropdown if currently visible (badges/muted state)
     const dropdown = document.getElementById('channelSelectorDropdown');
-    const input = document.getElementById('channelSelectorInput');
     if (dropdown && dropdown.style.display !== 'none') {
-        renderChannelDropdownItems(input ? input.value : '');
+        renderChannelDropdownItems();
     }
 }
 
