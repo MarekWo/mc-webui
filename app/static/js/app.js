@@ -2100,11 +2100,62 @@ async function loadDeviceInfo() {
         }
 
         html += '</tbody></table>';
+
+        // Reboot lives here rather than in a danger zone of its own: it is the
+        // only device-level action, and it is only reachable while the device
+        // is connected (this branch).
+        html += `
+            <div class="d-flex align-items-center justify-content-between gap-2 mt-3 pt-3 border-top">
+                <div class="small text-muted">${tHtml('device.reboot.hint')}</div>
+                <button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0" id="deviceRebootBtn" onclick="rebootDevice()">
+                    <i class="bi bi-arrow-clockwise"></i> ${tHtml('device.reboot.btn')}
+                </button>
+            </div>
+        `;
+
         container.innerHTML = html;
 
     } catch (error) {
         console.error('Error loading device info:', error);
         container.innerHTML = `<div class="alert alert-danger mb-0">${tHtml('device.info.load_failed')}</div>`;
+    }
+}
+
+/**
+ * Reboot the attached device (Info tab in the Device modal).
+ *
+ * The firmware acknowledges nothing and the companion link goes down with it,
+ * so the button can only report that the command was written. The app
+ * reconnects on its own once the device is back.
+ */
+async function rebootDevice() {
+    if (!window.confirm(t('device.reboot.confirm'))) return;
+
+    const btn = document.getElementById('deviceRebootBtn');
+    const label = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    }
+
+    let data = null;
+    try {
+        const response = await fetch('/api/device/reboot', { method: 'POST' });
+        data = await response.json();
+    } catch (error) {
+        console.error('Error rebooting device:', error);
+        data = { success: false, error: t('device.reboot.failed') };
+    }
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = label;
+    }
+
+    if (data && data.success) {
+        showNotification(t('device.reboot.sent'), 'warning');
+    } else {
+        showNotification((data && data.error) || t('device.reboot.failed'), 'danger');
     }
 }
 

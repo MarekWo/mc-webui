@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Features
+
+- **You can restart your device from the interface.** Rebooting a node used to mean either opening the Console and typing `reboot`, or getting to the hardware and pulling its power — awkward when the device sits on a mast or in another room, and awkward for anyone who never opens the Console. Open the menu, pick **Device**, and the **Info** tab now has a **Reboot** button under the table. It asks first: the device drops off the mesh for a few seconds while it restarts, and a message addressed to you in that window can be lost. The firmware sends nothing back in reply to the command, so what the app confirms is that the command went out — not that the device is back. It will be, on its own, a few seconds later, and mc-webui reconnects without any help. The same restart a remote repeater has had all along under **My Repeaters → Actions**, now for the node on your own desk.
+
 ---
 
 ## 2.8.0 — 2026-08-13

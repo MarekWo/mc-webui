@@ -735,6 +735,12 @@ Displays device parameters in a readable table:
 - Radio parameters (frequency, bandwidth, spreading factor, coding rate)
 - TX power, multi-acks, location sharing settings
 
+A **Reboot** button sits below the table — the same thing as the `reboot` console
+command. It asks for confirmation first, because the device leaves the mesh for a
+few seconds while it restarts and anything addressed to you in that window can be
+lost. The firmware does not answer the command, so the confirmation you get back is
+only that it was sent; mc-webui reconnects on its own once the device is up again.
+
 ### Stats Tab
 
 Shows everything the `stats` console command reports, laid out like the repeater

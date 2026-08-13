@@ -1529,6 +1529,28 @@ def get_device_stats():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/device/reboot', methods=['POST'])
+def reboot_device():
+    """
+    Reboot the attached device.
+
+    The firmware sends no reply and drops the companion link on its way down,
+    so a success here means "command written", not "device is back". The
+    reconnect that follows is handled by DeviceManager._on_disconnected().
+    """
+    try:
+        dm = _get_dm()
+        if not dm or not dm.is_connected:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
+
+        result = dm.reboot_device()
+        return jsonify(result), 200 if result.get('success') else 500
+
+    except Exception as e:
+        logger.error(f"Error rebooting device: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # =============================================================================
 # Special Commands
 # =============================================================================
