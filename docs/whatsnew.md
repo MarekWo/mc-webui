@@ -10,11 +10,19 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.8.0 — 2026-08-13
+
 ### Features
 
 - **You can now record what the app receives from the radio, and send that recording to whoever is helping you.** Some problems are impossible to diagnose from a screenshot. The classic one: you send a message to a channel, and the badge listing the repeaters that heard it never appears — while the Analyzer plainly shows the packet travelled onward. Nothing on screen can tell you whether nobody in earshot repeated it, or whether the repeat did come back over the air and was dropped on the link between your device and mc-webui before the app ever saw it. Those two have the same appearance and completely different answers. A new **Settings → Diagnostics** tab records the raw material needed to tell them apart: press **Start recording**, reproduce the problem, press **Stop and save**, and you get a file. It contains every radio frame the app received while recording, what the app decided about each one, what it expected to hear back for each message you sent, and — the number that matters most — **your device's own count of packets received, taken at the start and at the end**. If the device says it heard two hundred packets and the app only ever saw a hundred and twenty, frames are being lost on the companion link, and that is now a measurement rather than a guess. Recording stops on its own after the time you choose (5 to 60 minutes) or once the file reaches 25 MB, whichever comes first, so a recording you forget about cannot fill your disk. While one is running, a red **Recording** marker sits in the status bar at the bottom of the chat, because it should never be something you leave on by accident.
 - **Sending a recording.** Under the same tab, each saved recording can be downloaded, deleted, or — if the person helping you has given you an upload token — sent to them directly with one button, which gives you back a link to pass on. Without a token nothing is sent anywhere: the download is always there, and you forward the file yourself however you prefer.
 - **Read the privacy notice before you send one.** A recording necessarily contains **the text of every message that arrived while it was running**, along with contact names and public keys. That is what makes it useful and also what makes it worth thinking about: the tab says so plainly, and asks for confirmation before an upload. Only send one to someone you trust.
+
+### Fixes
+
+- **Long routing paths stay readable on a phone.** Under **My Repeaters**, a path through several hops is written as `AB→CD→EF` with nothing between the hops, and a browser will not break a line in the middle of that — so on a narrow screen the path either ran off the right edge of the card or was cut short with an ellipsis, hiding exactly the hops you opened the page to read. Paths now wrap onto a second line, breaking after a hop arrow, in all four places they appear: the repeater list, the header of a repeater's management page, the picker for adding a repeater, and the current-path line in the path dialog. A repeater's coordinates also no longer get separated from their pin icon when the line wraps.
 
 ---
 
