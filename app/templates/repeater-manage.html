@@ -97,6 +97,18 @@
             color: var(--text-secondary, #6c757d);
         }
 
+        /* Long paths must wrap inside the card instead of overflowing the
+           screen; breaks are offered after each hop arrow (see renderHeader). */
+        #rptPath {
+            overflow-wrap: anywhere;
+        }
+
+        /* Pin icon + coordinates move to the next line as one unit. */
+        .rpt-header-loc {
+            display: inline-block;
+            white-space: nowrap;
+        }
+
         .rpt-pubkey {
             font-family: var(--bs-font-monospace, monospace);
             font-size: 0.8rem;
@@ -322,7 +334,7 @@
                     </div>
                     <div class="rpt-header-meta mt-1">
                         <i class="bi bi-signpost-split"></i> <span class="font-monospace" id="rptPath">—</span>
-                        <span class="ms-2"><i class="bi bi-geo-alt"></i> <span id="rptLocation">—</span></span>
+                        <span class="rpt-header-loc ms-2"><i class="bi bi-geo-alt"></i> <span id="rptLocation">—</span></span>
                     </div>
                 </div>
             </div>

@@ -1977,6 +1977,7 @@ async function loadStatus() {
             // check and have no raw-resend button. Walk visible own bubbles
             // and inject the button where it's missing.
             injectRawResendButtonsForVisibleMessages();
+            updateDiagRecordingIndicator(!!data.diagnostics_recording);
         }
     } catch (error) {
         console.error('Error loading status:', error);
@@ -2871,6 +2872,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadRegions();
             loadAnalyzers();
             loadObserverTab();
+            loadDiagnosticsTab();
         });
         settingsModal.addEventListener('shown.bs.modal', () => {
             settingsModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
@@ -4072,6 +4074,285 @@ async function saveObserverSettings(patch) {
         showNotification(t('observer.toast.settings_error'), 'danger');
     }
 }
+
+// ================================================================
+// Diagnostics (Settings > Diagnostics) — support capture
+// ================================================================
+
+window.diagCache = { status: null, captures: [], upload: null, options: null };
+let _diagPollTimer = null;
+
+function diagFormatBytes(n) {
+    if (!n) return '0 B';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} kB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function diagFormatDuration(sec) {
+    const s = Math.max(0, Math.floor(sec));
+    const m = Math.floor(s / 60);
+    return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
+async function loadDiagnosticsTab() {
+    try {
+        const resp = await fetch('/api/diagnostics/status');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        window.diagCache = {
+            status: data.status,
+            captures: data.captures || [],
+            upload: data.upload || {},
+            options: data.options || {},
+        };
+        renderDiagnostics();
+        syncDiagPolling();
+    } catch (e) {
+        console.error('Error loading diagnostics status:', e);
+        const listEl = document.getElementById('diagCapturesList');
+        if (listEl) {
+            listEl.innerHTML = `<div class="text-center text-danger small py-2">${tHtml('diag.load_failed')}</div>`;
+        }
+    }
+}
+
+function renderDiagnostics() {
+    const { status, options, upload } = window.diagCache;
+    const recording = !!(status && status.recording);
+
+    document.getElementById('diagIdleControls')?.classList.toggle('d-none', recording);
+    document.getElementById('diagRecordingControls')?.classList.toggle('d-none', !recording);
+    updateDiagRecordingIndicator(recording);
+
+    const durationEl = document.getElementById('diagDurationSelect');
+    if (durationEl && !durationEl.options.length && options?.durations) {
+        durationEl.innerHTML = options.durations.map(min =>
+            `<option value="${min}"${min === options.default_duration_min ? ' selected' : ''}>` +
+            `${tHtml('diag.minutes', { n: min })}</option>`).join('');
+    }
+
+    if (recording) renderDiagLiveCounters(status);
+    renderDiagCaptures();
+
+    const urlEl = document.getElementById('diagUploadUrlInput');
+    const hintEl = document.getElementById('diagTokenHint');
+    if (urlEl && document.activeElement !== urlEl) urlEl.value = upload?.url || '';
+    if (hintEl) {
+        hintEl.textContent = upload?.has_token
+            ? t('diag.token_set') : t('diag.token_missing');
+    }
+}
+
+function renderDiagLiveCounters(status) {
+    const el = document.getElementById('diagLiveCounters');
+    if (el) {
+        el.innerHTML = tHtml('diag.counters', {
+            elapsed: diagFormatDuration(status.elapsed_sec),
+            total: diagFormatDuration(status.max_seconds),
+            events: formatInt(status.events || 0),
+            size: diagFormatBytes(status.bytes || 0),
+        }) + (status.dropped ? ` <span class="text-warning">${tHtml('diag.dropped', { n: status.dropped })}</span>` : '');
+    }
+    const bar = document.getElementById('diagProgressBar');
+    if (bar && status.max_seconds) {
+        // Whichever cap fills first is the one worth showing.
+        const byTime = status.elapsed_sec / status.max_seconds;
+        const bySize = status.max_bytes ? (status.bytes / status.max_bytes) : 0;
+        bar.style.width = `${Math.min(100, Math.max(byTime, bySize) * 100).toFixed(1)}%`;
+    }
+}
+
+function updateDiagRecordingIndicator(recording) {
+    const el = document.getElementById('diagRecordingIndicator');
+    if (el) el.classList.toggle('d-none', !recording);
+}
+
+function renderDiagCaptures() {
+    const listEl = document.getElementById('diagCapturesList');
+    if (!listEl) return;
+    const captures = window.diagCache.captures || [];
+
+    if (captures.length === 0) {
+        listEl.innerHTML = `<div class="text-center text-muted small py-3">${tHtml('diag.no_captures')}</div>`;
+        return;
+    }
+
+    listEl.innerHTML = captures.map(c => {
+        const safeId = escapeHtml(c.id);
+        const shared = c.shared_url
+            ? `<div class="small"><a href="${escapeHtml(c.shared_url)}" target="_blank" rel="noopener"
+                   class="text-break">${escapeHtml(c.shared_url)}</a></div>`
+            : '';
+        return `
+            <div class="list-group-item py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="flex-grow-1" style="min-width: 0;">
+                        <div class="small"><strong>${escapeHtml(formatTimestamp(c.created_at, { absolute: true }))}</strong></div>
+                        <div class="small text-muted">${diagFormatBytes(c.size_bytes)}</div>
+                        ${shared}
+                    </div>
+                    <a class="btn btn-sm btn-outline-secondary" title="${tHtml('diag.download')}"
+                       href="/api/diagnostics/captures/${encodeURIComponent(c.id)}/download">
+                        <i class="bi bi-download"></i>
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-primary" title="${tHtml('diag.upload')}"
+                            onclick="uploadDiagnosticCapture('${safeId}', this)">
+                        <i class="bi bi-cloud-upload"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" title="${tHtml('common.delete')}"
+                            onclick="deleteDiagnosticCapture('${safeId}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function syncDiagPolling() {
+    const recording = !!window.diagCache.status?.recording;
+    const modalOpen = document.getElementById('settingsModal')?.classList.contains('show');
+    if (recording && modalOpen) {
+        if (!_diagPollTimer) _diagPollTimer = setInterval(loadDiagnosticsTab, 2000);
+    } else {
+        stopDiagPolling();
+    }
+}
+
+function stopDiagPolling() {
+    if (_diagPollTimer) {
+        clearInterval(_diagPollTimer);
+        _diagPollTimer = null;
+    }
+}
+
+async function startDiagnosticCapture() {
+    const btn = document.getElementById('diagStartBtn');
+    if (btn) btn.disabled = true;
+    try {
+        const resp = await fetch('/api/diagnostics/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                duration_min: parseInt(document.getElementById('diagDurationSelect')?.value, 10) || undefined,
+                debug_logs: !!document.getElementById('diagDebugLogsToggle')?.checked,
+                note: document.getElementById('diagNoteInput')?.value || '',
+            }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || t('diag.toast.start_failed'), 'danger');
+            return;
+        }
+        showNotification(t('diag.toast.started'), 'info');
+        await loadDiagnosticsTab();
+    } catch (e) {
+        console.error('Error starting capture:', e);
+        showNotification(t('diag.toast.start_failed'), 'danger');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function stopDiagnosticCapture() {
+    const btn = document.getElementById('diagStopBtn');
+    if (btn) btn.disabled = true;
+    stopDiagPolling();  // the stop request blocks until the zip is written
+    try {
+        const resp = await fetch('/api/diagnostics/stop', { method: 'POST' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || t('diag.toast.stop_failed'), 'danger');
+        } else {
+            showNotification(t('diag.toast.stopped'), 'info');
+        }
+        await loadDiagnosticsTab();
+    } catch (e) {
+        console.error('Error stopping capture:', e);
+        showNotification(t('diag.toast.stop_failed'), 'danger');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function uploadDiagnosticCapture(captureId, btn) {
+    if (!window.diagCache.upload?.has_token) {
+        showNotification(t('diag.toast.no_token'), 'danger');
+        return;
+    }
+    if (!confirm(t('diag.confirm.upload'))) return;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    }
+    try {
+        const resp = await fetch(`/api/diagnostics/captures/${encodeURIComponent(captureId)}/upload`,
+                                 { method: 'POST' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || t('diag.toast.upload_failed'), 'danger');
+        } else {
+            showNotification(t('diag.toast.uploaded'), 'info');
+        }
+        await loadDiagnosticsTab();
+    } catch (e) {
+        console.error('Error uploading capture:', e);
+        showNotification(t('diag.toast.upload_failed'), 'danger');
+        await loadDiagnosticsTab();
+    }
+}
+
+async function deleteDiagnosticCapture(captureId) {
+    if (!confirm(t('diag.confirm.delete'))) return;
+    try {
+        const resp = await fetch(`/api/diagnostics/captures/${encodeURIComponent(captureId)}`,
+                                 { method: 'DELETE' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || t('diag.toast.delete_failed'), 'danger');
+            return;
+        }
+        await loadDiagnosticsTab();
+    } catch (e) {
+        console.error('Error deleting capture:', e);
+        showNotification(t('diag.toast.delete_failed'), 'danger');
+    }
+}
+
+async function saveDiagnosticsUploadSettings() {
+    const urlEl = document.getElementById('diagUploadUrlInput');
+    const tokenEl = document.getElementById('diagUploadTokenInput');
+    const payload = { url: urlEl?.value || '' };
+    // Absent key keeps the stored token; the field is blank on every load
+    // because the API never hands the token back.
+    if (tokenEl && tokenEl.value) payload.token = tokenEl.value;
+    try {
+        const resp = await fetch('/api/diagnostics/upload-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || t('diag.toast.settings_failed'), 'danger');
+            return;
+        }
+        if (tokenEl) tokenEl.value = '';
+        showNotification(t('diag.toast.settings_saved'), 'info');
+        await loadDiagnosticsTab();
+    } catch (e) {
+        console.error('Error saving diagnostics settings:', e);
+        showNotification(t('diag.toast.settings_failed'), 'danger');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('diagStartBtn')?.addEventListener('click', startDiagnosticCapture);
+    document.getElementById('diagStopBtn')?.addEventListener('click', stopDiagnosticCapture);
+    document.getElementById('diagSaveUploadBtn')?.addEventListener('click', saveDiagnosticsUploadSettings);
+    document.getElementById('settingsModal')?.addEventListener('hidden.bs.modal', stopDiagPolling);
+});
 
 // ================================================================
 // Per-channel region picker (Manage Channels > row > pin icon)

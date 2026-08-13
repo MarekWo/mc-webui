@@ -95,6 +95,21 @@ The `DeviceManager` handles the connection to the MeshCore device via a direct s
 - **Advert scheduler** — an observer-owned daemon thread checks every 10 minutes and sends a flood advert once `advert_interval_hours` has elapsed since the `observer_last_advert_at` timestamp persisted in `app_settings` (restart-safe)
 - **Live status** — `observer_status` events on the `/chat` namespace (throttled to one per 2 s on the packet path) drive the Settings-tab badges and counters; `GET /api/observer/status` returns the full merged view
 
+### Diagnostic capture (support bundle)
+
+`app/diagnostics.py` (`DiagnosticsManager`) records a bounded window of device traffic into a zip the user can hand to a maintainer who has no access to their machine. It answers a question the database cannot: whether a missing route badge means "nobody repeated it" or "the repeat never crossed the companion link".
+
+- **Why the device counter matters** — `logRxRaw()` in the firmware pushes every overheard packet through `writeFrame()`, which drops the frame when its 4-entry queue is full and ignores the return value, so the loss is invisible to the host (no log, no counter). Drain rates differ hugely: USB writes with no queue, WiFi/TCP sends one frame per main-loop pass, BLE at most one per 60 ms (`BLE_WRITE_MIN_INTERVAL`). The capture brackets its window with `get_device_stats()` calls and samples again every 60 s, so `stats.packets.recv` delta versus the number of RX-log frames actually captured turns that invisible loss into a measurement
+- **Hot path** — the same threading contract as the Observer, for the same reason. `record()` builds one dict and appends to a `deque`; no disk, no network, no locks. `threading.Event.set()` is deliberately avoided (it takes a lock), so the writer polls at 0.4 s instead of being signalled. Call sites test the plain `recording` attribute before building arguments, so an idle capture costs one attribute load
+- **Taps** — `_on_rx_log_data` (**before** the empty-payload guard, so the frame count matches what the device counted), `_process_echo` (match rule that fired, plus a snapshot of the pending-send list — that is what explains a *non*-match), and `send_channel_message` (expected payloads, `raw_packet`, region scope). A `logging.Handler` mirrors log records through the same queue; it uses a no-op lock object rather than `lock = None`, because Python 3.13's `Handler.handle()` uses `with self.lock`
+- **Log level** — a capture raises the root logger to DEBUG for its duration and restores it on stop. Without that, a server at the default INFO emits none of the lines the echo correlator writes about its own decisions, and the log file is worthless
+- **Writer thread** — one per session, owns every file handle, demultiplexes log records into `log.txt` and everything else into `events.jsonl`, enforces the caps, and performs the whole finalize-and-zip sequence. Stopping never runs on the caller's thread: a request thread raises a flag and joins, so both a user stop and an auto-stop finalise through the same path
+- **Caps and retention** — 5/15/30/60 min and 25 MB (hard limit 100 MB), whichever fills first; at most 10 captures kept, oldest pruned on start. `/data` is the user's config directory, so these are not optional
+- **Contents** — `meta.json` (versions, transport, device, options, counters, stop reason), `stats_before.json` / `stats_after.json`, `events.jsonl`, `log.txt`. Every timestamp is **UTC epoch seconds**, stated in `meta.json`, because the DB writes UTC and container logs are local time
+- **Privacy** — the capture contains the plaintext of every message received while recording, plus contact names and public keys. This is stated in the UI and confirmed before upload. Channel secrets and broker credentials are never included; ciphertext payloads are enough for correlation analysis
+- **Upload** — `POST /api/upload` against a Zipline instance: bare `authorization` token (no `Bearer`), one multipart `file` field, `x-zipline-original-name: true`, link read from `.files[0].url` (the older `files: ["url"]` shape is accepted too). The default URL ships in the code; **the token never does** — this repository is public, so a baked-in write token would let anyone upload anything. The user pastes a token handed to them out-of-band, and the API is write-only for it
+- **Offline analysis** — `scripts/diag_report.py <capture.zip>` prints the frame-loss comparison, per-interval detail, inter-frame gap distribution, and a per-sent-message verdict (echo heard / heard but not correlated, with the pending list / no echo at all). It reads nothing but the capture
+
 ### Repeater administration (My Repeaters)
 
 The `/repeaters` (list) and `/repeaters/manage` (per-repeater tools) panels are standalone iframe pages built on the companion protocol's remote-request commands plus the repeater text CLI:
@@ -135,6 +150,7 @@ mc-webui/
 │   ├── database.py                 # SQLite database models and CRUD operations
 │   ├── device_manager.py           # Core logic for meshcore communication
 │   ├── observer.py                 # Observer: MQTT packet-capture publishing
+│   ├── diagnostics.py              # Diagnostic capture (support bundle + upload)
 │   ├── contacts_cache.py           # Persistent contacts cache (DB-backed)
 │   ├── read_status.py              # Server-side read status manager (DB-backed)
 │   ├── version.py                  # Git-based version management
@@ -154,6 +170,7 @@ mc-webui/
 │   └── templates/                  # HTML templates
 ├── docs/                           # Documentation
 ├── scripts/
+│   ├── diag_report.py              # Offline analyser for a diagnostic capture
 │   ├── update.sh                   # Automated update script
 │   ├── docker-entrypoint.sh        # Container startup (BLE cleanup)
 │   ├── updater/                    # Remote update webhook service
@@ -307,6 +324,20 @@ The backend no longer ships a pre-built `analyzer_url` per message — channel-m
 | GET | `/api/observer/status` | Settings + broker rows merged with live connection state and packet counters |
 
 Every mutating endpoint hot-reloads the `ObserverManager`, so broker and setting changes take effect without an app restart.
+
+### Diagnostics (support capture)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/diagnostics/status` | Live capture state, stored captures, upload config (never the token), and the allowed duration choices |
+| POST | `/api/diagnostics/start` | Begin recording (`{duration_min, max_mb, debug_logs, note}`; 409 when one is already running). Caps are re-clamped server-side |
+| POST | `/api/diagnostics/stop` | Stop and finalise; blocks until the zip is written (409 when idle) |
+| GET | `/api/diagnostics/captures/<id>/download` | Download a stored capture |
+| POST | `/api/diagnostics/captures/<id>/upload` | Send a capture to the configured share service, returns the link |
+| DELETE | `/api/diagnostics/captures/<id>` | Delete a stored capture |
+| POST | `/api/diagnostics/upload-settings` | Save share URL / token (`{url, token}`; the token is write-only, an absent key keeps the stored one) |
+
+`GET /api/status` also carries `diagnostics_recording`, which drives the recording marker in the chat status bar.
 
 ### My Repeaters (repeater administration)
 

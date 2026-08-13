@@ -214,11 +214,12 @@ class DeviceManager:
         dm.stop()   # disconnect and stop background thread
     """
 
-    def __init__(self, config, db, socketio=None, observer=None):
+    def __init__(self, config, db, socketio=None, observer=None, diagnostics=None):
         self.config = config
         self.db = db
         self.socketio = socketio
         self.observer = observer    # ObserverManager (packet capture -> MQTT)
+        self.diagnostics = diagnostics  # DiagnosticsManager (support capture; usually idle)
         self.mc = None              # meshcore.MeshCore instance
         self._loop = None           # asyncio event loop (in background thread)
         self._thread = None         # background thread
@@ -1304,6 +1305,17 @@ class DeviceManager:
             data = getattr(event, 'payload', {})
             payload_hex = data.get('payload', '')
             logger.debug(f"RX_LOG_DATA received: {len(payload_hex)//2} bytes, snr={data.get('snr')}")
+
+            # Deliberately ahead of the empty-payload guard: a capture's frame
+            # count is compared against the device's own packets.recv counter,
+            # so it has to count every frame that arrived, degenerate ones
+            # included. Skipping any here would fake a smaller loss.
+            diag = self.diagnostics
+            if diag is not None and diag.recording:
+                diag.record('rx_log', hex=payload_hex, snr=data.get('snr'),
+                            rssi=data.get('rssi'),
+                            plen=data.get('payload_length'))
+
             if not payload_hex:
                 return
 
@@ -1428,16 +1440,34 @@ class DeviceManager:
             current_time = time.time()
             direction = 'incoming'
             matched = None
+            match_stage = None  # which rule fired — recorded for support captures
 
             # Drop pending sends that are past any correlation window
             self._pending_echoes = [
                 pe for pe in self._pending_echoes
                 if current_time - pe['timestamp'] <= self._ECHO_MATCH_TTL]
 
+            # Snapshot of what the matcher is about to work against. Only built
+            # while a diagnostic capture runs: "no badge" reports hinge on why
+            # an echo did *not* match, which nothing else records.
+            diag = self.diagnostics
+            diag_on = diag is not None and diag.recording
+            pending_snapshot = [
+                {
+                    'msg_id': pe['msg_id'],
+                    'channel_idx': pe['channel_idx'],
+                    'age': round(current_time - pe['timestamp'], 2),
+                    'has_pkt': pe['pkt_payload'] is not None,
+                    'n_expected': len(pe.get('expected_payloads') or ()),
+                }
+                for pe in self._pending_echoes
+            ] if diag_on else None
+
             # 1) Another repeater echoing a send we already correlated
             for pe in self._pending_echoes:
                 if pe['pkt_payload'] == pkt_payload:
                     matched = pe
+                    match_stage = 'repeat'
                     break
 
             # 2) Exact match against the payloads pre-computed at send time
@@ -1451,6 +1481,7 @@ class DeviceManager:
                         self._refresh_raw_packet_if_drifted(pe, pkt_payload)
                         logger.info(f"Echo: matched pkt_payload with sent msg #{pe['msg_id']}, path={path}")
                         matched = pe
+                        match_stage = 'exact'
                         break
 
             # 3) Fallback: channel hash matching (no secret available)
@@ -1468,12 +1499,20 @@ class DeviceManager:
                         self._refresh_raw_packet_if_drifted(pe, pkt_payload)
                         logger.info(f"Echo: correlated pkt_payload with sent msg #{pe['msg_id']} (channel hash fallback), path={path}")
                         matched = pe
+                        match_stage = 'fallback'
                         break
 
             if matched is not None:
                 direction = 'sent'
             elif self._pending_echoes:
                 logger.debug("Echo: no pending send matches this payload — not ours")
+
+            if diag_on:
+                diag.record('echo', direction=direction, path=path, snr=snr,
+                            hash_size=hash_size, pkt=pkt_payload,
+                            match=match_stage,
+                            msg_id=matched['msg_id'] if matched else None,
+                            pending=pending_snapshot)
 
             # Store echo in DB
             self.db.insert_echo(
@@ -1875,6 +1914,7 @@ class DeviceManager:
             # Capture raw_packet for raw resend. We use the ts+0 guess up front;
             # if echo correlation later matches a different ±dt candidate, the
             # _process_echo path rebuilds raw_packet from the actual pkt_payload.
+            raw_packet = None
             if guess_pkt_payload:
                 try:
                     raw_packet = _build_grp_txt_raw_packet(
@@ -1894,6 +1934,18 @@ class DeviceManager:
                 expected_payloads=expected_payloads or None,
                 guess_pkt_payload=guess_pkt_payload,
             )
+
+            # What we put on air and what we therefore expect to overhear —
+            # the other half of every echo question in a support capture.
+            diag = self.diagnostics
+            if diag is not None and diag.recording:
+                diag.record('send', msg_id=msg_id, channel_idx=channel_idx, ts=ts,
+                            sender=self.device_name, text=text,
+                            scope=scope['name'] if scope else None,
+                            has_secret=bool(secret),
+                            guess=guess_pkt_payload,
+                            expected=sorted(expected_payloads) if expected_payloads else [],
+                            raw_packet=raw_packet)
 
             # Emit SocketIO event so sender's UI updates immediately
             if self.socketio:

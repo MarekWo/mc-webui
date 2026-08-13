@@ -6,6 +6,7 @@ Common issues and solutions for mc-webui.
 
 - [Common Issues](#common-issues)
 - [Device Not Responding](#device-not-responding)
+- [Recording a Diagnostic Capture](#recording-a-diagnostic-capture)
 - [Docker Commands](#docker-commands)
 - [Backup and Restore](#backup-and-restore)
 - [Next Steps](#next-steps)
@@ -149,6 +150,67 @@ docker compose logs -f mc-webui
 ```
 
 You can also check the System Log in the web UI (Menu → System Log) for real-time information about contact events and settings changes.
+
+---
+
+## Recording a Diagnostic Capture
+
+Some problems cannot be diagnosed from a screenshot or a log excerpt — most often
+"my message got no repeater badge". A capture records what the app actually
+received from the radio, so whoever is helping you can tell the difference
+between *nobody repeated it* and *the repeat never reached the app*.
+
+### Recording one
+
+1. Open **Settings → Diagnostics**.
+2. Pick how long to record (5–60 minutes) and optionally add a note describing
+   what you are trying to catch.
+3. Press **Start recording**. A red **Recording** marker appears in the status
+   bar under the chat.
+4. **Reproduce the problem** — if it is about a message that gets no badge, send
+   that message now and wait a minute or two for repeats to come back.
+5. Press **Stop and save**. The capture appears in the list below.
+
+Recording stops on its own after the chosen time, or once the file reaches
+25 MB. At most 10 captures are kept; the oldest is dropped when a new one is
+saved.
+
+### What is in it, and who should get it
+
+A capture contains **the text of every message received while it was running**,
+plus contact names and public keys. It does *not* contain channel encryption
+keys or any password you have stored. Treat it as you would a chat export:
+only send it to someone you trust.
+
+Each saved capture can be:
+
+- **Downloaded** — send it on however you like.
+- **Sent directly** — only if the maintainer gave you an upload token. Paste it
+  under **Sending**, then use the upload button on the capture; you get back a
+  link to pass on. With no token nothing is ever sent anywhere.
+
+### Reading one (for maintainers)
+
+```bash
+python scripts/diag_report.py mc-webui-diag-20260808T124505Z.zip
+```
+
+The report opens with the measurement that matters: the device's own
+`packets.recv` counter delta over the capture window against the number of
+RX-log frames the app actually logged in that same window.
+
+- **Numbers close together** — the companion link is fine. A missing badge means
+  nothing in earshot repeated that packet, or the repeat collided with another
+  transmission.
+- **Device counted far more** — frames are being dropped between the device and
+  the app. The firmware buffers four frames and discards the rest silently. This
+  is most likely on BLE (one frame per 60 ms), possible on WiFi/TCP under load,
+  and effectively absent on USB. Suggest a different transport before looking
+  for an app-side cause.
+
+The rest of the report covers frame arrival gaps (bursts are what overrun that
+buffer), a per-sent-message verdict, and any warnings from the log. Add
+`--frames` for a full frame listing, `--verbose` for payload details.
 
 ---
 

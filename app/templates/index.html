@@ -105,6 +105,10 @@
                               title="{{ t('chat.region_title') }}">
                             <i class="bi bi-pin-map"></i> <span id="regionIndicatorName"></span>
                         </span>
+                        <span id="diagRecordingIndicator" class="badge bg-danger d-none" role="button"
+                              title="{{ t('settings.diag.indicator_title') }}">
+                            <i class="bi bi-record-circle"></i> {{ t('settings.diag.indicator') }}
+                        </span>
                     </div>
                     <span id="lastRefresh" class="text-nowrap">{{ t('chat.updated', time=t('common.never')) }}</span>
                 </div>

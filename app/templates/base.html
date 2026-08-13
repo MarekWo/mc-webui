@@ -494,6 +494,9 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsNotifications" type="button">{{ t('settings.tab.notifications') }}</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettingsDiagnostics" type="button">{{ t('settings.tab.diagnostics') }}</button>
+                        </li>
                     </ul>
                     <div class="tab-content">
                         <!-- Device Settings Tab -->
@@ -1123,6 +1126,79 @@
                                         {{ t('settings.notif.works_hidden') }}
                                     </small>
                                 </div>
+                            </button>
+                        </div>
+                        <div class="tab-pane fade" id="tabSettingsDiagnostics">
+                            <div class="alert alert-info py-2 small mb-3 mt-2">
+                                <i class="bi bi-info-circle"></i> {{ t_html('settings.diag.intro') }}
+                            </div>
+                            <div class="alert alert-warning py-2 small mb-3">
+                                <i class="bi bi-shield-exclamation"></i> {{ t_html('settings.diag.privacy') }}
+                            </div>
+
+                            <div id="diagIdleControls">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label small mb-1" for="diagDurationSelect">{{ t('settings.diag.duration') }}</label>
+                                        <select class="form-select form-select-sm" id="diagDurationSelect"></select>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small mb-1" for="diagNoteInput">{{ t('settings.diag.note') }}</label>
+                                        <input type="text" class="form-control form-control-sm" id="diagNoteInput"
+                                               maxlength="200" placeholder="{{ t('settings.diag.note_ph') }}" autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="diagDebugLogsToggle" checked>
+                                    <label class="form-check-label small" for="diagDebugLogsToggle">{{ t('settings.diag.debug_logs') }}</label>
+                                    <div class="form-text small">{{ t('settings.diag.debug_logs_hint') }}</div>
+                                </div>
+                                <button type="button" class="btn btn-danger btn-sm" id="diagStartBtn">
+                                    <i class="bi bi-record-circle"></i> {{ t('settings.diag.start') }}
+                                </button>
+                            </div>
+
+                            <div id="diagRecordingControls" class="d-none">
+                                <div class="alert alert-danger py-2 mb-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="spinner-grow spinner-grow-sm"></span>
+                                        <strong>{{ t('settings.diag.recording') }}</strong>
+                                    </div>
+                                    <div class="small mt-1" id="diagLiveCounters"></div>
+                                    <div class="progress mt-2" style="height: 4px;">
+                                        <div class="progress-bar bg-danger" id="diagProgressBar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <p class="small text-muted mb-2">{{ t('settings.diag.reproduce_hint') }}</p>
+                                <button type="button" class="btn btn-primary btn-sm" id="diagStopBtn">
+                                    <i class="bi bi-stop-circle"></i> {{ t('settings.diag.stop') }}
+                                </button>
+                            </div>
+
+                            <hr class="my-3">
+                            <h6 class="mb-2">{{ t('settings.diag.captures') }}</h6>
+                            <div id="diagCapturesList" class="list-group mb-3">
+                                <div class="text-center text-muted py-3 small">
+                                    <div class="spinner-border spinner-border-sm"></div> {{ t('common.loading') }}
+                                </div>
+                            </div>
+
+                            <h6 class="mb-2">{{ t('settings.diag.sharing') }}</h6>
+                            <div class="form-text small mb-2">{{ t_html('settings.diag.sharing_hint') }}</div>
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label small mb-1" for="diagUploadUrlInput">{{ t('settings.diag.upload_url') }}</label>
+                                    <input type="text" class="form-control form-control-sm" id="diagUploadUrlInput" autocomplete="off">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small mb-1" for="diagUploadTokenInput">{{ t('settings.diag.upload_token') }}</label>
+                                    <input type="password" class="form-control form-control-sm" id="diagUploadTokenInput"
+                                           placeholder="{{ t('settings.diag.upload_token_ph') }}" autocomplete="off">
+                                    <div class="form-text small" id="diagTokenHint"></div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="diagSaveUploadBtn">
+                                {{ t('common.save') }}
                             </button>
                         </div>
                     </div>

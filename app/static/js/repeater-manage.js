@@ -157,7 +157,11 @@ function renderHeader() {
     const r = _repeater;
     document.getElementById('rptName').textContent = r.name || r.public_key.substring(0, 12);
     document.getElementById('rptPubkey').textContent = `<${shortPubkey(r.public_key)}>`;
-    document.getElementById('rptPath').textContent = r.path_or_mode || '—';
+    // '→' offers no line-break opportunity, so a multi-hop path would run off
+    // a narrow screen; a zero-width space after each arrow lets it wrap by hop.
+    const path = r.path_or_mode || '—';
+    const ZWSP = String.fromCharCode(0x200B);
+    document.getElementById('rptPath').textContent = path.replace(/→/g, '→' + ZWSP);
 
     const loc = (r.adv_lat != null && r.adv_lon != null && (r.adv_lat !== 0 || r.adv_lon !== 0))
         ? `${r.adv_lat.toFixed(4)}, ${r.adv_lon.toFixed(4)}`

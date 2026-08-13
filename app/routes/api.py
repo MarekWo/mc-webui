@@ -918,10 +918,15 @@ def get_status():
         if config.use_ble:
             status_data['ble_address'] = config.MC_BLE_ADDRESS
 
+        # Surfaced in the header so a capture left running is visible without
+        # opening Settings — it records message text, so it should never be
+        # something you forget about.
+        diag = getattr(current_app, 'diagnostics', None)
+        status_data['diagnostics_recording'] = bool(diag and diag.recording)
+
         # Feature capabilities derived from firmware version. UI uses these
         # to hide/disable controls that the connected device can't support.
         try:
-            from flask import current_app
             dm = getattr(current_app, 'device_manager', None)
             if dm is not None:
                 status_data['fw_ver_code'] = getattr(dm, '_fw_ver_code', None)
@@ -4777,6 +4782,131 @@ def observer_status_api():
         return jsonify({'success': True, 'status': obs.get_status()}), 200
     except Exception as e:
         logger.error(f"Error getting observer status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# =============================================================================
+# Diagnostics (support capture) — Settings > Diagnostics tab
+# =============================================================================
+
+def _get_diagnostics():
+    """Get DiagnosticsManager instance from app context."""
+    return getattr(current_app, 'diagnostics', None)
+
+
+@api_bp.route('/diagnostics/status', methods=['GET'])
+def diagnostics_status_api():
+    """Live capture state, stored captures and upload config (never the token)."""
+    try:
+        diag = _get_diagnostics()
+        if not diag:
+            return jsonify({'success': False, 'error': 'Diagnostics not available'}), 500
+        from app.diagnostics import DURATION_CHOICES_MIN, DEFAULT_DURATION_MIN, DEFAULT_MAX_MB
+        return jsonify({
+            'success': True,
+            'status': diag.status(),
+            'captures': diag.list_captures(),
+            'upload': diag.get_upload_settings(),
+            'options': {
+                'durations': list(DURATION_CHOICES_MIN),
+                'default_duration_min': DEFAULT_DURATION_MIN,
+                'default_max_mb': DEFAULT_MAX_MB,
+            },
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting diagnostics status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/diagnostics/start', methods=['POST'])
+def diagnostics_start_api():
+    """Begin recording. Caps are enforced by the manager, not trusted from here."""
+    try:
+        diag = _get_diagnostics()
+        if not diag:
+            return jsonify({'success': False, 'error': 'Diagnostics not available'}), 500
+        data = request.get_json(silent=True) or {}
+        result = diag.start(
+            duration_min=data.get('duration_min'),
+            max_mb=data.get('max_mb'),
+            debug_logs=data.get('debug_logs', True),
+            note=data.get('note', ''),
+        )
+        return jsonify(result), (200 if result.get('success') else 409)
+    except Exception as e:
+        logger.error(f"Error starting diagnostic capture: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/diagnostics/stop', methods=['POST'])
+def diagnostics_stop_api():
+    """Stop recording and wait for the zip to be written."""
+    try:
+        diag = _get_diagnostics()
+        if not diag:
+            return jsonify({'success': False, 'error': 'Diagnostics not available'}), 500
+        result = diag.stop()
+        return jsonify(result), (200 if result.get('success') else 409)
+    except Exception as e:
+        logger.error(f"Error stopping diagnostic capture: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/diagnostics/captures/<capture_id>/download', methods=['GET'])
+def diagnostics_download_api(capture_id):
+    """Download a stored capture. capture_path() rejects anything path-shaped."""
+    diag = _get_diagnostics()
+    if not diag:
+        return jsonify({'success': False, 'error': 'Diagnostics not available'}), 500
+    path = diag.capture_path(capture_id)
+    if not path:
+        return jsonify({'success': False, 'error': 'Capture not found'}), 404
+    return send_file(str(path), mimetype='application/zip',
+                     as_attachment=True, download_name=path.name)
+
+
+@api_bp.route('/diagnostics/captures/<capture_id>', methods=['DELETE'])
+def diagnostics_delete_api(capture_id):
+    try:
+        diag = _get_diagnostics()
+        if not diag:
+            return jsonify({'success': False, 'error': 'Diagnostics not available'}), 500
+        result = diag.delete_capture(capture_id)
+        return jsonify(result), (200 if result.get('success') else 404)
+    except Exception as e:
+        logger.error(f"Error deleting capture: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/diagnostics/captures/<capture_id>/upload', methods=['POST'])
+def diagnostics_upload_api(capture_id):
+    """Push a capture to the configured share service and return the link."""
+    try:
+        diag = _get_diagnostics()
+        if not diag:
+            return jsonify({'success': False, 'error': 'Diagnostics not available'}), 500
+        result = diag.upload(capture_id)
+        return jsonify(result), (200 if result.get('success') else 400)
+    except Exception as e:
+        logger.error(f"Error uploading capture: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/diagnostics/upload-settings', methods=['POST'])
+def diagnostics_upload_settings_api():
+    """Save share URL / token. The token is write-only over this API."""
+    try:
+        diag = _get_diagnostics()
+        if not diag:
+            return jsonify({'success': False, 'error': 'Diagnostics not available'}), 500
+        data = request.get_json(silent=True) or {}
+        result = diag.save_upload_settings(
+            url=data.get('url'),
+            token=data.get('token'),
+        )
+        return jsonify(result), (200 if result.get('success') else 400)
+    except Exception as e:
+        logger.error(f"Error saving diagnostics upload settings: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
