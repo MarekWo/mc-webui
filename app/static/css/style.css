@@ -566,9 +566,11 @@ main {
         max-width: 85%;
     }
 
+    /* Chat inputs stay at 16px on mobile - anything smaller makes iOS zoom the
+       whole page on focus. See "iOS auto-zoom guard" at the end of this file. */
     #messageInput,
     #dmMessageInput {
-        font-size: 0.9rem;
+        font-size: 16px;
     }
 
     /* Reduce padding on mobile to save vertical space */
@@ -610,10 +612,10 @@ main {
         font-size: 0.9rem;
     }
 
-    /* DM: Contact search input on mobile */
+    /* DM: Contact search input on mobile (16px - see iOS auto-zoom guard) */
     #dmContactSearchInput {
         min-width: 100px !important;
-        font-size: 0.9rem;
+        font-size: 16px;
     }
 
     /* Navbar: Smaller buttons */
@@ -2277,4 +2279,36 @@ emoji-picker {
 #tabSettingsDevice .nav-pills .nav-link {
     font-size: 0.8rem;
     padding: 0.25rem 0.75rem;
+}
+
+/* =============================================================================
+   iOS auto-zoom guard - KEEP THIS BLOCK LAST
+   -----------------------------------------------------------------------------
+   iOS WebKit (Safari, and Chrome/Firefox on iOS, which are WebKit too) zooms the
+   entire page when a focused form control has a computed font-size below 16px.
+   Because our shell is `height: 100dvh; overflow: hidden`, WebKit has nothing to
+   scroll back and leaves the page scaled - the user has to pinch out manually.
+
+   So: every focusable control stays at >= 16px on touch devices. Make controls
+   compact with padding/rows, never with font-size.
+
+   Scoped to (pointer: coarse) rather than a width breakpoint on purpose: it also
+   covers landscape phones, which are wider than 768px but still zoom. Desktop
+   keeps Bootstrap's smaller sizing.
+
+   `!important` is deliberate. This is a hard floor, and it has to outrank rules
+   it cannot enumerate: page-local <style> blocks load after this file and reach
+   specificities like `.filter-sort-toolbar .form-select` (contacts_base.html) or
+   `.filter-select` (logs.html). Being hard to override is the point - a new page
+   that shrinks its inputs should not silently bring the zoom back.
+
+   Types that open a picker rather than a keyboard are excluded: they never
+   trigger the zoom, so there is no reason to change how they look.
+   ============================================================================= */
+@media (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
 }
