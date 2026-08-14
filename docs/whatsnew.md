@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.9.1 — 2026-08-14
+
 ### Fixes
 
 - **On an iPhone, tapping a text field no longer blows the whole page up.** Tap the message box, and the page zoomed in — the send button pushed off the right edge, the layout too wide for the screen — and it stayed that way after the keyboard was dismissed, until you pinched it back down by hand. It happened in Safari and in Chrome, on a freshly unboxed phone with nothing configured, and it was not the phone's fault: iPhones deliberately zoom in on a form field whose text is smaller than 16 pixels, on the assumption that you would otherwise be squinting at it. The message box was set to 14.4 pixels on narrow screens, so every tap tripped it. Worse, the app's layout is pinned to the height of the screen and does not scroll as a page, which leaves the browser nothing to scroll back — so the zoom stuck instead of undoing itself. Every text field, dropdown and search box in the app is now at least 16 pixels on a touch screen, which is the size iPhones are content to leave alone. iPads never did this, and Android phones never did either, which is why it went unnoticed for so long. On a computer the fields are unchanged.
