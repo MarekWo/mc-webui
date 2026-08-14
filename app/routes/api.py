@@ -1529,6 +1529,28 @@ def get_device_stats():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/device/reboot', methods=['POST'])
+def reboot_device():
+    """
+    Reboot the attached device.
+
+    The firmware sends no reply and drops the companion link on its way down,
+    so a success here means "command written", not "device is back". The
+    reconnect that follows is handled by DeviceManager._on_disconnected().
+    """
+    try:
+        dm = _get_dm()
+        if not dm or not dm.is_connected:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
+
+        result = dm.reboot_device()
+        return jsonify(result), 200 if result.get('success') else 500
+
+    except Exception as e:
+        logger.error(f"Error rebooting device: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # =============================================================================
 # Special Commands
 # =============================================================================
@@ -2877,6 +2899,28 @@ def reset_contact_to_flood(pubkey):
         return jsonify({'success': False, 'error': dev_result.get('error', 'Device reset failed')}), 500
     except Exception as e:
         logger.error(f"reset_flood error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/contacts/<pubkey>/paths/set_direct', methods=['POST'])
+def set_contact_direct(pubkey):
+    """Set the device path to Direct — zero hops, no repeater in between.
+
+    An empty path hex makes the firmware store out_path_len = 0, which is the
+    Direct mode shown by `_format_path_display()`. Configured paths are kept.
+    """
+    try:
+        dm = _get_dm()
+        if not dm or not dm.is_connected:
+            return jsonify({'success': False, 'error': 'Device not connected'}), 503
+        dev_result = dm.change_path(pubkey, '')
+        logger.info(f"set_direct({pubkey[:12]}...) result: {dev_result}")
+        if dev_result.get('success'):
+            invalidate_contacts_cache()
+            return jsonify({'success': True}), 200
+        return jsonify({'success': False, 'error': dev_result.get('error', 'Device change_path failed')}), 500
+    except Exception as e:
+        logger.error(f"set_direct error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

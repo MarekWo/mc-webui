@@ -73,13 +73,15 @@
                     <i class="bi bi-bell"></i>
                 </div>
                 <div class="position-relative channel-mobile-selector" id="channelSelectorWrapper" style="min-width: 80px; max-width: 140px;">
-                    <input type="text"
-                           id="channelSelectorInput"
-                           class="form-control form-select navbar-touch-select"
-                           placeholder="Public"
-                           autocomplete="off"
-                           title="{{ t('nav.select_channel_title') }}"
-                           style="cursor: pointer;">
+                    {# A button, not a text input: a text field pops the on-screen
+                       keyboard open on every channel switch, and the firmware's
+                       channel limit makes searching them pointless anyway. #}
+                    <button type="button"
+                            id="channelSelectorButton"
+                            class="form-select navbar-touch-select text-start text-truncate"
+                            title="{{ t('nav.select_channel_title') }}"
+                            aria-haspopup="listbox"
+                            aria-expanded="false">Public</button>
                     <div id="channelSelectorDropdown" class="channel-selector-dropdown" style="display: none;"></div>
                 </div>
                 <button class="btn btn-outline-light navbar-touch-btn" data-bs-toggle="offcanvas" data-bs-target="#mainMenu" title="{{ t('menu.title') }}">

@@ -92,11 +92,11 @@ Access channel management:
 
 ### Switching Channels
 
-On narrow screens, tap the channel selector in the navbar to open a searchable picker:
+On narrow screens, tap the channel selector in the navbar to open the channel picker:
 
-- Type to filter channels by name (case-insensitive substring match)
+- It is a button, not a text field — tapping it never opens the on-screen keyboard
 - Each row shows the last message time (HH:MM today, DD.MM.YYYY otherwise) and a one-line preview of the latest message
-- Use ↑/↓ arrows + Enter to select with the keyboard, Esc to close
+- With a keyboard: Enter or Space opens it, ↑/↓ move, Enter selects, Esc closes
 - Unread channels show a red badge with the count
 
 On wide screens (tablets/desktops), use the channel sidebar on the left. Each sidebar entry shows the channel name, time of the last message, unread badge, and a two-line message preview.
@@ -505,7 +505,8 @@ Configure message routing paths for individual contacts:
 
 ### Path Operations
 
-- **Reset to FLOOD** - Clear all paths and switch to FLOOD routing
+- **Reset to FLOOD** - Switch the device back to FLOOD routing (configured paths are kept)
+- **Set Direct** - Set the device path to Direct: zero hops, no repeater in between. For a node you reach on your own radio. Configured paths are kept
 - **Clear Paths** - Remove all configured paths without changing routing mode
 
 ---
@@ -734,6 +735,12 @@ Displays device parameters in a readable table:
 - Location coordinates with map button
 - Radio parameters (frequency, bandwidth, spreading factor, coding rate)
 - TX power, multi-acks, location sharing settings
+
+A **Reboot** button sits below the table — the same thing as the `reboot` console
+command. It asks for confirmation first, because the device leaves the mesh for a
+few seconds while it restarts and anything addressed to you in that window can be
+lost. The firmware does not answer the command, so the confirmation you get back is
+only that it was sent; mc-webui reconnects on its own once the device is up again.
 
 ### Stats Tab
 

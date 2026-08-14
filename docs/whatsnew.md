@@ -12,6 +12,19 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ---
 
+## 2.9.0 — 2026-08-14
+
+### Features
+
+- **A path can now be set straight to Direct.** The path dialog could send a node's route back to **FLOOD**, and it could push one of your configured paths — but the third option the firmware supports, *Direct*, had no button. Direct means no repeater at all: the packet goes to the node and nowhere else, which is what you want for a neighbour you can reach on your own radio, and the only way to stop your traffic from being repeated across the mesh for a node sitting on the next hill. Until now, getting there meant clearing the path through the Console. A **Set Direct** button now sits next to **Restore FLOOD**, in both places paths are managed: the contact info dialog in Direct Messages, and the path dialog under **My Repeaters**. Like Restore FLOOD it changes only the path on the device — your configured paths are left alone — and it asks before it does it.
+- **You can restart your device from the interface.** Rebooting a node used to mean either opening the Console and typing `reboot`, or getting to the hardware and pulling its power — awkward when the device sits on a mast or in another room, and awkward for anyone who never opens the Console. Open the menu, pick **Device**, and the **Info** tab now has a **Reboot** button under the table. It asks first: the device drops off the mesh for a few seconds while it restarts, and a message addressed to you in that window can be lost. The firmware sends nothing back in reply to the command, so what the app confirms is that the command went out — not that the device is back. It will be, on its own, a few seconds later, and mc-webui reconnects without any help. The same restart a remote repeater has had all along under **My Repeaters → Actions**, now for the node on your own desk.
+
+### Fixes
+
+- **Switching channels on a phone no longer pops the keyboard open.** The channel picker in the top bar was a text field you could type into, so every tap on it summoned the on-screen keyboard — which on a phone covers half the screen, over a list four or five items long. The search was solving a problem nobody has: the firmware caps how many channels a device can hold, so there is never enough of them to be worth searching. The picker is now a plain button that opens the same list, with the same last-message previews, unread badges and favourites, and nothing to type into. On a computer, Enter or Space still opens it, the arrow keys move through it, Enter picks and Escape closes.
+
+---
+
 ## 2.8.0 — 2026-08-13
 
 ### Features

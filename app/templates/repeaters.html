@@ -297,12 +297,16 @@
                         </button>
                     </div>
                     <div id="pathList"></div>
-                    <div class="d-flex justify-content-end gap-2 mt-1 mb-2">
+                    <div class="d-flex flex-wrap justify-content-end gap-2 mt-1 mb-2">
                         <button type="button" class="btn btn-outline-secondary btn-sm" id="clearPathsBtn"
                                 title="{{ t('repeaters.paths.clear_title') }}">
                             <i class="bi bi-trash"></i> {{ t('repeaters.paths.clear') }}
                         </button>
-                        {# FLOOD is the device's own mode name — kept as-is in every language. #}
+                        {# Direct and FLOOD are the device's own mode names — kept as-is in every language. #}
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="setDirectBtn"
+                                title="{{ t('repeaters.paths.set_direct_title') }}">
+                            <i class="bi bi-arrow-right-short"></i> {{ t('repeaters.paths.set_direct') }}
+                        </button>
                         <button type="button" class="btn btn-outline-danger btn-sm" id="resetFloodBtn"
                                 title="{{ t('repeaters.paths.reset_flood_title') }}">
                             <i class="bi bi-broadcast"></i> {{ t('repeaters.paths.reset_flood') }}
