@@ -390,6 +390,34 @@
         </div>
     </div>
 
+    <!-- Power-off confirmation (Actions → Danger zone). Deliberately harder
+         than a confirm(): powering a repeater off cannot be undone over the
+         mesh, so the operator has to type the node's name. -->
+    <div class="modal fade" id="powerOffModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-danger">
+                <div class="modal-header py-2 text-danger">
+                    <h6 class="modal-title"><i class="bi bi-power"></i> {{ t('rptmgmt.poweroff.title') }}</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger py-2 small mb-3">
+                        <i class="bi bi-exclamation-octagon me-1"></i>{{ t('rptmgmt.poweroff.warning') }}
+                    </div>
+                    <label class="form-label small mb-1" for="powerOffNameInput" id="powerOffPrompt"></label>
+                    <input type="text" class="form-control form-control-sm" id="powerOffNameInput"
+                           autocomplete="off" autocapitalize="off" spellcheck="false">
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
+                    <button type="button" class="btn btn-sm btn-danger" id="powerOffConfirmBtn" disabled>
+                        {{ t('rptmgmt.act.poweroff_btn') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Location Map Picker Modal (Settings → Location) -->
     <div class="modal fade" id="locationMapModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">

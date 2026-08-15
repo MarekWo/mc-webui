@@ -112,6 +112,7 @@ let _pubkey = null;
 let _repeater = null;   // merged entry from GET /api/repeaters/<pk>
 let _session = null;    // {logged_in, is_admin, ...}
 let _passwordModal = null;
+let _powerOffModal = null;
 
 // ================================================================
 // State screens
@@ -431,6 +432,10 @@ function renderStatusTable(container, s) {
 // ================================================================
 
 // Cayenne LPP type name -> {unit, decimals, icon}
+// TELEM_CHANNEL_SELF in the firmware: the node's own vitals, as opposed to
+// readings from sensors attached to it.
+const TELEM_CHANNEL_SELF = 1;
+
 const LPP_DISPLAY = {
     'voltage':        { unit: 'V',   icon: 'bi-battery-half' },
     'current':        { unit: 'A',   icon: 'bi-lightning-charge' },
@@ -571,8 +576,18 @@ function renderTelemetryCards(container, lpp) {
     let html = '<div class="row g-3">';
     channels.forEach(ch => {
         const rows = byChannel.get(ch).map(entry => {
-            const disp = LPP_DISPLAY[entry.type] || { unit: '', icon: 'bi-activity' };
-            const label = esc(entry.type.charAt(0).toUpperCase() + entry.type.slice(1));
+            // Firmware v1.17+ appends the on-die MCU temperature to channel 1.
+            // That is silicon, typically well above ambient, so it must not
+            // read as an environmental sensor. Board-dependent (the firmware
+            // skips it when the chip has no usable sensor, e.g. ESP32-C3) —
+            // absent simply means no row, never a zero.
+            const isMcuTemp = ch === TELEM_CHANNEL_SELF && entry.type === 'temperature';
+            const disp = isMcuTemp
+                ? { unit: '°C', icon: 'bi-cpu' }
+                : (LPP_DISPLAY[entry.type] || { unit: '', icon: 'bi-activity' });
+            const label = isMcuTemp
+                ? tHtml('rptmgmt.tel.mcu_temp')
+                : esc(entry.type.charAt(0).toUpperCase() + entry.type.slice(1));
             const value = fmtLppValue(entry.type, entry.value);
             return `
                 <tr>
@@ -582,7 +597,7 @@ function renderTelemetryCards(container, lpp) {
             `;
         }).join('');
         // Channel 1 carries the repeater's own vitals (battery, MCU temp)
-        const chLabel = ch === 1
+        const chLabel = ch === TELEM_CHANNEL_SELF
             ? `${tHtml('rptmgmt.tel.channel', { n: ch })} <span class="text-muted fw-normal">· ${tHtml('rptmgmt.tel.device_suffix')}</span>`
             : tHtml('rptmgmt.tel.channel', { n: ch });
         html += `
@@ -1044,6 +1059,10 @@ const SETTINGS_SECTIONS = [
           help: 'rptmgmt.set.advert_interval_help' },
         { key: 'flood.advert.interval', label: 'rptmgmt.set.flood_advert_interval', type: 'number', min: 0, step: 1 },
         { key: 'flood.max', label: 'rptmgmt.set.flood_max', type: 'number', min: 0, max: 64, step: 1 },
+        { key: 'flood.max.unscoped', label: 'rptmgmt.set.flood_max_unscoped', type: 'number', min: 0, max: 64, step: 1,
+          help: 'rptmgmt.set.flood_max_unscoped_help' },
+        { key: 'flood.max.advert', label: 'rptmgmt.set.flood_max_advert', type: 'number', min: 0, max: 64, step: 1,
+          help: 'rptmgmt.set.flood_max_advert_help' },
     ]},
     { key: 'operator', title: 'rptmgmt.set.operator', icon: 'bi-person-vcard', fields: [
         { key: 'owner.info', label: 'rptmgmt.set.owner_info', type: 'textarea',
@@ -1056,6 +1075,9 @@ const SETTINGS_SECTIONS = [
         { key: 'int.thresh', label: 'rptmgmt.set.int_thresh', type: 'number', step: 1 },
         { key: 'agc.reset.interval', label: 'rptmgmt.set.agc_reset', type: 'number', min: 0, step: 4,
           help: 'rptmgmt.set.agc_reset_help' },
+        // Firmware v1.17+. Older nodes answer `??: cad` and the field renders
+        // as "not supported" rather than as an error — see setFieldBadge.
+        { key: 'cad', label: 'rptmgmt.set.cad', type: 'onoff', help: 'rptmgmt.set.cad_help' },
     ]},
 ];
 
@@ -1245,6 +1267,8 @@ function setFieldBadge(item, fieldKey, kind, text) {
     const badge = row.querySelector('.sf-badge');
     const msg = row.querySelector('.sf-msg');
     msg.classList.add('d-none');
+    msg.classList.toggle('text-danger', kind !== 'unsupported');
+    msg.classList.toggle('text-muted', kind === 'unsupported');
     msg.textContent = '';
     if (kind === 'pending') {
         badge.innerHTML = '<span class="spinner-border spinner-border-sm text-muted"></span>';
@@ -1252,6 +1276,13 @@ function setFieldBadge(item, fieldKey, kind, text) {
         badge.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
     } else if (kind === 'reboot') {
         badge.innerHTML = `<span class="badge bg-warning text-dark">${tHtml('rptmgmt.reboot_required')}</span>`;
+    } else if (kind === 'unsupported') {
+        // Not a failure: the node either runs firmware without this setting or
+        // has hardware that cannot do it. Both are permanent properties of the
+        // node, so it reads muted and the control stays locked.
+        badge.innerHTML = `<span class="badge bg-secondary">${tHtml('rptmgmt.unsupported')}</span>`;
+        msg.textContent = text || t('rptmgmt.unsupported_hint');
+        msg.classList.remove('d-none');
     } else if (kind === 'error') {
         badge.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-danger"></i>';
         if (text) {
@@ -1261,6 +1292,18 @@ function setFieldBadge(item, fieldKey, kind, text) {
     } else {
         badge.innerHTML = '';
     }
+}
+
+// A `>` reply can still be an answer to a different question. Up to firmware
+// v1.16 the `radio.rxgain` getter was compiled out on radios other than
+// SX1262/SX1268/LR1110, and `get radio.rxgain` then fell through to the `radio`
+// branch — whose memcmp has no trailing space — so the node answered with its
+// radio parameters ("> 869.525,250.00,11,5"). That parses as a valid reply and
+// would silently render the switch as off. An on/off field can only ever answer
+// on or off, so anything else means the field is not really there.
+function valueShapeIsWrong(f, raw) {
+    if (f.type !== 'onoff') return false;
+    return !['on', 'off'].includes(String(raw ?? '').trim().toLowerCase());
 }
 
 function isFieldDirty(item, st, f) {
@@ -1336,17 +1379,23 @@ async function loadSettingsSection(secKey) {
 
     const values = data.values || {};
     const errors = data.errors || {};
+    const unsupported = data.unsupported || {};
     st.loaded = {};
     let errCount = 0;
     sec.fields.forEach(f => {
         if (f.writeOnly) return;
-        if (f.key in values) {
+        if (f.key in values && !valueShapeIsWrong(f, values[f.key])) {
             setSettingsFieldValue(item, f, values[f.key]);
             disableSettingsField(item, f, false);
             // Baseline = the value as the control round-trips it, so
             // firmware formatting quirks never show up as dirty fields.
             st.loaded[f.key] = getSettingsFieldValue(item, f);
             setFieldBadge(item, f.key, 'clear');
+        } else if (f.key in unsupported || f.key in values) {
+            // Left out of st.loaded on purpose: a field with no baseline can
+            // never go dirty, so it is neither editable nor sent on Apply.
+            disableSettingsField(item, f, true);
+            setFieldBadge(item, f.key, 'unsupported');
         } else {
             errCount++;
             disableSettingsField(item, f, true);
@@ -1420,11 +1469,20 @@ async function applySettingsSection(secKey) {
     }
 
     const results = data.results || {};
-    let okCount = 0, failCount = 0, rebootCount = 0;
+    let okCount = 0, failCount = 0, rebootCount = 0, unsupCount = 0;
     for (const f of sec.fields) {
         if (!(f.key in dirty)) continue;
         const res = results[f.key] || { status: 'failed', error: t('rptmgmt.no_result') };
-        if (res.status === 'ok' || res.status === 'reboot_required') {
+        if (res.status === 'unsupported') {
+            // Claim nothing about the stored value — v1.17 persists
+            // radio.rxgain before it discovers the radio cannot apply it.
+            // Dropping the baseline clears the dirty state without asserting
+            // the old value survived; Refresh is what reveals the truth.
+            unsupCount++;
+            setFieldBadge(item, f.key, 'unsupported');
+            delete st.loaded[f.key];
+            disableSettingsField(item, f, true);
+        } else if (res.status === 'ok' || res.status === 'reboot_required') {
             if (res.status === 'reboot_required') {
                 rebootCount++;
                 setFieldBadge(item, f.key, 'reboot');
@@ -1451,10 +1509,15 @@ async function applySettingsSection(secKey) {
     if (rebootCount) item.querySelector('.sec-reboot').classList.remove('d-none');
     updateSectionDirty(secKey);
 
-    if (failCount === 0) {
-        showNotification(rebootCount ? t('rptmgmt.toast.applied_reboot') : t('rptmgmt.toast.applied'), 'success');
-    } else {
+    if (failCount) {
         showNotification(tn('rptmgmt.toast.apply_failed_count', failCount), 'danger');
+    } else if (unsupCount && !okCount && !rebootCount) {
+        // Nothing was applied — saying "applied" here would be a plain lie.
+        showNotification(tn('rptmgmt.toast.apply_unsupported_count', unsupCount), 'warning');
+    } else if (unsupCount) {
+        showNotification(tn('rptmgmt.toast.apply_partial_unsupported', unsupCount), 'warning');
+    } else {
+        showNotification(rebootCount ? t('rptmgmt.toast.applied_reboot') : t('rptmgmt.toast.applied'), 'success');
     }
     if (okCount) {
         setTimeout(() => {
@@ -1626,6 +1689,12 @@ function renderActionsPane(body) {
                     title: 'rptmgmt.act.reboot', btn: 'rptmgmt.act.reboot_btn', btnClass: 'btn-danger',
                     desc: 'rptmgmt.act.reboot_desc',
                 })}
+                <hr class="my-1">
+                ${actionRowHtml({
+                    key: 'poweroff', icon: 'bi-power', iconClass: 'text-danger',
+                    title: 'rptmgmt.act.poweroff', btn: 'rptmgmt.act.poweroff_btn', btnClass: 'btn-danger',
+                    desc: 'rptmgmt.act.poweroff_desc',
+                })}
                 <div class="small text-muted mt-2">
                     <i class="bi bi-info-circle me-1"></i>${tHtml('rptmgmt.erase_fs_note')}
                 </div>
@@ -1635,11 +1704,50 @@ function renderActionsPane(body) {
 
     body.querySelectorAll('.action-row .action-btn').forEach(btn => {
         const row = btn.closest('.action-row');
-        btn.addEventListener('click', () => runRepeaterAction(row.dataset.action));
+        btn.addEventListener('click', () => {
+            // Power-off is the one action a confirm() is too weak for.
+            if (row.dataset.action === 'poweroff') openPowerOffModal();
+            else runRepeaterAction(row.dataset.action);
+        });
     });
 }
 
-async function runRepeaterAction(action) {
+function powerOffName() {
+    return ((_repeater && _repeater.name) || '').trim();
+}
+
+function openPowerOffModal() {
+    const name = powerOffName();
+    if (!name) {
+        // The backend matches against the saved name, so without one there is
+        // nothing to type and nothing that would be accepted.
+        showNotification(t('rptmgmt.poweroff.no_name'), 'warning');
+        return;
+    }
+    document.getElementById('powerOffPrompt').textContent = t('rptmgmt.poweroff.prompt', { name });
+    const input = document.getElementById('powerOffNameInput');
+    input.value = '';
+    input.placeholder = name;
+    updatePowerOffConfirmState();
+    _powerOffModal.show();
+    setTimeout(() => input.focus(), 300);
+}
+
+function updatePowerOffConfirmState() {
+    const typed = document.getElementById('powerOffNameInput').value.trim();
+    const matches = !!typed && typed.toLowerCase() === powerOffName().toLowerCase();
+    document.getElementById('powerOffConfirmBtn').disabled = !matches;
+    return matches;
+}
+
+async function submitPowerOffModal() {
+    if (!updatePowerOffConfirmState()) return;
+    const typed = document.getElementById('powerOffNameInput').value.trim();
+    _powerOffModal.hide();
+    await runRepeaterAction('poweroff', typed);
+}
+
+async function runRepeaterAction(action, confirmName) {
     if (_actionPending) return;
     if (action === 'reboot' && !window.confirm(
             t('rptmgmt.confirm.reboot', {
@@ -1659,10 +1767,12 @@ async function runRepeaterAction(action) {
 
     let data = null;
     try {
+        const body = { action };
+        if (confirmName) body.confirm_name = confirmName;
         const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/action`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action })
+            body: JSON.stringify(body)
         });
         data = await resp.json();
     } catch (e) {
@@ -1825,6 +1935,7 @@ async function init() {
 
 document.addEventListener('DOMContentLoaded', () => {
     _passwordModal = new bootstrap.Modal(document.getElementById('passwordModal'));
+    _powerOffModal = new bootstrap.Modal(document.getElementById('powerOffModal'));
 
     loadUiSettings();
 
@@ -1851,6 +1962,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('locMapUseBtn').addEventListener('click', applyLocationFromMap);
+
+    document.getElementById('powerOffConfirmBtn').addEventListener('click', submitPowerOffModal);
+    document.getElementById('powerOffNameInput').addEventListener('input', updatePowerOffConfirmState);
+    document.getElementById('powerOffNameInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitPowerOffModal();
+        }
+    });
 
     document.getElementById('copyPubkeyBtn').addEventListener('click', async () => {
         try {

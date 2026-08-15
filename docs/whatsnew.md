@@ -10,6 +10,13 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Features
+
+- **Repeater settings now tell you when a setting simply isn't there, instead of calling it an error.** Repeaters on the mesh do not all run the same firmware or the same hardware, so a setting that exists on one is genuinely absent on another. Until now the panel had only two answers — a value, or a red error — so a perfectly healthy repeater that had never heard of a setting looked broken, and the section reported a failed read. Such a field now gets a grey **not supported** badge with a short explanation, stays locked, and is left out of anything you Apply. The section itself no longer counts it as a failure. There is one honest caveat, and it comes from the firmware rather than from mc-webui: when a repeater rejects a setting *after* having already stored it — which is what newer firmware does with RX boosted gain on radios that cannot do it — "not supported" says nothing about what the device now holds. Press **Refresh** to see the truth.
+- **Three settings added for repeaters that support them.** **Advertisement** gains two more hop limits alongside the existing one: a separate cap for flooded adverts, and a cap for flood packets carrying no region scope. Both have existed in the firmware for a while but were never exposed here. **Advanced** gains **channel activity detection** (firmware v1.17 or newer): the radio listens before transmitting and holds off if the channel is busy. On older repeaters it appears as *not supported*, as described above.
+- **A repeater can be powered off from the Actions tab** (firmware v1.17 or newer). This is deliberately not the same kind of button as **Reboot**. A reboot brings the repeater back on its own in a few seconds; a power-off does not, and nothing on the mesh can undo it — the node stays off until somebody physically gets to it, which for a repeater on a mast is a trip rather than a click. So it is not confirmed with a Yes/No box: you have to type the repeater's name to unlock the button, and the server checks that name again before sending anything.
+- **Repeater telemetry labels the processor temperature as what it is.** Repeaters on firmware v1.17 and newer report the temperature of the MCU chip itself. It arrived as a plain "Temperature" row on channel 1, which invites reading it as the temperature where the repeater is installed — it is not, and it normally sits well above room temperature. It is now labelled **MCU temperature**. Boards without a usable internal sensor send nothing, and in that case the row is simply absent rather than showing zero.
+
 ---
 
 ## 2.9.1 — 2026-08-14

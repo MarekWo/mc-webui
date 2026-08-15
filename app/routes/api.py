@@ -6278,10 +6278,11 @@ _REPEATER_SETTINGS_FIELDS = {
     'location': ('lat', 'lon'),
     'features': ('repeat', 'allow.read.only', 'multi.acks'),
     'network':  ('loop.detect', 'dutycycle'),
-    'advert':   ('advert.interval', 'flood.advert.interval', 'flood.max'),
+    'advert':   ('advert.interval', 'flood.advert.interval', 'flood.max',
+                 'flood.max.unscoped', 'flood.max.advert'),
     'operator': ('owner.info',),
     'advanced': ('path.hash.mode', 'txdelay', 'direct.txdelay', 'int.thresh',
-                 'agc.reset.interval'),
+                 'agc.reset.interval', 'cad'),
 }
 
 _REPEATER_SETTINGS_WRITABLE = frozenset(
@@ -6290,6 +6291,22 @@ _REPEATER_SETTINGS_WRITABLE = frozenset(
 
 # Per CLI round-trip; a lost packet should not stall the batch for long.
 _SETTINGS_FIELD_TIMEOUT = 30.0
+
+# A field can be missing for two permanent, blameless reasons, and the firmware
+# says which in the reply: `??:` (get) / `unknown config:` (set) mean this
+# firmware build has no such setting, `Error: unsupported` means it has the
+# setting but the hardware cannot do it. Neither is a failure worth a red badge,
+# and neither can be predicted from FIRMWARE_VER_CODE — it stayed at 13 across
+# v1.16→v1.17, so it cannot gate anything that release added (`cad`). The reply
+# text is the only capability signal available for a remote repeater.
+# Matched as prefixes, not whole sentences: v1.17 already shortened
+# "Error: unsupported by this board" to "Error: unsupported".
+_UNSUPPORTED_REPLY_PREFIXES = ('??:', 'unknown config:', 'error: unsupported')
+
+
+def _reply_is_unsupported(reply):
+    """True when the reply says the node has no such setting, rather than failing."""
+    return (reply or '').strip().lower().startswith(_UNSUPPORTED_REPLY_PREFIXES)
 
 
 def _settings_batch_fatal(result):
@@ -6304,7 +6321,10 @@ def repeater_settings_get(public_key):
 
     Every field is a full mesh round-trip, so sections are fetched lazily
     by the UI. One failed field only marks that field ({errors}) — the
-    rest of the section still loads. Admin-gated like all text CLI traffic.
+    rest of the section still loads. Fields this node simply does not have
+    are reported separately ({unsupported}), so older firmware or a board
+    without the hardware does not read as broken. Admin-gated like all
+    text CLI traffic.
     """
     dm = _get_dm()
     if not dm:
@@ -6322,6 +6342,7 @@ def repeater_settings_get(public_key):
 
     values = {}
     errors = {}
+    unsupported = {}
     abort_error = None
     try:
         for field in fields:
@@ -6338,10 +6359,13 @@ def repeater_settings_get(public_key):
             reply = (result.get('reply') or '').strip()
             if reply.startswith('>'):
                 values[field] = reply[1:].strip()
+            elif _reply_is_unsupported(reply):
+                unsupported[field] = reply
             else:
                 errors[field] = f'Unexpected reply: {reply}' if reply else 'Empty reply'
         return jsonify({'success': True, 'section': section,
-                        'values': values, 'errors': errors}), 200
+                        'values': values, 'errors': errors,
+                        'unsupported': unsupported}), 200
     except Exception as e:
         logger.error(f"Error reading repeater settings: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -6352,9 +6376,16 @@ def repeater_settings_post(public_key):
     """Apply changed settings to a repeater as a sequential `set` batch.
 
     Body: {'values': {field: value}} — dirty fields only. Per-field result
-    status: 'ok' | 'failed' | 'reboot_required', classified from the CLI
-    reply text (`ok`/`password now` = ok, mention of reboot = stored but
-    applied after a reboot, anything else = failed).
+    status: 'ok' | 'failed' | 'reboot_required' | 'unsupported', classified
+    from the CLI reply text (`ok`/`password now` = ok, mention of reboot =
+    stored but applied after a reboot, an unsupported-style reply = this node
+    has no such setting, anything else = failed).
+
+    An 'unsupported' result says nothing about what the device stored:
+    v1.17 persists `radio.rxgain` before it learns the radio cannot apply it,
+    so the pref changes even though the reply is `Error: unsupported`. The UI
+    must therefore not assume the old value is still in force — only a
+    re-read tells the truth.
     """
     dm = _get_dm()
     if not dm:
@@ -6396,7 +6427,9 @@ def repeater_settings_post(public_key):
                 continue
             reply = (result.get('reply') or '').strip()
             low = reply.lower()
-            if 'reboot' in low:
+            if _reply_is_unsupported(reply):
+                results[field] = {'status': 'unsupported', 'reply': reply}
+            elif 'reboot' in low:
                 results[field] = {'status': 'reboot_required', 'reply': reply}
             elif low.startswith('ok') or low.startswith('password now'):
                 results[field] = {'status': 'ok', 'reply': reply}
@@ -6410,23 +6443,37 @@ def repeater_settings_post(public_key):
 
 
 # Action key → CLI command. `advert` alone floods the whole mesh;
-# `advert.zerohop` reaches direct neighbours only. `reboot` never
-# replies: the firmware restarts immediately without building one.
+# `advert.zerohop` reaches direct neighbours only. `reboot` and `poweroff`
+# never reply: the firmware acts immediately without building one.
+#
+# `poweroff` (firmware v1.17+) is the only action here with no way back over
+# the mesh — a powered-off node cannot be woken remotely, so `confirm_name`
+# demands the caller echo the repeater's name. That guard is deliberately
+# server-side as well as in the UI: an accidental or replayed POST must not
+# be enough to strand a node that needs a site visit to recover.
 _REPEATER_ACTIONS = {
     'zerohop_advert': {'cmd': 'advert.zerohop'},
     'flood_advert':   {'cmd': 'advert'},
     'clock_sync':     {'cmd': 'clock sync'},
-    'reboot':         {'cmd': 'reboot', 'no_reply': True},
+    'reboot':         {'cmd': 'reboot', 'no_reply': True,
+                       'no_reply_msg': 'Reboot command sent — the repeater should be '
+                                       'restarting (no reply is expected)'},
+    'poweroff':       {'cmd': 'poweroff', 'no_reply': True, 'confirm_name': True,
+                       'no_reply_msg': 'Power-off command sent — the repeater should be '
+                                       'shutting down (no reply is expected). It cannot '
+                                       'be powered back on over the mesh.'},
 }
 
 
 @api_bp.route('/repeaters/<public_key>/action', methods=['POST'])
 def repeater_action(public_key):
-    """Run a one-shot action on a repeater (adverts, clock sync, reboot).
+    """Run a one-shot action on a repeater (adverts, clock sync, reboot, power off).
 
-    Body: {'action': key}. Replies are surfaced verbatim with an `ok`
-    flag (reply starts with OK). For `reboot`, a clean send followed by
-    silence is reported as success — the firmware never replies to it.
+    Body: {'action': key, 'confirm_name': str}. Replies are surfaced verbatim
+    with an `ok` flag (reply starts with OK). For `reboot` and `poweroff`, a
+    clean send followed by silence is reported as success — the firmware never
+    replies to either. `confirm_name` is required only by `poweroff` and must
+    match the repeater's saved name.
     """
     dm = _get_dm()
     if not dm:
@@ -6442,6 +6489,14 @@ def repeater_action(public_key):
     spec = _REPEATER_ACTIONS.get(action)
     if not spec:
         return jsonify({'success': False, 'error': f'Unknown action: {action}'}), 400
+    if spec.get('confirm_name'):
+        db = _get_db()
+        row = db.get_repeater(pk) if db else None
+        expected = ((row or {}).get('name') or '').strip()
+        supplied = (data.get('confirm_name') or '').strip()
+        if not expected or supplied.casefold() != expected.casefold():
+            return jsonify({'success': False,
+                            'error': 'Type the repeater name to confirm this action'}), 400
     try:
         timeout = 15.0 if spec.get('no_reply') else 45.0
         result = dm.repeater_cmd_wait(pk, spec['cmd'], timeout=timeout)
@@ -6452,8 +6507,7 @@ def repeater_action(public_key):
                             'elapsed_ms': result.get('elapsed_ms')}), 200
         if spec.get('no_reply') and result.get('timeout'):
             return jsonify({'success': True, 'ok': True, 'no_reply': True,
-                            'reply': 'Reboot command sent — the repeater should be '
-                                     'restarting (no reply is expected)'}), 200
+                            'reply': spec['no_reply_msg']}), 200
         return jsonify({'success': False,
                         'error': result.get('error', 'Action failed')}), _repeater_result_status(result)
     except Exception as e:

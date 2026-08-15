@@ -608,6 +608,8 @@ Fetched automatically when opened. A compact table in three groups:
 
 Shows **all** Cayenne LPP channels at once — no channel picker. Each channel renders as a card with typed, unit-formatted rows (voltage, temperature, humidity, GPS position, and so on). Channel 1 is the repeater's own vitals.
 
+Repeaters running firmware v1.17 or newer also report their **MCU temperature** on channel 1 — the temperature of the processor chip itself, not of the air around it, so it normally reads well above room temperature. Not every board has a usable internal sensor; where there is none, the row is simply absent rather than showing a zero.
+
 #### Neighbors
 
 Lists every zero-hop neighbour the repeater hears: resolved contact name (or the raw pubkey prefix for unknown nodes), how long ago it was heard, and SNR. When at least one neighbour has a known position, a **Map** toggle appears: the managed repeater is shown as a red marker, positioned neighbours in green, and the dashed connection lines carry SNR labels. A footnote counts neighbours that could not be placed on the map.
@@ -620,11 +622,13 @@ Replies travel over LoRa, so an occasional lost reply (timeout) is normal — ju
 
 #### Settings (admin only)
 
-Repeater configuration organized into collapsible sections: **Basic** (name, admin and guest passwords), **Radio** (frequency / bandwidth / SF / CR, TX power, RX gain), **Location**, **Features** (repeat, read-only access, multiple ACKs), **Network health** (loop detection, duty cycle), **Advertisement** (advert intervals, max flood hops), **Operator info**, and **Advanced**.
+Repeater configuration organized into collapsible sections: **Basic** (name, admin and guest passwords), **Radio** (frequency / bandwidth / SF / CR, TX power, RX gain), **Location**, **Features** (repeat, read-only access, multiple ACKs), **Network health** (loop detection, duty cycle), **Advertisement** (advert intervals, max flood hops — overall, unscoped, and adverts), **Operator info**, and **Advanced** (including channel activity detection, firmware v1.17+).
 
 - Each section loads its values live from the repeater when you first expand it (every field is one mesh round-trip, so a section takes a few seconds) and has its own **Refresh** and **Apply** buttons
 - Changed fields are highlighted and counted on the Apply button; only those fields are sent
 - Every field reports back individually: a green check (applied), a **reboot required** badge (stored, takes effect after a reboot — radio parameters work this way), or a red error showing the repeater's own reply (e.g. an out-of-range value). Failed fields stay marked so you can correct and re-apply
+- A grey **not supported** badge is not an error: that repeater's firmware or hardware simply does not have the setting. Repeaters on the mesh run different firmware versions and different boards, so a newer setting is missing on older nodes and a hardware-dependent one is missing on boards that lack the hardware. Such a field is shown locked and is never sent when you Apply
+- One caveat on **not supported** after an Apply: the firmware can store a value before it discovers the hardware cannot use it, so it does not tell you whether the setting changed on the device. Press **Refresh** to see what the repeater actually holds
 - Changing radio parameters asks for confirmation first — wrong values can make the repeater unreachable over the mesh
 - The **Location** section has a **Pick from map** button (enabled once the section has loaded): it opens a map, and clicking a point fills the latitude and longitude fields for you and marks the section changed, ready to Apply — handy when you know where the repeater is but not its exact coordinates
 - The admin password is write-only (the current one is never displayed). After a successful change, the password saved in mc-webui is updated automatically so one-click login keeps working. Changing it does **not** log out sessions that are already active
@@ -637,6 +641,7 @@ One-click operations:
 - **Send flood advert** - Advert flooded across the whole mesh. Not recommended — high network load; use sparingly
 - **Sync clock** - Set the repeater clock from your device's current time. The firmware refuses to move a clock backwards and says so
 - **Danger zone: Reboot** - Restarts the repeater after a confirmation prompt. The firmware does not reply to this command; the repeater simply drops off the mesh for a few seconds and comes back
+- **Danger zone: Power off** - Shuts the repeater down (firmware v1.17 or newer). Unlike a reboot this cannot be undone from here: nothing on the mesh can switch a powered-off node back on, so it stays off until somebody reaches it physically. Because of that it is not confirmed with a simple Yes/No — you have to type the repeater's name to unlock the button
 
 Erasing the repeater's file system is **not** available over the mesh — the firmware only accepts it on the USB serial console (use the MeshCore flasher for that).
 
