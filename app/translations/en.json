@@ -158,6 +158,7 @@
   "chat.toast.send_failed": "Failed to send: {error}",
   "chat.toast.sent": "Message sent",
   "chat.unnamed_channel": "Channel {index}",
+  "chat.unread_divider": "New messages",
   "chat.updated": "Updated: {time}",
   "common.add": "Add",
   "common.apply": "Apply",

@@ -71,6 +71,11 @@ let dmLastSeenTimestamps = {};
 let autoRefreshInterval = null;
 let lastMessageTimestamp = 0;  // Track latest message timestamp for smart refresh
 let chatSocket = null;  // SocketIO connection to /chat namespace
+let dmIsUserScrolling = false;  // User scrolled up — don't yank them to the bottom
+
+// "New messages" divider state — mirrors app.js, see unreadAnchorTs there.
+let dmUnreadAnchorTs = null;
+let renderedConversationId = null;  // Conversation displayMessages last rendered
 
 /**
  * Get display-friendly name (truncate full pubkeys to short prefix)
@@ -492,6 +497,7 @@ function setupEventListeners() {
     if (messagesContainer && scrollToBottomBtn) {
         messagesContainer.addEventListener('scroll', function() {
             const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 100;
+            dmIsUserScrolling = !isAtBottom;
             if (isAtBottom) {
                 scrollToBottomBtn.classList.remove('visible');
             } else {
@@ -1375,6 +1381,17 @@ function displayMessages(messages) {
     const container = document.getElementById('dmMessagesList');
     if (!container) return;
 
+    const wasAtBottom = !dmIsUserScrolling;
+
+    // Freeze the unread boundary on conversation entry. loadMessages() calls
+    // markAsRead() right after this returns, so by the next render the stored
+    // last-seen value is already gone — hence the renderedConversationId guard.
+    if (renderedConversationId !== currentConversationId) {
+        const lastSeen = dmLastSeenTimestamps[currentConversationId] || 0;
+        dmUnreadAnchorTs = lastSeen > 0 ? lastSeen : null;
+    }
+    renderedConversationId = currentConversationId;
+
     if (!messages || messages.length === 0) {
         container.innerHTML = `
             <div class="dm-empty-state">
@@ -1392,8 +1409,16 @@ function displayMessages(messages) {
 
     container.innerHTML = '';
 
+    let dividerEl = null;
     messages.forEach(msg => {
         const side = msg.is_own ? 'own' : 'other';
+
+        // "New messages" divider before the first unread incoming message
+        if (!dividerEl && dmUnreadAnchorTs !== null && !msg.is_own
+            && msg.timestamp > dmUnreadAnchorTs) {
+            dividerEl = createDmUnreadDivider();
+            container.appendChild(dividerEl);
+        }
 
         // Wrapper: time row + bubble
         const wrapper = document.createElement('div');
@@ -1501,14 +1526,63 @@ function displayMessages(messages) {
         container.appendChild(wrapper);
     });
 
-    // Scroll to bottom
-    const scrollContainer = document.getElementById('dmMessagesContainer');
-    if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    // Auto-scroll — but never yank a user who scrolled up to read history,
+    // which the 60s auto-refresh used to do on every tick.
+    if (wasAtBottom) {
+        // Divider in first position means everything loaded is unread; the list
+        // already starts there, so scrolling would imply history above it.
+        if (dividerEl && dividerEl !== container.firstElementChild) {
+            requestAnimationFrame(scrollToDmUnreadDivider);
+        } else {
+            scrollDmToBottom();
+        }
     }
 
     // Re-apply filter if active
     clearDmFilterState();
+}
+
+// Keep in sync with UNREAD_DIVIDER_SCROLL_MARGIN in app.js (separate page, no
+// shared module scope).
+const DM_UNREAD_DIVIDER_SCROLL_MARGIN = 48;
+
+/**
+ * Scroll the DM view to the bottom.
+ */
+function scrollDmToBottom() {
+    const scrollContainer = document.getElementById('dmMessagesContainer');
+    if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    }
+}
+
+/**
+ * Build the "New messages" divider that separates read from unread.
+ */
+function createDmUnreadDivider() {
+    const divider = document.createElement('div');
+    divider.className = 'unread-divider dm-unread-divider';
+    divider.id = 'dmUnreadDivider';
+    divider.innerHTML = `<span>${tHtml('chat.unread_divider')}</span>`;
+    return divider;
+}
+
+/**
+ * Scroll the DM view to the first unread message.
+ */
+function scrollToDmUnreadDivider() {
+    const container = document.getElementById('dmMessagesContainer');
+    const divider = document.getElementById('dmUnreadDivider');
+    if (!container || !divider) {
+        scrollDmToBottom();
+        return;
+    }
+    const delta = divider.getBoundingClientRect().top
+        - container.getBoundingClientRect().top;
+    container.scrollTop = Math.max(
+        0,
+        container.scrollTop + delta - DM_UNREAD_DIVIDER_SCROLL_MARGIN
+    );
 }
 
 /**
@@ -1540,6 +1614,11 @@ async function sendMessage() {
             input.value = '';
             updateCharCounter();
             showNotification(t('chat.toast.sent'), 'success');
+
+            // Sending is an explicit "I'm done catching up" — otherwise a user
+            // parked at the unread divider would send into a part of the list
+            // they can't see.
+            dmIsUserScrolling = false;
 
             // Reload messages once to show sent message
             // ACK delivery updates arrive via SocketIO in real-time
@@ -2150,6 +2229,13 @@ function applyDmFilter(query) {
     const container = document.getElementById('dmMessagesList');
     const messages = container.querySelectorAll('.dm-message-wrapper');
     const matchCountEl = document.getElementById('dmFilterMatchCount');
+
+    // The divider marks a position in the full list — meaningless once the
+    // list is filtered down to matches.
+    const unreadDivider = container.querySelector('.unread-divider');
+    if (unreadDivider) {
+        unreadDivider.classList.toggle('filter-hidden', !!currentDmFilterQuery);
+    }
 
     // Remove any existing no-matches message
     const existingNoMatches = container.querySelector('.filter-no-matches');

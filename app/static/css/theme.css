@@ -148,6 +148,9 @@
     --dropdown-bg: #ffffff;
     --dropdown-separator-bg: #f8f9fa;
     --dropdown-item-hover: #e9ecef;
+
+    /* "New messages" divider */
+    --unread-divider-color: #dc3545;
 }
 
 /* =============================================================================
@@ -302,6 +305,9 @@
     --dropdown-bg: #1e293b;
     --dropdown-separator-bg: #162032;
     --dropdown-item-hover: #2d3a4e;
+
+    /* "New messages" divider — lighter red, #dc3545 is muddy on dark */
+    --unread-divider-color: #ff6b6b;
 }
 
 /* =============================================================================

@@ -295,6 +295,35 @@ main {
 }
 
 /* =============================================================================
+   "New messages" divider (channel chat + DM)
+   ============================================================================= */
+
+/* Both message lists are flex columns whose children set their own align-self,
+   so without `stretch` the divider would shrink to the width of its label. */
+.unread-divider {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.25rem 0;
+    color: var(--unread-divider-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    user-select: none;
+}
+
+.unread-divider::before,
+.unread-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--unread-divider-color);
+    opacity: 0.5;
+}
+
+/* =============================================================================
    Message Wrapper - New Layout with Avatar
    ============================================================================= */
 
@@ -1784,7 +1813,8 @@ main {
 
 /* Hidden messages when filtering */
 .message-wrapper.filter-hidden,
-.dm-message-wrapper.filter-hidden {
+.dm-message-wrapper.filter-hidden,
+.unread-divider.filter-hidden {
     display: none !important;
 }
 
