@@ -1534,6 +1534,9 @@
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin=""></script>
 
+    <!-- Share token formats (must load before message-utils.js, which renders them) -->
+    <script src="{{ url_for('static', filename='js/share-tokens.js') }}"></script>
+
     <!-- Message Content Processing Utilities (must load before app.js and dm.js) -->
     <script src="{{ url_for('static', filename='js/message-utils.js') }}"></script>
 

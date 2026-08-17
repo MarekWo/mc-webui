@@ -23,6 +23,7 @@ let leafletMap = null;
 let markersGroup = null;
 let contactsGeoCache = {};  // { 'contactName': { lat, lon }, ... }
 let contactsPubkeyMap = {};  // { 'contactName': 'full_pubkey', ... }
+let contactsByPubkey = {};  // { 'full_pubkey': { name, source }, ... } — share cards
 let blockedContactNames = new Set();  // Names of blocked contacts
 let protectedContactPubkeys = new Set();  // Pubkeys of protected contacts
 let allContactsWithGps = [];  // Device contacts for map filtering
@@ -331,6 +332,7 @@ async function loadContactsGeoCache() {
 
         contactsGeoCache = {};
         contactsPubkeyMap = {};
+        contactsByPubkey = {};
 
         // Process device contacts
         if (detailedData.success && detailedData.contacts) {
@@ -340,6 +342,11 @@ async function loadContactsGeoCache() {
                 }
                 if (c.name && c.public_key) {
                     contactsPubkeyMap[c.name] = c.public_key;
+                }
+                if (c.public_key) {
+                    // Everything from /detailed lives in device memory.
+                    contactsByPubkey[c.public_key.toLowerCase()] =
+                        { name: c.name || '', source: 'device' };
                 }
             });
         }
@@ -353,6 +360,12 @@ async function loadContactsGeoCache() {
                 if (c.name && c.public_key && !contactsPubkeyMap[c.name]) {
                     contactsPubkeyMap[c.name] = c.public_key;
                 }
+                // Device entries win: their source decides whether a share card
+                // offers "push to device" or reports the contact as already there.
+                const pk = (c.public_key || '').toLowerCase();
+                if (pk && !contactsByPubkey[pk]) {
+                    contactsByPubkey[pk] = { name: c.name || '', source: c.source || 'advert' };
+                }
             });
         }
 
@@ -361,6 +374,118 @@ async function loadContactsGeoCache() {
         console.error('Error loading contacts geo cache:', err);
     }
 }
+
+/* -----------------------------------------------------------------------------
+   Share card environment (channel chat)
+
+   message-utils.js renders the cards but knows nothing about this page's state.
+   These hooks let it resolve what we already have — so a card says "Already in
+   contacts" instead of offering a pointless add — and act on a click.
+   The DM iframe installs its own set; see dm.js.
+   -------------------------------------------------------------------------- */
+window.MCShareHooks = {
+    /** @returns {?{name: string, source: string}} */
+    lookupContact(pubkey) {
+        if (!pubkey) return null;
+        return contactsByPubkey[pubkey.toLowerCase()] || null;
+    },
+
+    /**
+     * Match a shared channel against our slots. The secret is the identity, so
+     * it is checked first: the same key under a different name is still the same
+     * channel. A name-only match is a conflict, not a match.
+     * @returns {?{index: number, name: string, matched: 'secret'|'name'}}
+     */
+    lookupChannel({ name, secret }) {
+        if (!Array.isArray(availableChannels)) return null;
+
+        if (secret) {
+            const bySecret = availableChannels.find(
+                ch => (ch.key || '').toLowerCase() === secret.toLowerCase());
+            if (bySecret) {
+                return { index: bySecret.index, name: bySecret.name, matched: 'secret' };
+            }
+        }
+
+        const byName = availableChannels.find(
+            ch => (ch.name || '').toLowerCase() === (name || '').toLowerCase());
+        if (byName) {
+            // Hashtag channels derive their key from the name, so an equal name
+            // with no shared secret is the same channel, not a collision.
+            const matched = (!secret && MCShare.channelKindOf(name) === 'hashtag')
+                ? 'secret' : 'name';
+            return { index: byName.index, name: byName.name, matched };
+        }
+        return null;
+    },
+
+    /** Our own advertised position, or null when unset (firmware reports 0,0). */
+    selfPosition() {
+        if (!_selfInfo) return null;
+        const lat = _selfInfo.adv_lat;
+        const lon = _selfInfo.adv_lon;
+        if (!MCShare.isValidLatLon(lat, lon)) return null;
+        return { lat, lon };
+    },
+
+    openMap(label, lat, lon) {
+        showContactOnMap(label, lat, lon);
+    },
+
+    onContactsChanged() {
+        loadContactsGeoCache();
+    },
+
+    async onChannelJoined(channel, name) {
+        await loadChannels();
+        if (channel && typeof channel.index === 'number') {
+            switchToChannel(channel.index, name);
+        }
+    },
+
+    /**
+     * Carry a shared channel's region scope over to our own mapping. Without
+     * it we would transmit on that channel using the firmware default scope and
+     * our packets would not match the sender's.
+     *
+     * The URI names a region ("#pl"); scopes are stored by region id, so the
+     * name has to exist in the local registry. It often will not — the registry
+     * starts empty — and inventing a region would mean inventing its 16-byte
+     * scope key, which we cannot derive. So we tell the user instead.
+     */
+    async applyChannelScope(channel, scope) {
+        if (!channel || typeof channel.index !== 'number' || !scope) return;
+        const wanted = scope.replace(/^#/, '').toLowerCase();
+
+        try {
+            const resp = await fetch('/api/regions');
+            const data = await resp.json();
+            const regions = (data.success && data.regions) || [];
+            const region = regions.find(
+                r => (r.name || '').replace(/^#/, '').toLowerCase() === wanted);
+
+            if (!region) {
+                showNotification(t('share.toast.scope_unknown', { name: wanted }), 'warning');
+                return;
+            }
+
+            const put = await fetch(`/api/channels/${channel.index}/scope`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ region_id: region.id })
+            });
+            const putData = await put.json();
+            if (putData.success) {
+                showNotification(t('share.toast.scope_applied', { name: region.name }), 'success');
+            } else {
+                showNotification(putData.error || t('share.toast.action_failed'), 'danger');
+            }
+        } catch (e) {
+            console.error('Error applying shared region scope:', e);
+            showNotification(t('share.toast.action_failed'), 'danger');
+        }
+    }
+};
 
 async function loadBlockedNames() {
     try {
@@ -1494,7 +1619,7 @@ function createMessageElement(msg) {
                     <span class="message-time">${time}</span>
                 </div>
                 <div class="message own">
-                    <div class="message-content">${processMessageContent(msg.content)}</div>
+                    <div class="message-content">${processMessageContent(msg.content, { isOwn: true })}</div>
                     <div class="message-actions justify-content-end">
                         ${echoDisplay}
                         ${msg.packet_hash ? `
@@ -1532,7 +1657,7 @@ function createMessageElement(msg) {
                     <span class="message-time">${time}</span>
                 </div>
                 <div class="message other">
-                    <div class="message-content">${processMessageContent(msg.content)}</div>
+                    <div class="message-content">${processMessageContent(msg.content, { isOwn: false })}</div>
                     ${metaInfo ? `<div class="message-meta">${metaInfo}</div>` : ''}
                     <div class="message-actions">
                         <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="${tHtml('chat.msg.reply_title')}">

@@ -3384,13 +3384,64 @@ def delete_cached_contact_api():
 
 @api_bp.route('/contacts/manual-add', methods=['POST'])
 def manual_add_contact():
-    """Add a contact manually via URI or raw parameters (name, public_key, type)."""
+    """Add a contact manually via URI or raw parameters (name, public_key, type).
+
+    Optional ``target`` selects where the contact lands:
+      * ``device`` (default) — written to device memory via CMD_ADD_UPDATE_CONTACT.
+      * ``cache``  — stored in the local DB only, like an advert. Used by the
+        in-chat share cards: a shared contact arrives unsolicited and device
+        contact slots are limited, so promotion to the device stays a deliberate
+        act (``/contacts/<pk>/push-to-device``). Needs no device connection.
+
+    The public key is the identity. Re-adding a known key under a new name is a
+    rename, never a second contact — see Database.upsert_contact, whose upsert
+    overwrites a non-empty name. The response reports ``updated`` so callers can
+    tell the user which of the two happened.
+    """
     try:
+        data = request.get_json() or {}
+        target = (data.get('target') or 'device').strip().lower()
+        if target not in ('device', 'cache'):
+            return jsonify({'success': False, 'error': 'target must be "device" or "cache"'}), 400
+
+        # Cache mode never touches the device, so it is handled before the
+        # device-manager lookup and works while disconnected.
+        if target == 'cache':
+            name = data.get('name', '').strip()
+            public_key = data.get('public_key', '').strip().lower()
+
+            if not name or not public_key:
+                return jsonify({'success': False, 'error': 'Name and public_key are required'}), 400
+            if not re.fullmatch(r'[0-9a-f]{64}', public_key):
+                return jsonify({'success': False, 'error': 'public_key must be 64 hex characters'}), 400
+
+            try:
+                contact_type = int(data.get('type', 1))
+            except (ValueError, TypeError):
+                contact_type = 1
+            if contact_type not in (1, 2, 3, 4):
+                contact_type = 1
+
+            db = _get_db()
+            if not db:
+                return jsonify({'success': False, 'error': 'Database unavailable'}), 500
+
+            existing = db.get_contact(public_key)
+            db.upsert_contact(public_key, name, type=contact_type, source='manual')
+            invalidate_contacts_cache()
+
+            return jsonify({
+                'success': True,
+                'target': 'cache',
+                'updated': existing is not None,
+                'renamed': bool(existing and existing.get('name') != name),
+                'public_key': public_key,
+                'name': name,
+            }), 200
+
         dm = _get_dm()
         if not dm:
             return jsonify({'success': False, 'error': 'Device manager unavailable'}), 500
-
-        data = request.get_json() or {}
 
         # Mode 1: URI (meshcore://contact/add?... or hex blob)
         uri = data.get('uri', '').strip()
@@ -3414,9 +3465,16 @@ def manual_add_contact():
         except (ValueError, TypeError):
             contact_type = 1
 
+        existing = None
+        db = _get_db()
+        if db:
+            existing = db.get_contact(public_key.strip().lower())
+
         result = dm.add_contact_manual(name, public_key, contact_type)
         if result['success']:
             invalidate_contacts_cache()
+            result.setdefault('target', 'device')
+            result.setdefault('updated', existing is not None)
         status = 200 if result['success'] else 400
         return jsonify(result), status
     except Exception as e:

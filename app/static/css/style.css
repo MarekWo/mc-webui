@@ -2312,3 +2312,175 @@ emoji-picker {
         font-size: 16px !important;
     }
 }
+
+/* =============================================================================
+   Share Cards — contacts, channels and positions shared inside chat messages
+   Rendered by message-utils.js into .message-content / .dm-content, which are
+   `white-space: pre-wrap`; the card resets that so its own text wraps normally.
+   ============================================================================= */
+
+.share-card {
+    display: block;
+    white-space: normal;
+    background-color: var(--bg-body);
+    border: 1px solid var(--border-color);
+    border-radius: 0.625rem;
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    /* A definite width, not just a max: message bubbles shrink-to-fit, and with
+       only a max-width the inner flex row resolves against whatever narrow
+       width the rest of the bubble happens to impose, wrapping labels like
+       "Hashtag Channel" mid-phrase. max-width still protects narrow screens. */
+    width: 17.5rem;
+    max-width: 100%;
+}
+
+.share-card-main {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.share-card-avatar {
+    flex: 0 0 auto;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    background-color: var(--sender-color);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.share-card-info {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.share-card-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.share-card-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.share-card-key,
+.share-card-coords {
+    font-family: var(--bs-font-monospace, monospace);
+}
+
+/* "Shared contact" / "Shared channel" marker on our own messages, which carry
+   no action button — we already have whatever we shared. Sits above the
+   identity block, the way the official app labels these. */
+.share-card-own {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 0.375rem;
+}
+
+.share-card-note {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.375rem;
+}
+
+.share-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0.5rem;
+}
+
+.share-card-btn {
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    cursor: pointer;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.share-card-btn-primary {
+    background-color: var(--sender-color);
+    color: #fff;
+}
+
+.share-card-btn-secondary {
+    background-color: transparent;
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.share-card-btn-secondary:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Icon-only actions (copy, external maps) must not stretch. */
+.share-card-btn-icon {
+    flex: 0 0 auto;
+    background-color: transparent;
+    border-color: var(--border-color);
+    color: var(--text-muted);
+    padding: 0.3rem 0.5rem;
+}
+
+.share-card-btn-icon:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.share-card-btn:disabled,
+.share-card-btn.loading {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.share-card-ext {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-muted);
+    text-decoration: none;
+}
+
+.share-card-ext:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Terminal states: nothing to click, so styled as a label rather than a button. */
+.share-card-state {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+}
+
+.share-card-state-done {
+    color: var(--bs-success, #198754);
+}
+
+.share-card-state-warning {
+    color: var(--bs-warning-text-emphasis, #997404);
+}

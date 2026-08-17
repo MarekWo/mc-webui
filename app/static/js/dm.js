@@ -553,15 +553,155 @@ async function loadContacts() {
     }
 }
 
+/* -----------------------------------------------------------------------------
+   Share card environment (DM chat)
+
+   The DM panel is an iframe, so it cannot reach the parent page's contact
+   caches, channel list or map modal. It keeps its own small snapshot instead.
+   Contract and consumers live in message-utils.js.
+   -------------------------------------------------------------------------- */
+
+// Cache-only contacts, the channel slots, and our own position — everything the
+// cards need to describe themselves accurately.
+let _dmShareCachedContacts = {};   // pubkey -> { name, source }
+let _dmShareChannels = [];         // [{ index, name, key }]
+let _dmSharePosition = null;       // { lat, lon } or null
+
+async function loadDmShareEnvironment() {
+    try {
+        const [cachedResp, channelsResp, configResp] = await Promise.all([
+            fetch('/api/contacts/cached?format=full'),
+            fetch('/api/channels'),
+            fetch('/api/device/config')
+        ]);
+
+        const cachedData = await cachedResp.json();
+        _dmShareCachedContacts = {};
+        if (cachedData.success && cachedData.contacts) {
+            cachedData.contacts.forEach(c => {
+                const pk = (c.public_key || '').toLowerCase();
+                if (pk) _dmShareCachedContacts[pk] = { name: c.name || '', source: c.source || 'advert' };
+            });
+        }
+
+        const channelsData = await channelsResp.json();
+        _dmShareChannels = (channelsData.success && channelsData.channels) || [];
+
+        // /api/device/config exposes the advertised coords as plain lat/lon.
+        const configData = await configResp.json();
+        const cfg = (configData.success && configData.config) || {};
+        _dmSharePosition = MCShare.isValidLatLon(cfg.lat, cfg.lon)
+            ? { lat: cfg.lat, lon: cfg.lon } : null;
+    } catch (error) {
+        // Non-fatal: cards still render, they just fall back to "not known yet".
+        console.error('[DM] Error loading share environment:', error);
+    }
+}
+
+window.MCShareHooks = {
+    lookupContact(pubkey) {
+        if (!pubkey) return null;
+        const pk = pubkey.toLowerCase();
+        // Device memory wins over the cache snapshot.
+        const onDevice = contactsMap[pk];
+        if (onDevice) return { name: onDevice.name || '', source: 'device' };
+        return _dmShareCachedContacts[pk] || null;
+    },
+
+    lookupChannel({ name, secret }) {
+        if (secret) {
+            const bySecret = _dmShareChannels.find(
+                ch => (ch.key || '').toLowerCase() === secret.toLowerCase());
+            if (bySecret) return { index: bySecret.index, name: bySecret.name, matched: 'secret' };
+        }
+        const byName = _dmShareChannels.find(
+            ch => (ch.name || '').toLowerCase() === (name || '').toLowerCase());
+        if (byName) {
+            const matched = (!secret && MCShare.channelKindOf(name) === 'hashtag')
+                ? 'secret' : 'name';
+            return { index: byName.index, name: byName.name, matched };
+        }
+        return null;
+    },
+
+    selfPosition() {
+        return _dmSharePosition;
+    },
+
+    /**
+     * Show a shared position on this panel's own map. Deliberately not a
+     * postMessage to the parent's map modal: the DM panel is itself displayed
+     * inside a modal, and stacking one Bootstrap modal over another across a
+     * frame boundary needs the backdrop z-index workaround. A local modal keeps
+     * it self-contained — the same reason contacts.js carries its own copy.
+     */
+    openMap(label, lat, lon) {
+        showSharedLocationOnMap(label, lat, lon);
+    },
+
+    async onContactsChanged() {
+        await Promise.all([loadContacts(), loadDmShareEnvironment()]);
+    },
+
+    async onChannelJoined() {
+        // No channel UI in this panel; refresh the snapshot so the card updates.
+        await loadDmShareEnvironment();
+    }
+
+    // No applyChannelScope: region scopes are managed from the channel panel,
+    // and the toast would appear behind the DM modal anyway.
+};
+
+// Leaflet state for the shared-location map (separate from the repeater map).
+let _shareMap = null;
+let _shareMapMarker = null;
+
+/**
+ * Center this panel's map modal on a shared position.
+ * Leaflet cannot measure a hidden container, hence the one-shot
+ * shown.bs.modal + invalidateSize() dance used elsewhere in the app.
+ */
+function showSharedLocationOnMap(label, lat, lon) {
+    const modalEl = document.getElementById('shareMapModal');
+    if (!modalEl) return;
+
+    const titleEl = document.getElementById('shareMapModalTitle');
+    if (titleEl) titleEl.textContent = label || t('share.card.open_in_map');
+
+    modalEl.addEventListener('shown.bs.modal', function onShown() {
+        modalEl.removeEventListener('shown.bs.modal', onShown);
+
+        if (!_shareMap) {
+            _shareMap = L.map('shareLocationMap');
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(_shareMap);
+        }
+
+        if (_shareMapMarker) _shareMap.removeLayer(_shareMapMarker);
+        _shareMapMarker = L.marker([lat, lon])
+            .addTo(_shareMap)
+            .bindPopup(`<b>${escapeHtml(label || '')}</b>`)
+            .openPopup();
+
+        _shareMap.setView([lat, lon], 14);
+        _shareMap.invalidateSize();
+    });
+
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
 /**
  * Load conversations from API
  */
 async function loadConversations() {
     try {
-        // Load both conversations and contacts in parallel
-        const [convResponse, _] = await Promise.all([
+        // Load conversations, contacts and the share-card environment in parallel
+        const [convResponse, _, __] = await Promise.all([
             fetch('/api/dm/conversations?days=7'),
-            loadContacts()
+            loadContacts(),
+            loadDmShareEnvironment()
         ]);
 
         const convData = await convResponse.json();
@@ -1350,7 +1490,7 @@ function displayMessages(messages) {
         const bubble = document.createElement('div');
         bubble.className = `dm-message ${side}`;
         bubble.innerHTML = `
-            <div class="dm-content">${processMessageContent(msg.content)}</div>
+            <div class="dm-content">${processMessageContent(msg.content, { isOwn: !!msg.is_own })}</div>
             ${deliveryMeta}
             ${retryInfo}
             ${meta}
