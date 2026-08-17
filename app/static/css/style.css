@@ -2484,3 +2484,132 @@ emoji-picker {
 .share-card-state-warning {
     color: var(--bs-warning-text-emphasis, #997404);
 }
+
+/* =============================================================================
+   Share Composer — the "+" button, its menu, the pickers and the live preview
+   ============================================================================= */
+
+.share-composer-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Anchored to .emoji-picker-container, the same positioned ancestor the emoji
+   and mentions popups use. */
+.share-menu-popup {
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 1060;
+    display: flex;
+    flex-direction: column;
+    min-width: 13rem;
+    padding: 0.25rem;
+    background-color: var(--popup-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.625rem;
+    box-shadow: var(--popup-shadow);
+}
+
+.share-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    background: transparent;
+    border: 0;
+    border-radius: 0.5rem;
+    color: var(--text-primary);
+    text-align: left;
+    font-size: 0.9375rem;
+}
+
+.share-menu-item:hover {
+    background-color: var(--bg-hover);
+}
+
+.share-menu-item i {
+    color: var(--sender-color);
+    font-size: 1.05rem;
+    width: 1.25rem;
+    text-align: center;
+}
+
+/* --- pickers --- */
+
+.share-pick-list {
+    max-height: 55vh;
+    overflow-y: auto;
+}
+
+.share-pick-row {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+}
+
+.share-pick-icon {
+    flex: 0 0 auto;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background-color: var(--sender-color);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+}
+
+.share-pick-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.share-pick-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.share-pick-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: var(--bs-font-monospace, monospace);
+}
+
+.share-pick-badge {
+    flex: 0 0 auto;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 0.05rem 0.4rem;
+}
+
+.share-pick-coords {
+    font-family: var(--bs-font-monospace, monospace);
+    font-size: 0.8125rem;
+    opacity: 0.85;
+    margin-left: 0.375rem;
+}
+
+/* --- live preview above the composer ---
+   Present only while the input holds a valid token; it disappears the moment
+   the token is edited into something that will not render as a card. */
+.share-preview {
+    padding: 0.375rem 0.75rem 0;
+}
+
+.share-preview-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 0.125rem;
+}
+
+.share-preview-body .share-card {
+    margin: 0;
+}

@@ -322,13 +322,26 @@ async function showAllContactsOnMap() {
  */
 async function loadContactsGeoCache() {
     try {
-        // Load detailed (device) and cached contacts in parallel
-        const [detailedResp, cachedResp] = await Promise.all([
+        // Load detailed (device) and cached contacts in parallel, plus our own
+        // device info. The latter used to be fetched only when the map modal
+        // opened, which left _selfInfo null on a fresh page — and the share
+        // cards need our position at render time to show distance and bearing.
+        const [detailedResp, cachedResp, deviceInfoResp] = await Promise.all([
             fetch('/api/contacts/detailed'),
-            fetch('/api/contacts/cached?format=full')
+            fetch('/api/contacts/cached?format=full'),
+            fetch('/api/device/info')
         ]);
         const detailedData = await detailedResp.json();
         const cachedData = await cachedResp.json();
+
+        // /api/device/info answers 503 while the device is offline — that is not
+        // an error here, it just means we cannot offer distances yet.
+        if (deviceInfoResp.ok) {
+            const deviceInfoData = await deviceInfoResp.json();
+            if (deviceInfoData.success && deviceInfoData.info) {
+                _selfInfo = deviceInfoData.info;
+            }
+        }
 
         contactsGeoCache = {};
         contactsPubkeyMap = {};
