@@ -161,6 +161,18 @@ Archives are created automatically at midnight (00:00 UTC) each day. The live vi
 
 **On phones and tablets:** pressing Enter inserts a new line instead of sending — tap the **Send** button to publish. This prevents a mistapped Enter on the on-screen keyboard from firing off a half-typed message. On desktop, Enter still sends.
 
+### Sharing a Contact, Channel or Location
+
+The **＋** button next to the emoji button attaches something to the message you are writing. It offers three things:
+
+- **Share Contact** — a searchable list of everyone you know, on the device and in the cache alike. **Me** is the first entry, so sharing your own details is one tap. On a busy mesh the list is capped at 150 rows; type to narrow it down.
+- **Share Channel** — your channels, with each one's region scope shown. The scope travels with the channel, because a recipient transmitting under a different scope would not be heard.
+- **Share Location** — your own position as a button, or tap the map to pick any other point.
+
+What gets inserted is plain text in the format other MeshCore clients understand, so the recipient sees a proper card whichever app they use. A preview of that card appears above the input while the text is valid, and you can type a comment around it before sending. If you edit the inserted text and break it, the preview disappears — that is your warning that it will arrive as raw text rather than a card.
+
+These payloads are long: a shared contact costs around 90 of the message's bytes. The byte counter under the input accounts for it, and anything that cannot fit in one message is refused rather than cut short, since a truncated public key or channel key is worthless.
+
 ### Replying to Users
 
 Click the reply button on any message to insert `@[UserName]` into the text field, then type your reply.
@@ -220,6 +232,30 @@ URLs ending in `.jpg`, `.jpeg`, `.png`, `.gif`, or `.webp` are displayed as:
 - **Error handling** - Broken images show a placeholder
 
 **Example:** Sending `https://example.com/photo.jpg` shows a thumbnail of the image that can be clicked to view full-size.
+
+### Shared Contacts, Channels and Locations
+
+MeshCore clients pass contacts, channels and positions around as ordinary text inside chat messages. mc-webui recognises all three and shows them as cards with a button, instead of the raw text the message actually contains.
+
+| Shared | Card shows | Button |
+|---|---|---|
+| Contact | Name, node type, shortened public key | **Add Contact** |
+| Channel | Name, whether it is a hashtag or private channel, its region scope | **Add Channel** |
+| Location | Coordinates, plus distance and bearing from your own position | **View on map** |
+
+The button always states what will actually happen, worked out before you see it:
+
+- **Add Contact** — the public key is new to you.
+- **Update name to X** — you already hold this public key under a different name. The key is the identity, so this renames the contact you have; it never creates a second one.
+- **Already in contacts** — you have it, with this name, on the device. Nothing to do.
+- **Push to device** — you have it in the cache. See below.
+- **Already joined** / **Name used by a different key** — for channels. The second one is a refusal: something else already occupies that name with a different key, and joining would shadow it.
+
+**Contacts are added to the cache, not to the device.** Shared contacts arrive unsolicited, and device contact memory is limited, so mc-webui does not spend a slot without you deciding to. The contact appears under Contact Management like any contact learned from an advert, and the card then offers **Push to device** so you can promote it on the spot rather than going looking for it. Channels are different: they go straight to the device, because without the channel key in the firmware there is nothing to decrypt messages with.
+
+A location card also offers a copy button and links to Google Maps, OpenStreetMap, and Apple Maps on Apple devices. Distance and bearing appear only once your own position is set (Settings → Device).
+
+Coordinates are only recognised when they are unambiguous — both numbers need at least three decimal places, and they must be in valid ranges — so ordinary text like "1,5 km" or "version 2,10" is left alone, as are coordinates inside a link.
 
 **Note:** All content enhancements work in both channel messages and Direct Messages (DM).
 

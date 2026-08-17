@@ -13,6 +13,7 @@ Technical documentation for mc-webui, covering system architecture, project stru
 - [WebSocket API](#websocket-api)
 - [Versioning & Releases](#versioning--releases)
 - [Offline Support](#offline-support)
+- [Share Tokens & Cards](#share-tokens--cards)
 
 ---
 
@@ -511,3 +512,58 @@ Numbering is SemVer read through an operator's eyes: **MAJOR** when a deploy nee
 ## Offline Support
 
 The application works completely offline without internet connection. Vendor libraries (Bootstrap, Bootstrap Icons, Socket.IO, Emoji Picker) are bundled locally. A Service Worker provides hybrid caching to ensure functionality without connectivity.
+
+---
+
+## Share Tokens & Cards
+
+In-chat sharing of contacts, channels and positions. `app/static/js/share-tokens.js` owns the formats (pure logic, no DOM), `message-utils.js` renders the cards, `share-composer.js` provides the `＋` button and pickers.
+
+### The formats are fixed by interop
+
+Canonical spec: `docs/qr_codes.md` in the MeshCore Core repo. These are what the official app emits, so they are not open to redesign.
+
+| Kind | Wire format | Bytes |
+|---|---|---|
+| Contact | `<64-hex-pubkey:type:name>` — a compact token, **not** a URI | ~68 + name |
+| Channel | `meshcore://channel/add?name=&secret=&region_scope=` | ~96 |
+| Location | bare `lat,lon`, six decimals | ~20 |
+
+`type`: 1 = Companion, 2 = Repeater, 3 = Room Server, 4 = Sensor. `secret` is 32 hex characters. `region_scope` is optional (official app v1.47.0+), carried as `#pl` and displayed without the hash.
+
+**Why contacts do not use the URI form.** `meshcore://contact/add?name=…&public_key=…&type=1` costs **153 bytes** with a name like `MarWoj 💡📱 mobile`, and the channel packet budget is **135** (DM 150). The compact token is 91. The URI form is still parsed — QR codes and "biz cards" carry it — but never emitted.
+
+### Parsing must precede HTML escaping
+
+`processMessageContent()` is the single rendering hook shared by channel chat and DMs, but **escaping is its step 0**, and a token cannot survive the passes that follow:
+
+- escaping rewrites a channel URI's `&` as `&amp;`
+- `processChannelLinks` turns a `#channel` name inside the URI into a link
+- `processMentions` consumes an `@` in a contact name
+- the contact token's closing `>` collides with quote syntax
+
+So tokens are lifted out **before** escaping and replaced with `\uE000<n>\uE001` placeholders — private-use-area characters that no pass can match and `escapeHtml()` passes through untouched. The finished card markup is spliced back in as the last step, and is therefore trusted HTML that must not be escaped again: every value inside a card is escaped by its builder.
+
+Cards render into `.message-content` / `.dm-content`, never `.message-meta`, which `refreshMessagesMeta()` rewrites in place after render. Those containers are `white-space: pre-wrap`, so a card resets it and takes a definite width — with only a `max-width`, the shrink-to-fit message bubble makes the inner flex row wrap labels mid-phrase.
+
+### Per-page environment
+
+Card state resolution and actions come from `window.MCShareHooks`, installed separately by `app.js` and `dm.js`, because the DM panel is an iframe with no access to the parent's contact caches, channel list or map modal. Every hook is optional: without them a card still renders and falls back to the "not known yet" state, which is safe because the add endpoints are idempotent.
+
+Hooks: `lookupContact(pubkey)`, `lookupChannel({name, secret})`, `selfPosition()`, `openMap(label, lat, lon)`, `onContactsChanged()`, `onChannelJoined(channel, name)`, `applyChannelScope(channel, scope)`.
+
+The DM panel carries its own `#shareMapModal` rather than reaching for the parent's map, since stacking a Bootstrap modal over the DM modal across a frame boundary needs the backdrop z-index workaround.
+
+### Targets
+
+Contacts are added with `POST /api/contacts/manual-add` and `target: 'cache'` — DB only, no device write, works while disconnected, and reports `updated` / `renamed`. Rename-on-known-key falls out of `Database.upsert_contact`, whose upsert overwrites a non-empty name and keeps `source='device'` sticky. Channels use `POST /api/channels/join`, which needs the secret under the name `key` (the URI calls it `secret`).
+
+A shared `region_scope` names a region, but scopes are stored by region id, so the name must already exist in the local registry — and the registry starts empty. A region's 16-byte scope key cannot be derived from its name, so an unknown scope raises a toast rather than being invented.
+
+### Guarding against false positives
+
+Bare coordinates are the risky format. The pattern requires three or more decimal places on both numbers, validates ranges, rejects `0,0` (the firmware's "unset" marker), refuses matches abutting a word character, and skips anything inside a URL span. Without that, "1,5 osoby" and "wersja 2,10" become location cards and a Google Maps link gets torn in half.
+
+### i18n note
+
+Never compose an i18n key (`t('share.type.' + n)`). `scripts/i18n_check.py` cannot resolve it, so a missing translation passes the check and only surfaces in the browser — which is exactly how `share.card.private_channel` shipped missing during development. Spell the key as a literal on every branch.
