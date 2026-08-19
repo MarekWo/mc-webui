@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.10.0 — 2026-08-19
+
 ### Features
 
 - **Opening a busy channel now takes you to where you stopped reading, not to the bottom.** Until now, every channel opened at the newest message, which is the right place to be when you are up to date and the wrong place to be when you are not: catching up on a channel that had collected forty messages while you were away meant scrolling up by hand and hunting for the last thing you recognised. A red **New messages** line is now drawn at the boundary between what you had already seen and what arrived since, and the view opens on that line rather than at the bottom, with the last message you had read still visible above it for context. The line stays where it was put for as long as you are in the channel — it does not creep downwards as you read — so you can always tell how much of the backlog you have worked through, and messages arriving while you are reading are added below it, where they belong. It appears only when there is genuinely something to catch up on: a channel you are up to date with, or one you are opening for the first time, behaves exactly as before and opens at the newest message. The same line, and the same behaviour, applies to direct messages. Should you want the bottom immediately, the jump-to-bottom button is already there waiting, and sending a message takes you down on its own.
