@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — mc-webui for Android</title>
+<meta name="description" content="Privacy policy for the mc-webui companion app for Android: the app collects no personal data, contains no analytics or advertising, and talks to no server other than the one you configure yourself.">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #656d76;
+    --border: #d0d7de;
+    --border-soft: #eaeef2;
+    --surface: #f6f8fa;
+    --accent: #0969da;
+    --code-bg: #f6f8fa;
+    --table-row-alt: #f6f8fa;
+    --note-bg: #ddf4ff;
+    --note-border: #54aeff;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --max-width: 820px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9198a1;
+      --border: #30363d;
+      --border-soft: #21262d;
+      --surface: #161b22;
+      --accent: #4493f8;
+      --code-bg: #161b22;
+      --table-row-alt: #161b22;
+      --note-bg: #1f2d3d;
+      --note-border: #4493f8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: var(--bg);
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+    max-width: var(--max-width);
+  }
+
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 4px; }
+  h2 {
+    font-size: 1.35rem;
+    margin: 40px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  h3 { font-size: 1.05rem; margin: 24px 0 8px; }
+
+  p, ul, ol { margin: 0 0 14px; }
+  li { margin-bottom: 6px; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.87em;
+    background: var(--code-bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 5px;
+    padding: 1px 5px;
+  }
+
+  .updated { color: var(--muted); font-size: 0.9rem; margin: 0 0 28px; }
+
+  .langbar {
+    display: flex;
+    gap: 8px;
+    margin: 0 0 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .langbar a {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.9rem;
+    background: var(--surface);
+  }
+
+  .note {
+    background: var(--note-bg);
+    border-left: 4px solid var(--note-border);
+    border-radius: 0 6px 6px 0;
+    padding: 14px 18px;
+    margin: 0 0 24px;
+  }
+  .note p:last-child { margin-bottom: 0; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 18px;
+    font-size: 0.94rem;
+    display: block;
+    overflow-x: auto;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--surface); font-weight: 600; }
+  tbody tr:nth-child(even) { background: var(--table-row-alt); }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 56px 0 40px;
+  }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-soft);
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="langbar">
+  <a href="#english">English</a>
+  <a href="#polski">Polski</a>
+</div>
+
+<!-- ===================================================== ENGLISH ========== -->
+<h1 id="english">Privacy Policy — mc-webui for Android</h1>
+<p class="updated">Last updated: 19 August 2026 · Applies to the app <code>it.wojtaszek.mc.wrapper</code></p>
+
+<div class="note">
+  <p><strong>In short:</strong> this app collects no personal data. It contains no
+  analytics, no advertising and no tracking of any kind. The developer runs no
+  servers and receives nothing from the app. Everything the app does happens
+  between your phone and the mc-webui server whose address you type in yourself.</p>
+</div>
+
+<h2>1. What this app is</h2>
+<p><strong>mc-webui for Android</strong> is a companion app for
+<a href="https://github.com/MarekWo/mc-webui">mc-webui</a>, an open-source web
+interface for the MeshCore mesh network that users install and run on their own
+hardware.</p>
+<p>The app is a thin wrapper: it asks once for the address of <em>your</em>
+mc-webui server and then displays that interface full screen. It contains no
+mesh logic of its own, no accounts, and no content of its own. The full source
+code of the app is public in the repository linked above.</p>
+<p>The app is published by Marek Wojtaszek, the author of the mc-webui project.</p>
+
+<h2>2. Data collected by the developer</h2>
+<p><strong>None.</strong> The developer operates no backend, no telemetry
+endpoint and no account system, and therefore receives no data from the app —
+not usage statistics, not crash reports, not identifiers, not your server
+address.</p>
+
+<h2>3. Data stored on your device</h2>
+<p>The app keeps the following in its own private application storage, which on
+a standard, non-rooted Android device is readable only by this app:</p>
+
+<table>
+  <thead>
+    <tr><th>What</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>The server address you entered</td>
+      <td>So you do not have to type it again on every launch</td>
+    </tr>
+    <tr>
+      <td>Username and password, per server host — only if your server asks for
+          HTTP authentication</td>
+      <td>So the app can sign in again on the next launch instead of prompting
+          every time</td>
+    </tr>
+    <tr>
+      <td>A flag recording whether the notification permission has already been
+          requested</td>
+      <td>To tell "not asked yet" apart from "declined", so the app does not
+          keep asking</td>
+    </tr>
+    <tr>
+      <td>The WebView's own cache, cookies and local storage for your server</td>
+      <td>Standard web browsing storage, the same as a browser would keep for
+          that site</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>None of this is transmitted anywhere except, where relevant, to the mc-webui
+server you configured.</p>
+
+<h2>4. Data sent to your server</h2>
+<p>Everything you do in the interface — messages, contacts, settings — is sent to
+the mc-webui instance at the address you entered, exactly as it would be if you
+opened that address in a web browser.</p>
+<p>That server is operated by you, or by whoever you chose to trust with it. It
+is not operated by the developer of this app, and this policy does not govern
+what happens on it.</p>
+
+<h2>5. Permissions and what they are used for</h2>
+
+<table>
+  <thead>
+    <tr><th>Permission</th><th>Used for</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>INTERNET</code></td>
+      <td>Reaching the mc-webui server you configured. It is the only network
+          destination the app loads.</td>
+    </tr>
+    <tr>
+      <td><code>CAMERA</code></td>
+      <td>Scanning QR codes when adding a contact. The camera is opened only
+          when the interface asks for it, the image is processed on the device
+          by the page itself, and the app neither stores nor uploads any image.
+          The app works fully without this permission, minus QR scanning.</td>
+    </tr>
+    <tr>
+      <td><code>POST_NOTIFICATIONS</code></td>
+      <td>Showing alerts about new messages, generated locally from what your
+          own server reports. There is no push service and no third party
+          involved.</td>
+    </tr>
+    <tr>
+      <td><code>WRITE_EXTERNAL_STORAGE</code><br>(Android 9 and older only)</td>
+      <td>Saving files you choose to download from your own server, such as a
+          database backup, into the phone's Downloads folder.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The app requests no location permission, reads no contacts, and accesses no
+files other than the downloads you start yourself.</p>
+
+<h2>6. Third parties</h2>
+<p>The app bundles no analytics SDK, no advertising SDK, no crash-reporting
+service and no social-network integration. No data is shared with, or sold to,
+anyone.</p>
+<p>Links that point outside your server — for example a link inside a message —
+are opened in the phone's own browser or the appropriate app. From that moment
+on the privacy policy of that site or app applies, not this one.</p>
+
+<h2>7. Children</h2>
+<p>The app is a technical tool for operators of MeshCore radio nodes. It is not
+directed at children and contains nothing aimed at them.</p>
+
+<h2>8. Deleting your data</h2>
+<p>Everything the app stores lives on your device. To remove all of it, clear
+the app's storage in Android settings (<em>Settings → Apps → mc-webui → Storage →
+Clear storage</em>) or uninstall the app. There is nothing held elsewhere for the
+developer to delete on your behalf.</p>
+
+<h2>9. Changes to this policy</h2>
+<p>Any change is published on this page with an updated date at the top. The
+history of changes is visible in the project repository, since this page is part
+of it.</p>
+
+<h2>10. Contact</h2>
+<p>Questions about this policy, or about the app's handling of data, can be
+raised at
+<a href="https://github.com/MarekWo/mc-webui/issues">github.com/MarekWo/mc-webui/issues</a>.</p>
+
+<hr>
+
+<!-- ====================================================== POLSKI ========== -->
+<h1 id="polski" lang="pl">Polityka prywatności — mc-webui dla Androida</h1>
+<div lang="pl">
+<p class="updated">Ostatnia aktualizacja: 19 sierpnia 2026 · Dotyczy aplikacji <code>it.wojtaszek.mc.wrapper</code></p>
+
+<div class="note">
+  <p><strong>W skrócie:</strong> ta aplikacja nie zbiera żadnych danych
+  osobowych. Nie zawiera analityki, reklam ani śledzenia w jakiejkolwiek
+  postaci. Autor nie prowadzi żadnych serwerów i nie otrzymuje z aplikacji
+  niczego. Wszystko, co aplikacja robi, dzieje się między Twoim telefonem
+  a serwerem mc-webui, którego adres sam wpisujesz.</p>
+</div>
+
+<h2>1. Czym jest ta aplikacja</h2>
+<p><strong>mc-webui dla Androida</strong> to aplikacja towarzysząca projektowi
+<a href="https://github.com/MarekWo/mc-webui">mc-webui</a> — otwartoźródłowego
+interfejsu webowego dla sieci mesh MeshCore, który użytkownicy instalują
+i uruchamiają na własnym sprzęcie.</p>
+<p>Aplikacja jest cienką nakładką: raz pyta o adres <em>Twojego</em> serwera
+mc-webui, a następnie wyświetla ten interfejs na pełnym ekranie. Nie zawiera
+własnej logiki sieci mesh, nie ma kont użytkowników ani własnych treści. Pełny
+kod źródłowy aplikacji jest publicznie dostępny w repozytorium wskazanym
+powyżej.</p>
+<p>Wydawcą aplikacji jest Marek Wojtaszek, autor projektu mc-webui.</p>
+
+<h2>2. Dane zbierane przez autora aplikacji</h2>
+<p><strong>Żadne.</strong> Autor nie prowadzi zaplecza serwerowego, punktu
+telemetrycznego ani systemu kont, a więc nie otrzymuje z aplikacji żadnych
+danych — ani statystyk użycia, ani raportów o awariach, ani identyfikatorów, ani
+adresu Twojego serwera.</p>
+
+<h2>3. Dane przechowywane na Twoim urządzeniu</h2>
+<p>Aplikacja trzyma poniższe informacje we własnej, prywatnej pamięci aplikacji,
+która na standardowym urządzeniu z Androidem (bez roota) jest czytelna wyłącznie
+dla niej:</p>
+
+<table>
+  <thead>
+    <tr><th>Co</th><th>Po co</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Wpisany przez Ciebie adres serwera</td>
+      <td>Żebyś nie musiał wpisywać go przy każdym uruchomieniu</td>
+    </tr>
+    <tr>
+      <td>Nazwa użytkownika i hasło, osobno dla każdego serwera — tylko jeśli
+          Twój serwer wymaga uwierzytelnienia HTTP</td>
+      <td>Żeby aplikacja mogła zalogować się ponownie przy kolejnym
+          uruchomieniu, zamiast pytać za każdym razem</td>
+    </tr>
+    <tr>
+      <td>Znacznik, czy pytano już o zgodę na powiadomienia</td>
+      <td>Żeby odróżnić „jeszcze nie pytano" od „odmówiono" i nie pytać
+          w kółko</td>
+    </tr>
+    <tr>
+      <td>Pamięć podręczna, ciasteczka i local storage komponentu WebView dla
+          Twojego serwera</td>
+      <td>Standardowa pamięć przeglądania, taka sama jaką dla tej strony
+          trzymałaby przeglądarka</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Żadna z tych informacji nie jest nigdzie przesyłana poza — tam gdzie to
+wynika z działania interfejsu — skonfigurowany przez Ciebie serwer mc-webui.</p>
+
+<h2>4. Dane wysyłane do Twojego serwera</h2>
+<p>Wszystko, co robisz w interfejsie — wiadomości, kontakty, ustawienia — trafia
+do instancji mc-webui pod adresem, który wpisałeś, dokładnie tak samo jak
+gdybyś otworzył ten adres w przeglądarce.</p>
+<p>Ten serwer prowadzisz Ty albo osoba, której zdecydowałeś się zaufać. Nie
+prowadzi go autor tej aplikacji i niniejsza polityka nie reguluje tego, co się
+na nim dzieje.</p>
+
+<h2>5. Uprawnienia i do czego służą</h2>
+
+<table>
+  <thead>
+    <tr><th>Uprawnienie</th><th>Zastosowanie</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>INTERNET</code></td>
+      <td>Połączenie ze skonfigurowanym przez Ciebie serwerem mc-webui. To
+          jedyny adres sieciowy, jaki aplikacja wczytuje.</td>
+    </tr>
+    <tr>
+      <td><code>CAMERA</code></td>
+      <td>Skanowanie kodów QR przy dodawaniu kontaktu. Aparat uruchamia się
+          wyłącznie wtedy, gdy interfejs o to poprosi, obraz jest przetwarzany
+          na urządzeniu przez samą stronę, a aplikacja nie zapisuje ani nie
+          wysyła żadnego zdjęcia. Bez tego uprawnienia aplikacja działa
+          w pełni, poza skanowaniem QR.</td>
+    </tr>
+    <tr>
+      <td><code>POST_NOTIFICATIONS</code></td>
+      <td>Pokazywanie powiadomień o nowych wiadomościach, tworzonych lokalnie
+          na podstawie tego, co zgłasza Twój własny serwer. Nie ma tu żadnej
+          usługi push ani podmiotu trzeciego.</td>
+    </tr>
+    <tr>
+      <td><code>WRITE_EXTERNAL_STORAGE</code><br>(tylko Android 9 i starszy)</td>
+      <td>Zapisywanie plików, które sam pobierasz z własnego serwera, na
+          przykład kopii zapasowej bazy danych, do folderu Pobrane.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Aplikacja nie prosi o dostęp do lokalizacji, nie odczytuje kontaktów i nie
+sięga do żadnych plików poza pobraniami, które sam rozpoczniesz.</p>
+
+<h2>6. Podmioty trzecie</h2>
+<p>Aplikacja nie zawiera bibliotek analitycznych, reklamowych, usług
+raportowania awarii ani integracji z sieciami społecznościowymi. Żadne dane nie
+są nikomu udostępniane ani sprzedawane.</p>
+<p>Odnośniki prowadzące poza Twój serwer — na przykład link w treści wiadomości —
+otwierają się w przeglądarce telefonu lub odpowiedniej aplikacji. Od tego
+momentu obowiązuje polityka prywatności tamtej strony lub aplikacji, a nie
+niniejsza.</p>
+
+<h2>7. Dzieci</h2>
+<p>Aplikacja jest narzędziem technicznym dla operatorów węzłów radiowych
+MeshCore. Nie jest kierowana do dzieci i nie zawiera treści adresowanych do
+nich.</p>
+
+<h2>8. Usuwanie danych</h2>
+<p>Wszystko, co aplikacja przechowuje, znajduje się na Twoim urządzeniu. Aby to
+usunąć, wyczyść dane aplikacji w ustawieniach Androida (<em>Ustawienia →
+Aplikacje → mc-webui → Pamięć → Wyczyść dane</em>) albo odinstaluj aplikację. Nie
+ma niczego przechowywanego gdzie indziej, co autor mógłby usunąć w Twoim
+imieniu.</p>
+
+<h2>9. Zmiany w polityce</h2>
+<p>Każda zmiana jest publikowana na tej stronie wraz z aktualną datą u góry.
+Historia zmian jest widoczna w repozytorium projektu, którego ta strona jest
+częścią.</p>
+
+<h2>10. Kontakt</h2>
+<p>Pytania dotyczące tej polityki lub sposobu, w jaki aplikacja obchodzi się
+z danymi, można zgłaszać pod adresem
+<a href="https://github.com/MarekWo/mc-webui/issues">github.com/MarekWo/mc-webui/issues</a>.</p>
+</div>
+
+<footer>
+  <p>mc-webui — <a href="https://github.com/MarekWo/mc-webui">github.com/MarekWo/mc-webui</a></p>
+</footer>
+
+</body>
+</html>

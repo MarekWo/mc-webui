@@ -212,6 +212,8 @@ if you would rather not trust a prebuilt `.apk`.
 
 ## See also
 
+- [Privacy Policy](privacy-policy.html) — what the app stores on the phone, and
+  why none of it ever reaches anyone but your own server
 - [User Guide](user-guide.md) — everything the interface itself can do
 - [PWA Notifications](user-guide.md#pwa-notifications) — how the same
   notifications behave in the browser
