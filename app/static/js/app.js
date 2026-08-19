@@ -14,6 +14,15 @@ let channelLastMessages = {};  // channel_idx -> {preview, timestamp}
 let mutedChannels = new Set();  // Channel indices with muted notifications
 let favoriteChannels = new Set();  // Channel indices marked as favorites (always shown above non-favorites)
 
+// "New messages" divider state.
+// unreadAnchorTs freezes the last-seen timestamp as it was when the channel was
+// opened, because displayMessages() marks the channel read on every render and
+// would otherwise erase the boundary before it can be drawn. It is recomputed
+// only on a channel switch, so re-renders (resync, geo-cache reload) keep the
+// divider in place instead of making it vanish a second after arriving.
+let unreadAnchorTs = null;
+let renderedChannelIdx = null;  // Channel that displayMessages last rendered
+
 // DM state (for badge updates on main page)
 let dmLastSeenTimestamps = {};  // Track last seen DM timestamp per conversation
 let dmUnreadCounts = {};  // Track unread DM counts per conversation
@@ -23,6 +32,7 @@ let leafletMap = null;
 let markersGroup = null;
 let contactsGeoCache = {};  // { 'contactName': { lat, lon }, ... }
 let contactsPubkeyMap = {};  // { 'contactName': 'full_pubkey', ... }
+let contactsByPubkey = {};  // { 'full_pubkey': { name, source }, ... } — share cards
 let blockedContactNames = new Set();  // Names of blocked contacts
 let protectedContactPubkeys = new Set();  // Pubkeys of protected contacts
 let allContactsWithGps = [];  // Device contacts for map filtering
@@ -321,16 +331,30 @@ async function showAllContactsOnMap() {
  */
 async function loadContactsGeoCache() {
     try {
-        // Load detailed (device) and cached contacts in parallel
-        const [detailedResp, cachedResp] = await Promise.all([
+        // Load detailed (device) and cached contacts in parallel, plus our own
+        // device info. The latter used to be fetched only when the map modal
+        // opened, which left _selfInfo null on a fresh page — and the share
+        // cards need our position at render time to show distance and bearing.
+        const [detailedResp, cachedResp, deviceInfoResp] = await Promise.all([
             fetch('/api/contacts/detailed'),
-            fetch('/api/contacts/cached?format=full')
+            fetch('/api/contacts/cached?format=full'),
+            fetch('/api/device/info')
         ]);
         const detailedData = await detailedResp.json();
         const cachedData = await cachedResp.json();
 
+        // /api/device/info answers 503 while the device is offline — that is not
+        // an error here, it just means we cannot offer distances yet.
+        if (deviceInfoResp.ok) {
+            const deviceInfoData = await deviceInfoResp.json();
+            if (deviceInfoData.success && deviceInfoData.info) {
+                _selfInfo = deviceInfoData.info;
+            }
+        }
+
         contactsGeoCache = {};
         contactsPubkeyMap = {};
+        contactsByPubkey = {};
 
         // Process device contacts
         if (detailedData.success && detailedData.contacts) {
@@ -340,6 +364,11 @@ async function loadContactsGeoCache() {
                 }
                 if (c.name && c.public_key) {
                     contactsPubkeyMap[c.name] = c.public_key;
+                }
+                if (c.public_key) {
+                    // Everything from /detailed lives in device memory.
+                    contactsByPubkey[c.public_key.toLowerCase()] =
+                        { name: c.name || '', source: 'device' };
                 }
             });
         }
@@ -353,6 +382,12 @@ async function loadContactsGeoCache() {
                 if (c.name && c.public_key && !contactsPubkeyMap[c.name]) {
                     contactsPubkeyMap[c.name] = c.public_key;
                 }
+                // Device entries win: their source decides whether a share card
+                // offers "push to device" or reports the contact as already there.
+                const pk = (c.public_key || '').toLowerCase();
+                if (pk && !contactsByPubkey[pk]) {
+                    contactsByPubkey[pk] = { name: c.name || '', source: c.source || 'advert' };
+                }
             });
         }
 
@@ -361,6 +396,118 @@ async function loadContactsGeoCache() {
         console.error('Error loading contacts geo cache:', err);
     }
 }
+
+/* -----------------------------------------------------------------------------
+   Share card environment (channel chat)
+
+   message-utils.js renders the cards but knows nothing about this page's state.
+   These hooks let it resolve what we already have — so a card says "Already in
+   contacts" instead of offering a pointless add — and act on a click.
+   The DM iframe installs its own set; see dm.js.
+   -------------------------------------------------------------------------- */
+window.MCShareHooks = {
+    /** @returns {?{name: string, source: string}} */
+    lookupContact(pubkey) {
+        if (!pubkey) return null;
+        return contactsByPubkey[pubkey.toLowerCase()] || null;
+    },
+
+    /**
+     * Match a shared channel against our slots. The secret is the identity, so
+     * it is checked first: the same key under a different name is still the same
+     * channel. A name-only match is a conflict, not a match.
+     * @returns {?{index: number, name: string, matched: 'secret'|'name'}}
+     */
+    lookupChannel({ name, secret }) {
+        if (!Array.isArray(availableChannels)) return null;
+
+        if (secret) {
+            const bySecret = availableChannels.find(
+                ch => (ch.key || '').toLowerCase() === secret.toLowerCase());
+            if (bySecret) {
+                return { index: bySecret.index, name: bySecret.name, matched: 'secret' };
+            }
+        }
+
+        const byName = availableChannels.find(
+            ch => (ch.name || '').toLowerCase() === (name || '').toLowerCase());
+        if (byName) {
+            // Hashtag channels derive their key from the name, so an equal name
+            // with no shared secret is the same channel, not a collision.
+            const matched = (!secret && MCShare.channelKindOf(name) === 'hashtag')
+                ? 'secret' : 'name';
+            return { index: byName.index, name: byName.name, matched };
+        }
+        return null;
+    },
+
+    /** Our own advertised position, or null when unset (firmware reports 0,0). */
+    selfPosition() {
+        if (!_selfInfo) return null;
+        const lat = _selfInfo.adv_lat;
+        const lon = _selfInfo.adv_lon;
+        if (!MCShare.isValidLatLon(lat, lon)) return null;
+        return { lat, lon };
+    },
+
+    openMap(label, lat, lon) {
+        showContactOnMap(label, lat, lon);
+    },
+
+    onContactsChanged() {
+        loadContactsGeoCache();
+    },
+
+    async onChannelJoined(channel, name) {
+        await loadChannels();
+        if (channel && typeof channel.index === 'number') {
+            switchToChannel(channel.index, name);
+        }
+    },
+
+    /**
+     * Carry a shared channel's region scope over to our own mapping. Without
+     * it we would transmit on that channel using the firmware default scope and
+     * our packets would not match the sender's.
+     *
+     * The URI names a region ("#pl"); scopes are stored by region id, so the
+     * name has to exist in the local registry. It often will not — the registry
+     * starts empty — and inventing a region would mean inventing its 16-byte
+     * scope key, which we cannot derive. So we tell the user instead.
+     */
+    async applyChannelScope(channel, scope) {
+        if (!channel || typeof channel.index !== 'number' || !scope) return;
+        const wanted = scope.replace(/^#/, '').toLowerCase();
+
+        try {
+            const resp = await fetch('/api/regions');
+            const data = await resp.json();
+            const regions = (data.success && data.regions) || [];
+            const region = regions.find(
+                r => (r.name || '').replace(/^#/, '').toLowerCase() === wanted);
+
+            if (!region) {
+                showNotification(t('share.toast.scope_unknown', { name: wanted }), 'warning');
+                return;
+            }
+
+            const put = await fetch(`/api/channels/${channel.index}/scope`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ region_id: region.id })
+            });
+            const putData = await put.json();
+            if (putData.success) {
+                showNotification(t('share.toast.scope_applied', { name: region.name }), 'success');
+            } else {
+                showNotification(putData.error || t('share.toast.action_failed'), 'danger');
+            }
+        } catch (e) {
+            console.error('Error applying shared region scope:', e);
+            showNotification(t('share.toast.action_failed'), 'danger');
+        }
+    }
+};
 
 async function loadBlockedNames() {
     try {
@@ -1132,6 +1279,18 @@ function displayMessages(messages) {
     const container = document.getElementById('messagesList');
     const wasAtBottom = !isUserScrolling;
 
+    // Freeze the unread boundary on channel entry (see unreadAnchorTs).
+    if (currentArchiveDate) {
+        // Archive is a frozen snapshot of one day — "new since last visit"
+        // means nothing there.
+        unreadAnchorTs = null;
+    } else if (renderedChannelIdx !== currentChannelIdx) {
+        const lastSeen = lastSeenTimestamps[currentChannelIdx] || 0;
+        // 0 = never visited; every message would be "new", which is noise.
+        unreadAnchorTs = lastSeen > 0 ? lastSeen : null;
+    }
+    renderedChannelIdx = currentArchiveDate ? null : currentChannelIdx;
+
     // Clear loading spinner
     container.innerHTML = '';
 
@@ -1146,16 +1305,32 @@ function displayMessages(messages) {
         return;
     }
 
-    // Render each message (skip blocked senders client-side as extra safety)
+    // Render each message (skip blocked senders client-side as extra safety),
+    // inserting the "New messages" divider before the first unread one.
+    let dividerEl = null;
     messages.forEach(msg => {
         if (!msg.is_own && blockedContactNames.has(msg.sender)) return;
+        // Own messages can't be the first unread one — we wrote them.
+        if (!dividerEl && unreadAnchorTs !== null && !msg.is_own
+            && msg.timestamp > unreadAnchorTs) {
+            dividerEl = createUnreadDivider();
+            container.appendChild(dividerEl);
+        }
         const messageEl = createMessageElement(msg);
         container.appendChild(messageEl);
     });
 
-    // Auto-scroll to bottom if user wasn't scrolling
+    // Auto-scroll if user wasn't scrolling: to the divider when there is a
+    // backlog to catch up on, otherwise to the bottom as before.
     if (wasAtBottom) {
-        scrollToBottom();
+        // A divider in first position means everything loaded is unread — the
+        // list already starts there, and scrolling would falsely suggest there
+        // is history above it.
+        if (dividerEl && dividerEl !== container.firstElementChild) {
+            requestAnimationFrame(scrollToUnreadDivider);
+        } else {
+            scrollToBottom();
+        }
     }
 
     lastMessageCount = messages.length;
@@ -1494,7 +1669,7 @@ function createMessageElement(msg) {
                     <span class="message-time">${time}</span>
                 </div>
                 <div class="message own">
-                    <div class="message-content">${processMessageContent(msg.content)}</div>
+                    <div class="message-content">${processMessageContent(msg.content, { isOwn: true })}</div>
                     <div class="message-actions justify-content-end">
                         ${echoDisplay}
                         ${msg.packet_hash ? `
@@ -1532,7 +1707,7 @@ function createMessageElement(msg) {
                     <span class="message-time">${time}</span>
                 </div>
                 <div class="message other">
-                    <div class="message-content">${processMessageContent(msg.content)}</div>
+                    <div class="message-content">${processMessageContent(msg.content, { isOwn: false })}</div>
                     ${metaInfo ? `<div class="message-meta">${metaInfo}</div>` : ''}
                     <div class="message-actions">
                         <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="${tHtml('chat.msg.reply_title')}">
@@ -1585,6 +1760,10 @@ async function sendMessage() {
     // Optimistic append: show sent message immediately before API round-trip
     input.value = '';
     updateCharCounter();
+    // Sending is an explicit "I'm done catching up" — without this, a user who
+    // was parked at the unread divider would send into a part of the list they
+    // can't see.
+    isUserScrolling = false;
     const optimisticId = '_pending_' + Date.now();
     appendMessageFromSocket({
         id: optimisticId,
@@ -4983,6 +5162,45 @@ function scrollToBottom() {
     container.scrollTop = container.scrollHeight;
 }
 
+// Breathing room above the divider, so the last already-read message stays
+// visible as context instead of being cut off at the viewport edge.
+const UNREAD_DIVIDER_SCROLL_MARGIN = 48;
+
+/**
+ * Build the "New messages" divider that separates read from unread.
+ */
+function createUnreadDivider() {
+    const divider = document.createElement('div');
+    divider.className = 'unread-divider';
+    divider.id = 'unreadDivider';
+    divider.innerHTML = `<span>${tHtml('chat.unread_divider')}</span>`;
+    return divider;
+}
+
+/**
+ * Scroll the channel view to the first unread message.
+ * Falls back to the bottom if the divider isn't there.
+ */
+function scrollToUnreadDivider() {
+    const container = document.getElementById('messagesContainer');
+    const divider = document.getElementById('unreadDivider');
+    if (!container || !divider) {
+        scrollToBottom();
+        return;
+    }
+    // Measured against the viewport rather than offsetTop: neither the scroll
+    // container nor the list is a positioned ancestor, so offsetTop would be
+    // relative to something else entirely.
+    const delta = divider.getBoundingClientRect().top
+        - container.getBoundingClientRect().top;
+    // When the unread messages all fit on screen the browser clamps this to
+    // the maximum, landing on the bottom — which is what we want anyway.
+    container.scrollTop = Math.max(
+        0,
+        container.scrollTop + delta - UNREAD_DIVIDER_SCROLL_MARGIN
+    );
+}
+
 /**
  * Format a message timestamp.
  * Archive views always show the full date, since "Today" is meaningless there.
@@ -6958,6 +7176,13 @@ function applyFilter(query) {
     const container = document.getElementById('messagesList');
     const messages = container.querySelectorAll('.message-wrapper');
     const matchCountEl = document.getElementById('filterMatchCount');
+
+    // The divider marks a position in the full list — meaningless once the
+    // list is filtered down to matches.
+    const unreadDivider = container.querySelector('.unread-divider');
+    if (unreadDivider) {
+        unreadDivider.classList.toggle('filter-hidden', !!currentFilterQuery);
+    }
 
     // Remove any existing no-matches message
     const existingNoMatches = container.querySelector('.filter-no-matches');

@@ -299,6 +299,27 @@
         </div>
     </div>
 
+    <!-- Shared Location Map Modal
+         Local to this panel on purpose: the DM panel is an iframe inside a
+         modal, so reaching for the parent page's map would mean stacking modals
+         across a frame boundary. -->
+    <div class="modal fade" id="shareMapModal" tabindex="-1" style="z-index: 1080;">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title" id="shareMapModalTitle"><i class="bi bi-geo-alt"></i> {{ t('share.card.open_in_map') }}</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div id="shareLocationMap" style="height: 400px; width: 100%;"></div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{{ t('common.close') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Path Modal -->
     <div class="modal fade" id="addPathModal" tabindex="-1" style="z-index: 1070;">
         <div class="modal-dialog modal-dialog-centered">
@@ -377,8 +398,14 @@
     <!-- Bootstrap 5 JS Bundle (local) -->
     <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 
+    <!-- Share token formats (must load before message-utils.js, which renders them) -->
+    <script src="{{ url_for('static', filename='js/share-tokens.js') }}"></script>
+
     <!-- Message Content Processing Utilities (must load before dm.js) -->
     <script src="{{ url_for('static', filename='js/message-utils.js') }}"></script>
+
+    <!-- Share composer: the "+" button and its pickers (needs message-utils.js) -->
+    <script src="{{ url_for('static', filename='js/share-composer.js') }}"></script>
 
     <!-- Filter Utilities (must load before dm.js) -->
     <script src="{{ url_for('static', filename='js/filter-utils.js') }}"></script>

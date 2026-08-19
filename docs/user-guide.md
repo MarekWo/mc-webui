@@ -161,6 +161,18 @@ Archives are created automatically at midnight (00:00 UTC) each day. The live vi
 
 **On phones and tablets:** pressing Enter inserts a new line instead of sending — tap the **Send** button to publish. This prevents a mistapped Enter on the on-screen keyboard from firing off a half-typed message. On desktop, Enter still sends.
 
+### Sharing a Contact, Channel or Location
+
+The **＋** button next to the emoji button attaches something to the message you are writing. It offers three things:
+
+- **Share Contact** — a searchable list of everyone you know, on the device and in the cache alike. **Me** is the first entry, so sharing your own details is one tap. On a busy mesh the list is capped at 150 rows; type to narrow it down.
+- **Share Channel** — your channels, with each one's region scope shown. The scope travels with the channel, because a recipient transmitting under a different scope would not be heard.
+- **Share Location** — your own position as a button, or tap the map to pick any other point.
+
+What gets inserted is plain text in the format other MeshCore clients understand, so the recipient sees a proper card whichever app they use. A preview of that card appears above the input while the text is valid, and you can type a comment around it before sending. If you edit the inserted text and break it, the preview disappears — that is your warning that it will arrive as raw text rather than a card.
+
+These payloads are long: a shared contact costs around 90 of the message's bytes. The byte counter under the input accounts for it, and anything that cannot fit in one message is refused rather than cut short, since a truncated public key or channel key is worthless.
+
 ### Replying to Users
 
 Click the reply button on any message to insert `@[UserName]` into the text field, then type your reply.
@@ -220,6 +232,30 @@ URLs ending in `.jpg`, `.jpeg`, `.png`, `.gif`, or `.webp` are displayed as:
 - **Error handling** - Broken images show a placeholder
 
 **Example:** Sending `https://example.com/photo.jpg` shows a thumbnail of the image that can be clicked to view full-size.
+
+### Shared Contacts, Channels and Locations
+
+MeshCore clients pass contacts, channels and positions around as ordinary text inside chat messages. mc-webui recognises all three and shows them as cards with a button, instead of the raw text the message actually contains.
+
+| Shared | Card shows | Button |
+|---|---|---|
+| Contact | Name, node type, shortened public key | **Add Contact** |
+| Channel | Name, whether it is a hashtag or private channel, its region scope | **Add Channel** |
+| Location | Coordinates, plus distance and bearing from your own position | **View on map** |
+
+The button always states what will actually happen, worked out before you see it:
+
+- **Add Contact** — the public key is new to you.
+- **Update name to X** — you already hold this public key under a different name. The key is the identity, so this renames the contact you have; it never creates a second one.
+- **Already in contacts** — you have it, with this name, on the device. Nothing to do.
+- **Push to device** — you have it in the cache. See below.
+- **Already joined** / **Name used by a different key** — for channels. The second one is a refusal: something else already occupies that name with a different key, and joining would shadow it.
+
+**Contacts are added to the cache, not to the device.** Shared contacts arrive unsolicited, and device contact memory is limited, so mc-webui does not spend a slot without you deciding to. The contact appears under Contact Management like any contact learned from an advert, and the card then offers **Push to device** so you can promote it on the spot rather than going looking for it. Channels are different: they go straight to the device, because without the channel key in the firmware there is nothing to decrypt messages with.
+
+A location card also offers a copy button and links to Google Maps, OpenStreetMap, and Apple Maps on Apple devices. Distance and bearing appear only once your own position is set (Settings → Device).
+
+Coordinates are only recognised when they are unambiguous — both numbers need at least three decimal places, and they must be in valid ranges — so ordinary text like "1,5 km" or "version 2,10" is left alone, as are coordinates inside a link.
 
 **Note:** All content enhancements work in both channel messages and Direct Messages (DM).
 
@@ -608,6 +644,8 @@ Fetched automatically when opened. A compact table in three groups:
 
 Shows **all** Cayenne LPP channels at once — no channel picker. Each channel renders as a card with typed, unit-formatted rows (voltage, temperature, humidity, GPS position, and so on). Channel 1 is the repeater's own vitals.
 
+Repeaters running firmware v1.17 or newer also report their **MCU temperature** on channel 1 — the temperature of the processor chip itself, not of the air around it, so it normally reads well above room temperature. Not every board has a usable internal sensor; where there is none, the row is simply absent rather than showing a zero.
+
 #### Neighbors
 
 Lists every zero-hop neighbour the repeater hears: resolved contact name (or the raw pubkey prefix for unknown nodes), how long ago it was heard, and SNR. When at least one neighbour has a known position, a **Map** toggle appears: the managed repeater is shown as a red marker, positioned neighbours in green, and the dashed connection lines carry SNR labels. A footnote counts neighbours that could not be placed on the map.
@@ -620,11 +658,13 @@ Replies travel over LoRa, so an occasional lost reply (timeout) is normal — ju
 
 #### Settings (admin only)
 
-Repeater configuration organized into collapsible sections: **Basic** (name, admin and guest passwords), **Radio** (frequency / bandwidth / SF / CR, TX power, RX gain), **Location**, **Features** (repeat, read-only access, multiple ACKs), **Network health** (loop detection, duty cycle), **Advertisement** (advert intervals, max flood hops), **Operator info**, and **Advanced**.
+Repeater configuration organized into collapsible sections: **Basic** (name, admin and guest passwords), **Radio** (frequency / bandwidth / SF / CR, TX power, RX gain), **Location**, **Features** (repeat, read-only access, multiple ACKs), **Network health** (loop detection, duty cycle), **Advertisement** (advert intervals, max flood hops — overall, unscoped, and adverts), **Operator info**, and **Advanced** (including channel activity detection, firmware v1.17+).
 
 - Each section loads its values live from the repeater when you first expand it (every field is one mesh round-trip, so a section takes a few seconds) and has its own **Refresh** and **Apply** buttons
 - Changed fields are highlighted and counted on the Apply button; only those fields are sent
 - Every field reports back individually: a green check (applied), a **reboot required** badge (stored, takes effect after a reboot — radio parameters work this way), or a red error showing the repeater's own reply (e.g. an out-of-range value). Failed fields stay marked so you can correct and re-apply
+- A grey **not supported** badge is not an error: that repeater's firmware or hardware simply does not have the setting. Repeaters on the mesh run different firmware versions and different boards, so a newer setting is missing on older nodes and a hardware-dependent one is missing on boards that lack the hardware. Such a field is shown locked and is never sent when you Apply
+- One caveat on **not supported** after an Apply: the firmware can store a value before it discovers the hardware cannot use it, so it does not tell you whether the setting changed on the device. Press **Refresh** to see what the repeater actually holds
 - Changing radio parameters asks for confirmation first — wrong values can make the repeater unreachable over the mesh
 - The **Location** section has a **Pick from map** button (enabled once the section has loaded): it opens a map, and clicking a point fills the latitude and longitude fields for you and marks the section changed, ready to Apply — handy when you know where the repeater is but not its exact coordinates
 - The admin password is write-only (the current one is never displayed). After a successful change, the password saved in mc-webui is updated automatically so one-click login keeps working. Changing it does **not** log out sessions that are already active
@@ -637,6 +677,7 @@ One-click operations:
 - **Send flood advert** - Advert flooded across the whole mesh. Not recommended — high network load; use sparingly
 - **Sync clock** - Set the repeater clock from your device's current time. The firmware refuses to move a clock backwards and says so
 - **Danger zone: Reboot** - Restarts the repeater after a confirmation prompt. The firmware does not reply to this command; the repeater simply drops off the mesh for a few seconds and comes back
+- **Danger zone: Power off** - Shuts the repeater down (firmware v1.17 or newer). Unlike a reboot this cannot be undone from here: nothing on the mesh can switch a powered-off node back on, so it stays off until somebody reaches it physically. Because of that it is not confirmed with a simple Yes/No — you have to type the repeater's name to unlock the button
 
 Erasing the repeater's file system is **not** available over the mesh — the firmware only accepts it on the USB serial console (use the MeshCore flasher for that).
 
