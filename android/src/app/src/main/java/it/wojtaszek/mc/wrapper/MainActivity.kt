@@ -73,6 +73,8 @@ class MainActivity : AppCompatActivity() {
 
     private val notificationBridge = NotificationBridge()
 
+    private val chromeBridge = ChromeBridge()
+
     /** Ids of `Notification.requestPermission()` promises awaiting the Android dialog. */
     private val pendingPermissionCallbacks = mutableListOf<String>()
 
@@ -222,6 +224,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Asking once per page load is not enough: mc-webui switches its theme by
+     * flipping `data-theme` on the document element, with no reload and no
+     * trip through onResume, so the strips would keep the old colour until the
+     * app was restarted. Watching that attribute closes the gap, and it lives
+     * entirely on this side - mc-webui needs no change.
+     */
+    private fun watchPageBackground() {
+        if (webView.visibility != View.VISIBLE) return
+        webView.evaluateJavascript(BACKGROUND_WATCHER, null)
+    }
+
+    /**
      * Turns `"rgb(18, 18, 18)"` - the quoted form evaluateJavascript hands back -
      * into a colour. Anything unrecognised returns null and leaves the strips
      * as they were, which is always better than painting them wrong.
@@ -269,7 +283,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                matchSystemBarsToPage()
+                watchPageBackground()
             }
 
             // Deprecated, but it is the only one Android 5.x calls
@@ -436,6 +450,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun installNotificationShim() {
         webView.addJavascriptInterface(notificationBridge, BRIDGE_NAME)
+        webView.addJavascriptInterface(chromeBridge, CHROME_BRIDGE_NAME)
         pageStartScript = try {
             assets.open(SHIM_ASSET).bufferedReader().use { it.readText() }
         } catch (e: Exception) {
@@ -511,6 +526,18 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun close(tag: String) = runOnUiThread {
             NotificationManagerCompat.from(this@MainActivity).cancel(tag, NOTIFICATION_ID)
+        }
+    }
+
+    /**
+     * Deliberately separate from [NotificationBridge] and deliberately one-way:
+     * the page can hand over a colour string and nothing else.
+     */
+    private inner class ChromeBridge {
+
+        @JavascriptInterface
+        fun reportBackground(colour: String) = runOnUiThread {
+            parseCssColor(colour)?.let { applyChromeColor(it) }
         }
     }
 
@@ -637,6 +664,7 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_NOTIFICATIONS = 3
 
         private const val BRIDGE_NAME = "__mcNotifyBridge"
+        private const val CHROME_BRIDGE_NAME = "__mcChromeBridge"
         private const val SHIM_ASSET = "notification_shim.js"
         private const val CHANNEL_ID = "mc_webui_activity"
         private const val NOTIFICATION_ID = 1
@@ -660,6 +688,44 @@ class MainActivity : AppCompatActivity() {
                     return colour;
                 }
                 return null;
+            })()
+        """
+
+        /**
+         * Reports the page background now and again whenever mc-webui flips its
+         * theme. The delayed second report is there because the theme change
+         * animates: read too early and the colour is still mid-transition.
+         */
+        private const val BACKGROUND_WATCHER = """
+            (function () {
+                if (window.__mcChromeWatching) return;
+                window.__mcChromeWatching = true;
+                var read = function () {
+                    var elements = [document.body, document.documentElement];
+                    for (var i = 0; i < elements.length; i++) {
+                        if (!elements[i]) continue;
+                        var colour = getComputedStyle(elements[i]).backgroundColor;
+                        if (!colour || colour === 'transparent') continue;
+                        var parts = colour.replace(/[^0-9.,]/g, '').split(',');
+                        if (parts.length > 3 && parseFloat(parts[3]) === 0) continue;
+                        return colour;
+                    }
+                    return null;
+                };
+                var report = function () {
+                    try {
+                        var colour = read();
+                        if (colour) __mcChromeBridge.reportBackground(colour);
+                    } catch (e) {}
+                };
+                new MutationObserver(function () {
+                    report();
+                    setTimeout(report, 300);
+                }).observe(document.documentElement, {
+                    attributes: true,
+                    attributeFilter: ['data-theme', 'data-bs-theme']
+                });
+                report();
             })()
         """
     }
