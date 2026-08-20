@@ -12,6 +12,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -42,6 +43,10 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import org.json.JSONObject
 
 /**
@@ -54,6 +59,7 @@ import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
+    private lateinit var rootLayout: View
     private lateinit var configLayout: LinearLayout
     private lateinit var configMessage: TextView
     private lateinit var webView: WebView
@@ -67,6 +73,8 @@ class MainActivity : AppCompatActivity() {
 
     private val notificationBridge = NotificationBridge()
 
+    private val chromeBridge = ChromeBridge()
+
     /** Ids of `Notification.requestPermission()` promises awaiting the Android dialog. */
     private val pendingPermissionCallbacks = mutableListOf<String>()
 
@@ -78,11 +86,13 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        rootLayout = findViewById(R.id.rootLayout)
         configLayout = findViewById(R.id.configLayout)
         configMessage = findViewById(R.id.configMessage)
         webView = findViewById(R.id.webView)
         urlInput = findViewById(R.id.urlInput)
 
+        setUpEdgeToEdge()
         createNotificationChannel()
         setUpWebView()
 
@@ -117,6 +127,8 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         callJs("window.__mcAppResumed")
+        // The user may have been away switching the mc-webui theme
+        matchSystemBarsToPage()
     }
 
     /**
@@ -144,6 +156,8 @@ class MainActivity : AppCompatActivity() {
         configMessage.visibility = if (message == null) View.GONE else View.VISIBLE
         configLayout.visibility = View.VISIBLE
         webView.visibility = View.GONE
+        // The form is white whatever the theme of the page we just left was
+        applyChromeColor(Color.WHITE)
     }
 
     private fun connect(url: String) {
@@ -171,6 +185,78 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    // ------------------------------------------------------------ edge to edge
+
+    /**
+     * From Android 16 the system always draws the app behind the status and
+     * navigation bars, and apps targeting API 36 can no longer opt out. The
+     * padding that used to arrive for free now has to be applied by hand, or
+     * the top of mc-webui sits under the clock and its bottom under the
+     * gesture bar.
+     *
+     * The keyboard counts as an inset here too, which is what keeps the address
+     * field visible while it is being typed into.
+     */
+    private fun setUpEdgeToEdge() {
+        @Suppress("DEPRECATION")
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { view, insets ->
+            val safe = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout() or
+                    WindowInsetsCompat.Type.ime()
+            )
+            view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+    }
+
+    /**
+     * Padding the root leaves strips of its own background behind the system
+     * bars, and a white strip above a dark mc-webui theme looks like a bug. Ask
+     * the page what colour it is and paint the strips to match.
+     */
+    private fun matchSystemBarsToPage() {
+        if (webView.visibility != View.VISIBLE) return
+        webView.evaluateJavascript(BACKGROUND_PROBE) { result ->
+            parseCssColor(result)?.let { applyChromeColor(it) }
+        }
+    }
+
+    /**
+     * Asking once per page load is not enough: mc-webui switches its theme by
+     * flipping `data-theme` on the document element, with no reload and no
+     * trip through onResume, so the strips would keep the old colour until the
+     * app was restarted. Watching that attribute closes the gap, and it lives
+     * entirely on this side - mc-webui needs no change.
+     */
+    private fun watchPageBackground() {
+        if (webView.visibility != View.VISIBLE) return
+        webView.evaluateJavascript(BACKGROUND_WATCHER, null)
+    }
+
+    /**
+     * Turns `"rgb(18, 18, 18)"` - the quoted form evaluateJavascript hands back -
+     * into a colour. Anything unrecognised returns null and leaves the strips
+     * as they were, which is always better than painting them wrong.
+     */
+    private fun parseCssColor(jsResult: String?): Int? {
+        if (jsResult.isNullOrEmpty() || jsResult == "null") return null
+        val channels = Regex("\\d+").findAll(jsResult).map { it.value.toIntOrNull() ?: 0 }.take(3).toList()
+        if (channels.size < 3) return null
+        return Color.rgb(channels[0], channels[1], channels[2])
+    }
+
+    /** Paints the system bar strips, keeping their icons readable against them. */
+    private fun applyChromeColor(color: Int) {
+        rootLayout.setBackgroundColor(color)
+        val lightBackground = ColorUtils.calculateLuminance(color) > 0.5
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = lightBackground
+            isAppearanceLightNavigationBars = lightBackground
+        }
+    }
+
     // --------------------------------------------------------------- web view
 
     private fun setUpWebView() {
@@ -193,6 +279,11 @@ class MainActivity : AppCompatActivity() {
                 super.onPageStarted(view, url, favicon)
                 // Puts window.Notification in place before the page looks for it
                 pageStartScript?.let { view?.evaluateJavascript(it, null) }
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                watchPageBackground()
             }
 
             // Deprecated, but it is the only one Android 5.x calls
@@ -359,6 +450,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun installNotificationShim() {
         webView.addJavascriptInterface(notificationBridge, BRIDGE_NAME)
+        webView.addJavascriptInterface(chromeBridge, CHROME_BRIDGE_NAME)
         pageStartScript = try {
             assets.open(SHIM_ASSET).bufferedReader().use { it.readText() }
         } catch (e: Exception) {
@@ -434,6 +526,18 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun close(tag: String) = runOnUiThread {
             NotificationManagerCompat.from(this@MainActivity).cancel(tag, NOTIFICATION_ID)
+        }
+    }
+
+    /**
+     * Deliberately separate from [NotificationBridge] and deliberately one-way:
+     * the page can hand over a colour string and nothing else.
+     */
+    private inner class ChromeBridge {
+
+        @JavascriptInterface
+        fun reportBackground(colour: String) = runOnUiThread {
+            parseCssColor(colour)?.let { applyChromeColor(it) }
         }
     }
 
@@ -560,9 +664,69 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_NOTIFICATIONS = 3
 
         private const val BRIDGE_NAME = "__mcNotifyBridge"
+        private const val CHROME_BRIDGE_NAME = "__mcChromeBridge"
         private const val SHIM_ASSET = "notification_shim.js"
         private const val CHANNEL_ID = "mc_webui_activity"
         private const val NOTIFICATION_ID = 1
         private const val EXTRA_CLICKED_TAG = "clicked_tag"
+
+        /**
+         * The page's own background colour, for painting the system bar strips.
+         * mc-webui puts it on the body, but a fully transparent body means the
+         * colour actually lives on the html element, so try both and ignore
+         * anything see-through.
+         */
+        private const val BACKGROUND_PROBE = """
+            (function () {
+                var elements = [document.body, document.documentElement];
+                for (var i = 0; i < elements.length; i++) {
+                    if (!elements[i]) continue;
+                    var colour = getComputedStyle(elements[i]).backgroundColor;
+                    if (!colour || colour === 'transparent') continue;
+                    var parts = colour.replace(/[^0-9.,]/g, '').split(',');
+                    if (parts.length > 3 && parseFloat(parts[3]) === 0) continue;
+                    return colour;
+                }
+                return null;
+            })()
+        """
+
+        /**
+         * Reports the page background now and again whenever mc-webui flips its
+         * theme. The delayed second report is there because the theme change
+         * animates: read too early and the colour is still mid-transition.
+         */
+        private const val BACKGROUND_WATCHER = """
+            (function () {
+                if (window.__mcChromeWatching) return;
+                window.__mcChromeWatching = true;
+                var read = function () {
+                    var elements = [document.body, document.documentElement];
+                    for (var i = 0; i < elements.length; i++) {
+                        if (!elements[i]) continue;
+                        var colour = getComputedStyle(elements[i]).backgroundColor;
+                        if (!colour || colour === 'transparent') continue;
+                        var parts = colour.replace(/[^0-9.,]/g, '').split(',');
+                        if (parts.length > 3 && parseFloat(parts[3]) === 0) continue;
+                        return colour;
+                    }
+                    return null;
+                };
+                var report = function () {
+                    try {
+                        var colour = read();
+                        if (colour) __mcChromeBridge.reportBackground(colour);
+                    } catch (e) {}
+                };
+                new MutationObserver(function () {
+                    report();
+                    setTimeout(report, 300);
+                }).observe(document.documentElement, {
+                    attributes: true,
+                    attributeFilter: ['data-theme', 'data-bs-theme']
+                });
+                report();
+            })()
+        """
     }
 }

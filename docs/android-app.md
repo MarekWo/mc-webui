@@ -31,10 +31,10 @@ along the way. The steps below cover those warnings.
 |---|---|
 | **File** | [`android/mc-webui-wrapper.apk`](../android/mc-webui-wrapper.apk) |
 | **Direct link** | https://github.com/MarekWo/mc-webui/raw/main/android/mc-webui-wrapper.apk |
-| **Size** | 4.6 MB |
-| **App version** | 1.3 |
+| **Size** | 5.2 MB |
+| **App version** | 2.0 |
 | **Package** | `it.wojtaszek.mc.wrapper` |
-| **SHA-256** | `6309880b9453b0577485a84c3aeef2bcc620940c01c5d75006631cfa7ee22e04` |
+| **SHA-256** | `165706d8c8fa0ef9c1095027efaeff863c41681e059be8cc631dd735c0c21f3f` |
 
 Download it directly on the phone, or copy it over from a computer.
 
@@ -212,6 +212,8 @@ if you would rather not trust a prebuilt `.apk`.
 
 ## See also
 
+- [Privacy Policy](privacy-policy.html) — what the app stores on the phone, and
+  why none of it ever reaches anyone but your own server
 - [User Guide](user-guide.md) — everything the interface itself can do
 - [PWA Notifications](user-guide.md#pwa-notifications) — how the same
   notifications behave in the browser

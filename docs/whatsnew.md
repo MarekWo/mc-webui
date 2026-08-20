@@ -12,6 +12,16 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ---
 
+## 2.11.0 — 2026-08-20
+
+### Features
+
+- **The Android app has been rebuilt for Android 16, and now paints the system bars to match your theme.** Google requires everything submitted to Play from September 2026 to target Android 16, and that version takes away an app's ability to opt out of drawing behind the status bar and the navigation bar. Left alone, that would have pushed the top of the interface under the clock and the message box under the gesture bar. The app now measures those bars itself — along with the display cutout and the keyboard — and keeps the interface clear of them, so the layout is unchanged from what you are used to. What is new is that the strips behind the two bars take the background colour of the page rather than staying white, and follow you when you switch between the light and dark theme, without needing the app restarted. The bar icons flip between dark and light along with them, so they stay readable either way. If you run the app from the `.apk` in this repository, this is version 2.0; the signing key is unchanged, so it installs straight over the previous one and keeps your saved server address.
+
+- **The Android app now has a published privacy policy.** It is a requirement for anything listed on Google Play, but it is worth having regardless, because the honest answer is short: the app collects nothing, contains no analytics or advertising, and the author operates no servers to collect anything with. What stays on the phone is the address you typed, the login for your server if it asks for one, and the browser cache — each listed, with the reason it exists, alongside every permission the app requests. It is published from this repository at [marekwo.github.io/mc-webui/privacy-policy.html](https://marekwo.github.io/mc-webui/privacy-policy.html), in English and Polish.
+
+---
+
 ## 2.10.0 — 2026-08-19
 
 ### Features

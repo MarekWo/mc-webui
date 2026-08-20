@@ -13,7 +13,7 @@ see [Android App](../docs/android-app.md).
 |---|---|
 | **Published build** | [`mc-webui-wrapper.apk`](mc-webui-wrapper.apk) |
 | **Package** | `it.wojtaszek.mc.wrapper` |
-| **Min / target SDK** | 21 (Android 5.0) / 34 |
+| **Min / target SDK** | 21 (Android 5.0) / 36 (Android 16) |
 | **Permissions** | `INTERNET`; `CAMERA` for QR scanning; `POST_NOTIFICATIONS` for new-message alerts; `WRITE_EXTERNAL_STORAGE` (Android 9 and older) for saving downloads |
 
 ## Layout
