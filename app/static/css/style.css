@@ -2667,21 +2667,28 @@ emoji-picker {
 .demo-locked-region .form-check-input,
 .demo-locked-region .form-control,
 .demo-locked-region .form-select {
-    background-color: var(--bg-surface-alt);
+    background-color: var(--bg-surface-alt, #f0f0f0);
 }
 
 /* The notice that explains the greying out. Sits at the top of a locked pane. */
+/* Every colour carries a fallback: console.html and logs.html are always-dark
+   terminal pages that deliberately do not load theme.css, so an unguarded
+   var() resolves to nothing there and the text inherits Bootstrap's near-black
+   body colour — invisible on their navy background. The fallbacks are the
+   light-theme values, so a page without theme.css degrades to a readable light
+   notice rather than to nothing. console.html then restyles it to its own
+   palette below. */
 .demo-notice {
     display: flex;
     align-items: flex-start;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
     margin-bottom: 0.75rem;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border-color, #dee2e6);
     border-left: 3px solid #ffc107;
     border-radius: 0.375rem;
-    background: var(--bg-surface);
-    color: var(--text-secondary);
+    background: var(--bg-surface, #f8f9fa);
+    color: var(--text-secondary, #495057);
     font-size: 0.8125rem;
     line-height: 1.35;
 }
@@ -2701,7 +2708,7 @@ emoji-picker {
 
 /* Operator unlock box at the foot of the Settings modal. */
 .demo-unlock-box {
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--border-color, #dee2e6);
     margin-top: 1rem;
     padding-top: 0.75rem;
 }
