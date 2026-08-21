@@ -325,6 +325,13 @@
             </button>
         </div>
 
+        {% if demo_mode and not demo_unlocked %}
+        <div class="demo-notice mx-3 mb-0 mt-2" id="demoConsoleNotice">
+            <i class="bi bi-shield-lock"></i>
+            <span>{{ t_html('demo.console_notice') }}</span>
+        </div>
+        {% endif %}
+
         <!-- Input Area -->
         <div class="console-input-area">
             <form id="consoleForm" class="d-flex gap-2">

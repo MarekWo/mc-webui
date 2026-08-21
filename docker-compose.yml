@@ -35,6 +35,9 @@ services:
       - FLASK_PORT=${FLASK_PORT:-5000}
       - FLASK_DEBUG=${FLASK_DEBUG:-false}
       - MC_TRUST_PROXY=${MC_TRUST_PROXY:-false}
+      - MC_DEMO=${MC_DEMO:-false}
+      - MC_DEMO_TRUSTED_NETS=${MC_DEMO_TRUSTED_NETS:-}
+      - MC_DEMO_UNLOCK_CODE=${MC_DEMO_UNLOCK_CODE:-}
       - TZ=${TZ:-UTC}
     env_file:
       - path: .env

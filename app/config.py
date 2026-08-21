@@ -50,6 +50,26 @@ class Config:
     # talking to the port directly can forge those headers.
     MC_TRUST_PROXY = os.getenv('MC_TRUST_PROXY', 'false').lower() == 'true'
 
+    # Demo mode: the instance is shared with people who should be able to look
+    # around and chat, but not reconfigure the radio, wipe data or reach the
+    # console. Everything that writes is refused unless the caller is unlocked
+    # (see app/demo_guard.py). Off by default — a private install is unaffected.
+    MC_DEMO = os.getenv('MC_DEMO', 'false').lower() == 'true'
+
+    # Networks that get full access without typing anything, as comma-separated
+    # CIDRs (e.g. "192.168.0.0/16,10.0.0.0/8"). Empty by default, and DELIBERATELY
+    # so: when the app is published through a tunnel or a proxy, every visitor
+    # arrives from that one address, and a network listed here would unlock the
+    # instance for all of them. demo_guard refuses to match on address alone when
+    # a forwarded header is present and MC_TRUST_PROXY is off, but the safe setup
+    # is still to leave this empty unless the port is reached directly.
+    MC_DEMO_TRUSTED_NETS = os.getenv('MC_DEMO_TRUSTED_NETS', '')
+
+    # Shared secret that unlocks the UI from anywhere — typed once in Settings,
+    # remembered in a signed cookie. Empty = no unlock code, only the networks
+    # above (or nothing at all) can write.
+    MC_DEMO_UNLOCK_CODE = os.getenv('MC_DEMO_UNLOCK_CODE', '')
+
     # Flask server configuration
     FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
     FLASK_PORT = int(os.getenv('FLASK_PORT', '5000'))

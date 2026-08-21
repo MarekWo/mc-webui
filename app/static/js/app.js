@@ -2284,7 +2284,7 @@ async function loadDeviceInfo() {
         html += `
             <div class="d-flex align-items-center justify-content-between gap-2 mt-3 pt-3 border-top">
                 <div class="small text-muted">${tHtml('device.reboot.hint')}</div>
-                <button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0" id="deviceRebootBtn" onclick="rebootDevice()">
+                <button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0" id="deviceRebootBtn" data-demo-lock onclick="rebootDevice()">
                     <i class="bi bi-arrow-clockwise"></i> ${tHtml('device.reboot.btn')}
                 </button>
             </div>
