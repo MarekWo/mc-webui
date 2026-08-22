@@ -1677,7 +1677,7 @@ function createMessageElement(msg) {
                                 <i class="bi bi-clipboard-data"></i>
                             </button>
                         ` : ''}
-                        <button class="btn btn-outline-secondary btn-msg-action btn-msg-edit" onclick='resendMessage(${JSON.stringify(msg.content)})' title="${tHtml('chat.edit_title')}">
+                        <button class="btn btn-outline-secondary btn-msg-action btn-msg-edit" onclick='resendMessage(${jsArg(msg.content)})' title="${tHtml('chat.edit_title')}">
                             <i class="bi bi-pencil-square"></i>
                         </button>
                         ${window.deviceCaps?.supports_raw_resend && typeof msg.id === 'number' ? `
@@ -1710,14 +1710,14 @@ function createMessageElement(msg) {
                     <div class="message-content">${processMessageContent(msg.content, { isOwn: false })}</div>
                     ${metaInfo ? `<div class="message-meta">${metaInfo}</div>` : ''}
                     <div class="message-actions">
-                        <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo('${escapeHtml(msg.sender)}')" title="${tHtml('chat.msg.reply_title')}">
+                        <button class="btn btn-outline-secondary btn-msg-action" onclick="replyTo(${jsArg(msg.sender)})" title="${tHtml('chat.msg.reply_title')}">
                             <i class="bi bi-reply"></i>
                         </button>
-                        <button class="btn btn-outline-secondary btn-msg-action" onclick='quoteTo(${JSON.stringify(msg.sender)}, ${JSON.stringify(msg.content)})' title="${tHtml('chat.msg.quote_title')}">
+                        <button class="btn btn-outline-secondary btn-msg-action" onclick='quoteTo(${jsArg(msg.sender)}, ${jsArg(msg.content)})' title="${tHtml('chat.msg.quote_title')}">
                             <i class="bi bi-quote"></i>
                         </button>
                         ${contactsGeoCache[msg.sender] ? `
-                            <button class="btn btn-outline-secondary btn-msg-action" onclick="showContactOnMap('${escapeHtml(msg.sender)}', ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="${tHtml('chat.msg.map_title')}">
+                            <button class="btn btn-outline-secondary btn-msg-action" onclick="showContactOnMap(${jsArg(msg.sender)}, ${contactsGeoCache[msg.sender].lat}, ${contactsGeoCache[msg.sender].lon})" title="${tHtml('chat.msg.map_title')}">
                                 <i class="bi bi-geo-alt"></i>
                             </button>
                         ` : ''}
@@ -1732,7 +1732,7 @@ function createMessageElement(msg) {
                             </button>
                         ` : ''}
                         ${!isContactProtectedByName(msg.sender) ? `
-                        <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat('${escapeHtml(msg.sender)}')" title="${tHtml('chat.msg.block_title', { name: msg.sender })}">
+                        <button class="btn btn-outline-danger btn-msg-action" onclick="blockContactFromChat(${jsArg(msg.sender)})" title="${tHtml('chat.msg.block_title', { name: msg.sender })}">
                             <i class="bi bi-slash-circle"></i>
                         </button>
                         ` : ''}

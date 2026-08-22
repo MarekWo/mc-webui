@@ -1499,7 +1499,7 @@ function displayMessages(messages) {
         // only raw resend (arrow-repeat).
         const resendBtn = msg.is_own ? `
             <div class="dm-actions">
-                <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${JSON.stringify(msg.content)})' title="${tHtml('chat.edit_title')}">
+                <button class="btn btn-outline-secondary btn-sm dm-action-btn" onclick='resendMessage(${jsArg(msg.content)})' title="${tHtml('chat.edit_title')}">
                     <i class="bi bi-pencil-square"></i>
                 </button>
             </div>

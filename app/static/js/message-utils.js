@@ -309,6 +309,25 @@ function escapeHtmlAttribute(text) {
         .replace(/>/g, '&gt;');
 }
 
+/**
+ * Serialize a value as a JS literal safe to splice into an inline event
+ * handler attribute.
+ *
+ * JSON.stringify() alone is not enough. Its output is dropped straight into
+ * markup, so a message containing an apostrophe closes the attribute early and
+ * a following '<' ends the whole tag — the rest of the button then leaks into
+ * the page as visible text (e.g. `title="Quote">` next to a broken icon), and
+ * the handler never runs. Escaping both quote characters and the angle
+ * brackets keeps the literal intact for the JS parser, which sees the
+ * attribute value only after HTML entities are decoded.
+ *
+ * @param {*} value - Value to pass to the handler
+ * @returns {string} - Escaped JSON literal, ready for an attribute
+ */
+function jsArg(value) {
+    return escapeHtmlAttribute(JSON.stringify(value === undefined ? null : value));
+}
+
 /* =============================================================================
    Share Cards — contacts, channels and positions shared inside chat messages
    =============================================================================
