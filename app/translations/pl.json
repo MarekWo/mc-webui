@@ -950,7 +950,7 @@
   "repeaters.toast.set_direct_done": "Ustawiono na urządzeniu ścieżkę Direct",
   "repeaters.toast.set_direct_failed": "Nie udało się ustawić ścieżki Direct",
   "rptmgmt.act.clock_sync": "Synchronizuj zegar",
-  "rptmgmt.act.clock_sync_desc": "Ustaw zegar repeatera według bieżącego czasu tego urządzenia. Firmware nie pozwala cofnąć zegara.",
+  "rptmgmt.act.clock_sync_desc": "Ustaw zegar repeatera według bieżącego czasu serwera. Firmware nie pozwala cofnąć zegara.",
   "rptmgmt.act.flood": "Wyślij flood advert",
   "rptmgmt.act.flood_desc": "Niezalecane — advert jest rozsyłany trybem flood po całej sieci (duże obciążenie).",
   "rptmgmt.act.poweroff": "Wyłącz repeater",

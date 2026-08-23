@@ -6578,10 +6578,19 @@ def repeater_settings_post(public_key):
 # demands the caller echo the repeater's name. That guard is deliberately
 # server-side as well as in the UI: an accidental or replayed POST must not
 # be enough to strand a node that needs a site visit to recover.
+#
+# `clock_sync` deliberately does NOT send the firmware's `clock sync`. That
+# command sets the repeater's RTC from the CLI packet's sender_timestamp, and
+# the companion overwrites that field with its own RTC before transmitting
+# ("Use node's RTC instead of app timestamp to avoid tripping replay
+# protection", companion_radio/MyMesh.cpp) — so `clock sync` propagates the
+# companion's drift, not our NTP-backed host clock. `time <epoch>` carries the
+# value in the command text, which we control end to end. Both are handled by
+# the same CommonCLI branch and answer with the same `OK - clock set: ...`.
 _REPEATER_ACTIONS = {
     'zerohop_advert': {'cmd': 'advert.zerohop'},
     'flood_advert':   {'cmd': 'advert'},
-    'clock_sync':     {'cmd': 'clock sync'},
+    'clock_sync':     {'cmd': lambda: f'time {int(time.time())}'},
     'reboot':         {'cmd': 'reboot', 'no_reply': True,
                        'no_reply_msg': 'Reboot command sent — the repeater should be '
                                        'restarting (no reply is expected)'},
@@ -6626,7 +6635,9 @@ def repeater_action(public_key):
                             'error': 'Type the repeater name to confirm this action'}), 400
     try:
         timeout = 15.0 if spec.get('no_reply') else 45.0
-        result = dm.repeater_cmd_wait(pk, spec['cmd'], timeout=timeout)
+        # A callable `cmd` is built per request (clock_sync needs a fresh epoch).
+        cmd = spec['cmd']
+        result = dm.repeater_cmd_wait(pk, cmd() if callable(cmd) else cmd, timeout=timeout)
         if result.get('success'):
             reply = (result.get('reply') or '').strip()
             return jsonify({'success': True, 'reply': reply,

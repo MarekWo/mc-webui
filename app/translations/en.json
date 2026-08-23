@@ -888,7 +888,7 @@
   "repeaters.toast.set_direct_done": "Device path set to Direct",
   "repeaters.toast.set_direct_failed": "Failed to set Direct path",
   "rptmgmt.act.clock_sync": "Sync clock",
-  "rptmgmt.act.clock_sync_desc": "Set the repeater's clock from this device's current time. The firmware refuses to move the clock backwards.",
+  "rptmgmt.act.clock_sync_desc": "Set the repeater's clock from the server's current time. The firmware refuses to move the clock backwards.",
   "rptmgmt.act.flood": "Send flood advert",
   "rptmgmt.act.flood_desc": "Not recommended — the advert is flooded across the whole mesh (high network load).",
   "rptmgmt.act.poweroff": "Power off repeater",

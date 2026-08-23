@@ -530,6 +530,31 @@ def _parse_time_arg(value: str) -> int:
         return int(value) * 60  # default: minutes
 
 
+def _fmt_epoch(timestamp: int) -> str:
+    """Render a unix timestamp in both host-local and UTC form.
+
+    Clocks here get read in three places and each used to print a bare wall
+    time with no zone: the browser rendered the browser's zone, this console
+    rendered the container's, and the repeater firmware prints UTC. Same
+    instant, three different numbers, nothing on screen to tell them apart.
+    Spell out both so a console reading can be compared against a repeater's
+    own `clock` reply without doing arithmetic first.
+    """
+    import datetime as _dt
+    utc = _dt.datetime.fromtimestamp(timestamp, _dt.timezone.utc)
+    local = utc.astimezone()
+    # %Z is an abbreviation ('CEST') under glibc but a localised long name
+    # ('Srodkowoeuropejski czas letni') on Windows, and the UI is English
+    # only — fall back to the numeric offset whenever it isn't a short
+    # ASCII abbreviation.
+    zone = local.strftime('%Z')
+    if not (zone.isascii() and zone.isalpha() and len(zone) <= 5):
+        off = local.strftime('%z')
+        zone = f'UTC{off[:3]}:{off[3:]}' if off else 'UTC'
+    return (f"{local.strftime('%Y-%m-%d %H:%M:%S')} {zone} / "
+            f"{utc.strftime('%H:%M:%S')} UTC")
+
+
 def _execute_console_command(args: list) -> str:
     """
     Execute a console command via DeviceManager.
@@ -807,12 +832,10 @@ def _execute_console_command(args: list) -> str:
         name = ' '.join(args[1:])
         result = device_manager.repeater_req_clock(name)
         if result.get('success'):
-            import datetime as _dt
             data = result['data']
             hex_data = data.get('data', '')
             timestamp = int.from_bytes(bytes.fromhex(hex_data[0:8]), byteorder="little", signed=False)
-            dt_str = _dt.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
-            return f"Clock of {name}: {dt_str} ({timestamp})"
+            return f"Clock of {name}: {_fmt_epoch(timestamp)} ({timestamp})"
         return f"Error: {result.get('error')}"
 
     elif cmd == 'req_neighbours' and len(args) >= 2:
@@ -1175,20 +1198,16 @@ def _execute_console_command(args: list) -> str:
     elif cmd == 'clock':
         if len(args) >= 2 and args[1] == 'sync':
             import time as _time
-            import datetime as _dt
             epoch = int(_time.time())
             result = device_manager.set_clock(epoch)
             if result.get('success'):
-                dt_str = _dt.datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M:%S")
-                return f"Clock synced to {dt_str} ({epoch})"
+                return f"Clock synced to {_fmt_epoch(epoch)} ({epoch})"
             return f"Error: {result.get('error')}"
         result = device_manager.get_clock()
         if result.get('success'):
-            import datetime as _dt
             data = result['data']
             timestamp = data.get('time', 0)
-            dt_str = _dt.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
-            return f"Current time: {dt_str} ({timestamp})"
+            return f"Current time: {_fmt_epoch(timestamp)} ({timestamp})"
         return f"Error: {result.get('error')}"
 
     elif cmd == 'time' and len(args) >= 2:
