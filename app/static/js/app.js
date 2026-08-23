@@ -6865,7 +6865,10 @@ function readItemPlacements() {
 }
 
 function isFabHidden() {
-    return localStorage.getItem('mc-webui-fab-hidden') === 'true';
+    // Hidden by default: the bar overlapped the composer's send button on
+    // phone-sized screens, so it is now opt-in. Only an explicit 'false'
+    // (the user ticking "show") brings it back.
+    return localStorage.getItem('mc-webui-fab-hidden') !== 'false';
 }
 
 function applyItemPlacements() {
@@ -6887,8 +6890,8 @@ function applyItemPlacements() {
 }
 
 function syncPlacementSettingsUI() {
-    const hideCheckbox = document.getElementById('settHideFab');
-    if (hideCheckbox) hideCheckbox.checked = isFabHidden();
+    const showCheckbox = document.getElementById('settShowFab');
+    if (showCheckbox) showCheckbox.checked = !isFabHidden();
 
     const placements = readItemPlacements();
     for (const key of Object.keys(ITEM_PLACEMENT_DEFS)) {
@@ -6910,10 +6913,10 @@ function applyPlacementControlsDisabled() {
 }
 
 function initializeItemPlacementSettings() {
-    const hideCheckbox = document.getElementById('settHideFab');
-    if (hideCheckbox) {
-        hideCheckbox.addEventListener('change', () => {
-            localStorage.setItem('mc-webui-fab-hidden', hideCheckbox.checked ? 'true' : 'false');
+    const showCheckbox = document.getElementById('settShowFab');
+    if (showCheckbox) {
+        showCheckbox.addEventListener('change', () => {
+            localStorage.setItem('mc-webui-fab-hidden', showCheckbox.checked ? 'false' : 'true');
             applyPlacementControlsDisabled();
             applyItemPlacements();
         });
