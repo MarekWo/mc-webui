@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.12.0 — 2026-08-27
+
 ### Features
 
 - **An instance you can hand to strangers: demo mode.** mc-webui has never had a login, which is the right trade on a home network and the wrong one the moment you share the address — to show the project off, to collect feedback, or because a store wants a dozen testers who use the app for a fortnight. What happens next is predictable: visitors assume the node is theirs and rename it, and the console is right there for anyone curious enough to type into it. Putting `MC_DEMO=true` in `.env` turns the instance read-only for everybody except you. Everything that reconfigures the radio is refused — the name, the coordinates, the frequency and the rest of the radio settings, reboot, advert and flood advert — along with everything that deletes data, everything that reaches other people's repeaters, the update trigger that rebuilds the containers, the settings that publish packets to an external broker, and the handful of things that hand out secrets such as stored repeater passwords, database backups and the server log. The console stays open for the commands that only read, so it is still worth demonstrating, and refuses the rest with a list of what it will accept. What does keep working is the part that makes a demo worth visiting: reading everything, sending messages in channels and as DMs, and changing the theme and layout, which live in your browser and affect nobody else. The refusal happens on the server, in front of every endpoint and on the console's own connection, so a stale page or a crafted request gets the same answer as a click. In the interface the locked controls are greyed out rather than hidden — the point is to show mc-webui off, and a feature nobody can see impresses nobody — with a yellow **DEMO** badge next to the version, a short explanation at the top of Settings and above the console, and a message rather than a silent shrug when something is clicked. Full guide in [demo-mode.md](demo-mode.md).
