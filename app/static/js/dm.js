@@ -715,9 +715,6 @@ async function loadConversations() {
         if (convData.success) {
             dmConversations = convData.conversations || [];
             populateConversationSelector();
-
-            // Check for new DM notifications
-            checkDmNotifications(dmConversations);
         } else {
             console.error('Failed to load conversations:', convData.error);
             // Still populate selector with just contacts
@@ -2049,58 +2046,6 @@ function showNotification(message, type = 'info') {
         delay: delay
     });
     toast.show();
-}
-
-// ============================================================================
-// PWA Notifications for DM
-// ============================================================================
-
-/**
- * Track previous DM unread for notifications
- */
-let previousDmTotalUnread = 0;
-
-/**
- * Check if we should send DM notification
- */
-function checkDmNotifications(conversations) {
-    // Only check if notifications are enabled
-    // areNotificationsEnabled is defined in app.js and should be available globally
-    if (typeof areNotificationsEnabled === 'undefined' || !areNotificationsEnabled()) {
-        return;
-    }
-
-    if (document.visibilityState !== 'hidden') {
-        return;
-    }
-
-    // Calculate total DM unread
-    const currentDmTotalUnread = conversations.reduce((sum, conv) => sum + conv.unread_count, 0);
-
-    // Detect increase
-    if (currentDmTotalUnread > previousDmTotalUnread) {
-        const delta = currentDmTotalUnread - previousDmTotalUnread;
-
-        try {
-            const notification = new Notification('mc-webui', {
-                body: tn('dm.notify.new_messages', delta),
-                icon: '/static/images/android-chrome-192x192.png',
-                badge: '/static/images/android-chrome-192x192.png',
-                tag: 'mc-webui-dm',
-                requireInteraction: false,
-                silent: false
-            });
-
-            notification.onclick = function() {
-                window.focus();
-                notification.close();
-            };
-        } catch (error) {
-            console.error('Error sending DM notification:', error);
-        }
-    }
-
-    previousDmTotalUnread = currentDmTotalUnread;
 }
 
 // =============================================================================

@@ -510,10 +510,6 @@
   "dm.load_messages_error": "Error loading messages",
   "dm.msg_input_ph": "Message {name}...",
   "dm.no_contact_info": "No contact information available.",
-  "dm.notify.new_messages": {
-    "one": "New private message: {count}",
-    "other": "New private messages: {count}"
-  },
   "dm.select_chat_ph": "Select chat...",
   "dm.sidebar.search_ph": "Search contacts...",
   "dm.status.delivered": "Delivered",
@@ -605,6 +601,7 @@
     "one": "{count} pending contact",
     "other": "{count} pending contacts"
   },
+  "notify.title_count": "{name} ({count})",
   "observer.add_broker": "Add broker",
   "observer.confirm.delete": "Delete broker \"{name}\"?",
   "observer.counters": "packets captured: <strong>{seen}</strong>, published: <strong>{published}</strong>",

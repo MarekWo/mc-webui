@@ -530,12 +530,6 @@
   "dm.load_messages_error": "Błąd wczytywania wiadomości",
   "dm.msg_input_ph": "Wiadomość do {name}...",
   "dm.no_contact_info": "Brak informacji o kontakcie.",
-  "dm.notify.new_messages": {
-    "one": "Nowa wiadomość prywatna: {count}",
-    "few": "Nowe wiadomości prywatne: {count}",
-    "many": "Nowych wiadomości prywatnych: {count}",
-    "other": "Nowe wiadomości prywatne: {count}"
-  },
   "dm.select_chat_ph": "Wybierz rozmowę...",
   "dm.sidebar.search_ph": "Szukaj kontaktów...",
   "dm.status.delivered": "Dostarczono",
@@ -637,6 +631,7 @@
     "many": "{count} oczekujących kontaktów",
     "other": "{count} oczekującego kontaktu"
   },
+  "notify.title_count": "{name} ({count})",
   "observer.add_broker": "Dodaj brokera",
   "observer.confirm.delete": "Usunąć brokera \"{name}\"?",
   "observer.counters": "przechwycone pakiety: <strong>{seen}</strong>, opublikowane: <strong>{published}</strong>",
