@@ -122,6 +122,16 @@ The `/repeaters` (list) and `/repeaters/manage` (per-repeater tools) panels are 
 - **Role gating** — the firmware silently drops text CLI from non-admin logins (which would surface as a timeout), so the CLI/Settings/Actions endpoints reject guest sessions with 403 up front instead
 - **Actions whitelist** — `advert.zerohop`, `advert` (flood), `clock sync`, `reboot`. `reboot` never replies (the firmware restarts immediately without building one), so a clean send followed by silence is reported as success. Text `erase` is firmware-gated to the USB serial console (`sender_timestamp == 0`), hence no erase in the UI
 
+### Demo mode (MC_DEMO)
+
+`app/demo_guard.py` turns a publicly shared instance read-only. User-facing guide: [demo-mode.md](demo-mode.md).
+
+- **Default deny, not a blacklist** — an `@api_bp.before_request` hook refuses every non-GET on `/api/*` unless the path is on `WRITE_ALLOWLIST` (sending, resending, read markers, and the two unlock endpoints). An endpoint added later is therefore locked without anyone touching this module, which matters because six mutating endpoints already had no frontend caller and would never have made a hand-written blacklist. A short `READ_DENYLIST` covers the GETs that hand out secrets (repeater passwords, backup list/download, capture download, `/api/logs`) since the write guard never sees them
+- **Two bypasses of the HTTP layer, both closed separately** — the console is a Socket.IO event (`send_command` on `/console`), not a route, so it is guarded in `handle_send_command` against `CONSOLE_READONLY`; the log viewer is guarded at the `/logs` connect handshake by returning `False`
+- **Unlock is stateless** — the cookie holds `HMAC(MC_DEMO_UNLOCK_CODE, "mc-webui-demo-unlock-v1")`, compared with `hmac.compare_digest`. No session, and deliberately not Flask's `session`, whose `SECRET_KEY` is a hardcoded public constant. Changing the code invalidates every issued cookie
+- **Trusted networks refuse to match through a proxy** — when a request carries `X-Forwarded-For`/`X-Real-IP`/`Forwarded`/`CF-Connecting-IP` and `MC_TRUST_PROXY` is off, `remote_addr` belongs to the proxy or tunnel rather than the visitor, so it is not matched against `MC_DEMO_TRUSTED_NETS`. Without this, publishing through a LAN-hosted tunnel while trusting the LAN would unlock the instance for every visitor at once. `log_startup_state()` reports the resulting configuration at boot
+- **Frontend is advisory** — `demo-lock.js` (loaded from `_head_i18n.html`, so it reaches all eight entry points including the six iframes) disables controls inside `[data-demo-lock]`, removes `[data-demo-lock="hide"]`, re-applies through a `MutationObserver` for JS-rendered buttons, and turns any `403 demo_locked` response into a toast. The flags reach templates through the `inject_globals` context processor and JS through `/api/status`
+
 ### Path Analyzer
 
 The `/path-analyzer` panel (standalone iframe page, `path-analyzer.js`) is a read-only analysis view over data the app already collects — no new tables, no background work:
@@ -152,6 +162,7 @@ mc-webui/
 │   ├── device_manager.py           # Core logic for meshcore communication
 │   ├── observer.py                 # Observer: MQTT packet-capture publishing
 │   ├── diagnostics.py              # Diagnostic capture (support bundle + upload)
+│   ├── demo_guard.py               # Demo mode: read-only guard for a public instance
 │   ├── contacts_cache.py           # Persistent contacts cache (DB-backed)
 │   ├── read_status.py              # Server-side read status manager (DB-backed)
 │   ├── version.py                  # Git-based version management
@@ -430,6 +441,8 @@ These are top-level routes (not under `/api/`), consumed by Docker's healthcheck
 | GET | `/api/updater/status` | Get updater service status |
 | POST | `/api/updater/trigger` | Trigger remote update |
 | GET | `/api/advertisements` | Get recent advertisements |
+| POST | `/api/demo/unlock` | Demo mode: exchange `{code}` for the unlock cookie (403 on a wrong code, after a 1 s delay) |
+| POST | `/api/demo/lock` | Demo mode: drop the unlock cookie |
 | GET | `/api/console/history` | Get console command history |
 | POST | `/api/console/history` | Save console command |
 | DELETE | `/api/console/history` | Clear console history |

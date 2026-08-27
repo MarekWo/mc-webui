@@ -462,6 +462,7 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 | [User Guide](docs/user-guide.md) | Complete feature documentation |
 | [Android App](docs/android-app.md) | Installing the Android companion app and connecting it to your instance |
 | [HTTPS Setup](docs/https-setup.md) | Optional encrypted access via Nginx Proxy Manager (Let's Encrypt, self-signed, IP address) |
+| [Demo Mode](docs/demo-mode.md) | Share an instance publicly with the device settings, the console and your data locked |
 | [Architecture](docs/architecture.md) | Technical details, API reference |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 | [Docker Installation](docs/docker-install.md) | How to install Docker on Debian/Ubuntu |
@@ -517,6 +518,13 @@ sudo ~/mc-webui/scripts/updater/install.sh --uninstall
 ## Security Notes
 
 **Important**: This application is designed for **trusted local networks only** and has **no authentication**. Do not expose it to the internet without implementing proper security measures.
+
+If you want to share an instance anyway — a public demo, a group of testers — turn on
+[demo mode](docs/demo-mode.md) (`MC_DEMO=true`). Everything that reconfigures the radio,
+deletes data or reaches the server is refused, while reading and chatting keep working;
+you keep full access from your own network or with an unlock code. It restricts what
+visitors can *change*, not what they can *see*, so pair it with a login (NPM's Access
+Lists, see [HTTPS Setup](docs/https-setup.md)) if the content itself is private.
 
 ---
 

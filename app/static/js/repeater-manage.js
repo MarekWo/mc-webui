@@ -1002,7 +1002,12 @@ async function loadClock() {
         if (data.success && data.timestamp) {
             const d = new Date(data.timestamp * 1000);
             el.classList.remove('text-muted');
-            el.textContent = d.toLocaleString();
+            // Repeaters keep their RTC in UTC and their own CLI prints it as UTC,
+            // but this renders in the browser's zone — so name the zone, or the two
+            // readings look like different times. `timeZoneName` on its own still
+            // yields the full date + time: it is not a date/time component option,
+            // so it does not suppress the defaults.
+            el.textContent = d.toLocaleString([], { timeZoneName: 'short' });
         } else {
             el.className = '';
             el.innerHTML = `<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="clockRetryBtn">${tHtml('rptmgmt.status.clock_fetch')}</button>`;

@@ -240,6 +240,7 @@ class DeviceManager:
         self._ble_keepalive_task = None   # asyncio.Task for BLE keepalive
         self._ble_permanently_failed = False  # True when all reconnect attempts exhausted
         self._liveness_task = None        # asyncio.Task for periodic rx-stale check
+        self._clock_sync_task = None      # asyncio.Task for periodic device-clock sync
 
         # Liveness telemetry for /health/strict and the watchdog
         self._last_rx_at: float = 0.0           # unix ts of last RX_LOG_DATA / event from device
@@ -513,6 +514,12 @@ class DeviceManager:
                 self._liveness_task.cancel()
             self._liveness_task = asyncio.ensure_future(self._liveness_watcher_loop())
 
+            # Pin the device RTC to the host clock — runs once immediately, then
+            # hourly. Restarted on every reconnect, same as the watcher above.
+            if self._clock_sync_task and not self._clock_sync_task.done():
+                self._clock_sync_task.cancel()
+            self._clock_sync_task = asyncio.ensure_future(self._clock_sync_loop())
+
         except Exception as e:
             logger.error(f"Device connection failed: {e}")
             self._connected = False
@@ -726,6 +733,11 @@ class DeviceManager:
         if self._liveness_task and not self._liveness_task.done():
             self._liveness_task.cancel()
             self._liveness_task = None
+
+        # Cancel device-clock sync
+        if self._clock_sync_task and not self._clock_sync_task.done():
+            self._clock_sync_task.cancel()
+            self._clock_sync_task = None
 
         if self.mc and self._loop and self._loop.is_running():
             try:
@@ -1793,6 +1805,75 @@ class DeviceManager:
                 return False
         finally:
             self._reconnect_lock.release()
+
+    async def _sync_device_clock(self):
+        """Set the device RTC from the host clock when it has drifted.
+
+        The companion RTC free-runs between manual sets and drifts badly on
+        boards without a 32 kHz crystal (~1 hour per few weeks observed).
+        Everything the device stamps itself inherits that error — most visibly
+        the sender_timestamp on repeater CLI packets, which the firmware's
+        `clock sync` copies straight into the repeater's RTC.
+
+        One-way only: CMD_SET_DEVICE_TIME is rejected by the firmware when the
+        new value is older than the current one, so a device running *fast*
+        cannot be corrected from here at all — it needs a reboot, which drops
+        VolatileRTCClock back to its 2024 base and lets a forward set through.
+        That case is logged loudly rather than retried silently every hour.
+        """
+        from meshcore.events import EventType
+
+        # Below this, a set_time round-trip costs more than the drift it fixes.
+        DRIFT_THRESHOLD_SEC = 30
+
+        try:
+            event = await asyncio.wait_for(self.mc.commands.get_time(), timeout=10)
+        except Exception as e:
+            logger.warning(f"Clock sync: could not read device time: {e}")
+            return
+        if event is None or getattr(event, 'type', None) == EventType.ERROR:
+            logger.warning("Clock sync: device refused the time query")
+            return
+
+        device_ts = int((getattr(event, 'payload', None) or {}).get('time') or 0)
+        if device_ts <= 0:
+            logger.warning("Clock sync: device returned no time value")
+            return
+        host_ts = int(time.time())
+        drift = device_ts - host_ts
+        if abs(drift) <= DRIFT_THRESHOLD_SEC:
+            logger.debug(f"Clock sync: device within {drift:+d}s of host — leaving it alone")
+            return
+        if drift > 0:
+            logger.warning(
+                f"Device clock is {drift}s AHEAD of the host — the firmware refuses to "
+                f"move a clock backwards, so this cannot be fixed without rebooting "
+                f"the device. Repeater clock syncs will carry the error until then."
+            )
+            return
+
+        try:
+            res = await asyncio.wait_for(self.mc.commands.set_time(host_ts), timeout=10)
+        except Exception as e:
+            logger.warning(f"Clock sync: set_time failed: {e}")
+            return
+        if res is None or getattr(res, 'type', None) == EventType.ERROR:
+            logger.warning(f"Clock sync: device rejected set_time({host_ts})")
+            return
+        logger.info(f"Device clock was {-drift}s behind — synced to host time ({host_ts})")
+
+    async def _clock_sync_loop(self):
+        """Sync the device clock on connect, then hourly."""
+        SYNC_INTERVAL_SEC = 3600
+        try:
+            while True:
+                if self._connected and self.mc:
+                    await self._sync_device_clock()
+                await asyncio.sleep(SYNC_INTERVAL_SEC)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Clock sync loop crashed: {e}")
 
     async def _liveness_watcher_loop(self):
         """Watch for stale RX and self-heal via force_reconnect().

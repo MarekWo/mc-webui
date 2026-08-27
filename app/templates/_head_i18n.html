@@ -10,3 +10,15 @@
 <script src="{{ url_for('static', filename='js/i18n-runtime.js') }}"></script>
 <script src="{{ url_for('static', filename='js/datetime-utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/clipboard-utils.js') }}"></script>
+
+{# Demo mode. Injected here rather than through MC_CONFIG because only index.html
+   and dm.html define that object, and the console — the page most in need of
+   locking — is not one of them. Must be set before demo-lock.js runs. #}
+<script>
+    window.MC_DEMO = {
+        enabled: {{ 'true' if demo_mode else 'false' }},
+        unlocked: {{ 'true' if demo_unlocked else 'false' }},
+        hasUnlockCode: {{ 'true' if demo_has_unlock_code else 'false' }}
+    };
+</script>
+<script src="{{ url_for('static', filename='js/demo-lock.js') }}"></script>

@@ -101,12 +101,12 @@
             <div class="d-flex align-items-center justify-content-between">
                 <span id="versionDisplay">
                     <i class="bi bi-tag"></i> <span id="releaseText" class="fw-semibold">{{ release }}</span>
-                    <span class="badge bg-secondary ms-1" id="branchBadge">{{ git_branch }}</span>
+                    <span class="badge bg-secondary ms-1" id="branchBadge">{{ git_branch }}</span>{% if demo_mode %}<span class="badge bg-warning text-dark ms-1 demo-badge" id="demoBadge">{{ t('demo.badge') }}</span>{% endif %}
                     <!-- Exact build: what pins a deployment down, and what the
                          update poller compares - keep it as its own element -->
                     <span id="versionText" class="d-block opacity-75" title="{{ t('menu.exact_build_title') }}">{{ version }}</span>
                 </span>
-                <button id="checkUpdateBtn" class="btn btn-sm btn-outline-secondary py-0 px-1" title="{{ t('menu.check_updates_title') }}">
+                <button id="checkUpdateBtn" data-demo-lock class="btn btn-sm btn-outline-secondary py-0 px-1" title="{{ t('menu.check_updates_title') }}">
                     <i class="bi bi-arrow-repeat" id="checkUpdateIcon"></i>
                 </button>
             </div>
@@ -181,14 +181,14 @@
                 <div class="list-group-item py-2 mt-2">
                     <small class="text-muted fw-bold text-uppercase">{{ t('menu.section.network') }}</small>
                 </div>
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" id="advertBtn" title="{{ t('menu.advert_title') }}">
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3" id="advertBtn" data-demo-lock title="{{ t('menu.advert_title') }}">
                     <i class="bi bi-megaphone" style="font-size: 1.5rem;"></i>
                     <div>
                         <span>{{ t('menu.advert') }}</span>
                         <small class="d-block text-muted">{{ t('menu.advert_desc') }}</small>
                     </div>
                 </button>
-                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 text-warning" id="floodadvBtn" title="{{ t('menu.flood_advert_title') }}">
+                <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 text-warning" id="floodadvBtn" data-demo-lock title="{{ t('menu.flood_advert_title') }}">
                     <i class="bi bi-broadcast" style="font-size: 1.5rem;"></i>
                     <div>
                         <span>{{ t('menu.flood_advert') }}</span>
@@ -238,7 +238,7 @@
                     <i class="bi bi-cpu" style="font-size: 1.5rem;"></i>
                     <span>{{ t('menu.device_info') }}</span>
                 </button>
-                <button id="logsBtn" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#logsModal" data-bs-dismiss="offcanvas">
+                <button id="logsBtn" data-demo-lock="hide" class="list-group-item list-group-item-action d-flex align-items-center gap-3" data-bs-toggle="modal" data-bs-target="#logsModal" data-bs-dismiss="offcanvas">
                     <i class="bi bi-journal-text" style="font-size: 1.5rem;"></i>
                     <div>
                         <span>{{ t('logs.title') }}</span>
@@ -465,6 +465,12 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    {% if demo_mode and not demo_unlocked %}
+                    <div class="demo-notice" id="demoSettingsNotice">
+                        <i class="bi bi-shield-lock"></i>
+                        <span>{{ t_html('demo.settings_notice') }}</span>
+                    </div>
+                    {% endif %}
                     <ul class="nav nav-tabs mb-3" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabSettingsDevice" type="button">{{ t('device.title') }}</button>
@@ -516,7 +522,7 @@
                             <div class="tab-content">
                                 <!-- Public Info sub-tab -->
                                 <div class="tab-pane fade show active" id="tabDevicePublicInfo">
-                                    <form id="devicePublicInfoForm">
+                                    <form id="devicePublicInfoForm" data-demo-lock>
                                         <table class="table table-sm table-borderless mb-3 align-middle">
                                             <tbody>
                                                 <tr>
@@ -573,7 +579,7 @@
                                 </div>
                                 <!-- Radio Settings sub-tab -->
                                 <div class="tab-pane fade" id="tabDeviceRadio">
-                                    <form id="deviceRadioForm">
+                                    <form id="deviceRadioForm" data-demo-lock>
                                         <table class="table table-sm table-borderless mb-3 align-middle">
                                             <tbody>
                                                 <tr>
@@ -629,7 +635,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="tab-pane fade" id="tabSettingsMessages">
+                        <div class="tab-pane fade" id="tabSettingsMessages" data-demo-lock>
                             <div id="settingsMessagesContent">
                                 <form id="dmRetrySettingsForm">
                                     <p class="text-muted small mb-3">{{ t('settings.msg.intro') }}</p>
@@ -682,7 +688,7 @@
                                 </form>
                             </div>
                         </div>
-                        <div class="tab-pane fade" id="tabSettingsChat">
+                        <div class="tab-pane fade" id="tabSettingsChat" data-demo-lock>
                             <form id="chatSettingsForm">
                                 <h6 class="text-muted mb-2">{{ t('settings.chat.quote') }}</h6>
                                 <table class="table table-sm table-borderless mb-3 align-middle">
@@ -718,7 +724,7 @@
                                 </div>
                             </form>
                         </div>
-                        <div class="tab-pane fade" id="tabSettingsInterface">
+                        <div class="tab-pane fade" id="tabSettingsInterface" data-demo-lock>
                             <h6 class="text-muted mb-2">{{ t('settings.iface.layout') }}</h6>
                             <p class="text-muted small mb-2">{{ t('settings.iface.layout_desc') }}</p>
                             <table class="table table-sm table-borderless mb-3 align-middle">
@@ -774,7 +780,7 @@
                         </div>
                         <div class="tab-pane fade" id="tabSettingsAppearance">
                             <h6 class="text-muted mb-3">{{ t('settings.appear.language') }}</h6>
-                            <div class="input-group input-group-sm mb-2">
+                            <div class="input-group input-group-sm mb-2" data-demo-lock>
                                 <select class="form-select form-select-sm" id="settLanguage">
                                     {% for code, name in available_languages.items() %}
                                     <option value="{{ code }}"{% if code == lang %} selected{% endif %}>{{ name }}</option>
@@ -815,9 +821,9 @@
                             <hr>
                             <h6 class="text-muted mb-3">{{ t('settings.appear.quick_access') }}</h6>
                             <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" id="settHideFab">
-                                <label class="form-check-label" for="settHideFab">{{ t('settings.appear.hide_fab') }}</label>
-                                <small class="d-block text-muted">{{ t('settings.appear.hide_fab_hint') }}</small>
+                                <input class="form-check-input" type="checkbox" id="settShowFab">
+                                <label class="form-check-label" for="settShowFab">{{ t('settings.appear.show_fab') }}</label>
+                                <small class="d-block text-muted">{{ t('settings.appear.show_fab_hint') }}</small>
                             </div>
                             <div id="fabAppearanceControls">
                                 <table class="table table-sm align-middle mb-3" id="settItemPlacementTable">
@@ -999,7 +1005,7 @@
                                 </table>
                             </div>
                         </div>
-                        <div class="tab-pane fade" id="tabSettingsContacts">
+                        <div class="tab-pane fade" id="tabSettingsContacts" data-demo-lock>
                             <table class="table table-sm table-borderless mb-0 align-middle">
                                 <tbody>
                                     <tr>
@@ -1038,7 +1044,7 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div class="tab-pane fade" id="tabSettingsRegions">
+                        <div class="tab-pane fade" id="tabSettingsRegions" data-demo-lock>
                             <div class="alert alert-info py-2 small mb-3 mt-2">
                                 <i class="bi bi-info-circle"></i> {{ t_html('settings.regions.intro') }}
                             </div>
@@ -1063,7 +1069,7 @@
                                 {{ t_html('settings.regions.tip') }}
                             </div>
                         </div>
-                        <div class="tab-pane fade" id="tabSettingsAnalyzer">
+                        <div class="tab-pane fade" id="tabSettingsAnalyzer" data-demo-lock>
                             <div class="alert alert-info py-2 small mb-3 mt-2">
                                 <i class="bi bi-info-circle"></i> {{ t_html('settings.analyzer.intro') }}
                             </div>
@@ -1080,7 +1086,7 @@
                                 {{ t('settings.analyzer.tip') }}
                             </div>
                         </div>
-                        <div class="tab-pane fade" id="tabSettingsObserver">
+                        <div class="tab-pane fade" id="tabSettingsObserver" data-demo-lock>
                             <div class="alert alert-info py-2 small mb-3 mt-2">
                                 <i class="bi bi-info-circle"></i> {{ t_html('settings.observer.intro') }}
                             </div>
@@ -1130,7 +1136,7 @@
                                 </div>
                             </button>
                         </div>
-                        <div class="tab-pane fade" id="tabSettingsDiagnostics">
+                        <div class="tab-pane fade" id="tabSettingsDiagnostics" data-demo-lock>
                             <div class="alert alert-info py-2 small mb-3 mt-2">
                                 <i class="bi bi-info-circle"></i> {{ t_html('settings.diag.intro') }}
                             </div>
@@ -1204,6 +1210,33 @@
                             </button>
                         </div>
                     </div>
+
+                    {% if demo_mode and demo_has_unlock_code %}
+                    <div class="demo-unlock-box" data-demo-lock-exempt>
+                        {% if demo_unlocked %}
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="small text-success">
+                                <i class="bi bi-shield-check"></i> {{ t('demo.unlocked_state') }}
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="demoLockBtn">
+                                {{ t('demo.lock_btn') }}
+                            </button>
+                        </div>
+                        {% else %}
+                        <label class="form-label small mb-1" for="demoUnlockInput">
+                            <i class="bi bi-key"></i> {{ t('demo.unlock_label') }}
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="password" class="form-control form-control-sm" id="demoUnlockInput"
+                                   autocomplete="off" placeholder="{{ t('demo.unlock_ph') }}">
+                            <button class="btn btn-primary" type="button" id="demoUnlockBtn">
+                                {{ t('demo.unlock_btn') }}
+                            </button>
+                        </div>
+                        <div class="form-text small" id="demoUnlockHint">{{ t('demo.unlock_hint') }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="modal-footer py-2">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ t('common.close') }}</button>
@@ -1448,7 +1481,7 @@
                 </div>
                 <div class="modal-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <button class="btn btn-primary" id="createBackupBtn" onclick="createBackup()">
+                        <button class="btn btn-primary" id="createBackupBtn" data-demo-lock onclick="createBackup()">
                             <i class="bi bi-plus-circle"></i> {{ t('backup.create') }}
                         </button>
                         <span id="backupAutoStatus" class="text-muted small"></span>
@@ -1464,7 +1497,7 @@
                         {{ t_html('backup.optimize_hint') }}
                     </p>
                     <div class="d-flex justify-content-between align-items-center">
-                        <button class="btn btn-outline-primary btn-sm" id="vacuumDbBtn" onclick="optimizeDatabase()">
+                        <button class="btn btn-outline-primary btn-sm" id="vacuumDbBtn" data-demo-lock onclick="optimizeDatabase()">
                             <i class="bi bi-arrows-collapse"></i> {{ t('backup.optimize_now') }}
                         </button>
                         <span id="vacuumDbStatus" class="text-muted small">{{ t('backup.current_size') }}</span>

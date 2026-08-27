@@ -18,6 +18,7 @@ from flask_socketio import SocketIO, emit
 from werkzeug.middleware.proxy_fix import ProxyFix
 from app import i18n
 from app.config import config, runtime_config
+from app import demo_guard
 from app.database import Database
 from app.device_manager import DeviceManager, parse_meshcore_uri
 from app.diagnostics import DiagnosticsManager
@@ -238,6 +239,8 @@ def create_app():
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
         logger.info("Trusting X-Forwarded-* headers from one proxy hop (MC_TRUST_PROXY=true)")
 
+    demo_guard.log_startup_state()
+
     # Inject version, branch, transport type, and UI language into all templates.
     # This is the single injection point for i18n — it covers every render_template()
     # in the app, including the six standalone pages loaded as fullscreen iframes.
@@ -249,6 +252,13 @@ def create_app():
             'version': VERSION_STRING,
             'git_branch': GIT_BRANCH,
             'transport_type': config.transport_type,
+            # Demo mode reaches the templates here rather than through MC_CONFIG,
+            # because the fullscreen iframe pages (console, repeaters, contacts,
+            # dm, path-analyzer) never define MC_CONFIG and never load app.js —
+            # and the console is precisely one of the things being locked.
+            'demo_mode': demo_guard.is_demo(),
+            'demo_unlocked': demo_guard.is_unlocked(flask_request),
+            'demo_has_unlock_code': bool(config.MC_DEMO_UNLOCK_CODE),
             'lang': lang,
             'i18n_catalog_url': i18n.catalog_url(lang),
             'available_languages': i18n.available_languages(),
@@ -436,6 +446,22 @@ def handle_send_command(data):
         emit('command_response', {'success': False, 'error': 'Empty command'})
         return
 
+    # The console reaches `set name`, `set radio`, `reboot`, `remove_channel` and
+    # every other thing demo mode exists to prevent, and it arrives over a socket
+    # rather than through the /api blueprint — so the HTTP guard never sees it.
+    # Read-only commands still run, so the console remains worth demonstrating.
+    if demo_guard.console_command_is_blocked(command) and not demo_guard.is_unlocked(flask_request):
+        logger.info(f"Demo mode: refused console command: {command}")
+        emit('command_response', {
+            'success': False,
+            'command': command,
+            'error': (
+                'This instance runs in demo mode — only read-only commands are '
+                'available. Allowed: ' + ', '.join(sorted(demo_guard.CONSOLE_READONLY))
+            ),
+        })
+        return
+
     logger.info(f"Console command received: {command}")
 
     def execute_and_respond():
@@ -477,6 +503,12 @@ def handle_send_command(data):
 @socketio.on('connect', namespace='/logs')
 def handle_logs_connect():
     """Handle log viewer WebSocket connection."""
+    # The server log carries device internals, addresses and message text. On a
+    # public demo it is refused at the handshake, which also stops the stream the
+    # HTTP guard on /api/logs cannot see.
+    if not demo_guard.is_unlocked(flask_request):
+        logger.info("Demo mode: refused log viewer connection")
+        return False
     logger.debug("Log viewer WebSocket client connected")
 
 
@@ -496,6 +528,31 @@ def _parse_time_arg(value: str) -> int:
         return int(value[:-1]) * 60
     else:
         return int(value) * 60  # default: minutes
+
+
+def _fmt_epoch(timestamp: int) -> str:
+    """Render a unix timestamp in both host-local and UTC form.
+
+    Clocks here get read in three places and each used to print a bare wall
+    time with no zone: the browser rendered the browser's zone, this console
+    rendered the container's, and the repeater firmware prints UTC. Same
+    instant, three different numbers, nothing on screen to tell them apart.
+    Spell out both so a console reading can be compared against a repeater's
+    own `clock` reply without doing arithmetic first.
+    """
+    import datetime as _dt
+    utc = _dt.datetime.fromtimestamp(timestamp, _dt.timezone.utc)
+    local = utc.astimezone()
+    # %Z is an abbreviation ('CEST') under glibc but a localised long name
+    # ('Srodkowoeuropejski czas letni') on Windows, and the UI is English
+    # only — fall back to the numeric offset whenever it isn't a short
+    # ASCII abbreviation.
+    zone = local.strftime('%Z')
+    if not (zone.isascii() and zone.isalpha() and len(zone) <= 5):
+        off = local.strftime('%z')
+        zone = f'UTC{off[:3]}:{off[3:]}' if off else 'UTC'
+    return (f"{local.strftime('%Y-%m-%d %H:%M:%S')} {zone} / "
+            f"{utc.strftime('%H:%M:%S')} UTC")
 
 
 def _execute_console_command(args: list) -> str:
@@ -775,12 +832,10 @@ def _execute_console_command(args: list) -> str:
         name = ' '.join(args[1:])
         result = device_manager.repeater_req_clock(name)
         if result.get('success'):
-            import datetime as _dt
             data = result['data']
             hex_data = data.get('data', '')
             timestamp = int.from_bytes(bytes.fromhex(hex_data[0:8]), byteorder="little", signed=False)
-            dt_str = _dt.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
-            return f"Clock of {name}: {dt_str} ({timestamp})"
+            return f"Clock of {name}: {_fmt_epoch(timestamp)} ({timestamp})"
         return f"Error: {result.get('error')}"
 
     elif cmd == 'req_neighbours' and len(args) >= 2:
@@ -1143,20 +1198,16 @@ def _execute_console_command(args: list) -> str:
     elif cmd == 'clock':
         if len(args) >= 2 and args[1] == 'sync':
             import time as _time
-            import datetime as _dt
             epoch = int(_time.time())
             result = device_manager.set_clock(epoch)
             if result.get('success'):
-                dt_str = _dt.datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M:%S")
-                return f"Clock synced to {dt_str} ({epoch})"
+                return f"Clock synced to {_fmt_epoch(epoch)} ({epoch})"
             return f"Error: {result.get('error')}"
         result = device_manager.get_clock()
         if result.get('success'):
-            import datetime as _dt
             data = result['data']
             timestamp = data.get('time', 0)
-            dt_str = _dt.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
-            return f"Current time: {dt_str} ({timestamp})"
+            return f"Current time: {_fmt_epoch(timestamp)} ({timestamp})"
         return f"Error: {result.get('error')}"
 
     elif cmd == 'time' and len(args) >= 2:

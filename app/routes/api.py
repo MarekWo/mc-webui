@@ -24,6 +24,7 @@ from app.config import config, runtime_config
 from app.device_manager import decode_path_len
 from app.archiver import manager as archive_manager
 from app.contacts_cache import get_all_names, get_all_contacts
+from app import demo_guard
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,67 @@ def _get_dm():
     return getattr(current_app, 'device_manager', None)
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+
+@api_bp.before_request
+def _demo_guard():
+    """
+    Refuse anything that writes when this instance runs as a public demo and the
+    caller has not unlocked it. Sits in front of every /api route, so an endpoint
+    added later is locked by default rather than by remembering to lock it —
+    including the several that have no button in the UI and are only reachable
+    with curl. See app/demo_guard.py for what stays open.
+    """
+    if demo_guard.request_is_blocked(request):
+        logger.info(
+            "Demo mode: refused %s %s from %s", request.method, request.path, request.remote_addr
+        )
+        return jsonify({
+            'success': False,
+            'error': demo_guard.DEMO_ERROR,
+            'message': 'This instance runs in demo mode — the action is disabled.',
+        }), 403
+
+
+@api_bp.route('/demo/unlock', methods=['POST'])
+def demo_unlock():
+    """
+    Trade the unlock code for the cookie that lifts the demo restrictions.
+
+    Deliberately quiet about why a code failed, and deliberately slow to answer
+    — the code is the only thing protecting the radio from anyone who can reach
+    the page, so a wrong guess should cost something.
+    """
+    data = request.get_json(silent=True) or {}
+    code = str(data.get('code', ''))
+
+    if not demo_guard.is_demo():
+        return jsonify({'success': False, 'error': 'Demo mode is not enabled'}), 400
+
+    if not demo_guard.code_is_valid(code):
+        time.sleep(1.0)
+        logger.warning("Demo mode: failed unlock attempt from %s", request.remote_addr)
+        return jsonify({'success': False, 'error': 'invalid_code'}), 403
+
+    logger.info("Demo mode: unlocked from %s", request.remote_addr)
+    response = jsonify({'success': True, 'unlocked': True})
+    response.set_cookie(
+        demo_guard.UNLOCK_COOKIE,
+        demo_guard.unlock_token(),
+        max_age=demo_guard.UNLOCK_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite='Lax',
+        secure=request.is_secure,
+    )
+    return response
+
+
+@api_bp.route('/demo/lock', methods=['POST'])
+def demo_lock():
+    """Drop the unlock cookie — used by the "lock again" button in Settings."""
+    response = jsonify({'success': True, 'unlocked': False})
+    response.delete_cookie(demo_guard.UNLOCK_COOKIE, samesite='Lax')
+    return response
 
 # Simple cache for get_channels() to reduce USB/meshcli calls
 # Channels don't change frequently, so caching for 30s is safe
@@ -935,6 +997,13 @@ def get_status():
                 status_data['path_hash_size'] = getattr(dm, 'path_hash_size', None)
         except Exception:
             pass
+
+        # Demo mode, so the UI knows whether to grey the controls out and whether
+        # to offer the unlock box. Both flags, not one: a locked and an unlocked
+        # visitor need different UI, and a normal install needs neither.
+        status_data['demo_mode'] = demo_guard.is_demo()
+        status_data['demo_unlocked'] = demo_guard.is_unlocked(request)
+        status_data['demo_has_unlock_code'] = bool(config.MC_DEMO_UNLOCK_CODE)
 
         return jsonify(status_data), 200
 
@@ -6509,10 +6578,19 @@ def repeater_settings_post(public_key):
 # demands the caller echo the repeater's name. That guard is deliberately
 # server-side as well as in the UI: an accidental or replayed POST must not
 # be enough to strand a node that needs a site visit to recover.
+#
+# `clock_sync` deliberately does NOT send the firmware's `clock sync`. That
+# command sets the repeater's RTC from the CLI packet's sender_timestamp, and
+# the companion overwrites that field with its own RTC before transmitting
+# ("Use node's RTC instead of app timestamp to avoid tripping replay
+# protection", companion_radio/MyMesh.cpp) — so `clock sync` propagates the
+# companion's drift, not our NTP-backed host clock. `time <epoch>` carries the
+# value in the command text, which we control end to end. Both are handled by
+# the same CommonCLI branch and answer with the same `OK - clock set: ...`.
 _REPEATER_ACTIONS = {
     'zerohop_advert': {'cmd': 'advert.zerohop'},
     'flood_advert':   {'cmd': 'advert'},
-    'clock_sync':     {'cmd': 'clock sync'},
+    'clock_sync':     {'cmd': lambda: f'time {int(time.time())}'},
     'reboot':         {'cmd': 'reboot', 'no_reply': True,
                        'no_reply_msg': 'Reboot command sent — the repeater should be '
                                        'restarting (no reply is expected)'},
@@ -6557,7 +6635,9 @@ def repeater_action(public_key):
                             'error': 'Type the repeater name to confirm this action'}), 400
     try:
         timeout = 15.0 if spec.get('no_reply') else 45.0
-        result = dm.repeater_cmd_wait(pk, spec['cmd'], timeout=timeout)
+        # A callable `cmd` is built per request (clock_sync needs a fresh epoch).
+        cmd = spec['cmd']
+        result = dm.repeater_cmd_wait(pk, cmd() if callable(cmd) else cmd, timeout=timeout)
         if result.get('success'):
             reply = (result.get('reply') or '').strip()
             return jsonify({'success': True, 'reply': reply,
