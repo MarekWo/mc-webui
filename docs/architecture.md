@@ -384,10 +384,11 @@ Every mutating endpoint hot-reloads the `ObserverManager`, so broker and setting
 | GET | `/api/repeaters/<pk>/clock` | Repeater clock (LE epoch from `req_basic_sync`) |
 | GET | `/api/repeaters/<pk>/telemetry` | All Cayenne LPP channels |
 | GET | `/api/repeaters/<pk>/neighbours` | Zero-hop neighbours enriched with contact names/positions |
+| POST | `/api/repeaters/<pk>/neighbours/remove` | Drop one neighbour (`{prefix: <hex>}`) or all of them (empty prefix); admin only |
 | POST | `/api/repeaters/<pk>/cli` | Text CLI command (`{command}` → `{output, elapsed_ms}`); admin only |
 | GET | `/api/repeaters/<pk>/settings` | Read one settings section (`?section=basic\|radio\|location\|features\|network\|advert\|operator\|advanced`) as a `get` batch; admin only |
 | POST | `/api/repeaters/<pk>/settings` | Apply dirty fields (`{values}`) as a `set` batch with per-field `ok\|failed\|reboot_required` results; admin only |
-| POST | `/api/repeaters/<pk>/action` | One-shot action (`{action: zerohop_advert\|flood_advert\|clock_sync\|reboot}`); admin only |
+| POST | `/api/repeaters/<pk>/action` | One-shot action (`{action: zerohop_advert\|flood_advert\|discover_neighbours\|clock_sync\|reboot}`); admin only |
 
 Error mapping is shared across the family: 401 `need_login` (no session), 403 (guest on an admin endpoint), 429 (another repeater operation in progress — single firmware request slot), 503 (device not connected), 504 (timeout: repeater unreachable *or* wrong password — indistinguishable by protocol). Passwords are never returned by any GET (`password_set` boolean only). The panels are served by `GET /repeaters` and `GET /repeaters/manage?pubkey=<64-hex>`.
 
