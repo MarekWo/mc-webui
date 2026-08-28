@@ -132,6 +132,19 @@ The `/repeaters` (list) and `/repeaters/manage` (per-repeater tools) panels are 
 - **Trusted networks refuse to match through a proxy** — when a request carries `X-Forwarded-For`/`X-Real-IP`/`Forwarded`/`CF-Connecting-IP` and `MC_TRUST_PROXY` is off, `remote_addr` belongs to the proxy or tunnel rather than the visitor, so it is not matched against `MC_DEMO_TRUSTED_NETS`. Without this, publishing through a LAN-hosted tunnel while trusting the LAN would unlock the instance for every visitor at once. `log_startup_state()` reports the resulting configuration at boot
 - **Frontend is advisory** — `demo-lock.js` (loaded from `_head_i18n.html`, so it reaches all eight entry points including the six iframes) disables controls inside `[data-demo-lock]`, removes `[data-demo-lock="hide"]`, re-applies through a `MutationObserver` for JS-rendered buttons, and turns any `403 demo_locked` response into a toast. The flags reach templates through the `inject_globals` context processor and JS through `/api/status`
 
+### Advert coordinate validation
+
+Adverts are unvalidated mesh input, and a packet corrupted in flight can carry a latitude of 1642 or a longitude of -1768. One such entry blanks a whole map: Leaflet clamps latitude when projecting but **not** longitude, so `fitBounds()` zooms out until the impossible point is on screen and every real marker ends up several world-widths outside the viewport. This is not theoretical — a tester's cache held two of them among 2131 contacts, and both his contacts map and Path Analyzer were unusable because of it.
+
+`app/geo.py` and `app/static/js/geo-utils.js` hold the single definition of a usable position, applied in four places so no one miss can blank a map again:
+
+- **On write** — `Database.upsert_contact()` stores `NULL` instead of an out-of-range, non-finite or unparseable coordinate, and drops both components together (half a position is not a position). The contact itself is still kept: only its claimed location is discarded
+- **On API output** — every response that feeds a map (`/api/contacts/cached?format=full`, `/api/contacts/detailed`, `/api/repeaters`, `/api/repeaters/<pk>/neighbours`, `/api/device/info`, `/api/contacts/preview-cleanup`) is scrubbed again. `upsert_contact` merges with `COALESCE`, so a bad value already in a row is sticky — the output scrub is what heals a cache poisoned by an older build, with no migration and nothing for the user to do
+- **In the browser** — `hasValidGps()` / `withValidGps()` replaced eight hand-copied variants of the same check across six JS files. They were **not** equivalent: `paGeoContact()` in the Path Analyzer rejected only an exact `0/0` pair, so it alone accepted a longitude of exactly zero and placed those nodes off west Africa, stretching routes across the map. `fitMapToPoints()` filters the point list, checks `bounds.isValid()` and caps `maxZoom`
+- **Per marker** — the marker loops catch per entry, so anything that still slips through costs its own pin rather than the whole map
+
+A corrupted `type` (61, 126, 152 and 210 have all been seen) is logged but stored raw. It already renders as `UNKNOWN` and is filtered out of the maps; normalising it to `0` would be worse, because `0` maps to `COM` in the type-label table and would promote garbage onto the map.
+
 ### Path Analyzer
 
 The `/path-analyzer` panel (standalone iframe page, `path-analyzer.js`) is a read-only analysis view over data the app already collects — no new tables, no background work:
@@ -163,6 +176,7 @@ mc-webui/
 │   ├── observer.py                 # Observer: MQTT packet-capture publishing
 │   ├── diagnostics.py              # Diagnostic capture (support bundle + upload)
 │   ├── demo_guard.py               # Demo mode: read-only guard for a public instance
+│   ├── geo.py                      # Coordinate sanity checks for advert positions
 │   ├── contacts_cache.py           # Persistent contacts cache (DB-backed)
 │   ├── read_status.py              # Server-side read status manager (DB-backed)
 │   ├── version.py                  # Git-based version management
@@ -178,7 +192,8 @@ mc-webui/
 │   │   ├── api.py                  # REST API endpoints
 │   │   └── views.py                # HTML views
 │   ├── static/                     # Frontend assets (CSS, JS, images, vendors)
-│   │   └── js/fab-utils.js         # Floating-button drag/collapse/sizing helpers
+│   │   ├── js/fab-utils.js         # Floating-button drag/collapse/sizing helpers
+│   │   └── js/geo-utils.js         # Shared GPS validation + safe fitBounds for every map
 │   └── templates/                  # HTML templates
 ├── docs/                           # Documentation
 ├── scripts/
