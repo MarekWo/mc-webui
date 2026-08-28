@@ -194,7 +194,7 @@ function updateMapMarkers() {
     const bounds = [];
 
     // Add own device marker (star shape, distinct from contacts)
-    if (_selfInfo && _selfInfo.adv_lat && _selfInfo.adv_lon && (_selfInfo.adv_lat !== 0 || _selfInfo.adv_lon !== 0)) {
+    if (hasValidGps(_selfInfo)) {
         const ownIcon = L.divIcon({
             html: '<i class="bi bi-star-fill" style="color: #dc3545; font-size: 20px; text-shadow: 0 0 3px #fff;"></i>',
             iconSize: [20, 20],
@@ -207,48 +207,56 @@ function updateMapMarkers() {
         bounds.push([_selfInfo.adv_lat, _selfInfo.adv_lon]);
     }
 
+    // Each marker is added on its own: a contact we still failed to reject
+    // must cost its own pin, never the whole map
     filteredContacts.forEach(c => {
-        const color = CONTACT_TYPE_COLORS[c.type] || '#2196F3';
-        const typeName = CONTACT_TYPE_NAMES[c.type] || t('common.unknown');
-        const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
+        try {
+            const color = CONTACT_TYPE_COLORS[c.type] || '#2196F3';
+            const typeName = CONTACT_TYPE_NAMES[c.type] || t('common.unknown');
+            const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
 
-        L.circleMarker([c.adv_lat, c.adv_lon], {
-            radius: 10,
-            fillColor: color,
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        })
-            .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
+            L.circleMarker([c.adv_lat, c.adv_lon], {
+                radius: 10,
+                fillColor: color,
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            })
+                .addTo(markersGroup)
+                .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
 
-        bounds.push([c.adv_lat, c.adv_lon]);
+            bounds.push([c.adv_lat, c.adv_lon]);
+        } catch (err) {
+            console.warn('Skipping contact marker:', c.name, err);
+        }
     });
 
     cachedFiltered.forEach(c => {
-        const typeNum = TYPE_LABEL_TO_NUM[c.type_label] || 1;
-        const color = CONTACT_TYPE_COLORS[typeNum] || '#2196F3';
-        const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
+        try {
+            const typeNum = TYPE_LABEL_TO_NUM[c.type_label] || 1;
+            const color = CONTACT_TYPE_COLORS[typeNum] || '#2196F3';
+            const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
 
-        L.circleMarker([c.adv_lat, c.adv_lon], {
-            radius: 8,
-            fillColor: color,
-            color: '#999',
-            weight: 1,
-            opacity: 0.8,
-            fillOpacity: 0.5
-        })
-            .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${tHtml('map.cached_label', { type: c.type_label || t('map.cache') })}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
+            L.circleMarker([c.adv_lat, c.adv_lon], {
+                radius: 8,
+                fillColor: color,
+                color: '#999',
+                weight: 1,
+                opacity: 0.8,
+                fillOpacity: 0.5
+            })
+                .addTo(markersGroup)
+                .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${tHtml('map.cached_label', { type: c.type_label || t('map.cache') })}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
 
-        bounds.push([c.adv_lat, c.adv_lon]);
+            bounds.push([c.adv_lat, c.adv_lon]);
+        } catch (err) {
+            console.warn('Skipping cached contact marker:', c.name, err);
+        }
     });
 
-    if (bounds.length === 1) {
-        leafletMap.setView(bounds[0], 13);
-    } else if (bounds.length > 1) {
-        leafletMap.fitBounds(bounds, { padding: [20, 20] });
+    if (!fitMapToPoints(leafletMap, bounds)) {
+        leafletMap.setView([52.0, 19.0], 6);
     }
 }
 
@@ -285,15 +293,11 @@ async function showAllContactsOnMap() {
             }
 
             if (deviceData.success && deviceData.contacts) {
-                allContactsWithGps = deviceData.contacts.filter(c =>
-                    c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)
-                );
+                allContactsWithGps = withValidGps(deviceData.contacts);
             }
 
             if (cachedData.success && cachedData.contacts) {
-                allCachedContactsWithGps = cachedData.contacts.filter(c =>
-                    c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)
-                );
+                allCachedContactsWithGps = withValidGps(cachedData.contacts);
             }
 
             updateMapMarkers();
@@ -359,7 +363,7 @@ async function loadContactsGeoCache() {
         // Process device contacts
         if (detailedData.success && detailedData.contacts) {
             detailedData.contacts.forEach(c => {
-                if (c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)) {
+                if (hasValidGps(c)) {
                     contactsGeoCache[c.name] = { lat: c.adv_lat, lon: c.adv_lon };
                 }
                 if (c.name && c.public_key) {
@@ -376,7 +380,7 @@ async function loadContactsGeoCache() {
         // Process cached contacts (fills gaps for contacts not on device)
         if (cachedData.success && cachedData.contacts) {
             cachedData.contacts.forEach(c => {
-                if (!contactsGeoCache[c.name] && c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)) {
+                if (!contactsGeoCache[c.name] && hasValidGps(c)) {
                     contactsGeoCache[c.name] = { lat: c.adv_lat, lon: c.adv_lon };
                 }
                 if (c.name && c.public_key && !contactsPubkeyMap[c.name]) {
@@ -2265,7 +2269,7 @@ async function loadDeviceInfo() {
         const shortKey = pubKey.length > 12 ? `${pubKey.slice(0, 6)}...${pubKey.slice(-6)}` : pubKey;
 
         // Location
-        const hasLocation = info.adv_lat && info.adv_lon && (info.adv_lat !== 0 || info.adv_lon !== 0);
+        const hasLocation = hasValidGps(info);
         const coords = hasLocation ? `${info.adv_lat.toFixed(6)}, ${info.adv_lon.toFixed(6)}` : tHtml('device.info.location_none');
 
         // Build table rows

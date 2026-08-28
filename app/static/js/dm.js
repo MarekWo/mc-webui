@@ -1286,7 +1286,7 @@ function populateContactInfoModal() {
     }
 
     // GPS
-    if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
+    if (hasValidGps(contact)) {
         const div = document.createElement('div');
         div.className = 'small mb-2';
         div.innerHTML = `<i class="bi bi-geo-alt"></i> ${contact.adv_lat.toFixed(4)}, ${contact.adv_lon.toFixed(4)}`;
@@ -2977,10 +2977,8 @@ async function loadRepeaterMapMarkers() {
         }
     }
 
-    // Filter: only those with GPS
-    let repeaters = (_repeatersCache || []).filter(r =>
-        r.adv_lat && r.adv_lon && (r.adv_lat !== 0 || r.adv_lon !== 0)
-    );
+    // Filter: only those with a usable GPS position
+    let repeaters = withValidGps(_repeatersCache);
 
     if (!showCached) {
         // Non-cached: only repeaters that are on the device (have recent advert)
@@ -3032,9 +3030,7 @@ async function loadRepeaterMapMarkers() {
         bounds.push([rpt.adv_lat, rpt.adv_lon]);
     });
 
-    if (bounds.length > 0) {
-        _rptMap.fitBounds(bounds, { padding: [20, 20] });
-    }
+    fitMapToPoints(_rptMap, bounds);
 }
 
 /**

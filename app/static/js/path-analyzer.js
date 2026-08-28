@@ -662,9 +662,7 @@ let paMapSelection = { msgId: null, echoIdx: null };
 let paPicks = {};         // token -> public_key chosen by the user (collision disambiguation)
 
 function paGeoContact(c) {
-    return c.adv_lat !== null && c.adv_lat !== undefined &&
-           c.adv_lon !== null && c.adv_lon !== undefined &&
-           !(Number(c.adv_lat) === 0 && Number(c.adv_lon) === 0);
+    return hasValidGps(c);
 }
 
 // Overlay toggles live on the map itself, not in the shared filter bar -
@@ -835,8 +833,12 @@ function paDrawPaths(fit) {
         });
     }
 
-    if (fit && latlngs.length > 0) {
-        paMap.fitBounds(L.latLngBounds(latlngs).pad(0.25), { maxZoom: 13 });
+    if (fit) {
+        const fittable = latlngs.filter(isValidLatLng);
+        if (fittable.length > 0) {
+            const bounds = L.latLngBounds(fittable).pad(0.25);
+            if (bounds.isValid()) paMap.fitBounds(bounds, { maxZoom: 13 });
+        }
     }
 
     document.getElementById('paMapClearBtn').classList.remove('d-none');

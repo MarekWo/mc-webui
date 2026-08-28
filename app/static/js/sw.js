@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mc-webui-v10';
+const CACHE_NAME = 'mc-webui-v11';
 const ASSETS_TO_CACHE = [
     '/',
     '/static/css/style.css',
@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
     '/static/js/contacts.js',
     '/static/js/message-utils.js',
     '/static/js/filter-utils.js',
+    '/static/js/geo-utils.js',
     '/static/js/i18n-runtime.js',
     '/static/js/datetime-utils.js',
     '/static/js/console.js',

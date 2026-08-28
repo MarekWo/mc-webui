@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
+from app.geo import is_valid_contact_type, sanitize_contact_latlon
+
 logger = logging.getLogger(__name__)
 
 SCHEMA_FILE = Path(__file__).parent / 'schema.sql'
@@ -123,16 +125,34 @@ class Database:
 
     def upsert_contact(self, public_key: str, name: str = '', **kwargs) -> None:
         public_key = public_key.lower()
+
+        # Adverts are unvalidated mesh input: a corrupted packet can carry a
+        # latitude of 1642 or a type of 210. Coordinates are dropped rather
+        # than stored, because one out-of-range value blows up map bounds for
+        # every other contact. A bogus type is only logged - it already
+        # renders as UNKNOWN and is filtered out of the maps, and keeping the
+        # raw value preserves the evidence that the advert was corrupted.
+        contact_type = kwargs.get('type', 0)
+        if not is_valid_contact_type(contact_type):
+            logger.warning(
+                f"Corrupted advert type for {name or public_key[:12]} "
+                f"({public_key[:8]}...): type={contact_type!r}"
+            )
+        adv_lat, adv_lon = sanitize_contact_latlon(
+            kwargs.get('adv_lat'), kwargs.get('adv_lon'),
+            label=f"{name or public_key[:12]} ({public_key[:8]}...)"
+        )
+
         fields = {
             'public_key': public_key,
             'name': name,
-            'type': kwargs.get('type', 0),
+            'type': contact_type,
             'flags': kwargs.get('flags', 0),
             'out_path': kwargs.get('out_path', ''),
             'out_path_len': kwargs.get('out_path_len', 0),
             'last_advert': kwargs.get('last_advert'),
-            'adv_lat': kwargs.get('adv_lat'),
-            'adv_lon': kwargs.get('adv_lon'),
+            'adv_lat': adv_lat,
+            'adv_lon': adv_lon,
             'source': kwargs.get('source', 'advert'),
             'is_protected': kwargs.get('is_protected', 0),
         }

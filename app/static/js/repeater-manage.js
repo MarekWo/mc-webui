@@ -164,7 +164,7 @@ function renderHeader() {
     const ZWSP = String.fromCharCode(0x200B);
     document.getElementById('rptPath').textContent = path.replace(/→/g, '→' + ZWSP);
 
-    const loc = (r.adv_lat != null && r.adv_lon != null && (r.adv_lat !== 0 || r.adv_lon !== 0))
+    const loc = hasValidGps(r)
         ? `${r.adv_lat.toFixed(4)}, ${r.adv_lon.toFixed(4)}`
         : '—';
     document.getElementById('rptLocation').textContent = loc;
@@ -856,8 +856,8 @@ function renderNeighborsList() {
     }
 
     // Map view is offered when the repeater or any neighbour has a position
-    const mappable = entries.some(n => n.lat != null && n.lon != null)
-        || (_repeater && _repeater.adv_lat && _repeater.adv_lon);
+    const mappable = entries.some(n => hasValidGps(n, 'lat', 'lon'))
+        || hasValidGps(_repeater);
     if (toggle) toggle.style.display = mappable ? '' : 'none';
 
     if (!entries.length) {
@@ -923,7 +923,7 @@ function renderNeighborsMap() {
     }
     _nbMapLayers.clearLayers();
 
-    const hasCenter = _repeater && _repeater.adv_lat && _repeater.adv_lon;
+    const hasCenter = hasValidGps(_repeater);
     const center = hasCenter ? [_repeater.adv_lat, _repeater.adv_lon] : null;
     const bounds = [];
 
@@ -943,7 +943,7 @@ function renderNeighborsMap() {
     let placed = 0;
     let skipped = 0;
     (data.entries || []).forEach(n => {
-        if (n.lat == null || n.lon == null) { skipped++; return; }
+        if (!hasValidGps(n, 'lat', 'lon')) { skipped++; return; }
         const pos = [n.lat, n.lon];
         const marker = L.circleMarker(pos, {
             radius: 9,
@@ -986,9 +986,7 @@ function renderNeighborsMap() {
     // Leaflet needs a size recalc after the container becomes visible
     setTimeout(() => {
         _nbMap.invalidateSize();
-        if (bounds.length > 0) {
-            _nbMap.fitBounds(bounds, { padding: [30, 30] });
-        }
+        fitMapToPoints(_nbMap, bounds, { padding: [30, 30] });
     }, 50);
 }
 

@@ -1567,6 +1567,9 @@
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin=""></script>
 
+    <!-- Coordinate validation shared by every map (must load after Leaflet) -->
+    <script src="{{ url_for('static', filename='js/geo-utils.js') }}"></script>
+
     <!-- Share token formats (must load before message-utils.js, which renders them) -->
     <script src="{{ url_for('static', filename='js/share-tokens.js') }}"></script>
 
