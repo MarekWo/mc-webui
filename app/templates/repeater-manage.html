@@ -418,6 +418,30 @@
         </div>
     </div>
 
+    <!-- Neighbour Detail Modal (Neighbours → row / map popup) -->
+    <div class="modal fade" id="neighborModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title text-truncate" id="neighborModalTitle"></h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body py-2">
+                    <dl class="row mb-0 small" id="neighborModalDetails"></dl>
+                    <div class="small text-muted mt-3" id="neighborModalNote" style="display: none;">
+                        <i class="bi bi-info-circle me-1"></i>{{ t('rptmgmt.neigh.remove_note') }}
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{{ t('common.close') }}</button>
+                    <button type="button" class="btn btn-sm btn-danger" id="neighborRemoveBtn" style="display: none;">
+                        <i class="bi bi-trash"></i> {{ t('rptmgmt.neigh.remove_btn') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Location Map Picker Modal (Settings → Location) -->
     <div class="modal fade" id="locationMapModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">

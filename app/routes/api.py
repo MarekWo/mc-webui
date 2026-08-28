@@ -6584,6 +6584,12 @@ def repeater_settings_post(public_key):
 # `advert.zerohop` reaches direct neighbours only. `reboot` and `poweroff`
 # never reply: the firmware acts immediately without building one.
 #
+# `discover.neighbors` asks the repeater to broadcast a zero-hop discovery
+# request; neighbours answer over the next ~60 s, so the caller has to refresh
+# the list afterwards. It lives in the repeater firmware only (examples/
+# simple_repeater/MyMesh.cpp), not in the shared CommonCLI, so other node types
+# answer with an error — the reply is surfaced verbatim rather than assumed OK.
+#
 # `poweroff` (firmware v1.17+) is the only action here with no way back over
 # the mesh — a powered-off node cannot be woken remotely, so `confirm_name`
 # demands the caller echo the repeater's name. That guard is deliberately
@@ -6600,6 +6606,7 @@ def repeater_settings_post(public_key):
 # the same CommonCLI branch and answer with the same `OK - clock set: ...`.
 _REPEATER_ACTIONS = {
     'zerohop_advert': {'cmd': 'advert.zerohop'},
+    'discover_neighbours': {'cmd': 'discover.neighbors'},
     'flood_advert':   {'cmd': 'advert'},
     'clock_sync':     {'cmd': lambda: f'time {int(time.time())}'},
     'reboot':         {'cmd': 'reboot', 'no_reply': True,
@@ -6725,6 +6732,54 @@ def repeater_neighbours(public_key):
         }), 200
     except Exception as e:
         logger.error(f"Error getting repeater neighbours: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# The firmware matches `neighbor.remove ` on its full 16 bytes — the trailing
+# space is part of the command, and an empty prefix after it removes every
+# neighbour (helpers/CommonCLI.cpp). The generic /cli endpoint strips the
+# command, so remove-all is unreachable from the console: this route builds the
+# text itself and is the only way to send it.
+_NEIGHBOUR_PREFIX_RE = re.compile(r'^[0-9a-fA-F]*$')
+
+
+@api_bp.route('/repeaters/<public_key>/neighbours/remove', methods=['POST'])
+def repeater_neighbours_remove(public_key):
+    """Drop one neighbour (by pubkey prefix) or the whole list from a repeater.
+
+    Body: {'prefix': '<hex>'} — an empty or absent prefix clears every entry.
+    The firmware derives the byte count as len(hex) // 2, so an odd number of
+    hex digits would silently drop half a byte and match a wider set than the
+    caller asked for; we reject it instead.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    prefix = (data.get('prefix') or '').strip()
+    if not _NEIGHBOUR_PREFIX_RE.match(prefix) or len(prefix) > 64:
+        return jsonify({'success': False, 'error': 'Invalid pubkey prefix'}), 400
+    if len(prefix) % 2:
+        return jsonify({'success': False,
+                        'error': 'Pubkey prefix needs an even number of hex digits'}), 400
+    try:
+        result = dm.repeater_cmd_wait(pk, f'neighbor.remove {prefix}')
+        if not result.get('success'):
+            return jsonify({'success': False,
+                            'error': result.get('error', 'Remove failed')}), _repeater_result_status(result)
+        reply = (result.get('reply') or '').strip()
+        return jsonify({'success': True, 'reply': reply,
+                        'ok': reply.lower().startswith('ok'),
+                        'removed_all': not prefix,
+                        'elapsed_ms': result.get('elapsed_ms')}), 200
+    except Exception as e:
+        logger.error(f"Error removing repeater neighbour: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
