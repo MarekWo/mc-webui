@@ -774,8 +774,7 @@ function renderNeighborsPane(body) {
     // repeater, so the menu holding them is admin-only (and so is its backend).
     const isAdmin = !!(_session && _session.is_admin);
     body.innerHTML = `
-        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-            <span class="text-muted small flex-grow-1" id="neighborsCount"></span>
+        <div class="d-flex align-items-center justify-content-end gap-2 flex-wrap">
             <div class="btn-group btn-group-sm" role="group" id="neighborsViewToggle" style="display: none;">
                 <button type="button" class="btn btn-outline-secondary active" id="nbListBtn">
                     <i class="bi bi-list-ul"></i> ${tHtml('rptmgmt.neigh.list')}
@@ -806,6 +805,7 @@ function renderNeighborsPane(body) {
                 </ul>
             </div>` : ''}
         </div>
+        <div class="text-muted small mt-1 mb-2" id="neighborsCount"></div>
         <div class="alert py-2 small d-none" id="nbActionNote"></div>
         <div id="neighborsContainer"></div>
         <div id="neighborsMapWrap" style="display: none;">
@@ -998,7 +998,7 @@ function renderNeighborsList() {
     // scrolling list is the easiest thing in the panel to hit by accident.
     const rows = entries.map((n, i) => `
         <tr class="nb-row" data-nb-idx="${i}" role="button" style="cursor: pointer;">
-            <td class="text-truncate" style="max-width: min(220px, 40vw);">
+            <td class="text-truncate" style="max-width: min(220px, 32vw);">
                 ${n.name ? esc(n.name) : `<span class="font-monospace text-muted">[${esc(n.pubkey_prefix)}]</span>`}
                 ${n.lat != null ? `<i class="bi bi-geo-alt text-muted small ms-1" title="${tHtml('rptmgmt.neigh.position_title')}"></i>` : ''}
             </td>
