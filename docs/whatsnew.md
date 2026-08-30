@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.13.0 — 2026-08-30
+
 ### Features
 
 - **Neighbour lists can now be tidied up and refreshed on demand.** A repeater's neighbour list under **My Repeaters → Neighbors** could only be read: nodes that had moved away or gone off the air stayed in it, and there was no way to ask the repeater to go looking for new ones — both are ordinary buttons in the standard MeshCore app, and both were missing here. A ⋮ menu next to **Refresh** now holds **Discover neighbours**, which has the repeater broadcast a zero-hop discovery request that nearby repeaters answer over the following minute, and **Remove all neighbours**, which empties the list after a confirmation. Single entries go through the list itself: selecting a neighbour — a row, or its marker on the map — opens a dialog with its pubkey prefix, SNR, last-heard time and position, with a **Remove from list** button under them. The dialog exists rather than a trash icon in each row because on a phone that row is already tight enough to truncate names, and a delete button at the edge of a scrolling list is the easiest thing on the panel to hit by accident. Everything here needs an admin login; a guest sees the same details, just no buttons. Worth knowing: the list belongs to the repeater, so a removed neighbour comes straight back the moment it is heard again — this tidies a stale list, it does not block anybody. While the panel was open, the neighbour table also stopped pushing the whole page sideways on a narrow phone when a node has a long name.
