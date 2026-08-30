@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Fixes
+
+- **The same routing path can no longer be added to a contact twice.** Both path editors — the one in a contact's info panel and the one under **My Repeaters → Paths** — took whatever they were given, so an identical route could end up in the list two or three times: added by hand, picked again from the repeater picker, or imported a second time from the device, which is the easiest of the three to do by accident because the button gives no hint that the path is already there. A duplicate is worse than untidy, because the list is a retry order: when a message fails, the app works down it, and a repeated entry simply retries a route that has just been shown not to work while the genuinely different alternative below it waits its turn. Adding a route that is already on the list is now refused with *This path is already on the list*, and the entry box stays open so the hops can be corrected. Two paths count as the same only when both the hops and the hash size match — the same bytes read as 1-byte hops describe a different route than as 3-byte hops, and both remain available. Duplicates already sitting in the list are collapsed into one when you update, keeping the starred copy if one of them was starred.
+
 ---
 
 ## 2.13.0 — 2026-08-30

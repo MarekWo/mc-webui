@@ -451,6 +451,69 @@ class TestPaths:
 
 
 # ================================================================
+# Contact Paths (user-configured DM/repeater routing)
+# ================================================================
+
+class TestContactPaths:
+    PK = 'aabbccdd'
+
+    def _contact(self, db):
+        db.upsert_contact(self.PK, name='Repeater')
+
+    def test_stored_lowercase(self, db):
+        self._contact(db)
+        db.add_contact_path(self.PK, 'D829D85469BB', hash_size=3)
+        assert db.get_contact_paths(self.PK)[0]['path_hex'] == 'd829d85469bb'
+
+    def test_find_ignores_case_and_whitespace(self, db):
+        self._contact(db)
+        path_id = db.add_contact_path(self.PK, 'd829d85469bb', hash_size=3)
+        assert db.find_contact_path(self.PK, ' D829D85469BB ', 3)['id'] == path_id
+
+    def test_find_distinguishes_hash_size(self, db):
+        self._contact(db)
+        db.add_contact_path(self.PK, 'd829d85469bb', hash_size=3)
+        # Same bytes read as 1-byte hops are a different set of hops
+        assert db.find_contact_path(self.PK, 'd829d85469bb', 1) is None
+
+    def test_find_can_exclude_the_row_being_edited(self, db):
+        self._contact(db)
+        path_id = db.add_contact_path(self.PK, 'd829d85469bb', hash_size=3)
+        assert db.find_contact_path(self.PK, 'd829d85469bb', 3, exclude_id=path_id) is None
+
+    def test_duplicate_insert_rejected_by_index(self, db):
+        import sqlite3
+        self._contact(db)
+        db.add_contact_path(self.PK, 'd829d85469bb', hash_size=3)
+        with pytest.raises(sqlite3.IntegrityError):
+            db.add_contact_path(self.PK, 'D829D85469BB', hash_size=3, label='again')
+
+    def test_migration_collapses_existing_duplicates(self, db):
+        import sqlite3
+        self._contact(db)
+        # Duplicates predate the unique index, so drop it to plant them
+        conn = sqlite3.connect(str(db.db_path))
+        conn.execute("DROP INDEX idx_cp_unique")
+        for label, primary, order in (('first', 0, 0), ('copy', 1, 1), ('other', 0, 2)):
+            hex_path = 'ffeeddccbbaa' if label == 'other' else 'd829d85469bb'
+            conn.execute(
+                """INSERT INTO contact_paths
+                   (contact_pubkey, path_hex, hash_size, label, is_primary, sort_order)
+                   VALUES (?, ?, 3, ?, ?, ?)""",
+                (self.PK, hex_path, label, primary, order)
+            )
+        conn.commit()
+        conn.close()
+
+        Database(db.db_path)  # re-open: migrations run on every start
+
+        paths = db.get_contact_paths(self.PK)
+        assert [p['label'] for p in paths] == ['first', 'other']
+        # The dropped copy was the primary one, so the survivor inherits it
+        assert paths[0]['is_primary'] == 1
+
+
+# ================================================================
 # v1 Migration
 # ================================================================
 

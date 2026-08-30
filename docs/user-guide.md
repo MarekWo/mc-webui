@@ -532,6 +532,7 @@ Configure message routing paths for individual contacts:
 - **Reorder** - Drag paths to change priority (starred path is used first)
 - **Star** - Mark a preferred primary path (used first in retry rotation)
 - **Delete** - Remove individual paths
+- **No duplicates** - the same route cannot be added twice for one contact. A path counts as the same when both the hops and the hash size match; the same bytes read with a different hash size are a different route and are still accepted. Adding one anyway - by hand, from the picker, or by importing the device path again - is refused with *This path is already on the list*. The same list, and the same rule, is what **My Repeaters → Paths** edits
 
 ### Keep Path Toggle
 

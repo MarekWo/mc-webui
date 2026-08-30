@@ -871,6 +871,7 @@
   "repeaters.toast.password_saved": "Password saved",
   "repeaters.toast.path_add_failed": "Failed to add path",
   "repeaters.toast.path_added": "Path added",
+  "repeaters.toast.path_duplicate": "This path is already on the list",
   "repeaters.toast.path_hex_required": "Path hex is required",
   "repeaters.toast.path_set_failed": "Failed to set device path",
   "repeaters.toast.path_updated": "Device path updated",

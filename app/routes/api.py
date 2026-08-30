@@ -2846,6 +2846,17 @@ def add_contact_path(pubkey):
         if len(label) > 50:
             return jsonify({'success': False, 'error': 'Label must be 50 characters or less'}), 400
 
+        # The same route twice is never useful: rotation would retry an
+        # already-failed path, and the list stops being readable
+        existing = db.find_contact_path(pubkey, path_hex, hash_size)
+        if existing:
+            return jsonify({
+                'success': False,
+                'error': 'This path is already configured for this contact',
+                'error_code': 'duplicate_path',
+                'existing_id': existing['id'],
+            }), 409
+
         path_id = db.add_contact_path(pubkey, path_hex, hash_size, label, is_primary)
         return jsonify({'success': True, 'id': path_id}), 201
     except Exception as e:
@@ -2887,6 +2898,25 @@ def update_contact_path(pubkey, path_id):
 
         if not kwargs:
             return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+
+        # An edit must not land on a route the contact already has either
+        if 'path_hex' in kwargs or 'hash_size' in kwargs:
+            current = next((p for p in db.get_contact_paths(pubkey) if p['id'] == path_id), None)
+            if not current:
+                return jsonify({'success': False, 'error': 'Path not found'}), 404
+            existing = db.find_contact_path(
+                pubkey,
+                kwargs.get('path_hex', current['path_hex']),
+                kwargs.get('hash_size', current['hash_size']),
+                exclude_id=path_id,
+            )
+            if existing:
+                return jsonify({
+                    'success': False,
+                    'error': 'This path is already configured for this contact',
+                    'error_code': 'duplicate_path',
+                    'existing_id': existing['id'],
+                }), 409
 
         if db.update_contact_path(path_id, **kwargs):
             return jsonify({'success': True}), 200

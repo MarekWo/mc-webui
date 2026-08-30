@@ -929,6 +929,7 @@
   "repeaters.toast.password_saved": "Hasło zapisane",
   "repeaters.toast.path_add_failed": "Nie udało się dodać ścieżki",
   "repeaters.toast.path_added": "Ścieżka dodana",
+  "repeaters.toast.path_duplicate": "Ta ścieżka jest już na liście",
   "repeaters.toast.path_hex_required": "Ścieżka hex jest wymagana",
   "repeaters.toast.path_set_failed": "Nie udało się ustawić ścieżki urządzenia",
   "repeaters.toast.path_updated": "Ścieżka urządzenia zaktualizowana",
