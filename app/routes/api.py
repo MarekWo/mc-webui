@@ -24,6 +24,7 @@ from app.config import config, runtime_config
 from app.device_manager import decode_path_len
 from app.archiver import manager as archive_manager
 from app.contacts_cache import get_all_names, get_all_contacts
+from app.geo import sanitize_latlon, scrub_geo
 from app import demo_guard
 
 logger = logging.getLogger(__name__)
@@ -1084,6 +1085,10 @@ def get_cached_contacts():
                     except (ValueError, TypeError):
                         last_advert_ts = 0
 
+                    # Scrub on output too: a cache poisoned by an older
+                    # build must not be able to blank the map it feeds
+                    adv_lat, adv_lon = sanitize_latlon(c.get('adv_lat'), c.get('adv_lon'))
+
                     contacts.append({
                         'public_key': pk,
                         'public_key_prefix': pk[:12],
@@ -1092,8 +1097,8 @@ def get_cached_contacts():
                         'last_seen': c.get('last_seen', ''),
                         'last_advert': last_advert_ts,
                         'source': c.get('source', ''),
-                        'adv_lat': c.get('adv_lat'),
-                        'adv_lon': c.get('adv_lon'),
+                        'adv_lat': adv_lat,
+                        'adv_lon': adv_lon,
                         'type_label': {0: 'COM', 1: 'COM', 2: 'REP', 3: 'ROOM', 4: 'SENS'}.get(c.get('type', 1), 'UNKNOWN'),
                         'is_ignored': pk in ignored_keys,
                         'is_blocked': pk in blocked_keys,
@@ -1273,6 +1278,7 @@ def preview_cleanup_contacts():
         contacts = []
         for public_key, details in contacts_detailed.items():
             out_path_len = details.get('out_path_len', -1)
+            adv_lat, adv_lon = sanitize_latlon(details.get('adv_lat'), details.get('adv_lon'))
             contacts.append({
                 'public_key': public_key,
                 'name': details.get('adv_name', ''),
@@ -1283,8 +1289,8 @@ def preview_cleanup_contacts():
                 'out_path_len': out_path_len,
                 'out_path': details.get('out_path', ''),
                 'out_path_hash_mode': details.get('out_path_hash_mode', 0),
-                'adv_lat': details.get('adv_lat'),
-                'adv_lon': details.get('adv_lon')
+                'adv_lat': adv_lat,
+                'adv_lon': adv_lon
             })
 
         # Filter contacts
@@ -1446,9 +1452,10 @@ def get_device_info():
 
         info = dm.get_device_info()
         if info:
+            # Own position feeds the star marker on the contacts map
             return jsonify({
                 'success': True,
-                'info': info,
+                'info': scrub_geo(dict(info)),
             }), 200
         else:
             return jsonify({'success': False, 'error': 'No device info available'}), 503
@@ -3318,6 +3325,9 @@ def get_contacts_detailed_api():
             out_path_raw = details.get('out_path', '')
             out_path_hash_mode = details.get('out_path_hash_mode', 0)
             path_or_mode = _format_path_display(out_path_len, out_path_raw, out_path_hash_mode)
+            # Out-of-range coordinates are dropped, not forwarded: one bad
+            # value makes Leaflet fit the map to the whole world (see app.geo)
+            adv_lat, adv_lon = sanitize_latlon(details.get('adv_lat'), details.get('adv_lon'))
 
             contact = {
                 # All original fields from contact_info
@@ -3328,8 +3338,8 @@ def get_contacts_detailed_api():
                 'out_path': out_path_raw,
                 'out_path_hash_mode': out_path_hash_mode,
                 'last_advert': details.get('last_advert'),
-                'adv_lat': details.get('adv_lat'),
-                'adv_lon': details.get('adv_lon'),
+                'adv_lat': adv_lat,
+                'adv_lon': adv_lon,
                 'lastmod': details.get('lastmod'),
                 # Computed/convenience fields
                 'name': details.get('adv_name', ''),  # Map adv_name to name for compatibility
@@ -6209,6 +6219,7 @@ def _merged_repeater_entry(row, device_by_key):
         'last_advert': None,
     }
     if details:
+        adv_lat, adv_lon = sanitize_latlon(details.get('adv_lat'), details.get('adv_lon'))
         entry.update({
             'name': details.get('adv_name', ''),
             'out_path_len': details.get('out_path_len', -1),
@@ -6218,8 +6229,8 @@ def _merged_repeater_entry(row, device_by_key):
                 details.get('out_path_len', -1),
                 details.get('out_path', ''),
                 details.get('out_path_hash_mode', 0)),
-            'adv_lat': details.get('adv_lat'),
-            'adv_lon': details.get('adv_lon'),
+            'adv_lat': adv_lat,
+            'adv_lon': adv_lon,
             'last_advert': details.get('last_advert'),
         })
     return entry
@@ -6573,6 +6584,12 @@ def repeater_settings_post(public_key):
 # `advert.zerohop` reaches direct neighbours only. `reboot` and `poweroff`
 # never reply: the firmware acts immediately without building one.
 #
+# `discover.neighbors` asks the repeater to broadcast a zero-hop discovery
+# request; neighbours answer over the next ~60 s, so the caller has to refresh
+# the list afterwards. It lives in the repeater firmware only (examples/
+# simple_repeater/MyMesh.cpp), not in the shared CommonCLI, so other node types
+# answer with an error — the reply is surfaced verbatim rather than assumed OK.
+#
 # `poweroff` (firmware v1.17+) is the only action here with no way back over
 # the mesh — a powered-off node cannot be woken remotely, so `confirm_name`
 # demands the caller echo the repeater's name. That guard is deliberately
@@ -6589,6 +6606,7 @@ def repeater_settings_post(public_key):
 # the same CommonCLI branch and answer with the same `OK - clock set: ...`.
 _REPEATER_ACTIONS = {
     'zerohop_advert': {'cmd': 'advert.zerohop'},
+    'discover_neighbours': {'cmd': 'discover.neighbors'},
     'flood_advert':   {'cmd': 'advert'},
     'clock_sync':     {'cmd': lambda: f'time {int(time.time())}'},
     'reboot':         {'cmd': 'reboot', 'no_reply': True,
@@ -6692,18 +6710,16 @@ def repeater_neighbours(public_key):
             contact = dm.mc.get_contact_by_key_prefix(prefix) if dm.mc else None
             if contact:
                 entry['name'] = contact.get('adv_name', '') or ''
-                lat = contact.get('adv_lat')
-                lon = contact.get('adv_lon')
-                if lat and lon and (lat != 0 or lon != 0):
+                lat, lon = sanitize_latlon(contact.get('adv_lat'), contact.get('adv_lon'))
+                if lat and lon:
                     entry['lat'] = lat
                     entry['lon'] = lon
             elif db:
                 db_contact = db.get_contact_by_prefix(prefix)
                 if db_contact:
                     entry['name'] = db_contact.get('name', '') or ''
-                    lat = db_contact.get('adv_lat')
-                    lon = db_contact.get('adv_lon')
-                    if lat and lon and (lat != 0 or lon != 0):
+                    lat, lon = sanitize_latlon(db_contact.get('adv_lat'), db_contact.get('adv_lon'))
+                    if lat and lon:
                         entry['lat'] = lat
                         entry['lon'] = lon
             entries.append(entry)
@@ -6716,6 +6732,54 @@ def repeater_neighbours(public_key):
         }), 200
     except Exception as e:
         logger.error(f"Error getting repeater neighbours: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# The firmware matches `neighbor.remove ` on its full 16 bytes — the trailing
+# space is part of the command, and an empty prefix after it removes every
+# neighbour (helpers/CommonCLI.cpp). The generic /cli endpoint strips the
+# command, so remove-all is unreachable from the console: this route builds the
+# text itself and is the only way to send it.
+_NEIGHBOUR_PREFIX_RE = re.compile(r'^[0-9a-fA-F]*$')
+
+
+@api_bp.route('/repeaters/<public_key>/neighbours/remove', methods=['POST'])
+def repeater_neighbours_remove(public_key):
+    """Drop one neighbour (by pubkey prefix) or the whole list from a repeater.
+
+    Body: {'prefix': '<hex>'} — an empty or absent prefix clears every entry.
+    The firmware derives the byte count as len(hex) // 2, so an odd number of
+    hex digits would silently drop half a byte and match a wider set than the
+    caller asked for; we reject it instead.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    prefix = (data.get('prefix') or '').strip()
+    if not _NEIGHBOUR_PREFIX_RE.match(prefix) or len(prefix) > 64:
+        return jsonify({'success': False, 'error': 'Invalid pubkey prefix'}), 400
+    if len(prefix) % 2:
+        return jsonify({'success': False,
+                        'error': 'Pubkey prefix needs an even number of hex digits'}), 400
+    try:
+        result = dm.repeater_cmd_wait(pk, f'neighbor.remove {prefix}')
+        if not result.get('success'):
+            return jsonify({'success': False,
+                            'error': result.get('error', 'Remove failed')}), _repeater_result_status(result)
+        reply = (result.get('reply') or '').strip()
+        return jsonify({'success': True, 'reply': reply,
+                        'ok': reply.lower().startswith('ok'),
+                        'removed_all': not prefix,
+                        'elapsed_ms': result.get('elapsed_ms')}), 200
+    except Exception as e:
+        logger.error(f"Error removing repeater neighbour: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

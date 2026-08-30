@@ -1352,7 +1352,7 @@ function createContactCard(contact, index) {
     actionsDiv.appendChild(approveBtn);
 
     // Map button (only if GPS coordinates available)
-    if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
+    if (hasValidGps(contact)) {
         const mapBtn = document.createElement('button');
         mapBtn.className = 'btn btn-sm btn-outline-primary';
         mapBtn.innerHTML = `<i class="bi bi-geo-alt"></i> <span class="btn-label">${tHtml('contacts.map.title')}</span>`;
@@ -2210,7 +2210,7 @@ function createExistingContactCard(contact, index) {
     actionsDiv.className = 'd-flex gap-2 mt-2';
 
     // Map button - for ANY contact with GPS coordinates
-    if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
+    if (hasValidGps(contact)) {
         const mapBtn = document.createElement('button');
         mapBtn.className = 'btn btn-sm btn-outline-primary';
         mapBtn.innerHTML = `<i class="bi bi-geo-alt"></i> <span class="btn-label">${tHtml('contacts.map.title')}</span>`;

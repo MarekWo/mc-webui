@@ -48,6 +48,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import org.json.JSONObject
+import java.net.URI
 
 /**
  * A thin wrapper around the user's own mc-webui instance: one screen to enter
@@ -114,7 +115,11 @@ class MainActivity : AppCompatActivity() {
         })
 
         val savedUrl = prefs.getString(KEY_URL, null)
-        if (savedUrl.isNullOrEmpty()) showConfig(null) else connect(savedUrl)
+        // Started by a notification tap: open the conversation it named rather
+        // than wherever the app happened to be left
+        val tapped = intent.getStringExtra(EXTRA_CLICKED_URL)?.let { resolveTarget(it) }
+        intent.removeExtra(EXTRA_CLICKED_URL)
+        if (savedUrl.isNullOrEmpty()) showConfig(null) else connect(tapped ?: savedUrl)
     }
 
     /**
@@ -132,16 +137,54 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * A notification tap on a running app lands here rather than in [onCreate].
-     * When the app was not running, simply being launched is the whole point of
-     * the tap, so there is nothing extra to deliver.
+     * A notification tap on a running app lands here rather than in [onCreate],
+     * which handles the cold-start case instead.
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val tag = intent.getStringExtra(EXTRA_CLICKED_TAG) ?: return
+        val tag = intent.getStringExtra(EXTRA_CLICKED_TAG)
+        val url = intent.getStringExtra(EXTRA_CLICKED_URL)
         intent.removeExtra(EXTRA_CLICKED_TAG)
-        callJs("window.__mcNotifyClicked", tag)
+        intent.removeExtra(EXTRA_CLICKED_URL)
+        if (tag == null && url == null) return
+        deliverNotificationTap(tag, url)
+    }
+
+    /**
+     * A tap goes to the page first: it still holds the notification and can
+     * switch conversation without reloading anything. Only when it no longer
+     * recognises the notification - the page has reloaded since, or the whole
+     * WebView was rebuilt - does the wrapper navigate there itself.
+     */
+    private fun deliverNotificationTap(tag: String?, url: String?) {
+        val target = url?.let { resolveTarget(it) }
+        if (tag == null) {
+            target?.let { webView.loadUrl(it) }
+            return
+        }
+        val call = "typeof window.__mcNotifyClicked === 'function' && " +
+            "window.__mcNotifyClicked(${JSONObject.quote(tag)})"
+        webView.evaluateJavascript(call) { handled ->
+            if (handled != "true" && target != null) webView.loadUrl(target)
+        }
+    }
+
+    /**
+     * Turns a notification's target into an address to load. The page hands
+     * over a path within its own site; anything else is refused, because the
+     * wrapper follows the address the user typed and a notification is not the
+     * place to change it.
+     */
+    private fun resolveTarget(path: String): String? {
+        if (!path.startsWith("/") || path.startsWith("//")) return null
+        val base = prefs.getString(KEY_URL, null)
+        if (base.isNullOrEmpty()) return null
+        return try {
+            URI(base).resolve(path).toString()
+        } catch (e: Exception) {
+            null
+        }
     }
 
     // ---------------------------------------------------------------- screens
@@ -519,9 +562,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun notify(tag: String, title: String, body: String, silent: Boolean) = runOnUiThread {
-            postNotification(tag, title, body, silent)
-        }
+        fun notify(tag: String, title: String, body: String, silent: Boolean, url: String) =
+            runOnUiThread { postNotification(tag, title, body, silent, url) }
 
         @JavascriptInterface
         fun close(tag: String) = runOnUiThread {
@@ -544,7 +586,13 @@ class MainActivity : AppCompatActivity() {
     // areNotificationsEnabled() is false whenever POST_NOTIFICATIONS is missing,
     // so the guard below is the permission check - lint just cannot see that
     @SuppressLint("MissingPermission")
-    private fun postNotification(tag: String, title: String, body: String, silent: Boolean) {
+    private fun postNotification(
+        tag: String,
+        title: String,
+        body: String,
+        silent: Boolean,
+        url: String
+    ) {
         val manager = NotificationManagerCompat.from(this)
         // Covers both the runtime permission and the channel being switched off
         if (!manager.areNotificationsEnabled()) return
@@ -554,6 +602,7 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(EXTRA_CLICKED_TAG, tag)
+            if (url.isNotEmpty()) putExtra(EXTRA_CLICKED_URL, url)
         }
         var flags = PendingIntent.FLAG_UPDATE_CURRENT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags = flags or PendingIntent.FLAG_IMMUTABLE
@@ -669,6 +718,7 @@ class MainActivity : AppCompatActivity() {
         private const val CHANNEL_ID = "mc_webui_activity"
         private const val NOTIFICATION_ID = 1
         private const val EXTRA_CLICKED_TAG = "clicked_tag"
+        private const val EXTRA_CLICKED_URL = "clicked_url"
 
         /**
          * The page's own background colour, for painting the system bar strips.

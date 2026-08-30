@@ -724,7 +724,10 @@
                                 </div>
                             </form>
                         </div>
-                        <div class="tab-pane fade" id="tabSettingsInterface" data-demo-lock>
+                        <!-- Not locked as a whole in demo mode: the sidebar breakpoint above the
+                             <hr> is localStorage, i.e. per-browser. Only the toast form below
+                             is server-side and shared, so the lock sits on that form. -->
+                        <div class="tab-pane fade" id="tabSettingsInterface">
                             <h6 class="text-muted mb-2">{{ t('settings.iface.layout') }}</h6>
                             <p class="text-muted small mb-2">{{ t('settings.iface.layout_desc') }}</p>
                             <table class="table table-sm table-borderless mb-3 align-middle">
@@ -741,7 +744,7 @@
                                 </tbody>
                             </table>
                             <hr>
-                            <form id="uiSettingsForm">
+                            <form id="uiSettingsForm" data-demo-lock>
                                 <h6 class="text-muted mb-2">{{ t('settings.tab.notifications') }}</h6>
                                 <p class="text-muted small mb-2">{{ t('settings.iface.toast_desc') }}</p>
                                 <table class="table table-sm table-borderless mb-3 align-middle">
@@ -1566,6 +1569,9 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin=""></script>
+
+    <!-- Coordinate validation shared by every map (must load after Leaflet) -->
+    <script src="{{ url_for('static', filename='js/geo-utils.js') }}"></script>
 
     <!-- Share token formats (must load before message-utils.js, which renders them) -->
     <script src="{{ url_for('static', filename='js/share-tokens.js') }}"></script>

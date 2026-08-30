@@ -164,7 +164,7 @@ function renderHeader() {
     const ZWSP = String.fromCharCode(0x200B);
     document.getElementById('rptPath').textContent = path.replace(/→/g, '→' + ZWSP);
 
-    const loc = (r.adv_lat != null && r.adv_lon != null && (r.adv_lat !== 0 || r.adv_lon !== 0))
+    const loc = hasValidGps(r)
         ? `${r.adv_lat.toFixed(4)}, ${r.adv_lon.toFixed(4)}`
         : '—';
     document.getElementById('rptLocation').textContent = loc;
@@ -762,13 +762,19 @@ let _neighborsData = null;      // last successful response
 let _neighborsView = 'list';    // 'list' | 'map'
 let _nbMap = null;
 let _nbMapLayers = null;
+let _nbModal = null;            // neighbour detail / remove dialog
+let _nbModalIdx = null;         // index into _neighborsData.entries
+let _nbActionPending = false;
 
 function renderNeighborsPane(body) {
     _neighborsView = 'list';
     _nbMap = null;   // pane body was rebuilt; force map re-init
+    _nbActionPending = false;
+    // The list itself only needs a login, but discovery and removal write to the
+    // repeater, so the menu holding them is admin-only (and so is its backend).
+    const isAdmin = !!(_session && _session.is_admin);
     body.innerHTML = `
-        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-            <span class="text-muted small flex-grow-1" id="neighborsCount"></span>
+        <div class="d-flex align-items-center justify-content-end gap-2 flex-wrap">
             <div class="btn-group btn-group-sm" role="group" id="neighborsViewToggle" style="display: none;">
                 <button type="button" class="btn btn-outline-secondary active" id="nbListBtn">
                     <i class="bi bi-list-ul"></i> ${tHtml('rptmgmt.neigh.list')}
@@ -778,19 +784,141 @@ function renderNeighborsPane(body) {
                 </button>
             </div>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="neighborsRefreshBtn" title="${tHtml('rptmgmt.neigh.refresh_title')}">
-                <i class="bi bi-arrow-clockwise"></i> ${tHtml('common.refresh')}
+                <i class="bi bi-arrow-clockwise"></i>
+                <span class="d-none d-sm-inline">${tHtml('common.refresh')}</span>
             </button>
+            ${isAdmin ? `
+            <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="neighborsMenuBtn"
+                        data-bs-toggle="dropdown" aria-expanded="false"
+                        title="${tHtml('rptmgmt.neigh.menu_title')}">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><button type="button" class="dropdown-item" id="nbDiscoverBtn">
+                        <i class="bi bi-broadcast me-2"></i>${tHtml('rptmgmt.neigh.discover')}
+                    </button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button type="button" class="dropdown-item text-danger" id="nbRemoveAllBtn">
+                        <i class="bi bi-trash me-2"></i>${tHtml('rptmgmt.neigh.remove_all')}
+                    </button></li>
+                </ul>
+            </div>` : ''}
         </div>
+        <div class="text-muted small mt-1 mb-2" id="neighborsCount"></div>
+        <div class="alert py-2 small d-none" id="nbActionNote"></div>
         <div id="neighborsContainer"></div>
         <div id="neighborsMapWrap" style="display: none;">
             <div id="nbLeafletMap" style="height: 420px; width: 100%;" class="rounded border"></div>
             <div class="small text-muted mt-1" id="nbMapNote"></div>
         </div>
     `;
-    body.querySelector('#neighborsRefreshBtn').addEventListener('click', loadNeighbors);
+    body.querySelector('#neighborsRefreshBtn').addEventListener('click', () => {
+        hideNeighborsNote();
+        loadNeighbors();
+    });
     body.querySelector('#nbListBtn').addEventListener('click', () => setNeighborsView('list'));
     body.querySelector('#nbMapBtn').addEventListener('click', () => setNeighborsView('map'));
+    const discoverBtn = body.querySelector('#nbDiscoverBtn');
+    if (discoverBtn) discoverBtn.addEventListener('click', runNeighborDiscover);
+    const removeAllBtn = body.querySelector('#nbRemoveAllBtn');
+    if (removeAllBtn) removeAllBtn.addEventListener('click', removeAllNeighbors);
     loadNeighbors();
+}
+
+function showNeighborsNote(text, kind) {
+    const el = document.getElementById('nbActionNote');
+    if (!el) return;
+    el.className = `alert alert-${kind || 'info'} py-2 small`;
+    el.textContent = text;
+}
+
+function hideNeighborsNote() {
+    const el = document.getElementById('nbActionNote');
+    if (el) el.className = 'alert py-2 small d-none';
+}
+
+function closeNeighborsMenu() {
+    const btn = document.getElementById('neighborsMenuBtn');
+    if (btn && window.bootstrap) bootstrap.Dropdown.getOrCreateInstance(btn).hide();
+}
+
+function setNeighborsBusy(busy) {
+    _nbActionPending = busy;
+    ['neighborsRefreshBtn', 'neighborsMenuBtn'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = busy;
+    });
+}
+
+// `discover.neighbors` only asks the repeater to broadcast the request - answers
+// trickle in over the next minute, so the list is deliberately NOT reloaded here.
+async function runNeighborDiscover() {
+    if (_nbActionPending) return;
+    closeNeighborsMenu();
+    setNeighborsBusy(true);
+    showNeighborsNote(t('rptmgmt.neigh.discover_sending'), 'info');
+    let data = null;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'discover_neighbours' })
+        });
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: t('rptmgmt.request_failed') };
+    }
+    setNeighborsBusy(false);
+
+    if (data && data.success && data.ok) {
+        showNeighborsNote(t('rptmgmt.neigh.discover_sent'), 'success');
+        return;
+    }
+    // Node types other than repeaters have no discover.neighbors at all, so their
+    // complaint is the useful part of the answer - show it verbatim.
+    const err = (data && (data.reply || data.error)) || t('rptmgmt.action_failed');
+    showNeighborsNote(err, 'warning');
+    showNotification(err, 'warning');
+}
+
+async function removeAllNeighbors() {
+    if (_nbActionPending) return;
+    closeNeighborsMenu();
+    if (!window.confirm(t('rptmgmt.neigh.confirm_remove_all', {
+            name: (_repeater && _repeater.name) || t('rptmgmt.this_repeater'),
+        }))) {
+        return;
+    }
+    await removeNeighbors('', t('rptmgmt.neigh.removed_all'));
+}
+
+async function removeNeighbors(prefix, successMsg) {
+    if (_nbActionPending) return;
+    setNeighborsBusy(true);
+    showNeighborsNote(t('rptmgmt.neigh.removing'), 'info');
+    let data = null;
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/neighbours/remove`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prefix })
+        });
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: t('rptmgmt.request_failed') };
+    }
+    setNeighborsBusy(false);
+
+    if (data && data.success && data.ok) {
+        showNeighborsNote(successMsg, 'success');
+        showNotification(successMsg, 'success');
+        await loadNeighbors();
+        return;
+    }
+    const err = (data && (data.reply || data.error)) || t('rptmgmt.action_failed');
+    showNeighborsNote(err, 'danger');
+    showNotification(err, 'danger');
 }
 
 async function loadNeighbors() {
@@ -856,8 +984,8 @@ function renderNeighborsList() {
     }
 
     // Map view is offered when the repeater or any neighbour has a position
-    const mappable = entries.some(n => n.lat != null && n.lon != null)
-        || (_repeater && _repeater.adv_lat && _repeater.adv_lon);
+    const mappable = entries.some(n => hasValidGps(n, 'lat', 'lon'))
+        || hasValidGps(_repeater);
     if (toggle) toggle.style.display = mappable ? '' : 'none';
 
     if (!entries.length) {
@@ -865,9 +993,12 @@ function renderNeighborsList() {
         return;
     }
 
-    const rows = entries.map(n => `
-        <tr>
-            <td class="text-truncate" style="max-width: 220px;">
+    // Rows open a detail dialog rather than carrying their own buttons: the name
+    // column is already truncated on a phone, and a trash icon at the edge of a
+    // scrolling list is the easiest thing in the panel to hit by accident.
+    const rows = entries.map((n, i) => `
+        <tr class="nb-row" data-nb-idx="${i}" role="button" style="cursor: pointer;">
+            <td class="text-truncate" style="max-width: min(220px, 32vw);">
                 ${n.name ? esc(n.name) : `<span class="font-monospace text-muted">[${esc(n.pubkey_prefix)}]</span>`}
                 ${n.lat != null ? `<i class="bi bi-geo-alt text-muted small ms-1" title="${tHtml('rptmgmt.neigh.position_title')}"></i>` : ''}
             </td>
@@ -876,6 +1007,7 @@ function renderNeighborsList() {
         </tr>
     `).join('');
     container.innerHTML = `
+        <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
             <thead><tr class="small text-muted">
                 <th class="fw-normal">${tHtml('rptmgmt.neigh.repeater')}</th>
@@ -884,7 +1016,53 @@ function renderNeighborsList() {
             </tr></thead>
             <tbody>${rows}</tbody>
         </table>
+        </div>
+        <div class="small text-muted mt-2">
+            <i class="bi bi-info-circle me-1"></i>${tHtml('rptmgmt.neigh.row_hint')}
+        </div>
     `;
+    container.querySelectorAll('.nb-row').forEach(row => {
+        row.addEventListener('click', () => openNeighborModal(Number(row.dataset.nbIdx)));
+    });
+}
+
+function neighborDetailRow(label, value, mono) {
+    return `<dt class="col-5 fw-normal text-muted">${esc(label)}</dt>` +
+           `<dd class="col-7 mb-1${mono ? ' font-monospace' : ''}">${esc(value)}</dd>`;
+}
+
+function openNeighborModal(idx) {
+    const entries = (_neighborsData && _neighborsData.entries) || [];
+    const n = entries[idx];
+    if (!n || !_nbModal) return;
+    _nbModalIdx = idx;
+
+    document.getElementById('neighborModalTitle').textContent = neighborLabel(n);
+    const rows = [
+        neighborDetailRow(t('rptmgmt.neigh.pubkey'), n.pubkey_prefix, true),
+        neighborDetailRow('SNR', n.snr != null ? `${n.snr} dB` : '—'),
+        neighborDetailRow(t('rptmgmt.neigh.heard'), fmtHeardAgo(n.secs_ago)),
+    ];
+    if (n.lat != null && n.lon != null) {
+        rows.push(neighborDetailRow(t('rptmgmt.neigh.position'),
+                                    `${n.lat.toFixed(4)}, ${n.lon.toFixed(4)}`, true));
+    }
+    document.getElementById('neighborModalDetails').innerHTML = rows.join('');
+
+    // Non-admins may look at a neighbour, but only an admin may drop it.
+    const isAdmin = !!(_session && _session.is_admin);
+    document.getElementById('neighborRemoveBtn').style.display = isAdmin ? '' : 'none';
+    document.getElementById('neighborModalNote').style.display = isAdmin ? '' : 'none';
+    _nbModal.show();
+}
+
+async function submitNeighborRemove() {
+    const entries = (_neighborsData && _neighborsData.entries) || [];
+    const n = entries[_nbModalIdx];
+    if (!n) return;
+    if (_nbModal) _nbModal.hide();
+    await removeNeighbors(n.pubkey_prefix,
+                          t('rptmgmt.neigh.removed_one', { name: neighborLabel(n) }));
 }
 
 function fmtHeardAgo(secs) {
@@ -920,10 +1098,21 @@ function renderNeighborsMap() {
             attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
         }).addTo(_nbMap);
         _nbMapLayers = L.layerGroup().addTo(_nbMap);
+        // Popups are rebuilt on every render, so the handler lives on the map
+        // and reads the index off the button it finds inside the open popup.
+        _nbMap.on('popupopen', (e) => {
+            const el = e.popup.getElement();
+            const btn = el ? el.querySelector('.nb-popup-remove') : null;
+            if (!btn) return;
+            btn.addEventListener('click', () => {
+                _nbMap.closePopup();
+                openNeighborModal(Number(btn.dataset.nbIdx));
+            });
+        });
     }
     _nbMapLayers.clearLayers();
 
-    const hasCenter = _repeater && _repeater.adv_lat && _repeater.adv_lon;
+    const hasCenter = hasValidGps(_repeater);
     const center = hasCenter ? [_repeater.adv_lat, _repeater.adv_lon] : null;
     const bounds = [];
 
@@ -942,8 +1131,9 @@ function renderNeighborsMap() {
 
     let placed = 0;
     let skipped = 0;
-    (data.entries || []).forEach(n => {
-        if (n.lat == null || n.lon == null) { skipped++; return; }
+    const canRemove = !!(_session && _session.is_admin);
+    (data.entries || []).forEach((n, i) => {
+        if (!hasValidGps(n, 'lat', 'lon')) { skipped++; return; }
         const pos = [n.lat, n.lon];
         const marker = L.circleMarker(pos, {
             radius: 9,
@@ -956,7 +1146,11 @@ function renderNeighborsMap() {
         marker.bindPopup(
             `<b>${esc(neighborLabel(n))}</b><br>` +
             `SNR: ${n.snr != null ? n.snr + ' dB' : '—'}<br>` +
-            tHtml('rptmgmt.neigh.heard_at', { time: fmtHeardAgo(n.secs_ago) })
+            tHtml('rptmgmt.neigh.heard_at', { time: fmtHeardAgo(n.secs_ago) }) +
+            (canRemove
+                ? `<br><button type="button" class="btn btn-sm btn-outline-danger mt-2 nb-popup-remove" data-nb-idx="${i}">`
+                  + `<i class="bi bi-trash"></i> ${tHtml('rptmgmt.neigh.remove_btn')}</button>`
+                : '')
         );
         if (hasCenter) {
             const line = L.polyline([center, pos], {
@@ -986,9 +1180,7 @@ function renderNeighborsMap() {
     // Leaflet needs a size recalc after the container becomes visible
     setTimeout(() => {
         _nbMap.invalidateSize();
-        if (bounds.length > 0) {
-            _nbMap.fitBounds(bounds, { padding: [30, 30] });
-        }
+        fitMapToPoints(_nbMap, bounds, { padding: [30, 30] });
     }, 50);
 }
 
@@ -1941,6 +2133,7 @@ async function init() {
 document.addEventListener('DOMContentLoaded', () => {
     _passwordModal = new bootstrap.Modal(document.getElementById('passwordModal'));
     _powerOffModal = new bootstrap.Modal(document.getElementById('powerOffModal'));
+    _nbModal = new bootstrap.Modal(document.getElementById('neighborModal'));
 
     loadUiSettings();
 
@@ -1976,6 +2169,8 @@ document.addEventListener('DOMContentLoaded', () => {
             submitPowerOffModal();
         }
     });
+
+    document.getElementById('neighborRemoveBtn').addEventListener('click', submitNeighborRemove);
 
     document.getElementById('copyPubkeyBtn').addEventListener('click', async () => {
         try {

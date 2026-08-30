@@ -1027,9 +1027,7 @@ async function loadRepeaterMapMarkers() {
         }
     }
 
-    let repeaters = (_repeatersCache || []).filter(r =>
-        r.adv_lat && r.adv_lon && (r.adv_lat !== 0 || r.adv_lon !== 0)
-    );
+    let repeaters = withValidGps(_repeatersCache);
 
     if (!showCached) {
         // Non-cached: only repeaters that are on the device
@@ -1082,9 +1080,7 @@ async function loadRepeaterMapMarkers() {
         bounds.push([rpt.adv_lat, rpt.adv_lon]);
     });
 
-    if (bounds.length > 0) {
-        _rptMap.fitBounds(bounds, { padding: [20, 20] });
-    }
+    fitMapToPoints(_rptMap, bounds);
 }
 
 // ================================================================

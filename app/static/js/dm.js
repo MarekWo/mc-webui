@@ -715,9 +715,6 @@ async function loadConversations() {
         if (convData.success) {
             dmConversations = convData.conversations || [];
             populateConversationSelector();
-
-            // Check for new DM notifications
-            checkDmNotifications(dmConversations);
         } else {
             console.error('Failed to load conversations:', convData.error);
             // Still populate selector with just contacts
@@ -1289,7 +1286,7 @@ function populateContactInfoModal() {
     }
 
     // GPS
-    if (contact.adv_lat && contact.adv_lon && (contact.adv_lat !== 0 || contact.adv_lon !== 0)) {
+    if (hasValidGps(contact)) {
         const div = document.createElement('div');
         div.className = 'small mb-2';
         div.innerHTML = `<i class="bi bi-geo-alt"></i> ${contact.adv_lat.toFixed(4)}, ${contact.adv_lon.toFixed(4)}`;
@@ -2049,58 +2046,6 @@ function showNotification(message, type = 'info') {
         delay: delay
     });
     toast.show();
-}
-
-// ============================================================================
-// PWA Notifications for DM
-// ============================================================================
-
-/**
- * Track previous DM unread for notifications
- */
-let previousDmTotalUnread = 0;
-
-/**
- * Check if we should send DM notification
- */
-function checkDmNotifications(conversations) {
-    // Only check if notifications are enabled
-    // areNotificationsEnabled is defined in app.js and should be available globally
-    if (typeof areNotificationsEnabled === 'undefined' || !areNotificationsEnabled()) {
-        return;
-    }
-
-    if (document.visibilityState !== 'hidden') {
-        return;
-    }
-
-    // Calculate total DM unread
-    const currentDmTotalUnread = conversations.reduce((sum, conv) => sum + conv.unread_count, 0);
-
-    // Detect increase
-    if (currentDmTotalUnread > previousDmTotalUnread) {
-        const delta = currentDmTotalUnread - previousDmTotalUnread;
-
-        try {
-            const notification = new Notification('mc-webui', {
-                body: tn('dm.notify.new_messages', delta),
-                icon: '/static/images/android-chrome-192x192.png',
-                badge: '/static/images/android-chrome-192x192.png',
-                tag: 'mc-webui-dm',
-                requireInteraction: false,
-                silent: false
-            });
-
-            notification.onclick = function() {
-                window.focus();
-                notification.close();
-            };
-        } catch (error) {
-            console.error('Error sending DM notification:', error);
-        }
-    }
-
-    previousDmTotalUnread = currentDmTotalUnread;
 }
 
 // =============================================================================
@@ -3032,10 +2977,8 @@ async function loadRepeaterMapMarkers() {
         }
     }
 
-    // Filter: only those with GPS
-    let repeaters = (_repeatersCache || []).filter(r =>
-        r.adv_lat && r.adv_lon && (r.adv_lat !== 0 || r.adv_lon !== 0)
-    );
+    // Filter: only those with a usable GPS position
+    let repeaters = withValidGps(_repeatersCache);
 
     if (!showCached) {
         // Non-cached: only repeaters that are on the device (have recent advert)
@@ -3087,9 +3030,7 @@ async function loadRepeaterMapMarkers() {
         bounds.push([rpt.adv_lat, rpt.adv_lon]);
     });
 
-    if (bounds.length > 0) {
-        _rptMap.fitBounds(bounds, { padding: [20, 20] });
-    }
+    fitMapToPoints(_rptMap, bounds);
 }
 
 /**

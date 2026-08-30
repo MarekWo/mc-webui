@@ -194,7 +194,7 @@ function updateMapMarkers() {
     const bounds = [];
 
     // Add own device marker (star shape, distinct from contacts)
-    if (_selfInfo && _selfInfo.adv_lat && _selfInfo.adv_lon && (_selfInfo.adv_lat !== 0 || _selfInfo.adv_lon !== 0)) {
+    if (hasValidGps(_selfInfo)) {
         const ownIcon = L.divIcon({
             html: '<i class="bi bi-star-fill" style="color: #dc3545; font-size: 20px; text-shadow: 0 0 3px #fff;"></i>',
             iconSize: [20, 20],
@@ -207,48 +207,56 @@ function updateMapMarkers() {
         bounds.push([_selfInfo.adv_lat, _selfInfo.adv_lon]);
     }
 
+    // Each marker is added on its own: a contact we still failed to reject
+    // must cost its own pin, never the whole map
     filteredContacts.forEach(c => {
-        const color = CONTACT_TYPE_COLORS[c.type] || '#2196F3';
-        const typeName = CONTACT_TYPE_NAMES[c.type] || t('common.unknown');
-        const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
+        try {
+            const color = CONTACT_TYPE_COLORS[c.type] || '#2196F3';
+            const typeName = CONTACT_TYPE_NAMES[c.type] || t('common.unknown');
+            const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
 
-        L.circleMarker([c.adv_lat, c.adv_lon], {
-            radius: 10,
-            fillColor: color,
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        })
-            .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
+            L.circleMarker([c.adv_lat, c.adv_lon], {
+                radius: 10,
+                fillColor: color,
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            })
+                .addTo(markersGroup)
+                .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${typeName}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
 
-        bounds.push([c.adv_lat, c.adv_lon]);
+            bounds.push([c.adv_lat, c.adv_lon]);
+        } catch (err) {
+            console.warn('Skipping contact marker:', c.name, err);
+        }
     });
 
     cachedFiltered.forEach(c => {
-        const typeNum = TYPE_LABEL_TO_NUM[c.type_label] || 1;
-        const color = CONTACT_TYPE_COLORS[typeNum] || '#2196F3';
-        const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
+        try {
+            const typeNum = TYPE_LABEL_TO_NUM[c.type_label] || 1;
+            const color = CONTACT_TYPE_COLORS[typeNum] || '#2196F3';
+            const lastSeen = c.last_advert ? formatTimeAgo(c.last_advert) : '';
 
-        L.circleMarker([c.adv_lat, c.adv_lon], {
-            radius: 8,
-            fillColor: color,
-            color: '#999',
-            weight: 1,
-            opacity: 0.8,
-            fillOpacity: 0.5
-        })
-            .addTo(markersGroup)
-            .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${tHtml('map.cached_label', { type: c.type_label || t('map.cache') })}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
+            L.circleMarker([c.adv_lat, c.adv_lon], {
+                radius: 8,
+                fillColor: color,
+                color: '#999',
+                weight: 1,
+                opacity: 0.8,
+                fillOpacity: 0.5
+            })
+                .addTo(markersGroup)
+                .bindPopup(`<b>${c.name}</b><br><span class="text-muted">${tHtml('map.cached_label', { type: c.type_label || t('map.cache') })}</span>${lastSeen ? `<br><small class="text-muted">${tHtml('repeaters.map.last_seen', { time: lastSeen })}</small>` : ''}`);
 
-        bounds.push([c.adv_lat, c.adv_lon]);
+            bounds.push([c.adv_lat, c.adv_lon]);
+        } catch (err) {
+            console.warn('Skipping cached contact marker:', c.name, err);
+        }
     });
 
-    if (bounds.length === 1) {
-        leafletMap.setView(bounds[0], 13);
-    } else if (bounds.length > 1) {
-        leafletMap.fitBounds(bounds, { padding: [20, 20] });
+    if (!fitMapToPoints(leafletMap, bounds)) {
+        leafletMap.setView([52.0, 19.0], 6);
     }
 }
 
@@ -285,15 +293,11 @@ async function showAllContactsOnMap() {
             }
 
             if (deviceData.success && deviceData.contacts) {
-                allContactsWithGps = deviceData.contacts.filter(c =>
-                    c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)
-                );
+                allContactsWithGps = withValidGps(deviceData.contacts);
             }
 
             if (cachedData.success && cachedData.contacts) {
-                allCachedContactsWithGps = cachedData.contacts.filter(c =>
-                    c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)
-                );
+                allCachedContactsWithGps = withValidGps(cachedData.contacts);
             }
 
             updateMapMarkers();
@@ -359,7 +363,7 @@ async function loadContactsGeoCache() {
         // Process device contacts
         if (detailedData.success && detailedData.contacts) {
             detailedData.contacts.forEach(c => {
-                if (c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)) {
+                if (hasValidGps(c)) {
                     contactsGeoCache[c.name] = { lat: c.adv_lat, lon: c.adv_lon };
                 }
                 if (c.name && c.public_key) {
@@ -376,7 +380,7 @@ async function loadContactsGeoCache() {
         // Process cached contacts (fills gaps for contacts not on device)
         if (cachedData.success && cachedData.contacts) {
             cachedData.contacts.forEach(c => {
-                if (!contactsGeoCache[c.name] && c.adv_lat && c.adv_lon && (c.adv_lat !== 0 || c.adv_lon !== 0)) {
+                if (!contactsGeoCache[c.name] && hasValidGps(c)) {
                     contactsGeoCache[c.name] = { lat: c.adv_lat, lon: c.adv_lon };
                 }
                 if (c.name && c.public_key && !contactsPubkeyMap[c.name]) {
@@ -614,6 +618,7 @@ function startResyncHeartbeat() {
  * the wrapper says so itself.
  */
 window.__mcAppResumed = function() {
+    notificationBacklog.clear();
     if (chatSocket && !chatSocket.connected) chatSocket.connect();
     resyncFromServer('app resumed');
 };
@@ -676,11 +681,21 @@ function connectChatSocket() {
             // Reorder: move this channel to the top of its tier in sidebar + dropdown
             moveChannelToTopOfTier(data.channel_idx);
             // Update unread count for this channel
-            if (data.channel_idx !== currentChannelIdx) {
+            const onOpenChannel = data.channel_idx === currentChannelIdx;
+            if (!onOpenChannel) {
                 unreadCounts[data.channel_idx] = (unreadCounts[data.channel_idx] || 0) + 1;
                 updateUnreadBadges();
-                checkAndNotify();
-            } else if (!currentArchiveDate) {
+            }
+            // A message on the channel already on screen still deserves a
+            // notification while the app is away: a channel only counts as open
+            // while somebody is actually looking at it
+            if (!data.is_own && (!onOpenChannel || document.visibilityState === 'hidden')) {
+                notifyChannelMessage(data);
+            }
+            // Announced in full above, so the count-only fallback must not
+            // announce the same message a second time
+            syncNotifyBaselines();
+            if (onOpenChannel && !currentArchiveDate) {
                 // Refresh sidebar preview even for the active channel
                 updateChannelSidebarBadges();
                 // Skip own messages — already appended optimistically on send
@@ -689,8 +704,9 @@ function connectChatSocket() {
                 appendMessageFromSocket(data);
             }
         } else if (data.type === 'dm') {
+            if (!data.is_own) notifyDmMessage(data);
             // Update DM badge on main page
-            checkDmUpdates();
+            checkDmUpdates().then(syncNotifyBaselines);
         }
     });
 
@@ -748,6 +764,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     const savedChannel = localStorage.getItem('mc_active_channel');
     if (savedChannel !== null) {
         currentChannelIdx = parseInt(savedChannel);
+    }
+
+    // A notification tap says which conversation the user meant to open, and
+    // outranks whatever they were last looking at. The channel has to be picked
+    // before anything paints; the panels wait until the interface is up.
+    const notificationTarget = takeNotificationParamsFromUrl();
+    const targetChannel = notificationTarget.get('channel');
+    if (targetChannel !== null && /^\d+$/.test(targetChannel)) {
+        currentChannelIdx = parseInt(targetChannel, 10);
+        localStorage.setItem('mc_active_channel', currentChannelIdx);
+        notificationTarget.delete('channel');
     }
 
     // Setup event listeners and emoji picker early (sync, fast)
@@ -828,6 +855,10 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     console.log(`[init] UI ready in ${(performance.now() - initStart).toFixed(0)}ms`);
 
+    // A notification tap that started the app from cold: the interface is up,
+    // so the panel it pointed at can be opened now
+    applyNotificationTarget(notificationTarget);
+
     // DEFERRED: Check for updates AFTER messages are displayed
     // This updates the unread badges without blocking initial load
     checkForUpdates();  // No await - runs in background
@@ -858,6 +889,10 @@ document.addEventListener('visibilitychange', function() {
         hiddenSince = Date.now();
         return;
     }
+
+    // Back in front of the user, so the pile of unseen messages behind each
+    // notification tag starts again from zero
+    notificationBacklog.clear();
 
     // App became visible again, force viewport recalculation
     console.log('App became visible, recalculating viewport');
@@ -2234,7 +2269,7 @@ async function loadDeviceInfo() {
         const shortKey = pubKey.length > 12 ? `${pubKey.slice(0, 6)}...${pubKey.slice(-6)}` : pubKey;
 
         // Location
-        const hasLocation = info.adv_lat && info.adv_lon && (info.adv_lat !== 0 || info.adv_lon !== 0);
+        const hasLocation = hasValidGps(info);
         const coords = hasLocation ? `${info.adv_lat.toFixed(6)}, ${info.adv_lon.toFixed(6)}` : tHtml('device.info.location_none');
 
         // Build table rows
@@ -4764,7 +4799,83 @@ async function saveChannelScope() {
 }
 
 /**
- * Send browser notification when new messages arrive
+ * Post one notification through the Web Notifications API.
+ *
+ * In the Android wrapper `window.Notification` is a stand-in over Android's own
+ * notifications (the wrapper's notification_shim.js), so `options.data.url` is
+ * the only way a tap can say where it wants to land: the shim hands that url to
+ * the notification's Intent, and a cold start reads it back from there.
+ *
+ * @param {Object} opts
+ * @param {string} opts.tag - Replaces the notification carrying the same tag
+ * @param {string} opts.title
+ * @param {string} opts.body
+ * @param {string} [opts.url] - Where a tap should take the user
+ */
+function postNotification({ tag, title, body, url }) {
+    try {
+        const notification = new Notification(title, {
+            body: body,
+            icon: '/static/images/android-chrome-192x192.png',
+            badge: '/static/images/android-chrome-192x192.png',
+            tag: tag,
+            requireInteraction: false, // Auto-dismiss after ~5s
+            silent: false,
+            data: url ? { url: url } : undefined
+        });
+
+        notification.onclick = function() {
+            window.focus();
+            notification.close();
+            if (url) openNotificationTarget(url);
+        };
+
+    } catch (error) {
+        console.error('Error sending notification:', error);
+    }
+}
+
+/**
+ * How many messages piled up behind each notification tag while the app was
+ * away. A tag replaces its predecessor, so without counting them the last
+ * notification standing would claim to be the only one that ever arrived.
+ */
+const notificationBacklog = new Map();
+
+/**
+ * Notify about a single incoming message, naming who wrote it and where.
+ *
+ * @param {Object} opts
+ * @param {string} opts.tag - One per conversation, so a busy channel collapses
+ *                            into a single notification instead of a stack
+ * @param {string} opts.title - Channel name, or the sender's name for a DM
+ * @param {string} opts.body - The message itself
+ * @param {string} opts.url - Where a tap should land
+ */
+function notifyIncomingMessage({ tag, title, body, url }) {
+    if (!areNotificationsEnabled() || document.visibilityState !== 'hidden') {
+        return;
+    }
+
+    const count = (notificationBacklog.get(tag) || 0) + 1;
+    notificationBacklog.set(tag, count);
+
+    postNotification({
+        tag: tag,
+        title: count > 1 ? t('notify.title_count', { name: title, count: count }) : title,
+        body: body,
+        url: url
+    });
+}
+
+/**
+ * Send browser notification when new messages arrive.
+ *
+ * The fallback for messages the socket never delivered - checkForUpdates()
+ * finding them by polling knows counts and nothing else. Anything that did
+ * arrive over the socket is announced by notifyIncomingMessage() instead, which
+ * has the sender and the text to show.
+ *
  * @param {number} channelCount - Number of channels with new messages
  * @param {number} dmCount - Number of DMs with new messages
  * @param {number} pendingCount - Number of pending contacts
@@ -4792,25 +4903,146 @@ function sendBrowserNotification(channelCount, dmCount, pendingCount) {
 
     message = t('notify.new', { parts: parts.join(', ') });
 
-    try {
-        const notification = new Notification('mc-webui', {
-            body: message,
-            icon: '/static/images/android-chrome-192x192.png',
-            badge: '/static/images/android-chrome-192x192.png',
-            tag: 'mc-webui-updates', // Prevents spam - replaces previous notification
-            requireInteraction: false, // Auto-dismiss after ~5s
-            silent: false
-        });
+    // Only a pending-contacts-only alert has one obvious place to land
+    const url = (pendingCount > 0 && channelCount === 0 && dmCount === 0)
+        ? '/?contacts=pending'
+        : undefined;
 
-        // Click handler - bring app to focus
-        notification.onclick = function() {
-            window.focus();
-            notification.close();
-        };
+    postNotification({
+        tag: 'mc-webui-updates', // Prevents spam - replaces previous notification
+        title: 'mc-webui',
+        body: message,
+        url: url
+    });
+}
 
-    } catch (error) {
-        console.error('Error sending notification:', error);
+/** Longest stretch of message text a notification body carries. */
+const NOTIFICATION_BODY_MAX = 140;
+
+/**
+ * Announce one channel message: the channel on top, "who: what" underneath.
+ *
+ * @param {Object} data - A 'new_message' payload of type 'channel'
+ */
+function notifyChannelMessage(data) {
+    if (mutedChannels.has(data.channel_idx)) return;
+
+    const channel = (availableChannels || []).find(ch => ch && ch.index === data.channel_idx);
+    notifyIncomingMessage({
+        tag: `mc-channel-${data.channel_idx}`,
+        title: channel ? channel.name : `#${data.channel_idx}`,
+        body: `${data.sender}: ${makeChannelPreview(data.content, NOTIFICATION_BODY_MAX)}`,
+        url: `/?channel=${data.channel_idx}`
+    });
+}
+
+/**
+ * Announce one direct message: the sender on top, the message underneath.
+ *
+ * @param {Object} data - A 'new_message' payload of type 'dm'
+ */
+function notifyDmMessage(data) {
+    const pubkey = data.contact_pubkey || '';
+    notifyIncomingMessage({
+        tag: `mc-dm-${pubkey || data.sender}`,
+        title: data.sender,
+        body: makeChannelPreview(data.content, NOTIFICATION_BODY_MAX),
+        url: pubkey ? `/?dm=pk_${encodeURIComponent(pubkey)}` : '/'
+    });
+}
+
+// =============================================================================
+// Notification targets - where a tapped notification lands
+// =============================================================================
+
+/**
+ * Read a notification's deep link off the current URL and strip it again, so a
+ * later reload does not drag the user back to the same conversation.
+ *
+ * @returns {URLSearchParams} the parameters that were on the URL
+ */
+function takeNotificationParamsFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('channel') || params.has('dm') || params.has('contacts')) {
+        const url = new URL(window.location.href);
+        ['channel', 'dm', 'contacts'].forEach(key => url.searchParams.delete(key));
+        window.history.replaceState({}, '', url);
     }
+    return params;
+}
+
+/**
+ * Take the user where a notification points. A target on this page is handled
+ * in place - navigating would drop the socket and rebuild the whole interface.
+ *
+ * @param {string} url - Root-relative or absolute url from the notification
+ */
+function openNotificationTarget(url) {
+    let target;
+    try {
+        target = new URL(url, window.location.origin);
+    } catch (error) {
+        console.error('Unusable notification target:', url, error);
+        return;
+    }
+    if (target.pathname !== window.location.pathname) {
+        window.location.href = target.href;
+        return;
+    }
+    applyNotificationTarget(target.searchParams);
+}
+
+/**
+ * Act on a notification's deep link: switch channel, or open the panel it
+ * points at.
+ *
+ * @param {URLSearchParams} params
+ * @returns {boolean} whether anything was recognised
+ */
+function applyNotificationTarget(params) {
+    const channel = params.get('channel');
+    if (channel !== null && /^\d+$/.test(channel)) {
+        const idx = parseInt(channel, 10);
+        const known = (availableChannels || []).find(ch => ch && ch.index === idx);
+        selectChannelFromDropdown(idx, known ? known.name : `#${idx}`);
+        return true;
+    }
+
+    const conversation = params.get('dm');
+    if (conversation) {
+        openDmConversation(conversation);
+        return true;
+    }
+
+    if (params.get('contacts') === 'pending') {
+        openPendingContacts();
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Open the DM panel on one conversation. The panel is an iframe, so the
+ * conversation travels the same way a direct visit to /dm would carry it.
+ *
+ * @param {string} conversationId - e.g. 'pk_<public key>'
+ */
+function openDmConversation(conversationId) {
+    const frame = document.getElementById('dmFrame');
+    if (frame) frame.src = `/dm?conversation=${encodeURIComponent(conversationId)}`;
+    const modal = document.getElementById('dmModal');
+    if (modal) bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
+/**
+ * Open the contacts panel on the contacts waiting for approval.
+ */
+function openPendingContacts() {
+    const frame = document.getElementById('contactsFrame');
+    if (frame) frame.src = '/contacts/pending';
+    const modal = document.getElementById('contactsModal');
+    if (modal) bootstrap.Modal.getOrCreateInstance(modal).show();
 }
 
 /**
@@ -4821,45 +5053,75 @@ let previousDmUnread = 0;
 let previousPendingCount = 0;
 
 /**
- * Check if we should send notification based on count changes
+ * Whether the counters above have ever been filled in. Until they have, every
+ * unread message the page starts with looks like an arrival, and a page that
+ * loads in the background would announce a backlog nobody just sent.
  */
-function checkAndNotify() {
-    // Calculate current totals (exclude muted channels)
-    let currentTotalUnread = 0;
+let notifyBaselinesReady = false;
+
+/**
+ * The three counters notifications are derived from, as they stand right now.
+ *
+ * @returns {{channels: number, dms: number, pending: number}}
+ */
+function currentNotifyCounts() {
+    // Channel unread (exclude muted channels)
+    let channels = 0;
     for (const [idx, count] of Object.entries(unreadCounts)) {
         if (!mutedChannels.has(parseInt(idx))) {
-            currentTotalUnread += count;
+            channels += count;
         }
     }
 
     // Get DM unread count from badge
     const dmBadge = document.querySelector('.fab-badge-dm');
-    const currentDmUnread = dmBadge ? parseInt(dmBadge.textContent) || 0 : 0;
+    const dms = dmBadge ? parseInt(dmBadge.textContent) || 0 : 0;
 
     // Get pending contacts count from badge (forced to 0 when notifications are suppressed)
     const pendingBadge = document.querySelector('.fab-badge-pending');
-    const rawPendingCount = pendingBadge ? parseInt(pendingBadge.textContent) || 0 : 0;
-    const currentPendingCount = window.contactsSettings?.suppress_advert_notifications
-        ? 0 : rawPendingCount;
+    const rawPending = pendingBadge ? parseInt(pendingBadge.textContent) || 0 : 0;
+    const pending = window.contactsSettings?.suppress_advert_notifications ? 0 : rawPending;
+
+    return { channels, dms, pending };
+}
+
+/**
+ * Move the baselines checkAndNotify() compares against up to the current counts
+ * without notifying, so a message already announced in full by
+ * notifyIncomingMessage() is not announced a second time as a bare count.
+ */
+function syncNotifyBaselines() {
+    const counts = currentNotifyCounts();
+    previousTotalUnread = counts.channels;
+    previousDmUnread = counts.dms;
+    previousPendingCount = counts.pending;
+    // Deliberately not marking the baselines ready: unreadCounts only holds
+    // real numbers once checkForUpdates() has filled it in, and until then a
+    // socket message would arm the fallback against a near-empty count.
+}
+
+/**
+ * Check if we should send notification based on count changes
+ */
+function checkAndNotify() {
+    const counts = currentNotifyCounts();
 
     // Detect increases (new messages/contacts)
-    const channelIncrease = currentTotalUnread > previousTotalUnread;
-    const dmIncrease = currentDmUnread > previousDmUnread;
-    const pendingIncrease = currentPendingCount > previousPendingCount;
+    const channelDelta = Math.max(0, counts.channels - previousTotalUnread);
+    const dmDelta = Math.max(0, counts.dms - previousDmUnread);
+    const pendingDelta = Math.max(0, counts.pending - previousPendingCount);
 
-    // Send notification if ANY category increased
-    if (channelIncrease || dmIncrease || pendingIncrease) {
-        const channelDelta = channelIncrease ? (currentTotalUnread - previousTotalUnread) : 0;
-        const dmDelta = dmIncrease ? (currentDmUnread - previousDmUnread) : 0;
-        const pendingDelta = pendingIncrease ? (currentPendingCount - previousPendingCount) : 0;
-
+    // Send notification if ANY category increased. The first pass only takes
+    // the measurement: what is already unread at that point is history, not news.
+    if (notifyBaselinesReady && (channelDelta || dmDelta || pendingDelta)) {
         sendBrowserNotification(channelDelta, dmDelta, pendingDelta);
     }
 
     // Update previous counts
-    previousTotalUnread = currentTotalUnread;
-    previousDmUnread = currentDmUnread;
-    previousPendingCount = currentPendingCount;
+    previousTotalUnread = counts.channels;
+    previousDmUnread = counts.dms;
+    previousPendingCount = counts.pending;
+    notifyBaselinesReady = true;
 }
 
 /**

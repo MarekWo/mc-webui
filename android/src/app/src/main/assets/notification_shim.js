@@ -32,14 +32,20 @@
         resolve(permission);
     };
 
-    /** Called from Kotlin when the user taps a notification. */
+    /**
+     * Called from Kotlin when the user taps a notification. Returns whether the
+     * page could act on it - a page that has reloaded since no longer knows the
+     * notification, and the wrapper navigates to its target instead.
+     */
     window.__mcNotifyClicked = function (tag) {
         var notification = live[tag];
-        if (!notification || typeof notification.onclick !== 'function') return;
+        if (!notification || typeof notification.onclick !== 'function') return false;
         try {
             notification.onclick.call(notification);
+            return true;
         } catch (e) {
             console.error('mc-webui: notification onclick failed', e);
+            return false;
         }
     };
 
@@ -51,6 +57,10 @@
         this.badge = options.badge;
         this.silent = !!options.silent;
         this.requireInteraction = !!options.requireInteraction;
+        // Where a tap should land. Android has to be told at post time: the tap
+        // may arrive long after this page is gone, and the Intent is the only
+        // thing that outlives it.
+        this.data = options.data || null;
         // A tag replaces the previous notification with the same name, so an
         // untagged one needs its own id rather than silently replacing another
         this.tag = options.tag ? String(options.tag) : 'mc-auto-' + (nextTag++);
@@ -60,9 +70,11 @@
         this.onerror = null;
         this.onshow = null;
 
+        var url = (this.data && typeof this.data.url === 'string') ? this.data.url : '';
+
         live[this.tag] = this;
         try {
-            bridge.notify(this.tag, this.title, this.body, this.silent);
+            bridge.notify(this.tag, this.title, this.body, this.silent, url);
         } catch (e) {
             console.error('mc-webui: native notify failed', e);
         }

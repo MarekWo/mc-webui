@@ -141,6 +141,25 @@ If using Bluetooth Low Energy (BLE) transport, see the dedicated [Bluetooth Pair
 
 ---
 
+### Map is empty, or a route is drawn across the whole world
+
+If the contacts map comes up blank once **Cache** is switched on, while the same map with **Cache** off looks fine — or if the Path Analyzer draws a route as one long line stretching across the globe — the cause is a contact whose advert was corrupted in flight and now claims an impossible position, such as a latitude of 1642 degrees.
+
+The map fits itself around everything it is given, so a single such entry zooms it out until that point is on screen and pushes every real contact outside the window. Nothing is wrong with the contacts you cannot see.
+
+Fixed in 2.13.0: impossible positions are discarded on the way into the cache and again on the way out to the browser, so **updating is enough** — the cache heals itself and nothing needs to be deleted. The affected contacts stay in your contact list; they simply no longer appear on any map.
+
+If you want to find them anyway, the System Log (Menu → System Log) records each one as it arrives:
+
+```
+Dropping out-of-range advert coordinates for <name> (<pubkey>...): lat=... lon=...
+Corrupted advert type for <name> (<pubkey>...): type=...
+```
+
+They can be removed under **Contacts → Manage** like any other cached contact, but there is no need to.
+
+---
+
 ### Contact Management Issues
 
 **Check logs:**

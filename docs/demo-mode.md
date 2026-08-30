@@ -33,7 +33,7 @@ lock it.
 | Repeaters | Login, settings, CLI, reboot, **power off**, stored passwords |
 | This server | Update trigger (rebuilds the containers), backups, database vacuum, retention settings |
 | External publishing | Observer/MQTT settings and brokers, diagnostics capture and upload |
-| Shared preferences | UI language, chat and interface settings, DM retry policy, analyzer and region registries |
+| Shared preferences | UI language, chat settings, toast notification settings, DM retry policy, analyzer and region registries |
 | Secrets | Repeater passwords, backup downloads, diagnostic captures, the server log |
 
 **Still works:**
@@ -41,8 +41,10 @@ lock it.
 - Reading everything — messages, channels, contacts, the map, the path analyzer
 - **Sending messages**, in channels and as DMs, and resending
 - Marking messages read
-- Theme, layout, FAB placement and notification permission — these live in the browser,
-  so a visitor changing them affects nobody else
+- Every preference that lives in the visitor's own browser, because changing it affects
+  nobody else: theme, desktop notification permission, the sidebar layout breakpoint,
+  whether the quick-access bar is shown, where each item sits (bar or menu), and the
+  bar's size, spacing and position
 - The console, for read-only commands: `infos`, `status`, `stats`, `bat`, `ver`, `help`,
   `contacts`, `contacts_all`, `contact_info`, `pending_contacts`, `channels`, `path`, `get`
 

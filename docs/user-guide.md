@@ -650,6 +650,15 @@ Repeaters running firmware v1.17 or newer also report their **MCU temperature** 
 
 Lists every zero-hop neighbour the repeater hears: resolved contact name (or the raw pubkey prefix for unknown nodes), how long ago it was heard, and SNR. When at least one neighbour has a known position, a **Map** toggle appears: the managed repeater is shown as a red marker, positioned neighbours in green, and the dashed connection lines carry SNR labels. A footnote counts neighbours that could not be placed on the map.
 
+Selecting a neighbour — a row in the list, or its marker on the map — opens a small dialog with its pubkey prefix, SNR, when it was last heard and its position, if one is known. Guests can look; admins also get a **Remove from list** button there.
+
+The ⋮ menu next to **Refresh** holds two more admin-only actions:
+
+- **Discover neighbours** — asks the repeater to broadcast a zero-hop discovery request. Nearby repeaters answer over the following minute or so, so press **Refresh** afterwards to see what came back. Only repeaters support this; other node types reply with an error, which is shown as it came
+- **Remove all neighbours** — clears the whole list after a confirmation prompt
+
+The list is kept by the repeater, not by mc-webui: a removed neighbour reappears as soon as the repeater hears it again. Removing is mainly useful for clearing out nodes that have moved away or gone off the air, or for starting a fresh measurement before a discovery run.
+
 #### CLI (admin only)
 
 A remote text console for the repeater, styled like the Interactive Console. Type a command (e.g. `get name`, `ver`, `clock`) and the reply comes back into the terminal together with the round-trip time. Quick-command chips, Enter to send, and per-repeater command history (arrow keys) are built in.
