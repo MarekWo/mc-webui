@@ -6449,8 +6449,8 @@ _REPEATER_SETTINGS_FIELDS = {
     'advert':   ('advert.interval', 'flood.advert.interval', 'flood.max',
                  'flood.max.unscoped', 'flood.max.advert'),
     'operator': ('owner.info',),
-    'advanced': ('path.hash.mode', 'txdelay', 'direct.txdelay', 'int.thresh',
-                 'agc.reset.interval', 'cad'),
+    'advanced': ('path.hash.mode', 'rxdelay', 'txdelay', 'direct.txdelay',
+                 'int.thresh', 'agc.reset.interval', 'cad'),
 }
 
 _REPEATER_SETTINGS_WRITABLE = frozenset(

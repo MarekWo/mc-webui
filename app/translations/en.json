@@ -1032,6 +1032,8 @@
   "rptmgmt.set.reading": "Reading from repeater… (one mesh round-trip per field)",
   "rptmgmt.set.reboot_note": "Some changes take effect after a reboot — use Actions → Reboot.",
   "rptmgmt.set.repeat": "Repeat packets",
+  "rptmgmt.set.rxdelay": "RX delay base (0–20)",
+  "rptmgmt.set.rxdelay_help": "Staggers the repeating of flood packets by reception quality — a node that heard the packet well repeats it sooner, one that barely heard it waits and then drops it if a better-placed repeater got there first. 0 disables it, which is the firmware default.",
   "rptmgmt.set.rxgain": "RX boosted gain",
   "rptmgmt.set.tx": "TX power (dBm)",
   "rptmgmt.set.txdelay": "TX delay factor (0–2)",

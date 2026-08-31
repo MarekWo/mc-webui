@@ -1267,6 +1267,8 @@ const SETTINGS_SECTIONS = [
     ]},
     { key: 'advanced', title: 'rptmgmt.set.advanced', icon: 'bi-sliders', fields: [
         { key: 'path.hash.mode', label: 'rptmgmt.set.path_hash_mode', type: 'number', min: 0, max: 2, step: 1 },
+        { key: 'rxdelay', label: 'rptmgmt.set.rxdelay', type: 'number', min: 0, max: 20, step: 'any',
+          help: 'rptmgmt.set.rxdelay_help' },
         { key: 'txdelay', label: 'rptmgmt.set.txdelay', type: 'number', min: 0, max: 2, step: 'any' },
         { key: 'direct.txdelay', label: 'rptmgmt.set.direct_txdelay', type: 'number', min: 0, max: 2, step: 'any' },
         { key: 'int.thresh', label: 'rptmgmt.set.int_thresh', type: 'number', step: 1 },

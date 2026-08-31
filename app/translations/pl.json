@@ -1096,6 +1096,8 @@
   "rptmgmt.set.reading": "Odczyt z repeatera… (jedna podróż przez sieć na pole)",
   "rptmgmt.set.reboot_note": "Część zmian działa dopiero po restarcie — użyj Akcje → Restart.",
   "rptmgmt.set.repeat": "Przekazuj pakiety",
+  "rptmgmt.set.rxdelay": "Baza opóźnienia RX (0–20)",
+  "rptmgmt.set.rxdelay_help": "Rozsuwa w czasie przekazywanie pakietów flood według jakości odbioru — węzeł, który odebrał pakiet dobrze, przekazuje go wcześniej, a ten na granicy zasięgu czeka i pomija przekazanie, jeśli lepiej ustawiony repeater zdążył pierwszy. 0 wyłącza tę funkcję i jest domyślną wartością firmware.",
   "rptmgmt.set.rxgain": "Wzmocnienie RX (boosted gain)",
   "rptmgmt.set.tx": "Moc TX (dBm)",
   "rptmgmt.set.txdelay": "Współczynnik opóźnienia TX (0–2)",
