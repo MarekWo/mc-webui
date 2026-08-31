@@ -1224,7 +1224,7 @@ async function loadClock() {
 // `key` is the firmware CLI parameter and is never translated.
 const SETTINGS_SECTIONS = [
     { key: 'basic', title: 'rptmgmt.set.basic', icon: 'bi-tag', fields: [
-        { key: 'name', label: 'rptmgmt.set.name', type: 'text' },
+        { key: 'name', label: 'rptmgmt.set.name', type: 'text', help: 'rptmgmt.set.name_help' },
         { key: 'password', label: 'rptmgmt.set.password', type: 'password', writeOnly: true,
           help: 'rptmgmt.set.password_help' },
         { key: 'guest.password', label: 'rptmgmt.set.guest_password', type: 'text',
@@ -1233,29 +1233,37 @@ const SETTINGS_SECTIONS = [
     { key: 'radio', title: 'rptmgmt.set.radio', icon: 'bi-broadcast',
       note: 'rptmgmt.set.radio_note',
       fields: [
-        { key: 'radio', label: 'rptmgmt.set.radio_params', type: 'radio4' },
-        { key: 'tx', label: 'rptmgmt.set.tx', type: 'number', min: 0, max: 30, step: 1 },
-        { key: 'radio.rxgain', label: 'rptmgmt.set.rxgain', type: 'onoff' },
+        { key: 'radio', label: 'rptmgmt.set.radio_params', type: 'radio4',
+          help: 'rptmgmt.set.radio_params_help' },
+        { key: 'tx', label: 'rptmgmt.set.tx', type: 'number', min: 0, max: 30, step: 1,
+          help: 'rptmgmt.set.tx_help' },
+        { key: 'radio.rxgain', label: 'rptmgmt.set.rxgain', type: 'onoff',
+          help: 'rptmgmt.set.rxgain_help' },
     ]},
     { key: 'location', title: 'rptmgmt.set.location', icon: 'bi-geo-alt', fields: [
-        { key: 'lat', label: 'rptmgmt.set.lat', type: 'text' },
-        { key: 'lon', label: 'rptmgmt.set.lon', type: 'text' },
+        { key: 'lat', label: 'rptmgmt.set.lat', type: 'text', help: 'rptmgmt.set.lat_help' },
+        { key: 'lon', label: 'rptmgmt.set.lon', type: 'text', help: 'rptmgmt.set.lon_help' },
     ]},
     { key: 'features', title: 'rptmgmt.set.features', icon: 'bi-toggles', fields: [
-        { key: 'repeat', label: 'rptmgmt.set.repeat', type: 'onoff' },
-        { key: 'allow.read.only', label: 'rptmgmt.set.allow_read_only', type: 'onoff' },
-        { key: 'multi.acks', label: 'rptmgmt.set.multi_acks', type: 'zeroone' },
+        { key: 'repeat', label: 'rptmgmt.set.repeat', type: 'onoff', help: 'rptmgmt.set.repeat_help' },
+        { key: 'allow.read.only', label: 'rptmgmt.set.allow_read_only', type: 'onoff',
+          help: 'rptmgmt.set.allow_read_only_help' },
+        { key: 'multi.acks', label: 'rptmgmt.set.multi_acks', type: 'zeroone',
+          help: 'rptmgmt.set.multi_acks_help' },
     ]},
     { key: 'network', title: 'rptmgmt.set.network', icon: 'bi-heart-pulse', fields: [
         { key: 'loop.detect', label: 'rptmgmt.set.loop_detect', type: 'select',
-          options: ['off', 'minimal', 'moderate', 'strict'] },
-        { key: 'dutycycle', label: 'rptmgmt.set.dutycycle', type: 'number', min: 1, max: 100, step: 1 },
+          options: ['off', 'minimal', 'moderate', 'strict'], help: 'rptmgmt.set.loop_detect_help' },
+        { key: 'dutycycle', label: 'rptmgmt.set.dutycycle', type: 'number', min: 1, max: 100, step: 1,
+          help: 'rptmgmt.set.dutycycle_help' },
     ]},
     { key: 'advert', title: 'rptmgmt.set.advert', icon: 'bi-megaphone', fields: [
         { key: 'advert.interval', label: 'rptmgmt.set.advert_interval', type: 'number', min: 0, max: 240, step: 1,
           help: 'rptmgmt.set.advert_interval_help' },
-        { key: 'flood.advert.interval', label: 'rptmgmt.set.flood_advert_interval', type: 'number', min: 0, step: 1 },
-        { key: 'flood.max', label: 'rptmgmt.set.flood_max', type: 'number', min: 0, max: 64, step: 1 },
+        { key: 'flood.advert.interval', label: 'rptmgmt.set.flood_advert_interval', type: 'number', min: 0, step: 1,
+          help: 'rptmgmt.set.flood_advert_interval_help' },
+        { key: 'flood.max', label: 'rptmgmt.set.flood_max', type: 'number', min: 0, max: 64, step: 1,
+          help: 'rptmgmt.set.flood_max_help' },
         { key: 'flood.max.unscoped', label: 'rptmgmt.set.flood_max_unscoped', type: 'number', min: 0, max: 64, step: 1,
           help: 'rptmgmt.set.flood_max_unscoped_help' },
         { key: 'flood.max.advert', label: 'rptmgmt.set.flood_max_advert', type: 'number', min: 0, max: 64, step: 1,
@@ -1266,12 +1274,16 @@ const SETTINGS_SECTIONS = [
           help: 'rptmgmt.set.owner_info_help' },
     ]},
     { key: 'advanced', title: 'rptmgmt.set.advanced', icon: 'bi-sliders', fields: [
-        { key: 'path.hash.mode', label: 'rptmgmt.set.path_hash_mode', type: 'number', min: 0, max: 2, step: 1 },
+        { key: 'path.hash.mode', label: 'rptmgmt.set.path_hash_mode', type: 'number', min: 0, max: 2, step: 1,
+          help: 'rptmgmt.set.path_hash_mode_help' },
         { key: 'rxdelay', label: 'rptmgmt.set.rxdelay', type: 'number', min: 0, max: 20, step: 'any',
           help: 'rptmgmt.set.rxdelay_help' },
-        { key: 'txdelay', label: 'rptmgmt.set.txdelay', type: 'number', min: 0, max: 2, step: 'any' },
-        { key: 'direct.txdelay', label: 'rptmgmt.set.direct_txdelay', type: 'number', min: 0, max: 2, step: 'any' },
-        { key: 'int.thresh', label: 'rptmgmt.set.int_thresh', type: 'number', step: 1 },
+        { key: 'txdelay', label: 'rptmgmt.set.txdelay', type: 'number', min: 0, max: 2, step: 'any',
+          help: 'rptmgmt.set.txdelay_help' },
+        { key: 'direct.txdelay', label: 'rptmgmt.set.direct_txdelay', type: 'number', min: 0, max: 2, step: 'any',
+          help: 'rptmgmt.set.direct_txdelay_help' },
+        { key: 'int.thresh', label: 'rptmgmt.set.int_thresh', type: 'number', step: 1,
+          help: 'rptmgmt.set.int_thresh_help' },
         { key: 'agc.reset.interval', label: 'rptmgmt.set.agc_reset', type: 'number', min: 0, step: 4,
           help: 'rptmgmt.set.agc_reset_help' },
         // Firmware v1.17+. Older nodes answer `??: cad` and the field renders
@@ -1280,7 +1292,19 @@ const SETTINGS_SECTIONS = [
     ]},
 ];
 
-let _settingsState = {};   // section key → {loaded, loadedOnce, loading, applying}
+// section key → {loaded, fresh, unsupported, reading, loading, applying}
+//   loaded      field → baseline value; only a field with a baseline is editable
+//   fresh       fields read from the device in this panel session
+//   unsupported fields the node has answered `??:`/`unsupported` for
+//   reading     single-field reads in flight
+let _settingsState = {};
+
+function newSettingsSectionState() {
+    return {
+        loaded: {}, fresh: new Set(), unsupported: new Set(),
+        reading: new Set(), loading: false, applying: false,
+    };
+}
 
 function settingsSection(secKey) {
     return SETTINGS_SECTIONS.find(s => s.key === secKey);
@@ -1292,6 +1316,36 @@ function settingsSectionEl(secKey) {
 
 function sfControl(item, fieldKey) {
     return item.querySelector(`[data-field="${fieldKey}"]`);
+}
+
+// ---------------- Remembered values ----------------
+// Every field costs a full mesh round-trip, so the panel reads nothing on its
+// own: it shows what was read last time and says so, until the value is read
+// again. Kept per repeater, in this browser only.
+//   field → {v: raw CLI value, t: epoch ms} | {u: 1, t: epoch ms} (unsupported)
+
+function settingsCacheKey() {
+    return `mc-webui-rpt-settings-${_pubkey}`;
+}
+
+function loadSettingsCache() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(settingsCacheKey()) || '{}');
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function cacheSettingsField(fieldKey, entry) {
+    try {
+        const cache = loadSettingsCache();
+        cache[fieldKey] = Object.assign({ t: Date.now() }, entry);
+        localStorage.setItem(settingsCacheKey(), JSON.stringify(cache));
+    } catch (e) {
+        // Storage full or blocked — the panel just forgets between visits.
+        console.warn('Could not cache repeater settings:', e);
+    }
 }
 
 function settingsControlHtml(f) {
@@ -1336,19 +1390,34 @@ function settingsControlHtml(f) {
 }
 
 function settingsFieldHtml(f) {
+    // Help lives behind the icon rather than under the control: with a hint on
+    // every field, printing them all turns a section into a wall of text.
+    const help = f.help
+        ? ` <span class="badge rounded-pill text-muted sf-help" data-bs-toggle="tooltip"
+                  title="${esc(t(f.help))}"><i class="bi bi-info-circle"></i></span>`
+        : '';
+    // A write-only field has nothing to read back.
+    const readBtn = f.writeOnly ? '' : `
+                <button type="button" class="btn btn-sm btn-outline-secondary sf-read"
+                        data-read="${esc(f.key)}" title="${tHtml('rptmgmt.set.read_field_title')}">
+                    <i class="bi bi-arrow-down-circle"></i>
+                </button>`;
     return `
         <div class="sf-row mb-3" data-field-row="${esc(f.key)}">
-            <label class="form-label small fw-semibold mb-1">${esc(t(f.label))} <span class="sf-badge ms-1"></span></label>
-            ${settingsControlHtml(f)}
+            <label class="form-label small fw-semibold mb-1">${esc(t(f.label))}${help}
+                <span class="sf-stale d-none" title="${tHtml('rptmgmt.set.stale_field_title')}"><i class="bi bi-clock-history text-warning"></i></span>
+                <span class="sf-badge ms-1"></span></label>
+            <div class="sf-control-row">
+                <div class="sf-control">${settingsControlHtml(f)}</div>${readBtn}
+            </div>
             <div class="sf-msg small text-danger d-none"></div>
-            ${f.help ? `<div class="form-text small mb-0">${esc(t(f.help))}</div>` : ''}
         </div>`;
 }
 
 function renderSettingsPane(body) {
     _settingsState = {};
     const items = SETTINGS_SECTIONS.map(sec => {
-        _settingsState[sec.key] = { loaded: {}, loadedOnce: false, loading: false, applying: false };
+        _settingsState[sec.key] = newSettingsSectionState();
         return `
         <div class="accordion-item" data-section="${sec.key}">
             <h2 class="accordion-header">
@@ -1361,20 +1430,25 @@ function renderSettingsPane(body) {
             <div id="secCollapse-${sec.key}" class="accordion-collapse collapse">
                 <div class="accordion-body pt-2">
                     ${sec.note ? `<div class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>${esc(t(sec.note))}</div>` : ''}
+                    <div class="mb-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary sec-read-all">
+                            <i class="bi bi-arrow-down-circle"></i> ${tHtml('rptmgmt.set.read_all')}
+                        </button>
+                    </div>
                     <div class="sec-status small text-muted mb-2 d-none"></div>
                     <div class="sec-reboot alert alert-warning py-1 px-2 small d-none mb-2">
                         <i class="bi bi-arrow-clockwise me-1"></i>${tHtml('rptmgmt.set.reboot_note')}
                     </div>
                     <div class="sec-fields">${sec.fields.map(settingsFieldHtml).join('')}</div>
                     ${sec.key === 'location' ? `
-                    <button type="button" class="btn btn-sm btn-outline-primary sec-map-pick" disabled
+                    <button type="button" class="btn btn-sm btn-outline-primary sec-map-pick mb-2" disabled
                             title="${tHtml('rptmgmt.set.map_pick_title')}">
                         <i class="bi bi-geo-alt"></i> ${tHtml('rptmgmt.set.map_pick')}
                     </button>` : ''}
-                    <div class="d-flex align-items-center gap-2 mt-3">
-                        <button type="button" class="btn btn-sm btn-outline-secondary sec-refresh">
-                            <i class="bi bi-arrow-clockwise"></i> ${tHtml('common.refresh')}
-                        </button>
+                    <div class="sec-stale alert alert-warning py-1 px-2 small d-none mb-2">
+                        <i class="bi bi-clock-history me-1"></i><span class="sec-stale-text"></span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-2">
                         <button type="button" class="btn btn-sm btn-success sec-apply" disabled>
                             <i class="bi bi-check-lg"></i> ${tHtml('common.apply')}
                         </button>
@@ -1389,21 +1463,55 @@ function renderSettingsPane(body) {
         <div class="accordion" id="settingsAccordion">${items}</div>
     `;
 
+    const cache = loadSettingsCache();
     SETTINGS_SECTIONS.forEach(sec => {
         const item = settingsSectionEl(sec.key);
-        const collapse = item.querySelector('.accordion-collapse');
-        collapse.addEventListener('show.bs.collapse', () => {
-            if (!_settingsState[sec.key].loadedOnce) loadSettingsSection(sec.key);
-        });
-        item.querySelector('.sec-refresh').addEventListener('click', () => loadSettingsSection(sec.key));
+        // Expanding a section no longer reads anything: it shows the remembered
+        // values, and the read buttons are what talks to the repeater.
+        sec.fields.forEach(f => applyCachedField(sec.key, f, cache));
+        item.querySelector('.sec-read-all').addEventListener('click', () => readSettingsSection(sec.key));
         item.querySelector('.sec-apply').addEventListener('click', () => applySettingsSection(sec.key));
+        item.querySelectorAll('.sf-read').forEach(btn => {
+            btn.addEventListener('click', () => readSettingsField(sec.key, btn.dataset.read));
+        });
         const mapPickBtn = item.querySelector('.sec-map-pick');
         if (mapPickBtn) mapPickBtn.addEventListener('click', openLocationMapPicker);
         item.querySelectorAll('.sf-input, .sf-sub').forEach(inp => {
             const evt = (inp.type === 'checkbox' || inp.tagName === 'SELECT') ? 'change' : 'input';
             inp.addEventListener(evt, () => updateSectionDirty(sec.key));
         });
+        updateSectionDirty(sec.key);
+        updateSectionStale(sec.key);
     });
+
+    if (window.bootstrap) {
+        body.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+            bootstrap.Tooltip.getOrCreateInstance(el);
+        });
+    }
+}
+
+// Put a remembered value back on screen. A cached value is a usable baseline:
+// Apply writes an absolute value, so editing from a stale reading still sets
+// what the user typed — which is why the field stays editable and is instead
+// marked as possibly out of date.
+function applyCachedField(secKey, f, cache) {
+    if (f.writeOnly) return;
+    const item = settingsSectionEl(secKey);
+    const st = _settingsState[secKey];
+    const entry = (cache || loadSettingsCache())[f.key];
+    if (!item || !st || !entry) return;
+    if (entry.u) {
+        st.unsupported.add(f.key);
+        disableSettingsField(item, f, true);
+        setFieldBadge(item, f.key, 'unsupported');
+        return;
+    }
+    if (typeof entry.v !== 'string') return;
+    setSettingsFieldValue(item, f, entry.v);
+    disableSettingsField(item, f, false);
+    st.loaded[f.key] = getSettingsFieldValue(item, f);
+    setFieldBadge(item, f.key, 'clear');
 }
 
 function setSettingsFieldValue(item, f, raw) {
@@ -1527,98 +1635,216 @@ function updateSectionDirty(secKey) {
         if (row) row.classList.toggle('sf-dirty', dirty);
     });
     const applyBtn = item.querySelector('.sec-apply');
-    applyBtn.disabled = count === 0 || st.loading || st.applying;
+    applyBtn.disabled = count === 0 || sectionBusy(st);
     applyBtn.innerHTML = `<i class="bi bi-check-lg"></i> ${count ? tHtml('rptmgmt.set.apply_count', { count }) : tHtml('common.apply')}`;
     const badge = item.querySelector('.sec-dirty-badge');
     badge.classList.toggle('d-none', count === 0);
     badge.textContent = count;
+    updateSectionControls(secKey);
     return count;
 }
 
-async function loadSettingsSection(secKey) {
+function sectionBusy(st) {
+    return st.loading || st.applying || st.reading.size > 0;
+}
+
+function updateSectionControls(secKey) {
+    const item = settingsSectionEl(secKey);
+    const st = _settingsState[secKey];
+    const sec = settingsSection(secKey);
+    if (!item || !st || !sec) return;
+    item.querySelector('.sec-read-all').disabled = sectionBusy(st);
+    sec.fields.forEach(f => {
+        const btn = item.querySelector(`.sf-read[data-read="${f.key}"]`);
+        // Other fields stay clickable while one is being read: the reads are
+        // queued client-side, so a second click just waits its turn.
+        if (btn) btn.disabled = st.loading || st.applying || st.reading.has(f.key);
+    });
+    const mapPickBtn = item.querySelector('.sec-map-pick');
+    if (mapPickBtn) {
+        mapPickBtn.disabled = sectionBusy(st) || !('lat' in st.loaded && 'lon' in st.loaded);
+    }
+}
+
+// Which values on screen were not read from the device in this panel session.
+function updateSectionStale(secKey) {
+    const item = settingsSectionEl(secKey);
+    const st = _settingsState[secKey];
+    const sec = settingsSection(secKey);
+    if (!item || !st || !sec) return;
+    const cache = loadSettingsCache();
+    let newest = 0;
+    sec.fields.forEach(f => {
+        const shown = (f.key in st.loaded) || st.unsupported.has(f.key);
+        const stale = shown && !st.fresh.has(f.key);
+        const mark = item.querySelector(`[data-field-row="${f.key}"] .sf-stale`);
+        if (mark) mark.classList.toggle('d-none', !stale);
+        if (stale && cache[f.key] && cache[f.key].t > newest) newest = cache[f.key].t;
+    });
+    const box = item.querySelector('.sec-stale');
+    box.classList.toggle('d-none', newest === 0);
+    if (newest) {
+        item.querySelector('.sec-stale-text').textContent =
+            t('rptmgmt.set.stale_note', { when: new Date(newest).toLocaleString() });
+    }
+}
+
+// Reads are queued: the device serializes CLI traffic anyway (one repeater
+// lock, one command in flight), so firing several requests at once would only
+// tie up server threads waiting for the same lock.
+let _settingsReadQueue = Promise.resolve();
+
+function queueSettingsRead(fn) {
+    const next = _settingsReadQueue.then(fn, fn).catch(e => {
+        console.error('Settings read failed:', e);
+    });
+    _settingsReadQueue = next;
+    return next;
+}
+
+async function fetchSettingsFields(secKey, fieldKeys) {
+    const params = new URLSearchParams({ section: secKey, fields: fieldKeys.join(',') });
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/settings?${params.toString()}`);
+        return await resp.json();
+    } catch (e) {
+        return { success: false, error: t('rptmgmt.request_failed') };
+    }
+}
+
+// Apply one field's slice of a read reply. Returns 'ok' | 'unsupported' | 'error'.
+function applyFieldRead(secKey, f, data) {
+    const item = settingsSectionEl(secKey);
+    const st = _settingsState[secKey];
+    const values = data.values || {};
+    const errors = data.errors || {};
+    const unsupported = data.unsupported || {};
+
+    if (f.key in values && !valueShapeIsWrong(f, values[f.key])) {
+        setSettingsFieldValue(item, f, values[f.key]);
+        disableSettingsField(item, f, false);
+        // Baseline = the value as the control round-trips it, so
+        // firmware formatting quirks never show up as dirty fields.
+        st.loaded[f.key] = getSettingsFieldValue(item, f);
+        st.unsupported.delete(f.key);
+        st.fresh.add(f.key);
+        setFieldBadge(item, f.key, 'clear');
+        cacheSettingsField(f.key, { v: String(values[f.key]) });
+        return 'ok';
+    }
+    if (f.key in unsupported || f.key in values) {
+        // Left out of st.loaded on purpose: a field with no baseline can
+        // never go dirty, so it is neither editable nor sent on Apply.
+        delete st.loaded[f.key];
+        st.unsupported.add(f.key);
+        st.fresh.add(f.key);
+        setSettingsFieldValue(item, f, '');
+        disableSettingsField(item, f, true);
+        setFieldBadge(item, f.key, 'unsupported');
+        cacheSettingsField(f.key, { u: 1 });
+        return 'unsupported';
+    }
+    // A failed read changes nothing: a remembered value stays on screen, stays
+    // editable, and stays marked as possibly out of date.
+    disableSettingsField(item, f, !(f.key in st.loaded));
+    setFieldBadge(item, f.key, 'error', errors[f.key] || t('rptmgmt.read_failed'));
+    return 'error';
+}
+
+function setSectionStatus(item, kind, html) {
+    const statusEl = item.querySelector('.sec-status');
+    if (kind === 'clear') {
+        statusEl.classList.add('d-none');
+        return;
+    }
+    statusEl.classList.remove('d-none');
+    statusEl.classList.toggle('text-danger', kind === 'error');
+    statusEl.classList.toggle('text-muted', kind !== 'error');
+    statusEl.innerHTML = html;
+}
+
+async function readSettingsSection(secKey) {
     const st = _settingsState[secKey];
     const item = settingsSectionEl(secKey);
     const sec = settingsSection(secKey);
     if (!st || !item || !sec || st.loading || st.applying) return;
-    st.loading = true;
+    const fields = sec.fields.filter(f => !f.writeOnly);
+    if (!fields.length) return;
 
-    const statusEl = item.querySelector('.sec-status');
-    statusEl.classList.remove('d-none', 'text-danger');
-    statusEl.classList.add('text-muted');
-    statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>'
-        + tHtml('rptmgmt.set.reading');
-    item.querySelector('.sec-refresh').disabled = true;
-    item.querySelector('.sec-apply').disabled = true;
-    const mapPickBtn = item.querySelector('.sec-map-pick');
-    if (mapPickBtn) mapPickBtn.disabled = true;
-    sec.fields.forEach(f => {
-        if (f.writeOnly) return;
-        setFieldBadge(item, f.key, 'clear');
+    st.loading = true;
+    setSectionStatus(item, 'info',
+        '<span class="spinner-border spinner-border-sm me-1"></span>' + tHtml('rptmgmt.set.reading'));
+    fields.forEach(f => {
+        setFieldBadge(item, f.key, 'pending');
         disableSettingsField(item, f, true);
     });
+    updateSectionControls(secKey);
 
-    let data = null;
-    try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/settings?section=${encodeURIComponent(secKey)}`);
-        data = await resp.json();
-    } catch (e) {
-        data = { success: false, error: t('rptmgmt.request_failed') };
-    }
+    await queueSettingsRead(async () => {
+      try {
+        const data = await fetchSettingsFields(secKey, fields.map(f => f.key));
 
-    st.loading = false;
-    item.querySelector('.sec-refresh').disabled = false;
-
-    if (!data || !data.success) {
-        statusEl.classList.remove('text-muted');
-        statusEl.classList.add('text-danger');
-        statusEl.textContent = (data && data.error) || t('rptmgmt.settings_read_failed');
-        updateSectionDirty(secKey);
-        return;
-    }
-
-    const values = data.values || {};
-    const errors = data.errors || {};
-    const unsupported = data.unsupported || {};
-    st.loaded = {};
-    let errCount = 0;
-    sec.fields.forEach(f => {
-        if (f.writeOnly) return;
-        if (f.key in values && !valueShapeIsWrong(f, values[f.key])) {
-            setSettingsFieldValue(item, f, values[f.key]);
-            disableSettingsField(item, f, false);
-            // Baseline = the value as the control round-trips it, so
-            // firmware formatting quirks never show up as dirty fields.
-            st.loaded[f.key] = getSettingsFieldValue(item, f);
-            setFieldBadge(item, f.key, 'clear');
-        } else if (f.key in unsupported || f.key in values) {
-            // Left out of st.loaded on purpose: a field with no baseline can
-            // never go dirty, so it is neither editable nor sent on Apply.
-            disableSettingsField(item, f, true);
-            setFieldBadge(item, f.key, 'unsupported');
+        if (!data || !data.success) {
+            fields.forEach(f => {
+                disableSettingsField(item, f, !(f.key in st.loaded));
+                setFieldBadge(item, f.key, st.unsupported.has(f.key) ? 'unsupported' : 'clear');
+            });
+            setSectionStatus(item, 'error', esc((data && data.error) || t('rptmgmt.settings_read_failed')));
         } else {
-            errCount++;
-            disableSettingsField(item, f, true);
-            setFieldBadge(item, f.key, 'error', errors[f.key] || t('rptmgmt.read_failed'));
+            let errCount = 0;
+            fields.forEach(f => {
+                if (applyFieldRead(secKey, f, data) === 'error') errCount++;
+            });
+            if (errCount) {
+                setSectionStatus(item, 'error', esc(tn('rptmgmt.set.load_errors', errCount)));
+            } else {
+                setSectionStatus(item, 'clear');
+            }
         }
+      } finally {
+        st.loading = false;
+        updateSectionDirty(secKey);
+        updateSectionStale(secKey);
+      }
     });
-    if (mapPickBtn) mapPickBtn.disabled = !('lat' in st.loaded && 'lon' in st.loaded);
-    st.loadedOnce = true;
+}
 
-    if (errCount) {
-        statusEl.classList.remove('text-muted');
-        statusEl.classList.add('text-danger');
-        statusEl.textContent = tn('rptmgmt.set.load_errors', errCount);
-    } else {
-        statusEl.classList.add('d-none');
-    }
-    updateSectionDirty(secKey);
+async function readSettingsField(secKey, fieldKey) {
+    const st = _settingsState[secKey];
+    const item = settingsSectionEl(secKey);
+    const sec = settingsSection(secKey);
+    const f = sec && sec.fields.find(x => x.key === fieldKey);
+    if (!st || !item || !f || f.writeOnly) return;
+    if (st.loading || st.applying || st.reading.has(fieldKey)) return;
+
+    st.reading.add(fieldKey);
+    setFieldBadge(item, fieldKey, 'pending');
+    disableSettingsField(item, f, true);
+    updateSectionControls(secKey);
+
+    await queueSettingsRead(async () => {
+      try {
+        const data = await fetchSettingsFields(secKey, [fieldKey]);
+        if (!data || !data.success) {
+            disableSettingsField(item, f, !(fieldKey in st.loaded));
+            setFieldBadge(item, fieldKey, 'error',
+                (data && data.error) || t('rptmgmt.settings_read_failed'));
+        } else {
+            applyFieldRead(secKey, f, data);
+        }
+      } finally {
+        st.reading.delete(fieldKey);
+        updateSectionDirty(secKey);
+        updateSectionStale(secKey);
+      }
+    });
 }
 
 async function applySettingsSection(secKey) {
     const st = _settingsState[secKey];
     const item = settingsSectionEl(secKey);
     const sec = settingsSection(secKey);
-    if (!st || !item || !sec || st.loading || st.applying) return;
+    if (!st || !item || !sec || sectionBusy(st)) return;
 
     const dirty = {};
     sec.fields.forEach(f => {
@@ -1641,8 +1867,8 @@ async function applySettingsSection(secKey) {
     }
 
     st.applying = true;
-    item.querySelector('.sec-refresh').disabled = true;
     item.querySelector('.sec-apply').disabled = true;
+    updateSectionControls(secKey);
     keys.forEach(k => setFieldBadge(item, k, 'pending'));
 
     let data = null;
@@ -1658,7 +1884,7 @@ async function applySettingsSection(secKey) {
     }
 
     st.applying = false;
-    item.querySelector('.sec-refresh').disabled = false;
+    updateSectionControls(secKey);
 
     if (!data || !data.success) {
         keys.forEach(k => setFieldBadge(item, k, 'error'));
@@ -1680,6 +1906,9 @@ async function applySettingsSection(secKey) {
             unsupCount++;
             setFieldBadge(item, f.key, 'unsupported');
             delete st.loaded[f.key];
+            st.unsupported.add(f.key);
+            st.fresh.add(f.key);
+            cacheSettingsField(f.key, { u: 1 });
             disableSettingsField(item, f, true);
         } else if (res.status === 'ok' || res.status === 'reboot_required') {
             if (res.status === 'reboot_required') {
@@ -1693,7 +1922,10 @@ async function applySettingsSection(secKey) {
                 sfControl(item, f.key).value = '';
                 if (f.key === 'password') await syncSavedPassword(dirty[f.key]);
             } else {
+                // A value we just wrote is as good as one just read.
                 st.loaded[f.key] = dirty[f.key];
+                st.fresh.add(f.key);
+                cacheSettingsField(f.key, { v: dirty[f.key] });
                 if (f.key === 'name' && _repeater) {
                     _repeater.name = dirty[f.key];
                     renderHeader();
@@ -1707,6 +1939,7 @@ async function applySettingsSection(secKey) {
 
     if (rebootCount) item.querySelector('.sec-reboot').classList.remove('d-none');
     updateSectionDirty(secKey);
+    updateSectionStale(secKey);
 
     if (failCount) {
         showNotification(tn('rptmgmt.toast.apply_failed_count', failCount), 'danger');

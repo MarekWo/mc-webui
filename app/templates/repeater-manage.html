@@ -269,6 +269,34 @@
             height: 0.8rem;
         }
 
+        /* Control and its read button share one line, so adding the button
+           costs width rather than a whole extra row per field. */
+        .sf-control-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .sf-control {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .sf-read {
+            flex: 0 0 auto;
+        }
+
+        .sf-help {
+            cursor: help;
+            padding: 0 0.15rem;
+        }
+
+        /* Field hints live in tooltips now, and some of them are sentences. */
+        .tooltip-inner {
+            max-width: 320px;
+            text-align: left;
+        }
+
         /* Centered state screens */
         .state-screen {
             text-align: center;
