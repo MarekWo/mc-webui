@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.14.0 — 2026-09-02
+
 ### Features
 
 - **Repeater settings are no longer read all at once when you open a section.** Every field under **My Repeaters → Settings** is a full round-trip through the mesh, and expanding a section fired one for each field in it: seven questions to a repeater four hops away, answered one at a time, while you sat and waited for the one value you actually came for — and often for a batch that timed out halfway through and left half the section blank. Nothing is read now until you ask. Each field has its own read button beside it, so checking or changing a single setting costs a single round-trip; **Read all fields** at the top of a section still fetches the whole thing for when that is what you want. Clicking read on several fields in a row is fine — they queue and run one after another. The values you have read are also remembered per repeater, so a section opens showing the last readings rather than empty boxes; a remembered value carries a small clock beside its name and a note at the foot of the section saying when it was read, because the repeater may well hold something else by now. Those values stay editable — applying a setting writes an absolute value, so editing from an old reading still sets exactly what you typed — but the field is one click away from being current when it matters. Field hints moved into an ⓘ next to each field name, and every field has one now instead of the handful that did; the sections are considerably shorter for it.
