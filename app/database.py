@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 SCHEMA_FILE = Path(__file__).parent / 'schema.sql'
 
 
+def _normalize_path_hex(path_hex: str) -> str:
+    """Store routing paths in one shape so duplicates compare equal."""
+    return (path_hex or '').strip().lower()
+
+
 class Database:
     """SQLite database with WAL mode for mc-webui v2."""
 
@@ -76,6 +81,63 @@ class Database:
         if 'raw_packet' not in cm_columns:
             conn.execute("ALTER TABLE channel_messages ADD COLUMN raw_packet TEXT")
             logger.info("Migration: added channel_messages.raw_packet column")
+
+        # Configured paths used to allow exact duplicates - the same route
+        # could be added twice from the Add Path dialog or imported again
+        # from the device, in Contacts and in My Repeaters alike.
+        self._dedupe_contact_paths(conn)
+
+    def _dedupe_contact_paths(self, conn):
+        """Collapse identical configured paths, then keep them unique.
+
+        Runs once: after the duplicates are gone the unique index below
+        rejects any that a future caller tries to insert. Paths are stored
+        lowercase so the index does not need to be case-insensitive - the
+        UI uppercases them for display either way.
+        """
+        conn.execute(
+            "UPDATE contact_paths SET path_hex = lower(trim(path_hex)) "
+            "WHERE path_hex <> lower(trim(path_hex))"
+        )
+
+        rows = conn.execute(
+            """SELECT id, contact_pubkey, path_hex, hash_size, is_primary
+               FROM contact_paths ORDER BY sort_order ASC, id ASC"""
+        ).fetchall()
+        keepers = {}
+        duplicates = []
+        promote = []
+        for row in rows:
+            key = (row['contact_pubkey'], row['path_hex'], row['hash_size'])
+            keeper = keepers.get(key)
+            if keeper is None:
+                keepers[key] = row
+                continue
+            duplicates.append(row['id'])
+            # The copy being dropped may be the one marked primary
+            if row['is_primary'] and not keeper['is_primary']:
+                promote.append(keeper['id'])
+
+        if duplicates:
+            conn.executemany(
+                "DELETE FROM contact_paths WHERE id = ?",
+                [(i,) for i in duplicates]
+            )
+            if promote:
+                conn.executemany(
+                    "UPDATE contact_paths SET is_primary = 1 WHERE id = ?",
+                    [(i,) for i in promote]
+                )
+            logger.info(f"Migration: removed {len(duplicates)} duplicate contact path(s)")
+
+        try:
+            conn.execute(
+                """CREATE UNIQUE INDEX IF NOT EXISTS idx_cp_unique
+                   ON contact_paths(contact_pubkey, path_hex, hash_size)"""
+            )
+        except sqlite3.DatabaseError as e:
+            # The application-level check still guards every caller
+            logger.warning(f"Could not create contact_paths unique index: {e}")
 
     @contextmanager
     def _connect(self):
@@ -1246,11 +1308,30 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def find_contact_path(self, contact_pubkey: str, path_hex: str,
+                          hash_size: int = 1,
+                          exclude_id: Optional[int] = None) -> Optional[Dict]:
+        """Find a configured path with the same route, or None.
+
+        The route is the hex plus the hash size - the same bytes read with a
+        different hash size are a different set of hops, so both are compared.
+        """
+        sql = """SELECT * FROM contact_paths
+                 WHERE contact_pubkey = ? AND path_hex = ? AND hash_size = ?"""
+        params = [contact_pubkey.lower(), _normalize_path_hex(path_hex), hash_size]
+        if exclude_id is not None:
+            sql += " AND id != ?"
+            params.append(exclude_id)
+        with self._connect() as conn:
+            row = conn.execute(sql, params).fetchone()
+            return dict(row) if row else None
+
     def add_contact_path(self, contact_pubkey: str, path_hex: str,
                          hash_size: int = 1, label: str = '',
                          is_primary: bool = False) -> int:
         """Add a new path for a contact. Returns the new row ID."""
         pk = contact_pubkey.lower()
+        path_hex = _normalize_path_hex(path_hex)
         with self._connect() as conn:
             if is_primary:
                 conn.execute(
@@ -1277,6 +1358,8 @@ class Database:
         updates = {k: v for k, v in kwargs.items() if k in allowed}
         if not updates:
             return False
+        if 'path_hex' in updates:
+            updates['path_hex'] = _normalize_path_hex(updates['path_hex'])
         with self._connect() as conn:
             # If setting as primary, clear others first
             if updates.get('is_primary'):

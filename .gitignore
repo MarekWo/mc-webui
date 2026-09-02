@@ -100,6 +100,9 @@ Thumbs.db
 # Miscellaneous
 # ============================================
 .claude/
+# Tooling-generated mirrors of .claude/CLAUDE.md and .claude/skills/
+AGENTS.md
+.agents/
 technotes/
 docs/Pomoc w zwiększeniu zasięgu.pdf
 PRD.md

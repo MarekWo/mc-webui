@@ -246,6 +246,10 @@ CREATE INDEX IF NOT EXISTS idx_echoes_pkt ON echoes(pkt_payload);
 CREATE INDEX IF NOT EXISTS idx_adv_pubkey ON advertisements(public_key, timestamp);
 CREATE INDEX IF NOT EXISTS idx_contacts_name ON contacts(name);
 CREATE INDEX IF NOT EXISTS idx_cp_contact ON contact_paths(contact_pubkey, sort_order);
+-- The same route must not be configured twice for one contact. That unique
+-- index is created in Database._run_migrations instead of here, because an
+-- existing database may still hold duplicates that have to be collapsed
+-- first - this file runs before the migrations.
 CREATE INDEX IF NOT EXISTS idx_regions_default ON regions(is_default) WHERE is_default = 1;
 
 -- ============================================================

@@ -2846,6 +2846,17 @@ def add_contact_path(pubkey):
         if len(label) > 50:
             return jsonify({'success': False, 'error': 'Label must be 50 characters or less'}), 400
 
+        # The same route twice is never useful: rotation would retry an
+        # already-failed path, and the list stops being readable
+        existing = db.find_contact_path(pubkey, path_hex, hash_size)
+        if existing:
+            return jsonify({
+                'success': False,
+                'error': 'This path is already configured for this contact',
+                'error_code': 'duplicate_path',
+                'existing_id': existing['id'],
+            }), 409
+
         path_id = db.add_contact_path(pubkey, path_hex, hash_size, label, is_primary)
         return jsonify({'success': True, 'id': path_id}), 201
     except Exception as e:
@@ -2887,6 +2898,25 @@ def update_contact_path(pubkey, path_id):
 
         if not kwargs:
             return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+
+        # An edit must not land on a route the contact already has either
+        if 'path_hex' in kwargs or 'hash_size' in kwargs:
+            current = next((p for p in db.get_contact_paths(pubkey) if p['id'] == path_id), None)
+            if not current:
+                return jsonify({'success': False, 'error': 'Path not found'}), 404
+            existing = db.find_contact_path(
+                pubkey,
+                kwargs.get('path_hex', current['path_hex']),
+                kwargs.get('hash_size', current['hash_size']),
+                exclude_id=path_id,
+            )
+            if existing:
+                return jsonify({
+                    'success': False,
+                    'error': 'This path is already configured for this contact',
+                    'error_code': 'duplicate_path',
+                    'existing_id': existing['id'],
+                }), 409
 
         if db.update_contact_path(path_id, **kwargs):
             return jsonify({'success': True}), 200
@@ -6419,8 +6449,8 @@ _REPEATER_SETTINGS_FIELDS = {
     'advert':   ('advert.interval', 'flood.advert.interval', 'flood.max',
                  'flood.max.unscoped', 'flood.max.advert'),
     'operator': ('owner.info',),
-    'advanced': ('path.hash.mode', 'txdelay', 'direct.txdelay', 'int.thresh',
-                 'agc.reset.interval', 'cad'),
+    'advanced': ('path.hash.mode', 'rxdelay', 'txdelay', 'direct.txdelay',
+                 'int.thresh', 'agc.reset.interval', 'cad'),
 }
 
 _REPEATER_SETTINGS_WRITABLE = frozenset(
@@ -6455,11 +6485,13 @@ def _settings_batch_fatal(result):
 
 @api_bp.route('/repeaters/<public_key>/settings', methods=['GET'])
 def repeater_settings_get(public_key):
-    """Read one settings section from a repeater as a sequential `get` batch.
+    """Read settings from a repeater as a sequential `get` batch.
 
-    Every field is a full mesh round-trip, so sections are fetched lazily
-    by the UI. One failed field only marks that field ({errors}) — the
-    rest of the section still loads. Fields this node simply does not have
+    Every field is a full mesh round-trip, so nothing is read unless it is
+    asked for: `?section=` names the section and the optional `?fields=`
+    narrows it to a comma-separated subset, which is how the UI reads a
+    single field. One failed field only marks that field ({errors}) — the
+    rest of the batch still loads. Fields this node simply does not have
     are reported separately ({unsupported}), so older firmware or a board
     without the hardware does not read as broken. Admin-gated like all
     text CLI traffic.
@@ -6477,6 +6509,17 @@ def repeater_settings_get(public_key):
     fields = _REPEATER_SETTINGS_FIELDS.get(section)
     if fields is None:
         return jsonify({'success': False, 'error': f'Unknown section: {section}'}), 400
+    requested = request.args.get('fields')
+    if requested is not None:
+        wanted = {f.strip() for f in requested.split(',') if f.strip()}
+        unknown = sorted(wanted - set(fields))
+        if unknown:
+            return jsonify({'success': False,
+                            'error': f"Unknown fields for {section}: {', '.join(unknown)}"}), 400
+        # Read order stays the section's, not the caller's.
+        fields = tuple(f for f in fields if f in wanted)
+        if not fields:
+            return jsonify({'success': False, 'error': 'No fields requested'}), 400
 
     values = {}
     errors = {}

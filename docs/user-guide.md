@@ -532,6 +532,7 @@ Configure message routing paths for individual contacts:
 - **Reorder** - Drag paths to change priority (starred path is used first)
 - **Star** - Mark a preferred primary path (used first in retry rotation)
 - **Delete** - Remove individual paths
+- **No duplicates** - the same route cannot be added twice for one contact. A path counts as the same when both the hops and the hash size match; the same bytes read with a different hash size are a different route and are still accepted. Adding one anyway - by hand, from the picker, or by importing the device path again - is refused with *This path is already on the list*. The same list, and the same rule, is what **My Repeaters → Paths** edits
 
 ### Keep Path Toggle
 
@@ -667,15 +668,18 @@ Replies travel over LoRa, so an occasional lost reply (timeout) is normal — ju
 
 #### Settings (admin only)
 
-Repeater configuration organized into collapsible sections: **Basic** (name, admin and guest passwords), **Radio** (frequency / bandwidth / SF / CR, TX power, RX gain), **Location**, **Features** (repeat, read-only access, multiple ACKs), **Network health** (loop detection, duty cycle), **Advertisement** (advert intervals, max flood hops — overall, unscoped, and adverts), **Operator info**, and **Advanced** (including channel activity detection, firmware v1.17+).
+Repeater configuration organized into collapsible sections: **Basic** (name, admin and guest passwords), **Radio** (frequency / bandwidth / SF / CR, TX power, RX gain), **Location**, **Features** (repeat, read-only access, multiple ACKs), **Network health** (loop detection, duty cycle), **Advertisement** (advert intervals, max flood hops — overall, unscoped, and adverts), **Operator info**, and **Advanced** (path hash mode, RX and TX delays, interference threshold, AGC reset interval, and channel activity detection on firmware v1.17+).
 
-- Each section loads its values live from the repeater when you first expand it (every field is one mesh round-trip, so a section takes a few seconds) and has its own **Refresh** and **Apply** buttons
+- Nothing is read from the repeater until you ask for it. Every field is one full round-trip through the mesh, so opening a section no longer fetches anything: each field has its own read button (⤓) next to it, and **Read all fields** at the top of the section reads the whole section when you really want all of it. Reads are queued, so clicking several in a row is fine — they run one after another
+- Values you have read are remembered per repeater (in this browser), so a section opens with the last readings instead of empty boxes. A remembered value is marked with a 🕘 next to its name and a note at the bottom of the section saying when it was read and that the repeater may hold something else by now. It is still editable — Apply writes an absolute value, so editing from an old reading still sets exactly what you typed — but read the field again if what it currently holds matters
+- Every field has an ⓘ next to its name explaining what it does and what the firmware accepts
+- **Apply** at the bottom of the section sends the changed fields
 - Changed fields are highlighted and counted on the Apply button; only those fields are sent
 - Every field reports back individually: a green check (applied), a **reboot required** badge (stored, takes effect after a reboot — radio parameters work this way), or a red error showing the repeater's own reply (e.g. an out-of-range value). Failed fields stay marked so you can correct and re-apply
 - A grey **not supported** badge is not an error: that repeater's firmware or hardware simply does not have the setting. Repeaters on the mesh run different firmware versions and different boards, so a newer setting is missing on older nodes and a hardware-dependent one is missing on boards that lack the hardware. Such a field is shown locked and is never sent when you Apply
-- One caveat on **not supported** after an Apply: the firmware can store a value before it discovers the hardware cannot use it, so it does not tell you whether the setting changed on the device. Press **Refresh** to see what the repeater actually holds
+- One caveat on **not supported** after an Apply: the firmware can store a value before it discovers the hardware cannot use it, so it does not tell you whether the setting changed on the device. Read the field again to see what the repeater actually holds
 - Changing radio parameters asks for confirmation first — wrong values can make the repeater unreachable over the mesh
-- The **Location** section has a **Pick from map** button (enabled once the section has loaded): it opens a map, and clicking a point fills the latitude and longitude fields for you and marks the section changed, ready to Apply — handy when you know where the repeater is but not its exact coordinates
+- The **Location** section has a **Pick from map** button (enabled once latitude and longitude have values): it opens a map, and clicking a point fills the latitude and longitude fields for you and marks the section changed, ready to Apply — handy when you know where the repeater is but not its exact coordinates
 - The admin password is write-only (the current one is never displayed). After a successful change, the password saved in mc-webui is updated automatically so one-click login keeps working. Changing it does **not** log out sessions that are already active
 
 #### Actions (admin only)

@@ -1271,6 +1271,8 @@ function populateContactInfoModal() {
                                 if (data.success) {
                                     await renderPathList(pubkey);
                                     showNotification(t('dm.toast.device_path_imported'), 'info');
+                                } else if (data.error_code === 'duplicate_path') {
+                                    showNotification(t('repeaters.toast.path_duplicate'), 'warning');
                                 } else {
                                     showNotification(data.error || t('dm.toast.import_failed'), 'danger');
                                 }
@@ -2589,6 +2591,9 @@ function setupPathFormHandlers(pubkey) {
                 addPathModal.hide();
                 await renderPathList(pubkey);
                 showNotification(t('repeaters.toast.path_added'), 'info');
+            } else if (data.error_code === 'duplicate_path') {
+                // Modal stays open so the hops can be corrected
+                showNotification(t('repeaters.toast.path_duplicate'), 'warning');
             } else {
                 showNotification(data.error || t('repeaters.toast.path_add_failed'), 'danger');
             }
