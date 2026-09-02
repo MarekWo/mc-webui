@@ -16,6 +16,12 @@ A lightweight web interface providing browser-based access to MeshCore mesh netw
 > git config --global http.version HTTP/1.1
 > ```
 >
+> **Still asked for a username after that?** Then you update with `sudo`. `--global` writes to the config of the user who runs it, and root has its own — so run it for root too:
+>
+> ```bash
+> sudo git config --global http.version HTTP/1.1
+> ```
+>
 > Then update as usual. Release **2.14.0** carries the same setting inside `update.sh`, but you need the command above to reach it. Full explanation: [Update asks for a GitHub username](docs/troubleshooting.md#update-asks-for-a-github-username).
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MarekWo/mc-webui)

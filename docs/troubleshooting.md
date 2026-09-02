@@ -194,6 +194,17 @@ Press Ctrl+C; typing a username or a token will not help.
 git config --global http.version HTTP/1.1
 ```
 
+If it still asks for a username after that, you are updating with `sudo`.
+`--global` writes to the config of the user who runs it, and root has its own —
+so set it for root as well:
+
+```bash
+sudo git config --global http.version HTTP/1.1
+```
+
+Setting it on the repository itself works too, and does not care who runs the
+update: `cd ~/mc-webui && git config http.version HTTP/1.1`.
+
 Then run `mcupdate` again. From 2.14.0 on, `update.sh` sets this for its own
 pull, so the manual command is only needed to update *to* that version — or for
 `git pull` commands you run yourself.
