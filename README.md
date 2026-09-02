@@ -3,6 +3,21 @@
 
 A lightweight web interface providing browser-based access to MeshCore mesh network.
 
+> [!IMPORTANT]
+> ### Updating is blocked until you run one command
+>
+> Since **2 September 2026**, `git pull` stops and asks for a `Username for 'https://github.com'` on this repository. Both `mcupdate` and the in-app **Update Now** button fail because of it.
+>
+> **Nothing is wrong with your installation, and this repository is still public.** GitHub changed how its HTTP/2 front end answers anonymous fetches, and the git that ships with Debian 12 (2.39, with libcurl 7.88) now gets a `401` back. Git reports any `401` as a request for credentials — so typing a username, a password or a personal access token will not help.
+>
+> Run this once on your server:
+>
+> ```bash
+> git config --global http.version HTTP/1.1
+> ```
+>
+> Then update as usual. Release **2.14.0** carries the same setting inside `update.sh`, but you need the command above to reach it. Full explanation: [Update asks for a GitHub username](docs/troubleshooting.md#update-asks-for-a-github-username).
+
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MarekWo/mc-webui)
 
 > **Which version is this?** The [`VERSION`](VERSION) file always holds the version of the branch you are looking at: on `main` it matches the newest entry under [Releases](https://github.com/MarekWo/mc-webui/releases), on `dev` it carries a `-dev` suffix for the release being prepared. The Releases panel in the sidebar is repository-wide and always shows the newest published release, whichever branch you are browsing.
