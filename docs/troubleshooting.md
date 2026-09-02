@@ -172,6 +172,34 @@ You can also check the System Log in the web UI (Menu → System Log) for real-t
 
 ---
 
+### Update asks for a GitHub username
+
+`mcupdate` (or a plain `git pull`) stops and waits at:
+
+```
+Username for 'https://github.com':
+```
+
+even though mc-webui is a public repository that needs no credentials.
+
+This is not an authentication problem, and nothing is wrong with your install.
+GitHub's HTTP/2 front end rejects the anonymous `git-upload-pack` request sent
+by older git builds — notably the `git 2.39` / `libcurl 7.88` combination that
+ships with Debian 12 — and git reports that `401` as a credential prompt.
+Press Ctrl+C; typing a username or a token will not help.
+
+**Fix** — tell git to speak HTTP/1.1 to GitHub:
+
+```bash
+git config --global http.version HTTP/1.1
+```
+
+Then run `mcupdate` again. From 2.14.0 on, `update.sh` sets this for its own
+pull, so the manual command is only needed to update *to* that version — or for
+`git pull` commands you run yourself.
+
+---
+
 ## Recording a Diagnostic Capture
 
 Some problems cannot be diagnosed from a screenshot or a log excerpt — most often

@@ -40,7 +40,13 @@ echo ""
 
 # Step 1: Git pull
 info "Pulling latest changes from Git..."
-if git pull; then
+# Force HTTP/1.1 for the pull. GitHub's HTTP/2 edge rejects the anonymous
+# git-upload-pack POST sent by older git/libcurl (e.g. Debian bookworm's
+# git 2.39 + libcurl 7.88) with a 401, which git reports as a credential
+# prompt - "Username for 'https://github.com'" - even on this public repo.
+# GIT_TERMINAL_PROMPT=0 turns any auth failure into an error instead of
+# leaving the script waiting on stdin forever.
+if GIT_TERMINAL_PROMPT=0 git -c http.version=HTTP/1.1 pull; then
     success "Git pull completed"
 else
     error "Git pull failed"

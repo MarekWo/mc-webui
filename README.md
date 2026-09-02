@@ -353,6 +353,8 @@ python3 -m app.version freeze
 docker compose up -d --build
 ```
 
+If `git pull` asks for a `Username for 'https://github.com'`, it is not asking for credentials you are missing — see [Update asks for a GitHub username](docs/troubleshooting.md#update-asks-for-a-github-username).
+
 The `python3 -m app.version freeze` command captures the current Git build (date + commit hash) for display in the app menu, underneath the release number from the `VERSION` file. Released versions are tagged `v<version>` and published at [Releases](https://github.com/MarekWo/mc-webui/releases); see [Versioning & Releases](docs/architecture.md#versioning--releases) for how a release is cut.
 
 ### Testing experimental features
