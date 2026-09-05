@@ -1156,18 +1156,19 @@ runs on your server and your MeshCore device.
   <img src="../images/android-wrapper-setup.jpg" width="280" alt="mc-webui Android app - server address screen">
 </p>
 
-The app is not distributed through Google Play — you download the `.apk` from
-the repository and install it yourself, which means going past a couple of
-Android warnings. The **[Android App guide](android-app.md)** walks through the
-download, the "unknown sources" permission, the Play Protect notice, and the
-first connection.
+The app is on **[Google Play](https://play.google.com/store/apps/details?id=it.wojtaszek.mc.wrapper)** — install it there and updates arrive on
+their own. The signed `.apk` stays in the repository for anyone who would rather
+skip the Store; both are signed with the same key, so you can switch either way
+without uninstalling and without losing the address you typed. The
+**[Android App guide](android-app.md)** walks through both routes, including the
+"unknown sources" permission and the Play Protect notice on the manual one.
 
 **App or PWA?** They can coexist, and each is better at something:
 
 | | Android app | PWA (Chrome → Add to Home Screen) |
 |---|---|---|
 | Full screen, own icon | Yes | Yes |
-| Setup | Install `.apk`, type the address once | Open in Chrome, add to home screen |
+| Setup | Install from Google Play (or the `.apk`), type the address once | Open in Chrome, add to home screen |
 | Notifications | Yes, from app version 1.1 — and over plain `http://` too | Yes (see above), on `https://` only |
 | QR scanning, file downloads | Yes (QR needs `https://`) | Yes (QR needs `https://`) |
 

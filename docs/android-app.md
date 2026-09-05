@@ -9,10 +9,11 @@ The app contains no mesh logic of its own: it asks once for the address of your
 mc-webui server and displays it. Everything still runs on your server and your
 MeshCore device.
 
-The app is **not distributed through Google Play** — you download the `.apk`
-file from this repository and install it yourself. That is a normal and
-supported way to install Android apps, but Android will warn you a few times
-along the way. The steps below cover those warnings.
+There are two ways to get it. The app is **published on Google Play**, which is
+the simplest route and keeps itself updated. The signed `.apk` also stays in
+this repository for anyone who would rather not go through the Store — the same
+app, signed with the same key, so you can move between the two without
+uninstalling anything.
 
 ---
 
@@ -22,6 +23,35 @@ along the way. The steps below cover those warnings.
 - A running **mc-webui** instance the phone can reach — either on the same local
   network (e.g. `http://192.168.1.100:5000`) or published over the internet
   through a reverse proxy (e.g. `https://mc-webui.example.com`)
+
+---
+
+## Install from Google Play
+
+| | |
+|---|---|
+| **Store listing** | https://play.google.com/store/apps/details?id=it.wojtaszek.mc.wrapper |
+| **Package** | `it.wojtaszek.mc.wrapper` |
+| **App version** | 2.0 |
+
+Open the listing on the phone and tap **Install**. Updates then arrive on their
+own, like for any other app from the Store. Skip straight to *Step 4: Connect to
+your instance* below — the warnings in steps 2 and 3 apply only to the manual
+route.
+
+**Already running the `.apk` from this repository?** Installing from Play
+**updates it in place.** The server address and any saved login are kept, and
+nothing needs uninstalling — both builds are signed with the same key, which is
+exactly what makes that possible. Moving the other way works too.
+
+---
+
+## Or install the `.apk` yourself
+
+The rest of this section is the manual route — useful if you avoid the Play
+Store, want a specific version, or would rather verify what you install. It is a
+normal and supported way to install Android apps, but Android will warn you a
+few times along the way, and the steps below cover those warnings.
 
 ---
 
@@ -172,9 +202,9 @@ A couple of things depend on how your instance is reachable:
 
 ## Security notes
 
-- **Install the `.apk` only from this repository** (or from the project's
-  GitHub Releases page). An `.apk` from anywhere else is a different app, no
-  matter what it is called
+- **Install the app from Google Play, or the `.apk` only from this repository**
+  (or from the project's GitHub Releases page). An `.apk` from anywhere else is
+  a different app, no matter what it is called
 - The app stores two things on the phone: **the server address you typed**, and
   — only if your server asks for a login — **the username and password for it**.
   Both live in the app's private storage, which no other app can read. No
@@ -191,7 +221,9 @@ A couple of things depend on how your instance is reachable:
   the menu and allow them; and file storage on Android 9 and older, only for
   saving a download. Nothing else — no contacts, no location, no background
   services
-- Every release is **signed with the same key** (certificate SHA-256
+- Every release is **signed with the same key** — the Play build included, because
+  the key was registered with Play App Signing rather than letting Google
+  generate its own (certificate SHA-256
   `42:58:57:b3:60:0c:1b:89:2f:8d:3b:2a:5c:46:8b:fe:17:c0:d2:1f:6c:12:24:33:a4:e1:1b:51:be:9b:d2:30`),
   which is also why updates install straight over the previous version
 

@@ -314,7 +314,7 @@ For complete usage instructions, see the [User Guide](docs/user-guide.md).
     <td width="200" align="center"><a href="images/android-wrapper-setup.jpg"><img src="images/android-wrapper-setup.jpg" width="180"></a></td>
     <td>
       A companion app that opens your own instance full screen — no address bar, its own icon in the app drawer. Everything still runs on your server; the app only displays it.<br><br>
-      It is not distributed through Google Play. Download <a href="android/mc-webui-wrapper.apk"><code>android/mc-webui-wrapper.apk</code></a>, install it on the phone, and enter the address of your instance once (e.g. <code>http://192.168.1.100:5000</code>).<br><br>
+      It is on <a href="https://play.google.com/store/apps/details?id=it.wojtaszek.mc.wrapper">Google Play</a> — install it there and it updates itself. Prefer to skip the Store? Download <a href="android/mc-webui-wrapper.apk"><code>android/mc-webui-wrapper.apk</code></a> instead; both are signed with the same key, so you can switch either way without uninstalling. Either way, enter the address of your instance once (e.g. <code>http://192.168.1.100:5000</code>).<br><br>
       Full instructions — including the "unknown sources" and Play Protect warnings, and what the app can and cannot do — are in the <a href="docs/android-app.md">Android App guide</a>.
     </td>
   </tr>
