@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.15.0 — 2026-09-05
+
 ### Features
 
 - **The Android app is on Google Play.** [mc-webui for Android](https://play.google.com/store/apps/details?id=it.wojtaszek.mc.wrapper) is now published in the Store, so installing it no longer means downloading an `.apk`, granting the "unknown sources" permission and clicking past Play Protect — you tap **Install** like for any other app, and updates arrive on their own instead of waiting for you to notice them. Nothing about the app itself changed: it is the same build that has been in the repository, with the same permissions and the same lack of analytics, accounts or background services. The `.apk` stays published here for anyone who prefers to install it directly or wants to read what they are installing first, and **both are signed with the same key** — so if you already run the repository build, installing from Play updates it in place, keeps the server address and any saved login, and needs no uninstall. Moving back the other way works just as well. Keeping that single signing key through Play's own signing scheme was the one irreversible decision in the whole process, and it is the reason nobody has to set their server address up again.
