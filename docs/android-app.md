@@ -168,6 +168,10 @@ actually answered — a mistyped address never joins it. If you run a single
 instance you will simply see it listed there on its own, and nothing about the
 form changes.
 
+Connecting to a server this way starts it fresh: **Back** brings up the leave
+prompt again rather than reversing into the pages of the server you just left.
+Otherwise the app would end up showing one instance while it is set to another.
+
 ### Servers that ask for a password
 
 If your instance sits behind a reverse proxy configured to require a login

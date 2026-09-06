@@ -94,6 +94,9 @@ class MainActivity : AppCompatActivity() {
     /** Whether the page now loading has already failed, for [rememberServer]. */
     private var pageLoadFailed = false
 
+    /** Set by [connect]; drops the pages of whichever server we just left. */
+    private var clearHistoryOnLoad = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Before setContentView, as androidx asks. Transparent rather than the
@@ -246,9 +249,21 @@ class MainActivity : AppCompatActivity() {
         applyChromeColor(Color.WHITE)
     }
 
+    /**
+     * Opens a server the user has just chosen - typed in, picked from the list,
+     * or restored at startup.
+     *
+     * The pages of the previous server go with it. Without that, Back walks out
+     * of the server you just picked and into the one before it, leaving the app
+     * showing one server while it is set to another; and the address form is
+     * reached through Back, so switching servers twice used to be enough to get
+     * there. Only a deliberate choice of server clears it - following a
+     * notification into a conversation still goes back the way it came.
+     */
     private fun connect(url: String) {
         configLayout.visibility = View.GONE
         webView.visibility = View.VISIBLE
+        clearHistoryOnLoad = true
         webView.loadUrl(url)
     }
 
@@ -453,6 +468,12 @@ class MainActivity : AppCompatActivity() {
                 // Only an address that actually answered is worth offering
                 // again, which is what keeps typos out of the list
                 if (!pageLoadFailed) rememberServer(prefs.getString(KEY_URL, null))
+                if (clearHistoryOnLoad) {
+                    clearHistoryOnLoad = false
+                    // Documented as unreliable before the first page settles,
+                    // which is exactly what onPageFinished waits for
+                    view?.clearHistory()
+                }
             }
 
             // Deprecated, but it is the only one Android 5.x calls
