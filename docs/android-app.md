@@ -62,9 +62,9 @@ few times along the way, and the steps below cover those warnings.
 | **File** | [`android/mc-webui-wrapper.apk`](../android/mc-webui-wrapper.apk) |
 | **Direct link** | https://github.com/MarekWo/mc-webui/raw/main/android/mc-webui-wrapper.apk |
 | **Size** | 5.2 MB |
-| **App version** | 2.0 |
+| **App version** | 2.1 |
 | **Package** | `it.wojtaszek.mc.wrapper` |
-| **SHA-256** | `165706d8c8fa0ef9c1095027efaeff863c41681e059be8cc631dd735c0c21f3f` |
+| **SHA-256** | `5134948018a4f46308b6b3a7abb32fb2b08400f19245e3f4643bd498aa3d834e` |
 
 Download it directly on the phone, or copy it over from a computer.
 
