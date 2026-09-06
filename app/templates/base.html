@@ -1138,6 +1138,21 @@
                                     </small>
                                 </div>
                             </button>
+
+                            <hr class="my-3">
+                            <h6 class="mb-1"><i class="bi bi-funnel"></i> {{ t('settings.notif.profiles.title') }}</h6>
+                            <p class="text-muted small mb-2">{{ t('settings.notif.profiles.desc') }}</p>
+                            <div id="notifyProfilesList" class="list-group mb-3">
+                                <div class="text-center text-muted py-3 small">
+                                    <div class="spinner-border spinner-border-sm"></div> {{ t('common.loading') }}
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-sm" id="addNotifyProfileBtn" data-demo-lock>
+                                <i class="bi bi-plus-circle"></i> {{ t('settings.notif.profiles.add') }}
+                            </button>
+                            <div class="form-text small mt-2">
+                                {{ t_html('settings.notif.profiles.tip') }}
+                            </div>
                         </div>
                         <div class="tab-pane fade" id="tabSettingsDiagnostics" data-demo-lock>
                             <div class="alert alert-info py-2 small mb-3 mt-2">
@@ -1275,6 +1290,50 @@
                             <label class="form-check-label small" for="analyzerEditEnabled">{{ t('common.enabled') }}</label>
                         </div>
                         <div id="analyzerEditError" class="alert alert-danger py-1 small mt-3 d-none"></div>
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>
+                        <button type="submit" class="btn btn-primary btn-sm">{{ t('common.save') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Profile Edit Modal (Settings > Notifications) -->
+    <div class="modal fade" id="notifyProfileEditModal" tabindex="-1" style="z-index: 1080;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title"><i class="bi bi-funnel"></i> <span id="notifyProfileEditModalTitle">{{ t('settings.notif.profiles.add') }}</span></h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="notifyProfileEditForm">
+                    <div class="modal-body">
+                        <input type="hidden" id="notifyProfileEditId" value="">
+                        <div class="mb-3">
+                            <label class="form-label small mb-1" for="notifyProfileEditName">{{ t('common.name') }}</label>
+                            <input type="text" class="form-control form-control-sm" id="notifyProfileEditName"
+                                   placeholder="{{ t('settings.notif.profiles.name_ph') }}" required maxlength="60" autocomplete="off">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small mb-1 d-block">{{ t('settings.notif.profiles.match_label') }}</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="notifyProfileMatch" id="notifyProfileMatchAny" value="any" checked>
+                                <label class="form-check-label small" for="notifyProfileMatchAny">{{ t('settings.notif.profiles.match_any') }}</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="notifyProfileMatch" id="notifyProfileMatchAll" value="all">
+                                <label class="form-check-label small" for="notifyProfileMatchAll">{{ t('settings.notif.profiles.match_all') }}</label>
+                            </div>
+                        </div>
+                        <label class="form-label small mb-1 d-block">{{ t('settings.notif.profiles.rules') }}</label>
+                        <div id="notifyProfileRules"></div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="addNotifyProfileRuleBtn">
+                            <i class="bi bi-plus"></i> {{ t('settings.notif.profiles.add_rule') }}
+                        </button>
+                        <div class="form-text small mt-2">{{ t('settings.notif.profiles.rules_hint') }}</div>
+                        <div id="notifyProfileEditError" class="alert alert-danger py-1 small mt-3 d-none"></div>
                     </div>
                     <div class="modal-footer py-2">
                         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ t('common.cancel') }}</button>

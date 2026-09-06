@@ -179,6 +179,7 @@ mc-webui/
 │   ├── geo.py                      # Coordinate sanity checks for advert positions
 │   ├── contacts_cache.py           # Persistent contacts cache (DB-backed)
 │   ├── read_status.py              # Server-side read status manager (DB-backed)
+│   ├── notify_profiles.py          # Notification profiles: rule matching, validation, storage
 │   ├── version.py                  # Git-based version management
 │   ├── migrate_v1.py               # Migration script from v1 flat files to v2 SQLite
 │   ├── meshcore/
@@ -223,7 +224,8 @@ Key tables:
 - `settings` - Application settings (migrated from .webui_settings.json)
 - `regions` - User-curated MeshCore flood scopes (`name`, `key_hex`, `is_default`)
 - `channel_scopes` - Per-channel region mapping (`channel_idx` → `region_id`, CASCADE on region delete; absent row = no override → firmware default applies)
-- `read_status` - Per-channel read counters and favorites (`is_favorite` column; used to pin channels in the sidebar/dropdown sort order)
+- `read_status` - Per-channel read counters, favorites and notification mode (`is_favorite` pins channels in the sidebar/dropdown sort order; `is_muted` + `notify_profile` form one three-way state — muted / every message / only messages passing that profile — and are always written together)
+- `app_settings.notification_profiles` - JSON list of notification profiles (`id`, `name`, `match` = `any|all`, `rules[]` of `{type: mention|text|sender, value}`); evaluated in `notify_profiles.py` for unread counts and, with the same rules, in `app.js` for the browser notification
 - `analyzers` - User-configured MeshCore Analyzer services (`name`, `url_template` with `{packetHash}` placeholder, `is_default`, `is_disabled`; partial unique index enforces a single default)
 - `observer_brokers` - MQTT brokers for the Observer packet-capture feature (`name`, `host`, `port`, `username`, `password` — stored plaintext, `use_tls`, `tls_verify`, `is_disabled`)
 - `repeaters` - Repeaters saved in the My Repeaters panel (`public_key` PK, `password` — stored plaintext per the observer_brokers precedent, `added_at`, `last_login_at`, `last_login_role`). Everything else about a repeater (name, path, position) comes from the device contact at read time
@@ -308,11 +310,23 @@ The channels API reads from the `channels` DB table rather than iterating device
 | DELETE | `/api/channels/<index>` | Remove channel |
 | GET | `/api/channels/<index>/qr` | QR code (`?format=json\|png`) |
 | GET | `/api/channels/muted` | Get muted channels |
-| POST | `/api/channels/<index>/mute` | Toggle channel mute |
+| POST | `/api/channels/<index>/mute` | Set mute (`{muted: bool}`); unmuting lands on "every message" |
+| PUT | `/api/channels/<index>/notifications` | Set notification mode (`{mode: muted\|all\|profile, profile_id?}`); the one endpoint the bell menu uses |
 | GET | `/api/channels/scopes` | Bulk per-channel region mapping for UI |
 | PUT | `/api/channels/<index>/scope` | Assign/clear region scope (`{region_id: int\|null}`) |
 | GET | `/api/channels/favorites` | List favorite channel indices |
 | POST | `/api/channels/<index>/favorite` | Set favorite state (`{favorite: bool}`) |
+
+### Notification profiles
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/notification-profiles` | List profiles, plus `device_name` (what a `mention` rule looks for) |
+| POST | `/api/notification-profiles` | Create (`{name, match: any\|all, rules: [{type, value?}]}`); names unique, case-insensitive |
+| PUT | `/api/notification-profiles/<id>` | Replace name, match mode and rules |
+| DELETE | `/api/notification-profiles/<id>` | Delete; channels using it revert to every message, returned as `cleared_channels` |
+
+Per-channel assignment is reported by `GET /api/read_status` and `GET /api/messages/updates` as `channel_notify_profiles` (`{"<idx>": "<id>"}`); the latter also counts a profiled channel's unread messages through the profile.
 
 ### Regions (MeshCore flood scopes)
 

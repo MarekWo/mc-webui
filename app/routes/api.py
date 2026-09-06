@@ -2300,6 +2300,18 @@ def get_messages_updates():
             if blocked_names:
                 all_messages = [m for m in all_messages if m.get('sender', '') not in blocked_names]
 
+        # Per-channel notification state: muted channels are excluded from the
+        # total, and a channel on a notification profile only counts the
+        # messages that pass it (the badge follows the same rule as the
+        # notification, see app/notify_profiles.py)
+        from app import read_status as rs
+        from app import notify_profiles
+        muted_channels = set(rs.get_muted_channels())
+        favorite_channels = rs.get_favorite_channels()
+        channel_notify_profiles = rs.get_channel_notify_profiles()
+        profiles = notify_profiles.profiles_by_id() if channel_notify_profiles else {}
+        own_name = runtime_config.get_device_name() or ''
+
         # Group messages by channel and compute stats
         channel_stats = {}  # channel_idx -> {latest_ts, messages_after_last_seen}
         for msg in all_messages:
@@ -2320,15 +2332,14 @@ def get_messages_updates():
                 channel_stats[ch_idx]['last_message_content'] = msg.get('content', '')
                 channel_stats[ch_idx]['last_message_sender'] = msg.get('sender', '')
 
-            # Count unread messages (newer than last_seen)
+            # Count unread messages (newer than last_seen). A profile that no
+            # longer exists counts everything - louder beats silently missing news.
             last_seen_ts = last_seen.get(ch_idx, 0)
             if ts > last_seen_ts:
-                channel_stats[ch_idx]['unread_count'] += 1
-
-        # Get muted channels to exclude from total
-        from app import read_status as rs
-        muted_channels = set(rs.get_muted_channels())
-        favorite_channels = rs.get_favorite_channels()
+                profile = profiles.get(channel_notify_profiles.get(ch_idx))
+                if profile is None or notify_profiles.profile_matches(
+                        profile, msg.get('sender', ''), msg.get('content', ''), own_name):
+                    channel_stats[ch_idx]['unread_count'] += 1
 
         # Build response
         updates = []
@@ -2366,7 +2377,8 @@ def get_messages_updates():
             'channels': updates,
             'total_unread': total_unread,
             'muted_channels': list(muted_channels),
-            'favorite_channels': favorite_channels
+            'favorite_channels': favorite_channels,
+            'channel_notify_profiles': {str(k): v for k, v in channel_notify_profiles.items()},
         }), 200
 
     except Exception as e:
@@ -5315,7 +5327,8 @@ def get_read_status_api():
             'channels': status['channels'],
             'dm': status['dm'],
             'muted_channels': status.get('muted_channels', []),
-            'favorite_channels': status.get('favorite_channels', [])
+            'favorite_channels': status.get('favorite_channels', []),
+            'channel_notify_profiles': status.get('channel_notify_profiles', {}),
         }), 200
 
     except Exception as e:
@@ -5326,7 +5339,8 @@ def get_read_status_api():
             'channels': {},
             'dm': {},
             'muted_channels': [],
-            'favorite_channels': []
+            'favorite_channels': [],
+            'channel_notify_profiles': {},
         }), 500
 
 
@@ -5791,6 +5805,150 @@ def set_channel_favorite_api(index):
 
     except Exception as e:
         logger.error(f"Error setting channel favorite: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/channels/<int:index>/notifications', methods=['PUT'])
+def set_channel_notifications_api(index):
+    """
+    Set how a channel asks for attention.
+
+    Body: {mode: 'muted' | 'all' | 'profile', profile_id?: str}
+    'profile' needs an existing profile id; the badge and the browser
+    notification then follow that profile's rules (see /notification-profiles).
+    """
+    try:
+        from app import read_status, notify_profiles
+
+        data = request.get_json() or {}
+        mode = data.get('mode')
+        if mode not in ('muted', 'all', 'profile'):
+            return jsonify({'success': False, 'error': "mode must be 'muted', 'all' or 'profile'"}), 400
+
+        profile_id = None
+        if mode == 'profile':
+            profile_id = str(data.get('profile_id') or '').strip()
+            if not profile_id:
+                return jsonify({'success': False, 'error': 'profile_id is required for profile mode'}), 400
+            if notify_profiles.get_profile(profile_id) is None:
+                return jsonify({'success': False, 'error': 'Profile not found'}), 404
+
+        if not read_status.set_channel_notify(index, mode, profile_id):
+            return jsonify({'success': False, 'error': 'Failed to save'}), 500
+
+        return jsonify({'success': True, 'mode': mode, 'profile_id': profile_id}), 200
+
+    except Exception as e:
+        logger.error(f"Error setting channel notifications: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================
+# Notification profiles (Settings > Notifications)
+# ============================================================
+
+@api_bp.route('/notification-profiles', methods=['GET'])
+def list_notification_profiles_api():
+    """
+    List notification profiles. Also returns the device name, which is what a
+    'mention' rule looks for, so the editor can show what it will match.
+    """
+    try:
+        from app import notify_profiles
+        return jsonify({
+            'success': True,
+            'profiles': notify_profiles.load_profiles(),
+            'device_name': runtime_config.get_device_name() or '',
+        }), 200
+    except Exception as e:
+        logger.error(f"Error listing notification profiles: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _profile_name_taken(profiles, name, except_id=None):
+    wanted = name.casefold()
+    return any(p.get('id') != except_id and str(p.get('name', '')).casefold() == wanted
+               for p in profiles)
+
+
+@api_bp.route('/notification-profiles', methods=['POST'])
+def create_notification_profile_api():
+    """Create a profile. Body: {name, match: 'any'|'all', rules: [{type, value?}]}."""
+    try:
+        from app import notify_profiles
+
+        clean, err = notify_profiles.validate_profile(request.get_json() or {})
+        if err:
+            return jsonify({'success': False, 'error': err}), 400
+
+        profiles = notify_profiles.load_profiles()
+        if _profile_name_taken(profiles, clean['name']):
+            return jsonify({'success': False, 'error': f'Profile "{clean["name"]}" already exists'}), 409
+
+        profile = {'id': notify_profiles.new_profile_id(profiles), **clean}
+        profiles.append(profile)
+        if not notify_profiles.save_profiles(profiles):
+            return jsonify({'success': False, 'error': 'Failed to save'}), 500
+
+        logger.info(f"Notification profile created: {notify_profiles.summarize(profile)}")
+        return jsonify({'success': True, 'profile': profile}), 201
+    except Exception as e:
+        logger.error(f"Error creating notification profile: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/notification-profiles/<profile_id>', methods=['PUT'])
+def update_notification_profile_api(profile_id):
+    """Replace a profile's name, match mode and rules. Same body as POST."""
+    try:
+        from app import notify_profiles
+
+        profiles = notify_profiles.load_profiles()
+        pos = next((i for i, p in enumerate(profiles) if p.get('id') == profile_id), None)
+        if pos is None:
+            return jsonify({'success': False, 'error': 'Profile not found'}), 404
+
+        clean, err = notify_profiles.validate_profile(request.get_json() or {})
+        if err:
+            return jsonify({'success': False, 'error': err}), 400
+        if _profile_name_taken(profiles, clean['name'], except_id=profile_id):
+            return jsonify({'success': False, 'error': f'Profile "{clean["name"]}" already exists'}), 409
+
+        profile = {'id': profile_id, **clean}
+        profiles[pos] = profile
+        if not notify_profiles.save_profiles(profiles):
+            return jsonify({'success': False, 'error': 'Failed to save'}), 500
+
+        logger.info(f"Notification profile updated: {notify_profiles.summarize(profile)}")
+        return jsonify({'success': True, 'profile': profile}), 200
+    except Exception as e:
+        logger.error(f"Error updating notification profile: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/notification-profiles/<profile_id>', methods=['DELETE'])
+def delete_notification_profile_api(profile_id):
+    """
+    Delete a profile. Channels using it go back to every message; their
+    indices come back as `cleared_channels` so the page can follow suit.
+    """
+    try:
+        from app import notify_profiles
+
+        profiles = notify_profiles.load_profiles()
+        remaining = [p for p in profiles if p.get('id') != profile_id]
+        if len(remaining) == len(profiles):
+            return jsonify({'success': False, 'error': 'Profile not found'}), 404
+
+        if not notify_profiles.save_profiles(remaining):
+            return jsonify({'success': False, 'error': 'Failed to save'}), 500
+
+        db = _get_db()
+        cleared = db.clear_channel_notify_profile(profile_id) if db else []
+        logger.info(f"Notification profile {profile_id} deleted; channels reset: {cleared}")
+        return jsonify({'success': True, 'cleared_channels': cleared}), 200
+    except Exception as e:
+        logger.error(f"Error deleting notification profile: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

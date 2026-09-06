@@ -2712,3 +2712,14 @@ emoji-picker {
     margin-top: 1rem;
     padding-top: 0.75rem;
 }
+
+/* Manage Channels > bell menu (off / every message / a notification profile). */
+.channel-notify-menu {
+    min-width: 14rem;
+}
+
+.channel-notify-menu .dropdown-item i {
+    width: 1.25rem;
+    margin-right: 0.25rem;
+    text-align: center;
+}

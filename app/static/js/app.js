@@ -12,6 +12,11 @@ let lastSeenTimestamps = {};  // Track last seen message timestamp per channel
 let unreadCounts = {};  // Track unread message counts per channel
 let channelLastMessages = {};  // channel_idx -> {preview, timestamp}
 let mutedChannels = new Set();  // Channel indices with muted notifications
+let channelNotifyProfiles = {}; // Channel idx -> notification profile id (channels in profile mode)
+let channelStateVersion = 0;    // Bumped on every local mute/profile/favorite change, so a poll
+                                // that left before the change cannot overwrite it on return
+let notificationProfiles = [];  // Profiles defined in Settings > Notifications
+let notifyProfileDeviceName = ''; // What a 'mention' rule looks for, as the server reports it
 let favoriteChannels = new Set();  // Channel indices marked as favorites (always shown above non-favorites)
 
 // "New messages" divider state.
@@ -680,9 +685,13 @@ function connectChatSocket() {
             }
             // Reorder: move this channel to the top of its tier in sidebar + dropdown
             moveChannelToTopOfTier(data.channel_idx);
-            // Update unread count for this channel
+            // Update unread count for this channel. On a channel with a
+            // notification profile only a passing message counts, matching
+            // what the server will report on the next poll.
             const onOpenChannel = data.channel_idx === currentChannelIdx;
-            if (!onOpenChannel) {
+            const profile = channelNotifyProfile(data.channel_idx);
+            const countsAsUnread = !profile || notificationProfileMatches(profile, data.sender, data.content);
+            if (!onOpenChannel && countsAsUnread) {
                 unreadCounts[data.channel_idx] = (unreadCounts[data.channel_idx] || 0) + 1;
                 updateUnreadBadges();
             }
@@ -785,7 +794,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log('[init] Loading timestamps in parallel...');
     await Promise.all([
         loadLastSeenTimestampsFromServer(),
-        loadDmLastSeenTimestampsFromServer()
+        loadDmLastSeenTimestampsFromServer(),
+        loadNotificationProfiles()
     ]);
 
     // Load channels (required before loading messages)
@@ -3136,6 +3146,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadAnalyzers();
             loadObserverTab();
             loadDiagnosticsTab();
+            loadNotificationProfiles();
         });
         settingsModal.addEventListener('shown.bs.modal', () => {
             settingsModal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
@@ -3143,6 +3154,18 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    // Notifications tab: notification profiles
+    document.getElementById('addNotifyProfileBtn')?.addEventListener('click', () => {
+        openNotifyProfileEditModal(null);
+    });
+    document.getElementById('addNotifyProfileRuleBtn')?.addEventListener('click', () => {
+        addNotifyProfileRuleRow();
+    });
+    document.getElementById('notifyProfileEditForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveNotifyProfileFromForm();
+    });
 
     // Contacts tab toggle handlers
     document.getElementById('settManualApproval')?.addEventListener('change', (e) => {
@@ -4919,13 +4942,82 @@ function sendBrowserNotification(channelCount, dmCount, pendingCount) {
 /** Longest stretch of message text a notification body carries. */
 const NOTIFICATION_BODY_MAX = 140;
 
+// =============================================================================
+// Per-channel notification mode: muted / every message / notification profile
+// =============================================================================
+
+/**
+ * Take the server's {"<idx>": "<profile id>"} map into channelNotifyProfiles.
+ * Absent from the payload (an older server) leaves the current state alone.
+ */
+function syncChannelNotifyProfiles(map) {
+    if (!map || typeof map !== 'object') return;
+    channelNotifyProfiles = {};
+    for (const [key, id] of Object.entries(map)) {
+        if (id) channelNotifyProfiles[parseInt(key)] = id;
+    }
+}
+
+function getNotificationProfile(id) {
+    return (notificationProfiles || []).find(p => p && p.id === id) || null;
+}
+
+/**
+ * The profile a channel is on, or null when it takes every message or is
+ * muted. A profile that no longer exists reads as null too - everything,
+ * rather than nothing, is the safer misreading.
+ */
+function channelNotifyProfile(idx) {
+    const id = channelNotifyProfiles[idx];
+    return id ? getNotificationProfile(id) : null;
+}
+
+/** 'muted' | 'profile' | 'all' */
+function channelNotifyMode(idx) {
+    if (mutedChannels.has(idx)) return 'muted';
+    return channelNotifyProfile(idx) ? 'profile' : 'all';
+}
+
+/**
+ * Evaluate one rule. Mirrors rule_matches() in app/notify_profiles.py: the
+ * server decides the unread badge with the same rules, so the two must agree.
+ */
+function notificationRuleMatches(rule, sender, content) {
+    if (!rule) return false;
+    if (rule.type === 'mention') {
+        return !!notifyProfileDeviceName && textMatches(content, notifyProfileDeviceName);
+    }
+    if (rule.type === 'text') {
+        return !!rule.value && textMatches(content, rule.value);
+    }
+    if (rule.type === 'sender') {
+        return !!rule.value && textMatches(sender, rule.value);
+    }
+    return false;
+}
+
+/** True when a message passes the profile (any rule, or all, per its match mode). */
+function notificationProfileMatches(profile, sender, content) {
+    const rules = (profile && profile.rules) || [];
+    if (rules.length === 0) return false;
+    const test = r => notificationRuleMatches(r, sender || '', content || '');
+    return profile.match === 'all' ? rules.every(test) : rules.some(test);
+}
+
+/** Whether a message on this channel should ask for attention at all. */
+function channelMessageWantsAttention(idx, sender, content) {
+    if (mutedChannels.has(idx)) return false;
+    const profile = channelNotifyProfile(idx);
+    return !profile || notificationProfileMatches(profile, sender, content);
+}
+
 /**
  * Announce one channel message: the channel on top, "who: what" underneath.
  *
  * @param {Object} data - A 'new_message' payload of type 'channel'
  */
 function notifyChannelMessage(data) {
-    if (mutedChannels.has(data.channel_idx)) return;
+    if (!channelMessageWantsAttention(data.channel_idx, data.sender, data.content)) return;
 
     const channel = (availableChannels || []).find(ch => ch && ch.index === data.channel_idx);
     notifyIncomingMessage({
@@ -4949,6 +5041,257 @@ function notifyDmMessage(data) {
         body: makeChannelPreview(data.content, NOTIFICATION_BODY_MAX),
         url: pubkey ? `/?dm=pk_${encodeURIComponent(pubkey)}` : '/'
     });
+}
+
+// =============================================================================
+// Notification profiles (Settings > Notifications)
+// =============================================================================
+
+/**
+ * Fetch the profiles and the device name a 'mention' rule looks for. Runs at
+ * startup (the socket handler needs them) and whenever Settings opens.
+ */
+async function loadNotificationProfiles() {
+    try {
+        const resp = await fetch('/api/notification-profiles');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        notificationProfiles = data.profiles || [];
+        notifyProfileDeviceName = data.device_name || window.MC_CONFIG?.deviceName || '';
+        renderNotificationProfilesList();
+    } catch (e) {
+        console.error('Error loading notification profiles:', e);
+        const listEl = document.getElementById('notifyProfilesList');
+        if (listEl) {
+            listEl.innerHTML = `<div class="text-center text-danger small py-2">${tHtml('settings.notif.profiles.load_failed')}</div>`;
+        }
+    }
+}
+
+/** "mentions me · contains “webui”" - the rules in one line, for the list row. */
+function notifyProfileSummary(profile) {
+    const parts = (profile.rules || []).map(r => {
+        if (r.type === 'mention') return t('settings.notif.profiles.summary.mention');
+        if (r.type === 'sender') return t('settings.notif.profiles.summary.sender', { value: r.value });
+        return t('settings.notif.profiles.summary.text', { value: r.value });
+    });
+    if (parts.length <= 1) return parts.join('');
+    return profile.match === 'all'
+        ? t('settings.notif.profiles.summary.all', { rules: parts.join(' · ') })
+        : t('settings.notif.profiles.summary.any', { rules: parts.join(' · ') });
+}
+
+function renderNotificationProfilesList() {
+    const listEl = document.getElementById('notifyProfilesList');
+    if (!listEl) return;
+    const profiles = notificationProfiles || [];
+
+    if (profiles.length === 0) {
+        listEl.innerHTML = `<div class="text-center text-muted small py-3">${tHtml('settings.notif.profiles.empty')}</div>`;
+        return;
+    }
+
+    listEl.innerHTML = profiles.map(p => {
+        const used = Object.values(channelNotifyProfiles).filter(id => id === p.id).length;
+        const usedBadge = used > 0
+            ? `<span class="badge bg-success ms-2">${escapeHtml(tn('settings.notif.profiles.in_use', used))}</span>`
+            : '';
+        const safeId = escapeHtml(p.id);
+        return `
+            <div class="list-group-item d-flex align-items-center gap-2 py-2">
+                <i class="bi bi-funnel text-success"></i>
+                <div class="flex-grow-1" style="min-width: 0;">
+                    <div><strong>${escapeHtml(p.name)}</strong>${usedBadge}</div>
+                    <div class="small text-muted text-break">${escapeHtml(notifyProfileSummary(p))}</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-demo-lock
+                        onclick="openNotifyProfileEditModal('${safeId}')" title="${tHtml('common.edit')}">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-demo-lock
+                        onclick="deleteNotifyProfile('${safeId}')" title="${tHtml('common.delete')}">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+/** Open the editor - `id` null creates, otherwise edits that profile. */
+function openNotifyProfileEditModal(id) {
+    const modalEl = document.getElementById('notifyProfileEditModal');
+    if (!modalEl) return;
+    const profile = id ? getNotificationProfile(id) : null;
+    if (id && !profile) return;
+
+    const errorEl = document.getElementById('notifyProfileEditError');
+    errorEl.classList.add('d-none');
+    errorEl.textContent = '';
+    document.getElementById('notifyProfileRules').innerHTML = '';
+
+    document.getElementById('notifyProfileEditModalTitle').textContent =
+        t(profile ? 'settings.notif.profiles.edit' : 'settings.notif.profiles.add');
+    document.getElementById('notifyProfileEditId').value = profile ? profile.id : '';
+    document.getElementById('notifyProfileEditName').value = profile ? profile.name : '';
+    const match = profile ? profile.match : 'any';
+    document.getElementById('notifyProfileMatchAll').checked = match === 'all';
+    document.getElementById('notifyProfileMatchAny').checked = match !== 'all';
+
+    // A new profile starts with the rule most people come here for
+    const rules = (profile && profile.rules && profile.rules.length) ? profile.rules : [{ type: 'mention' }];
+    rules.forEach(r => addNotifyProfileRuleRow(r));
+
+    modalEl.addEventListener('shown.bs.modal', _bumpAnalyzerBackdrop, { once: true });
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+/** One editable rule: type selector, text (disabled for 'mention'), remove. */
+function addNotifyProfileRuleRow(rule = { type: 'text', value: '' }) {
+    const container = document.getElementById('notifyProfileRules');
+    if (!container) return;
+    const labels = {
+        mention: t('settings.notif.profiles.rule.mention'),
+        text: t('settings.notif.profiles.rule.text'),
+        sender: t('settings.notif.profiles.rule.sender'),
+    };
+
+    const row = document.createElement('div');
+    row.className = 'input-group input-group-sm mb-2 notify-rule-row';
+
+    const select = document.createElement('select');
+    select.className = 'form-select notify-rule-type';
+    select.style.maxWidth = '13rem';
+    for (const type of ['mention', 'text', 'sender']) {
+        const opt = document.createElement('option');
+        opt.value = type;
+        opt.textContent = labels[type];
+        select.appendChild(opt);
+    }
+    select.value = labels[rule.type] ? rule.type : 'text';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control notify-rule-value';
+    input.maxLength = 100;
+    input.autocomplete = 'off';
+    input.value = rule.value || '';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-outline-danger';
+    removeBtn.title = t('common.delete');
+    removeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+    removeBtn.addEventListener('click', () => row.remove());
+
+    const sync = () => {
+        if (select.value === 'mention') {
+            input.value = '';
+            input.disabled = true;
+            input.placeholder = notifyProfileDeviceName
+                ? t('settings.notif.profiles.rule.mention_hint', { name: notifyProfileDeviceName })
+                : t('settings.notif.profiles.rule.no_name');
+        } else {
+            input.disabled = false;
+            input.placeholder = t('settings.notif.profiles.rule.value_ph');
+        }
+    };
+    select.addEventListener('change', sync);
+    sync();
+
+    row.append(select, input, removeBtn);
+    container.appendChild(row);
+
+    // Rows added from the open editor want the cursor; rows filled in while
+    // the editor is still opening do not
+    const modalEl = document.getElementById('notifyProfileEditModal');
+    if (modalEl && modalEl.classList.contains('show') && !input.disabled) input.focus();
+}
+
+function collectNotifyProfileForm() {
+    const name = (document.getElementById('notifyProfileEditName').value || '').trim();
+    const match = document.getElementById('notifyProfileMatchAll').checked ? 'all' : 'any';
+    const rules = [...document.querySelectorAll('#notifyProfileRules .notify-rule-row')].map(row => {
+        const type = row.querySelector('.notify-rule-type').value;
+        const value = (row.querySelector('.notify-rule-value').value || '').trim();
+        return type === 'mention' ? { type } : { type, value };
+    });
+    return { name, match, rules };
+}
+
+async function saveNotifyProfileFromForm() {
+    const id = document.getElementById('notifyProfileEditId').value || null;
+    const body = collectNotifyProfileForm();
+
+    if (!body.name) {
+        showNotifyProfileFormError(t('settings.notif.profiles.name_required'));
+        return;
+    }
+    if (body.rules.length === 0) {
+        showNotifyProfileFormError(t('settings.notif.profiles.rules_required'));
+        return;
+    }
+    if (body.rules.some(r => r.type !== 'mention' && !r.value)) {
+        showNotifyProfileFormError(t('settings.notif.profiles.rule_value_required'));
+        return;
+    }
+
+    try {
+        const url = id ? `/api/notification-profiles/${encodeURIComponent(id)}` : '/api/notification-profiles';
+        const resp = await fetch(url, {
+            method: id ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotifyProfileFormError(data.error || t('settings.notif.profiles.toast.save_failed'));
+            return;
+        }
+        bootstrap.Modal.getInstance(document.getElementById('notifyProfileEditModal'))?.hide();
+        await loadNotificationProfiles();
+        // An edited profile changes what counts as unread on the channels using it
+        if (id) checkForUpdates();
+    } catch (e) {
+        console.error('Error saving notification profile:', e);
+        showNotifyProfileFormError(t('settings.notif.profiles.toast.save_error'));
+    }
+}
+
+function showNotifyProfileFormError(msg) {
+    const errorEl = document.getElementById('notifyProfileEditError');
+    if (!errorEl) return;
+    errorEl.textContent = msg;
+    errorEl.classList.remove('d-none');
+}
+
+async function deleteNotifyProfile(id) {
+    const profile = getNotificationProfile(id);
+    if (!profile) return;
+    const used = Object.values(channelNotifyProfiles).filter(x => x === id).length;
+    const question = used > 0
+        ? t('settings.notif.profiles.confirm.delete_in_use', { name: profile.name, count: used })
+        : t('settings.notif.profiles.confirm.delete', { name: profile.name });
+    if (!confirm(question)) return;
+
+    try {
+        const resp = await fetch(`/api/notification-profiles/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+            showNotification(data.error || t('settings.notif.profiles.toast.delete_failed'), 'danger');
+            return;
+        }
+        const cleared = data.cleared_channels || [];
+        cleared.forEach(idx => { delete channelNotifyProfiles[idx]; });
+        await loadNotificationProfiles();
+        if (cleared.length > 0) {
+            updateUnreadBadges();
+            checkForUpdates();
+        }
+    } catch (e) {
+        console.error('Error deleting notification profile:', e);
+        showNotification(t('settings.notif.profiles.toast.delete_failed'), 'danger');
+    }
 }
 
 // =============================================================================
@@ -5670,7 +6013,8 @@ async function loadLastSeenTimestampsFromServer() {
             if (data.favorite_channels) {
                 favoriteChannels = new Set(data.favorite_channels);
             }
-            console.log('Loaded channel read status from server:', lastSeenTimestamps, 'muted:', [...mutedChannels], 'favorites:', [...favoriteChannels]);
+            syncChannelNotifyProfiles(data.channel_notify_profiles);
+            console.log('Loaded channel read status from server:', lastSeenTimestamps, 'muted:', [...mutedChannels], 'favorites:', [...favoriteChannels], 'profiles:', channelNotifyProfiles);
         } else {
             console.warn('Failed to load read status from server, using empty state');
             lastSeenTimestamps = {};
@@ -5781,6 +6125,7 @@ async function checkForUpdates() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
+        const stateVersionAtRequest = channelStateVersion;
         const response = await fetch(`/api/messages/updates?last_seen=${lastSeenParam}`, {
             signal: controller.signal
         });
@@ -5805,13 +6150,17 @@ async function checkForUpdates() {
                 }
             });
 
-            // Sync muted channels from server
-            if (data.muted_channels) {
-                mutedChannels = new Set(data.muted_channels);
-            }
-            // Sync favorite channels from server
-            if (data.favorite_channels) {
-                favoriteChannels = new Set(data.favorite_channels);
+            // Sync per-channel state from the server - unless the user changed
+            // it while this request was in flight, in which case the response
+            // describes the past and the next poll will confirm the change
+            if (stateVersionAtRequest === channelStateVersion) {
+                if (data.muted_channels) {
+                    mutedChannels = new Set(data.muted_channels);
+                }
+                if (data.favorite_channels) {
+                    favoriteChannels = new Set(data.favorite_channels);
+                }
+                syncChannelNotifyProfiles(data.channel_notify_profiles);
             }
 
             // Update UI badges
@@ -6242,16 +6591,35 @@ function displayChannelsList(channels) {
 
         const isPublic = channel.index === 0;
 
-        const isMuted = mutedChannels.has(channel.index);
         const isFavorite = favoriteChannels.has(channel.index);
         const scope = (window.channelScopes || {})[String(channel.index)];
         const hasScope = !!scope;
         const scopeTitle = hasScope
             ? tHtml('channels.scope_title', { name: scope.name })
             : tHtml('channels.scope_set_title');
+
+        // Bell: muted / every message / one of the notification profiles
+        const notifyMode = channelNotifyMode(channel.index);
+        const notifyProfile = notifyMode === 'profile' ? channelNotifyProfile(channel.index) : null;
+        const bellClass = notifyMode === 'muted' ? 'btn-secondary'
+            : notifyMode === 'profile' ? 'btn-success' : 'btn-outline-secondary';
+        const bellIcon = notifyMode === 'muted' ? 'bi-bell-slash'
+            : notifyMode === 'profile' ? 'bi-bell-fill' : 'bi-bell';
+        const bellTitle = notifyMode === 'muted' ? tHtml('channels.notify.title_off')
+            : notifyMode === 'profile' ? tHtml('channels.notify.title_profile', { name: notifyProfile.name })
+            : tHtml('channels.notify.title_all');
+        const profileItems = (notificationProfiles || []).length === 0
+            ? `<li><span class="dropdown-item-text text-muted small">${tHtml('channels.notify.no_profiles')}</span></li>`
+            : notificationProfiles.map(p => `
+                <li><button type="button" class="dropdown-item ${notifyProfile && notifyProfile.id === p.id ? 'active' : ''}"
+                            onclick="setChannelNotify(${channel.index}, 'profile', '${escapeHtml(p.id)}')">
+                    <i class="bi bi-funnel"></i> ${escapeHtml(p.name)}
+                </button></li>`).join('');
+
         item.innerHTML = `
             <div>
                 <strong>${escapeHtml(channel.name)}</strong>
+                ${notifyProfile ? `<span class="badge bg-success ms-2" style="font-size:0.7em;"><i class="bi bi-funnel"></i> ${escapeHtml(notifyProfile.name)}</span>` : ''}
                 ${hasScope ? `<span class="badge bg-info text-dark ms-2" style="font-size:0.7em;"><i class="bi bi-pin-map"></i> ${escapeHtml(scope.name)}</span>` : ''}
             </div>
             <div class="btn-group btn-group-sm">
@@ -6260,11 +6628,29 @@ function displayChannelsList(channels) {
                         title="${tHtml(isFavorite ? 'channels.unfav_title' : 'channels.fav_title')}">
                     <i class="bi ${isFavorite ? 'bi-star-fill' : 'bi-star'}"></i>
                 </button>
-                <button class="btn ${isMuted ? 'btn-secondary' : 'btn-outline-secondary'}"
-                        onclick="toggleChannelMute(${channel.index})"
-                        title="${tHtml(isMuted ? 'channels.unmute_title' : 'channels.mute_title')}">
-                    <i class="bi ${isMuted ? 'bi-bell-slash' : 'bi-bell'}"></i>
-                </button>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn ${bellClass}" data-bs-toggle="dropdown"
+                            data-bs-boundary="viewport" aria-expanded="false" title="${bellTitle}">
+                        <i class="bi ${bellIcon}"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end channel-notify-menu" data-demo-lock>
+                        <li><button type="button" class="dropdown-item ${notifyMode === 'muted' ? 'active' : ''}"
+                                    onclick="setChannelNotify(${channel.index}, 'muted')">
+                            <i class="bi bi-bell-slash"></i> ${tHtml('channels.notify.off')}
+                        </button></li>
+                        <li><button type="button" class="dropdown-item ${notifyMode === 'all' ? 'active' : ''}"
+                                    onclick="setChannelNotify(${channel.index}, 'all')">
+                            <i class="bi bi-bell"></i> ${tHtml('channels.notify.all')}
+                        </button></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">${tHtml('channels.notify.profiles_header')}</h6></li>
+                        ${profileItems}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><button type="button" class="dropdown-item" onclick="openNotificationProfilesSettings()">
+                            <i class="bi bi-gear"></i> ${tHtml('channels.notify.manage')}
+                        </button></li>
+                    </ul>
+                </div>
                 <button class="btn ${hasScope ? 'btn-info' : 'btn-outline-info'}"
                         onclick="openRegionPicker(${channel.index})" title="${scopeTitle}">
                     <i class="bi bi-pin-map"></i>
@@ -6478,34 +6864,51 @@ function updateChannelSidebarBadges() {
 }
 
 /**
- * Toggle mute state for a channel
+ * Set how a channel asks for attention (Manage Channels > bell menu).
+ *
+ * @param {number} index - Channel index
+ * @param {'muted'|'all'|'profile'} mode
+ * @param {string|null} profileId - Required for 'profile'
  */
-async function toggleChannelMute(index) {
-    const newMuted = !mutedChannels.has(index);
-
+async function setChannelNotify(index, mode, profileId = null) {
+    channelStateVersion++;
     try {
-        const response = await fetch(`/api/channels/${index}/mute`, {
-            method: 'POST',
+        const response = await fetch(`/api/channels/${index}/notifications`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ muted: newMuted })
+            body: JSON.stringify({ mode, profile_id: profileId })
         });
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
 
-        if (data.success) {
-            if (newMuted) {
-                mutedChannels.add(index);
-            } else {
-                mutedChannels.delete(index);
-            }
-            // Refresh modal list and badges
+        if (response.ok && data.success) {
+            if (mode === 'muted') mutedChannels.add(index); else mutedChannels.delete(index);
+            if (mode === 'profile') channelNotifyProfiles[index] = profileId;
+            else delete channelNotifyProfiles[index];
+            // Refresh modal list and badges, then let the server recount:
+            // what is unread on this channel just changed meaning
             loadChannelsList();
             updateUnreadBadges();
+            checkForUpdates();
         } else {
-            showNotification(t('channels.toast.mute_failed'), 'danger');
+            showNotification(data.error || t('channels.toast.notify_failed'), 'danger');
         }
     } catch (error) {
-        showNotification(t('channels.toast.mute_failed'), 'danger');
+        showNotification(t('channels.toast.notify_failed'), 'danger');
     }
+}
+
+/** Jump from the bell menu to Settings > Notifications, where profiles are defined. */
+function openNotificationProfilesSettings() {
+    const channelsModal = document.getElementById('channelsModal');
+    if (channelsModal) bootstrap.Modal.getOrCreateInstance(channelsModal).hide();
+    const settingsModal = document.getElementById('settingsModal');
+    if (!settingsModal) return;
+    settingsModal.addEventListener('shown.bs.modal', function onceShown() {
+        settingsModal.removeEventListener('shown.bs.modal', onceShown);
+        const btn = document.querySelector('[data-bs-target="#tabSettingsNotifications"]');
+        if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+    });
+    bootstrap.Modal.getOrCreateInstance(settingsModal).show();
 }
 
 /**
@@ -6513,6 +6916,7 @@ async function toggleChannelMute(index) {
  */
 async function toggleChannelFavorite(index) {
     const newFavorite = !favoriteChannels.has(index);
+    channelStateVersion++;
 
     try {
         const response = await fetch(`/api/channels/${index}/favorite`, {

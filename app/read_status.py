@@ -21,7 +21,9 @@ def load_read_status():
     """Load read status from database.
 
     Returns:
-        dict: Read status with 'channels', 'dm', and 'muted_channels' keys
+        dict: Read status with 'channels', 'dm', 'muted_channels',
+        'favorite_channels' and 'channel_notify_profiles' keys. The last is
+        {"<channel idx>": "<profile id>"} for channels in profile mode.
     """
     try:
         db = _get_db()
@@ -31,6 +33,7 @@ def load_read_status():
         dm = {}
         muted_channels = []
         favorite_channels = []
+        channel_notify_profiles = {}
 
         for key, row in rows.items():
             if key.startswith('chan_'):
@@ -46,6 +49,8 @@ def load_read_status():
                         favorite_channels.append(int(chan_idx))
                     except ValueError:
                         pass
+                if row.get('notify_profile') and not row.get('is_muted'):
+                    channel_notify_profiles[chan_idx] = row['notify_profile']
             elif key.startswith('dm_'):
                 conv_id = key[3:]  # "dm_name_User1" -> "name_User1"
                 dm[conv_id] = row['last_seen_ts']
@@ -55,11 +60,13 @@ def load_read_status():
             'dm': dm,
             'muted_channels': muted_channels,
             'favorite_channels': favorite_channels,
+            'channel_notify_profiles': channel_notify_profiles,
         }
 
     except Exception as e:
         logger.error(f"Error loading read status: {e}")
-        return {'channels': {}, 'dm': {}, 'muted_channels': [], 'favorite_channels': []}
+        return {'channels': {}, 'dm': {}, 'muted_channels': [], 'favorite_channels': [],
+                'channel_notify_profiles': {}}
 
 
 def save_read_status(status):
@@ -122,15 +129,41 @@ def get_muted_channels():
 
 
 def set_channel_muted(channel_idx, muted):
-    """Set mute state for a channel."""
+    """Set mute state for a channel. Unmuting lands on 'every message'."""
+    return set_channel_notify(channel_idx, 'muted' if muted else 'all')
+
+
+def set_channel_notify(channel_idx, mode, profile_id=None):
+    """
+    Set how a channel asks for attention.
+
+    Args:
+        mode: 'muted' (never), 'all' (every message) or 'profile' (only
+              messages passing the notification profile `profile_id`)
+    """
     try:
         db = _get_db()
-        db.set_channel_muted(int(channel_idx), muted)
-        logger.info(f"Channel {channel_idx} {'muted' if muted else 'unmuted'}")
+        muted = mode == 'muted'
+        db.set_channel_notify(int(channel_idx), muted,
+                              profile_id if mode == 'profile' else None)
+        if mode == 'profile':
+            logger.info(f"Channel {channel_idx} notifications: profile {profile_id}")
+        else:
+            logger.info(f"Channel {channel_idx} {'muted' if muted else 'unmuted'}")
         return True
     except Exception as e:
-        logger.error(f"Error setting mute for channel {channel_idx}: {e}")
+        logger.error(f"Error setting notifications for channel {channel_idx}: {e}")
         return False
+
+
+def get_channel_notify_profiles():
+    """Channels in profile mode: {channel_idx: profile_id}."""
+    try:
+        db = _get_db()
+        return db.get_channel_notify_profiles()
+    except Exception as e:
+        logger.error(f"Error getting channel notification profiles: {e}")
+        return {}
 
 
 def get_favorite_channels():

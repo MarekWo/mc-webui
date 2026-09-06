@@ -41,6 +41,7 @@ The main page displays chat history from the currently selected channel. The app
 - **Channel badges** display unread count per channel (e.g., "Malopolska (3)")
 - Messages are automatically marked as read when you view them
 - Read status persists across browser sessions and syncs across devices
+- Each channel decides what counts: every message, nothing, or only messages matching a **notification profile** — see [Per-Channel Notifications](#per-channel-notifications)
 
 By default, the live view shows messages from the last 7 days. Older messages are automatically archived and can be accessed via the date selector.
 
@@ -135,6 +136,18 @@ Each channel can have its own region scope, overriding the default:
 - In the picker, choose a region from the list, or pick **None — use firmware default** to remove the override.
 
 When you send a message on a channel, mc-webui pushes the channel's scope key to the device just before sending. Channels without an explicit region send with an empty key so a previously-set scope from another channel doesn't leak.
+
+### Per-Channel Notifications
+
+Each channel row in **Manage Channels** has a 🔔 bell button. It opens a small menu with three choices:
+
+- **Off** — the channel never asks for attention: no unread badge, no browser or Android notification. Messages still arrive in the chat.
+- **Every message** — the default. Every new message counts toward the badge and, when notifications are enabled, posts one.
+- **A notification profile** — only messages matching the profile's rules count. Profiles are listed by name; define them under **Settings → Notifications** (the menu's **Manage profiles…** entry takes you there).
+
+A channel on a profile shows a green badge with the profile's name next to the channel name, and its bell is filled in green. The unread badge on that channel, the navbar bell total and the app-icon badge then all count only the matching messages, and so does the notification you get while the app is hidden. Everything else on the channel is still there when you open it — it just no longer calls you.
+
+Direct messages are not affected: a message addressed to you always notifies.
 
 ---
 
@@ -985,6 +998,19 @@ Enable or disable browser push notifications for new messages received while the
 - The badge next to the button shows the current state: **Enabled** (green) or **Disabled** (gray)
 
 See [PWA Notifications](#pwa-notifications) for platform support and troubleshooting.
+
+#### Notification profiles
+
+A profile narrows what counts as news on a channel. It is a named list of rules; a channel assigned to it (see [Per-Channel Notifications](#per-channel-notifications)) raises its unread badge and posts a notification only for messages that pass.
+
+- **Add profile** opens the editor. Give the profile a name you will recognise in the bell menu, choose whether **any rule** or **all rules** must match, and add rules:
+  - **Mentions my name** — your device name appears anywhere in the message, whether written as `@[name]` or plainly. The editor shows which name it looks for.
+  - **Message contains** — the text you enter appears in the message. A word or any part of one: `webui` matches *mc-webui*.
+  - **Sender name contains** — the same test against the sender's name.
+- Matching ignores letter case and diacritics: `krakow` also finds *Kraków*.
+- Each profile in the list shows its rules in one line and how many channels use it. ✏️ edits it, 🗑️ deletes it — channels that used a deleted profile go back to **Every message**.
+
+Profiles are stored on the server, so they apply on every device you open mc-webui from. The on/off toggle above stays per browser.
 
 ### Diagnostics Tab
 

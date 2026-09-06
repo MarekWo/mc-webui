@@ -195,6 +195,7 @@ CREATE TABLE IF NOT EXISTS read_status (
     last_seen_ts    INTEGER DEFAULT 0,      -- unix timestamp
     is_muted        INTEGER DEFAULT 0,      -- 1 = muted (channels only)
     is_favorite     INTEGER DEFAULT 0,      -- 1 = favorite (channels only)
+    notify_profile  TEXT,                   -- notification profile id (channels only; NULL = every message)
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

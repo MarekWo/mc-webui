@@ -76,6 +76,11 @@ class Database:
             conn.execute("ALTER TABLE read_status ADD COLUMN is_favorite INTEGER DEFAULT 0")
             logger.info("Migration: added read_status.is_favorite column")
 
+        # Add notify_profile column to read_status (per-channel notification profile)
+        if 'notify_profile' not in rs_columns:
+            conn.execute("ALTER TABLE read_status ADD COLUMN notify_profile TEXT")
+            logger.info("Migration: added read_status.notify_profile column")
+
         # Add raw_packet column to channel_messages (raw resend support)
         cm_columns = {r[1] for r in conn.execute("PRAGMA table_info(channel_messages)").fetchall()}
         if 'raw_packet' not in cm_columns:
@@ -1505,17 +1510,28 @@ class Database:
             rows = conn.execute("SELECT * FROM read_status").fetchall()
             return {r['key']: dict(r) for r in rows}
 
-    def set_channel_muted(self, channel_idx: int, muted: bool) -> None:
+    def set_channel_notify(self, channel_idx: int, muted: bool,
+                           profile_id: Optional[str] = None) -> None:
+        """
+        Set how a channel asks for attention: muted, every message, or only
+        messages passing a notification profile. The three are one state, so
+        both columns are always written together — a mute never leaves a
+        profile behind to resurface on unmute.
+        """
         key = f"chan_{channel_idx}"
         with self._connect() as conn:
             conn.execute(
-                """INSERT INTO read_status (key, is_muted)
-                   VALUES (?, ?)
+                """INSERT INTO read_status (key, is_muted, notify_profile)
+                   VALUES (?, ?, ?)
                    ON CONFLICT(key) DO UPDATE SET
                        is_muted = excluded.is_muted,
+                       notify_profile = excluded.notify_profile,
                        updated_at = datetime('now')""",
-                (key, 1 if muted else 0)
+                (key, 1 if muted else 0, profile_id if (profile_id and not muted) else None)
             )
+
+    def set_channel_muted(self, channel_idx: int, muted: bool) -> None:
+        self.set_channel_notify(channel_idx, muted, None)
 
     def get_muted_channels(self) -> List[int]:
         """Get list of muted channel indices."""
@@ -1523,6 +1539,33 @@ class Database:
             rows = conn.execute(
                 "SELECT key FROM read_status WHERE is_muted = 1 AND key LIKE 'chan_%'"
             ).fetchall()
+            return [int(r['key'][5:]) for r in rows]
+
+    def get_channel_notify_profiles(self) -> Dict[int, str]:
+        """Channels in profile mode: {channel_idx: profile_id}."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT key, notify_profile FROM read_status
+                   WHERE notify_profile IS NOT NULL AND notify_profile != ''
+                     AND key LIKE 'chan_%'"""
+            ).fetchall()
+            return {int(r['key'][5:]): r['notify_profile'] for r in rows}
+
+    def clear_channel_notify_profile(self, profile_id: str) -> List[int]:
+        """
+        Detach a profile from every channel using it (they fall back to every
+        message). Returns the indices that were affected.
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT key FROM read_status WHERE notify_profile = ? AND key LIKE 'chan_%'",
+                (profile_id,)
+            ).fetchall()
+            conn.execute(
+                """UPDATE read_status SET notify_profile = NULL, updated_at = datetime('now')
+                   WHERE notify_profile = ?""",
+                (profile_id,)
+            )
             return [int(r['key'][5:]) for r in rows]
 
     def set_channel_favorite(self, channel_idx: int, favorite: bool) -> None:
