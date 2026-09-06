@@ -110,10 +110,39 @@ server address. In practice this means:
 
 ### Publishing a new build
 
-1. Bump `versionCode` (and usually `versionName`) in `src/app/build.gradle.kts`
-2. Build the signed release APK
-3. Copy it here as `mc-webui-wrapper.apk`
-4. Update the version, size and **SHA-256** in
+The app goes out through two channels, from one build of one commit. Do them in
+the same sitting, or the `.apk` here and the Store drift apart.
+
+**Both channels, first:**
+
+1. Bump `versionCode` — Play rejects an upload that reuses one — and usually
+   `versionName`, in `src/app/build.gradle.kts`
+2. Mention the change in [`docs/whatsnew.md`](../docs/whatsnew.md)
+3. Check whether the change touches anything
+   [`docs/privacy-policy.html`](../docs/privacy-policy.html) claims: it lists
+   every permission and everything stored on the phone, in both languages, and
+   Play reviews it
+
+**The `.apk` in this repository:**
+
+4. Build the signed release **APK**
+5. Copy it here as `mc-webui-wrapper.apk`
+6. Update the version, size and **SHA-256** in
    [`docs/android-app.md`](../docs/android-app.md) — `sha256sum` on Linux,
    `Get-FileHash` in PowerShell
-5. Mention the change in [`docs/whatsnew.md`](../docs/whatsnew.md)
+
+**Google Play** (`it.wojtaszek.mc.wrapper`):
+
+7. Build a signed **App Bundle** (`.aab`) — Play does not take an APK
+8. Play Console → *Production* → *Create new release* → upload the `.aab`
+9. Answer whatever new declarations the build triggers. A new permission
+   usually asks for one; **a foreground service always does**, and its
+   declaration wants a link to a **video** showing the feature in use
+10. Write the release notes in every language the listing has (en-US and pl-PL),
+    500 characters each
+11. Send for review. A production review is normally hours to a couple of days
+
+> **Where a change has already been tested by the closed track**, promote that
+> exact build from *Releases overview → Add from library* instead of building
+> again. Play has already reviewed the artifact, which is what made the first
+> production review take hours rather than days.
