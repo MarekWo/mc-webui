@@ -64,7 +64,7 @@ few times along the way, and the steps below cover those warnings.
 | **Size** | 5.2 MB |
 | **App version** | 2.1 |
 | **Package** | `it.wojtaszek.mc.wrapper` |
-| **SHA-256** | `5134948018a4f46308b6b3a7abb32fb2b08400f19245e3f4643bd498aa3d834e` |
+| **SHA-256** | `a314a9b1d65b0a05022388e51e9006bc8533dae80abee9bcc48af5bb28d51e24` |
 
 Download it directly on the phone, or copy it over from a computer.
 
