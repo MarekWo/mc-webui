@@ -18,6 +18,9 @@ import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.HttpAuthHandler
@@ -97,6 +100,16 @@ class MainActivity : AppCompatActivity() {
     /** Set by [connect]; drops the pages of whichever server we just left. */
     private var clearHistoryOnLoad = false
 
+    private val pageWakeHandler = Handler(Looper.getMainLooper())
+
+    /** Reschedules itself for as long as the background service is wanted. */
+    private val pageWakeTick = object : Runnable {
+        override fun run() {
+            wakePage()
+            pageWakeHandler.postDelayed(this, WAKE_INTERVAL_MS)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Before setContentView, as androidx asks. Transparent rather than the
@@ -175,6 +188,7 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onDestroy() {
         super.onDestroy()
+        pageWakeHandler.removeCallbacks(pageWakeTick)
         MeshWatchService.stop(this)
     }
 
@@ -740,6 +754,31 @@ class MainActivity : AppCompatActivity() {
      * to call from anywhere and as often as convenient: both directions are
      * no-ops once the service is already in the state being asked for.
      */
+    /**
+     * Nudges the page, because nothing else will.
+     *
+     * Measured on a real device: with the service running, the process, the
+     * service and the WebView's own renderer process all stayed alive for an
+     * hour and a half - and the page still stopped after 56 minutes. Chromium
+     * had suspended its work. A foreground service buys the process; it does
+     * not make Chromium run a hidden page.
+     *
+     * `evaluateJavascript` is the lever, because injected script does not wait
+     * in the throttled timer queues the page's own `setTimeout` calls sit in.
+     * The script re-opens the socket if it has died, which is what mc-webui
+     * would have done by itself a second later had its timers been running.
+     */
+    private fun wakePage() {
+        if (webView.visibility != View.VISIBLE) return
+        // Global and idempotent, and free when nothing was paused
+        webView.resumeTimers()
+        webView.evaluateJavascript(PAGE_WAKE) { state ->
+            // One line every two minutes, and the only way to tell "the page
+            // answered" from "the page never ran the script" after the fact
+            Log.d(WAKE_TAG, "wake -> $state")
+        }
+    }
+
     private fun updateWatchService() {
         // Android's own switches have the last word: a revoked permission or a
         // channel turned off there leaves nothing for the service to show, and
@@ -747,7 +786,13 @@ class MainActivity : AppCompatActivity() {
         // one thing worse than not raising them
         val allowed = notificationsWanted &&
             NotificationManagerCompat.from(this).areNotificationsEnabled()
-        if (allowed) MeshWatchService.start(this) else MeshWatchService.stop(this)
+        pageWakeHandler.removeCallbacks(pageWakeTick)
+        if (allowed) {
+            MeshWatchService.start(this)
+            pageWakeHandler.postDelayed(pageWakeTick, WAKE_INTERVAL_MS)
+        } else {
+            MeshWatchService.stop(this)
+        }
     }
 
     /**
@@ -895,6 +940,38 @@ class MainActivity : AppCompatActivity() {
         // Enough to cover a home server, a demo and a couple of experiments,
         // without the form turning into a page of its own
         private const val HISTORY_LIMIT = 6
+
+        /**
+         * How often the page gets nudged while the app is away. Short enough
+         * that a stalled page costs one notification rather than every one
+         * after it, long enough to be invisible on the battery.
+         */
+        private const val WAKE_INTERVAL_MS = 2 * 60 * 1000L
+        private const val WAKE_TAG = "McPageWake"
+
+        /**
+         * Asks the page how its connection is and puts it back if it has gone.
+         * Reads mc-webui's own `chatSocket` rather than anything added for this,
+         * so it works against whichever version of the server the user typed in;
+         * where that name is missing the script simply reports so, and having
+         * run at all is still what un-stalls the page.
+         */
+        private const val PAGE_WAKE = """
+            (function () {
+                try {
+                    if (typeof chatSocket === 'undefined' || !chatSocket) return 'no-socket';
+                    if (chatSocket.connected) return 'connected';
+                    try {
+                        chatSocket.connect();
+                        return 'reopened';
+                    } catch (e) {
+                        return 'reopen-failed';
+                    }
+                } catch (e) {
+                    return 'error';
+                }
+            })()
+        """
 
         private const val BRIDGE_NAME = "__mcNotifyBridge"
         private const val CHROME_BRIDGE_NAME = "__mcChromeBridge"
