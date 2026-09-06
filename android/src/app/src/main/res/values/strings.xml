@@ -8,6 +8,10 @@
     <string name="save_and_connect">SAVE &amp; CONNECT</string>
     <string name="address_empty">Address cannot be empty</string>
 
+    <!-- Servers connected to before, for switching back without retyping -->
+    <string name="recent_servers">Recent servers</string>
+    <string name="forget_server">Forget this server</string>
+
     <!-- Leaving the app -->
     <string name="leave_prompt">Leave mc-webui, or connect to a different server?</string>
     <string name="exit">Exit</string>
@@ -37,4 +41,12 @@
     <string name="notification_channel_name">Mesh activity</string>
     <string name="notification_channel_description">New messages and pending contacts from your mc-webui server</string>
     <string name="notifications_denied">Notification permission denied - mc-webui cannot alert you about new messages</string>
+
+    <!-- Background delivery. Android insists on a permanent notice in return
+         for leaving the app running, so it may as well say what it is for -->
+    <string name="background_channel_name">Background delivery</string>
+    <string name="background_channel_description">The silent, permanent notice shown while mc-webui keeps listening for new messages in the background</string>
+    <string name="background_title">Listening for new messages</string>
+    <string name="background_text">mc-webui stays connected while you are in another app, so new messages still reach you.</string>
+    <string name="background_stop">Stop</string>
 </resources>

@@ -7,6 +7,11 @@
     <!-- New message alerts. Also what puts the app in Android's notification
          settings at all - without it the app is not even listed there -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Keeps the process alive while the app is in the background, so the page
+         behind the WebView can still raise those alerts. Only ever started when
+         notifications are switched on in mc-webui itself -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <!-- Saving downloads (e.g. database backups) before Android 10 -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
@@ -35,6 +40,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- No exported entry point: the activity is the only thing that starts
+             it, and only while the page asks for notifications -->
+        <service
+            android:name=".MeshWatchService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
     </application>
 
 </manifest>

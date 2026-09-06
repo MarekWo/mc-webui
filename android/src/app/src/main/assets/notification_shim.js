@@ -121,4 +121,51 @@
     McNotification.maxActions = 0;
 
     window.Notification = McNotification;
+
+    /*
+     * Whether the user actually wants alerts, reported to the wrapper so it can
+     * decide whether to hold this page open in the background.
+     *
+     * mc-webui keeps that answer in localStorage, and it is read from there
+     * rather than asked of the page, because the wrapper connects to whichever
+     * server its user typed in - very often one running an older mc-webui that
+     * has never heard of any of this. Reading the flag works on all of them.
+     */
+    var PREF = 'mc_notifications_enabled';
+
+    function reportPreference(changed) {
+        var enabled = false;
+        try {
+            enabled = localStorage.getItem(PREF) === 'true';
+        } catch (e) {
+            // Storage can be blocked outright; treat that as "no alerts"
+        }
+        try {
+            bridge.setNotificationsEnabled(enabled, !!changed);
+        } catch (e) {
+            // An older wrapper without this method: alerts still work, they
+            // just stop once Android freezes the app, exactly as before
+        }
+    }
+
+    /*
+     * localStorage fires no event in the document that wrote it, so the only
+     * way to hear the toggle flip is to watch the write itself. `changed` marks
+     * these apart from the report on load: a deliberate switch-on is what lifts
+     * a Stop tapped on the wrapper's own notification.
+     */
+    var nativeSetItem = Storage.prototype.setItem;
+    var nativeRemoveItem = Storage.prototype.removeItem;
+
+    Storage.prototype.setItem = function (key, value) {
+        nativeSetItem.apply(this, arguments);
+        if (key === PREF && this === window.localStorage) reportPreference(true);
+    };
+
+    Storage.prototype.removeItem = function (key) {
+        nativeRemoveItem.apply(this, arguments);
+        if (key === PREF && this === window.localStorage) reportPreference(true);
+    };
+
+    reportPreference(false);
 })();

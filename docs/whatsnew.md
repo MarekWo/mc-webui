@@ -10,6 +10,39 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Android app
+
+- **Notifications now keep arriving while the app is in the background.** Until
+  now they went quiet a few minutes after you switched away, and no setting on
+  the phone fixed it — Android freezes an app that has nothing running in the
+  foreground, and a frozen app holds no connection to your server and runs no
+  code to alert you with. "Unrestricted" battery use never helped because it
+  exempts an app from Doze, which is a different mechanism. The app now asks
+  Android to leave it running, which Android grants in exchange for a
+  **permanent, silent notice in the shade** — *Listening for new messages*. That
+  notice appears **only once you turn notifications on in mc-webui itself**, so
+  anyone who does not use them never sees it, and it disappears the moment you
+  turn them off. Its **Stop** button ends it for the rest of the session, and it
+  can be silenced permanently on its own in Android's notification settings,
+  under **Background delivery**. Nothing new is sent anywhere: the connection
+  held open is the one to your own server, and the alerts are still built by the
+  mc-webui page itself — which is why mutes, blocked senders, channel names,
+  translations and the tap-to-open-the-conversation behaviour all keep working
+  exactly as they already did.
+- **The address screen remembers the servers you have used.** If you run more
+  than one instance — your own and the public demo, say, or a test box next to a
+  live one — switching between them meant typing the whole address again every
+  time. The screen behind **Back → Change server** now lists the six most recent
+  addresses under **Recent servers**; tap one and the app connects straight away,
+  with the username and password saved for that server still applying, since
+  those were always kept per address. The **✕** beside an entry forgets the
+  shortcut without touching the server you are on or its saved login, and only
+  addresses that actually answered are ever listed, so a typo never joins them.
+
+> **Both need the new app version.** They are changes to the Android app, not to
+> mc-webui itself — the app updates itself from Google Play, or can be
+> reinstalled from the `.apk` in this repository.
+
 ---
 
 ## 2.15.0 — 2026-09-05

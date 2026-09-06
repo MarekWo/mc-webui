@@ -154,6 +154,20 @@ wrong address, server down, phone off the network. Either way the form opens
 **pre-filled with the address you are using**, and nothing is overwritten until
 you tap **SAVE & CONNECT**: a dropped connection never costs you the address.
 
+### Switching between several servers
+
+From version 2.1 the form also lists the servers you have reached before, under
+**Recent servers**. Tap one and the app connects to it straight away — no
+retyping, and any username and password saved for that server still apply, since
+those are remembered per address. The **✕** beside an entry drops it from the
+list; that only forgets the shortcut, never the server you are currently using
+or its saved login.
+
+The list holds the six most recent addresses, newest first, and only ones that
+actually answered — a mistyped address never joins it. If you run a single
+instance you will simply see it listed there on its own, and nothing about the
+form changes.
+
 ### Servers that ask for a password
 
 If your instance sits behind a reverse proxy configured to require a login
@@ -193,10 +207,41 @@ A couple of things depend on how your instance is reachable:
 
 | Feature | In the app |
 |---|---|
-| **Notifications** for new messages | **Work,** from version 1.1. Turn them on in the mc-webui menu as usual; Android asks for its own permission the first time. They arrive while the app is open or recently in the background — Android eventually suspends a backgrounded app, and notifications stop until you open it again. Unlike a browser, these also work over plain `http://`. Tapping one reopens the app |
+| **Notifications** for new messages | **Work,** from version 1.1, and **keep working in the background from version 2.1** (see below). Turn them on in the mc-webui menu as usual; Android asks for its own permission the first time. Unlike a browser, these also work over plain `http://`. Tapping one opens the conversation it came from |
 | **Scanning a QR code** (Add Contact → Scan QR) | **Works on `https://` instances.** Android asks for camera permission the first time. Over plain `http://` the camera stays blocked — that is a browser rule, not an app limitation, and Chrome on the same phone behaves identically. Use **Paste URI** or **Manual entry** there |
 | **Downloading files** (e.g. database backups) | **Works.** Files land in the phone's **Downloads** folder, with the usual download notification |
 | **HTTPS with a self-signed certificate** | **Refused,** with an "SSL error" message. Use a valid certificate (e.g. Let's Encrypt), or plain `http://` on the local network |
+
+### Notifications while the app is in the background
+
+Up to version 2.0 alerts went quiet a few minutes after you switched away from
+the app. That was Android, not a setting anyone had got wrong: an app with
+nothing running in the foreground is eventually **frozen** to save memory, and a
+frozen app holds no connection to your server and runs no code to alert you
+with. No battery option prevents that — "Unrestricted" exempts an app from Doze
+and battery optimisation, which are a different mechanism entirely.
+
+From version 2.1 the app asks Android to leave it running, which Android grants
+in exchange for a **permanent notice in the shade** saying it is doing so:
+
+> **Listening for new messages** — mc-webui stays connected while you are in
+> another app, so new messages still reach you.
+
+That notice is silent, sits at the bottom of the shade, and only appears **once
+you turn notifications on in mc-webui itself**. Turn them off there and it goes
+away with them. Its **Stop** button ends it for the rest of the session, without
+changing any setting — opening the app again brings it back.
+
+It can also be silenced on its own, in **Android Settings → Apps → mc-webui →
+Notifications**, where it appears as the **Background delivery** category
+separate from **Mesh activity**. Turning that category off stops the notice from
+showing, and Android then stops keeping the app alive too — so message alerts go
+back to arriving only while the app is open.
+
+Nothing about this sends anything anywhere: the connection being held open is
+the one to your own server, and the alerts are still built by the mc-webui page
+itself, which is why mutes, blocked senders and channel names all behave exactly
+as they do in a browser tab.
 
 ---
 
@@ -218,9 +263,12 @@ A couple of things depend on how your instance is reachable:
   credentials are encrypted in transit like everything else
 - **Permissions:** internet access; the camera, only when you use QR scanning
   and only after you allow it; notifications, only after you turn them on in
-  the menu and allow them; and file storage on Android 9 and older, only for
-  saving a download. Nothing else — no contacts, no location, no background
-  services
+  the menu and allow them; from version 2.1 a **foreground service**, started
+  only while those notifications are on, so they keep arriving in the background
+  (it shows a permanent notice for as long as it runs, and holds open the
+  connection to your own server — nothing else); and file storage on Android 9
+  and older, only for saving a download. Nothing else — no contacts, no
+  location, no analytics
 - Every release is **signed with the same key** — the Play build included, because
   the key was registered with Play App Signing rather than letting Google
   generate its own (certificate SHA-256
@@ -233,8 +281,10 @@ A couple of things depend on how your instance is reachable:
 
 A minimal Android WebView wrapper: one screen for the server address, one
 full-screen WebView for mc-webui itself, and a saved preference between them.
-No analytics, no third-party services, no background activity — when the app is
-closed, nothing of it runs.
+No analytics and no third-party services. The one thing that runs outside the
+screen is the foreground service described above, which does no work of its own
+— it exists purely so Android leaves the page running — and only exists while
+notifications are switched on. Close the app and nothing of it runs.
 
 The complete source is in [`android/src/`](../android/src), and
 [`android/README.md`](../android/README.md) describes how to build it yourself

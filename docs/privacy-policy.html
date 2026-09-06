@@ -144,7 +144,7 @@
 
 <!-- ===================================================== ENGLISH ========== -->
 <h1 id="english">Privacy Policy — mc-webui for Android</h1>
-<p class="updated">Last updated: 19 August 2026 · Applies to the app <code>it.wojtaszek.mc.wrapper</code></p>
+<p class="updated">Last updated: 6 September 2026 · Applies to the app <code>it.wojtaszek.mc.wrapper</code></p>
 
 <div class="note">
   <p><strong>In short:</strong> this app collects no personal data. It contains no
@@ -188,6 +188,12 @@ a standard, non-rooted Android device is readable only by this app:</p>
           HTTP authentication</td>
       <td>So the app can sign in again on the next launch instead of prompting
           every time</td>
+    </tr>
+    <tr>
+      <td>The addresses of servers you have connected to before</td>
+      <td>So you can switch back to one without typing it again. Kept only on
+          the phone, at most six of them, and any of them can be removed from
+          the address screen</td>
     </tr>
     <tr>
       <td>A flag recording whether the notification permission has already been
@@ -240,6 +246,15 @@ what happens on it.</p>
           involved.</td>
     </tr>
     <tr>
+      <td><code>FOREGROUND_SERVICE</code><br><code>FOREGROUND_SERVICE_REMOTE_MESSAGING</code></td>
+      <td>Keeping the app running while it is in the background, so that alerts
+          about new messages still reach you rather than stopping a few minutes
+          after you switch away. The service starts only once you turn
+          notifications on in mc-webui itself, shows a permanent notice while it
+          runs, and can be stopped from that notice. It sends nothing anywhere:
+          the connection it holds open is the one to your own server.</td>
+    </tr>
+    <tr>
       <td><code>WRITE_EXTERNAL_STORAGE</code><br>(Android 9 and older only)</td>
       <td>Saving files you choose to download from your own server, such as a
           database backup, into the phone's Downloads folder.</td>
@@ -283,7 +298,7 @@ raised at
 <!-- ====================================================== POLSKI ========== -->
 <h1 id="polski" lang="pl">Polityka prywatności — mc-webui dla Androida</h1>
 <div lang="pl">
-<p class="updated">Ostatnia aktualizacja: 19 sierpnia 2026 · Dotyczy aplikacji <code>it.wojtaszek.mc.wrapper</code></p>
+<p class="updated">Ostatnia aktualizacja: 6 września 2026 · Dotyczy aplikacji <code>it.wojtaszek.mc.wrapper</code></p>
 
 <div class="note">
   <p><strong>W skrócie:</strong> ta aplikacja nie zbiera żadnych danych
@@ -330,6 +345,12 @@ dla niej:</p>
           Twój serwer wymaga uwierzytelnienia HTTP</td>
       <td>Żeby aplikacja mogła zalogować się ponownie przy kolejnym
           uruchomieniu, zamiast pytać za każdym razem</td>
+    </tr>
+    <tr>
+      <td>Adresy serwerów, z którymi łączyłeś się wcześniej</td>
+      <td>Żebyś mógł wrócić do jednego z nich bez wpisywania adresu od nowa.
+          Przechowywane wyłącznie na telefonie, najwyżej sześć, i każdy z nich
+          można usunąć z ekranu adresu</td>
     </tr>
     <tr>
       <td>Znacznik, czy pytano już o zgodę na powiadomienia</td>
@@ -381,6 +402,15 @@ na nim dzieje.</p>
       <td>Pokazywanie powiadomień o nowych wiadomościach, tworzonych lokalnie
           na podstawie tego, co zgłasza Twój własny serwer. Nie ma tu żadnej
           usługi push ani podmiotu trzeciego.</td>
+    </tr>
+    <tr>
+      <td><code>FOREGROUND_SERVICE</code><br><code>FOREGROUND_SERVICE_REMOTE_MESSAGING</code></td>
+      <td>Utrzymywanie aplikacji przy życiu, gdy jest w tle, żeby powiadomienia
+          o nowych wiadomościach nadal do Ciebie docierały, a nie milkły kilka
+          minut po przełączeniu się na coś innego. Usługa uruchamia się dopiero
+          po włączeniu powiadomień w samym mc-webui, przez cały czas działania
+          pokazuje stałe powiadomienie i można ją z niego zatrzymać. Niczego
+          nigdzie nie wysyła: podtrzymuje połączenie z Twoim własnym serwerem.</td>
     </tr>
     <tr>
       <td><code>WRITE_EXTERNAL_STORAGE</code><br>(tylko Android 9 i starszy)</td>

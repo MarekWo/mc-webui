@@ -14,8 +14,8 @@ android {
         minSdk = 21
         // Google Play rejects anything below 36 submitted after 2026-08-31
         targetSdk = 36
-        versionCode = 5
-        versionName = "2.0"
+        versionCode = 6
+        versionName = "2.1"
     }
 
     buildTypes {

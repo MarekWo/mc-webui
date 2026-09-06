@@ -1141,6 +1141,10 @@ To get the full PWA experience with app badge counters:
 - This is normal OS behavior for battery saving
 - Reopen app to resume notifications
 - Full "wake device" support would require Web Push API (not implemented)
+- **The [Android app](android-app.md) does not have this limitation** from
+  version 2.1: it runs a foreground service that keeps notifications arriving
+  while it is in the background. The PWA cannot do the same — only an installed
+  app can ask Android for that
 
 ---
 
@@ -1170,6 +1174,7 @@ without uninstalling and without losing the address you typed. The
 | Full screen, own icon | Yes | Yes |
 | Setup | Install from Google Play (or the `.apk`), type the address once | Open in Chrome, add to home screen |
 | Notifications | Yes, from app version 1.1 — and over plain `http://` too | Yes (see above), on `https://` only |
+| Notifications **while in the background** | Yes, from app version 2.1 — the app keeps itself running, at the cost of a permanent notice in the shade | No — Android freezes the page after a few minutes |
 | QR scanning, file downloads | Yes (QR needs `https://`) | Yes (QR needs `https://`) |
 
 ---

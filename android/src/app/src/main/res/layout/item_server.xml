@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One remembered server address: tap the row to connect, tap the cross to
+     forget it. Sized for a finger rather than for the text it holds. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:minHeight="48dp"
+    android:orientation="horizontal">
+
+    <!-- Long addresses lose their middle, which keeps both the host and the
+         port readable - the two halves that tell servers apart -->
+    <TextView
+        android:id="@+id/serverAddress"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="middle"
+        android:paddingStart="4dp"
+        android:paddingEnd="8dp"
+        android:singleLine="true"
+        android:textColor="#1565C0"
+        android:textSize="15sp" />
+
+    <ImageButton
+        android:id="@+id/serverForget"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/forget_server"
+        android:src="@android:drawable/ic_menu_close_clear_cancel" />
+
+</LinearLayout>

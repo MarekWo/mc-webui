@@ -33,10 +33,13 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -47,6 +50,7 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URI
 
@@ -61,10 +65,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var rootLayout: View
-    private lateinit var configLayout: LinearLayout
+    private lateinit var configLayout: View
     private lateinit var configMessage: TextView
     private lateinit var webView: WebView
     private lateinit var urlInput: EditText
+    private lateinit var historyLabel: TextView
+    private lateinit var historyList: LinearLayout
 
     /** Camera request from the page (QR scanning), waiting for the Android permission. */
     private var pendingCameraRequest: PermissionRequest? = null
@@ -82,8 +88,21 @@ class MainActivity : AppCompatActivity() {
     /** The notification shim, injected into every page as it starts loading. */
     private var pageStartScript: String? = null
 
+    /** mc-webui's own notification switch, as last reported by the shim. */
+    private var notificationsWanted = false
+
+    /** Whether the page now loading has already failed, for [rememberServer]. */
+    private var pageLoadFailed = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Before setContentView, as androidx asks. Transparent rather than the
+        // default, which paints a light scrim over the navigation bar below
+        // Android 10 - on top of the strip this class colours to match the
+        // page. Icon contrast is handled in [applyChromeColor], so the style's
+        // own choice does not survive the first colour the page reports.
+        val bars = SystemBarStyle.dark(Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         setContentView(R.layout.activity_main)
 
         prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -92,6 +111,8 @@ class MainActivity : AppCompatActivity() {
         configMessage = findViewById(R.id.configMessage)
         webView = findViewById(R.id.webView)
         urlInput = findViewById(R.id.urlInput)
+        historyLabel = findViewById(R.id.historyLabel)
+        historyList = findViewById(R.id.historyList)
 
         setUpEdgeToEdge()
         createNotificationChannel()
@@ -114,7 +135,13 @@ class MainActivity : AppCompatActivity() {
             override fun handleOnBackPressed() = goBack()
         })
 
+        // A Stop tapped on the background notice holds only until the app is
+        // opened again, and this is that moment
+        MeshWatchService.stoppedByUser = false
+
         val savedUrl = prefs.getString(KEY_URL, null)
+        // An address saved before this list existed still belongs in it
+        if (!savedUrl.isNullOrEmpty() && serverHistory().isEmpty()) rememberServer(savedUrl)
         // Started by a notification tap: open the conversation it named rather
         // than wherever the app happened to be left
         val tapped = intent.getStringExtra(EXTRA_CLICKED_URL)?.let { resolveTarget(it) }
@@ -134,6 +161,18 @@ class MainActivity : AppCompatActivity() {
         callJs("window.__mcAppResumed")
         // The user may have been away switching the mc-webui theme
         matchSystemBarsToPage()
+        // Being on screen is the only state Android allows a foreground service
+        // to be started from, so take every visit as a chance to put it back
+        updateWatchService()
+    }
+
+    /**
+     * The service exists only to keep this activity's WebView running, so it
+     * has nothing left to do once the activity is gone.
+     */
+    override fun onDestroy() {
+        super.onDestroy()
+        MeshWatchService.stop(this)
     }
 
     /**
@@ -199,6 +238,10 @@ class MainActivity : AppCompatActivity() {
         configMessage.visibility = if (message == null) View.GONE else View.VISIBLE
         configLayout.visibility = View.VISIBLE
         webView.visibility = View.GONE
+        renderServerHistory()
+        // No page behind the form, so nothing left worth holding open
+        notificationsWanted = false
+        updateWatchService()
         // The form is white whatever the theme of the page we just left was
         applyChromeColor(Color.WHITE)
     }
@@ -228,6 +271,79 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    // -------------------------------------------------------- server history
+
+    /**
+     * Addresses that answered before, newest first. Anyone running more than
+     * one instance - their own and the public demo, say - was retyping the
+     * whole address every time they wanted the other one.
+     */
+    private fun serverHistory(): MutableList<String> {
+        val stored = prefs.getString(KEY_HISTORY, null) ?: return mutableListOf()
+        return try {
+            val entries = JSONArray(stored)
+            val list = mutableListOf<String>()
+            for (i in 0 until entries.length()) {
+                val entry = entries.optString(i, "")
+                if (entry.isNotEmpty()) list.add(entry)
+            }
+            list
+        } catch (e: Exception) {
+            // Nothing here is worth losing a launch over
+            mutableListOf()
+        }
+    }
+
+    private fun saveServerHistory(list: List<String>) {
+        prefs.edit().putString(KEY_HISTORY, JSONArray(list).toString()).apply()
+    }
+
+    /** Moves an address to the front, keeping the newest [HISTORY_LIMIT] of them. */
+    private fun rememberServer(url: String?) {
+        if (url.isNullOrEmpty()) return
+        val list = serverHistory()
+        val alreadyFirst = list.firstOrNull()?.equals(url, ignoreCase = true) == true
+        if (alreadyFirst) return
+        list.removeAll { it.equals(url, ignoreCase = true) }
+        list.add(0, url)
+        while (list.size > HISTORY_LIMIT) list.removeAt(list.size - 1)
+        saveServerHistory(list)
+    }
+
+    /**
+     * Forgetting an address only removes it from this list. The saved server,
+     * and any username and password kept for it, are left alone - forgetting
+     * the one you are connected to should not sign you out of it.
+     */
+    private fun forgetServer(url: String) {
+        val list = serverHistory()
+        list.removeAll { it.equals(url, ignoreCase = true) }
+        saveServerHistory(list)
+        renderServerHistory()
+    }
+
+    private fun renderServerHistory() {
+        val list = serverHistory()
+        historyList.removeAllViews()
+        val visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+        historyLabel.visibility = visibility
+        historyList.visibility = visibility
+        list.forEach { url ->
+            val row = layoutInflater.inflate(R.layout.item_server, historyList, false)
+            row.findViewById<TextView>(R.id.serverAddress).text = url
+            row.setOnClickListener { useServer(url) }
+            row.findViewById<ImageButton>(R.id.serverForget).setOnClickListener { forgetServer(url) }
+            historyList.addView(row)
+        }
+    }
+
+    /** Connects to a remembered address, exactly as typing it in would. */
+    private fun useServer(url: String) {
+        prefs.edit().putString(KEY_URL, url).apply()
+        urlInput.setText(url)
+        connect(url)
+    }
+
     // ------------------------------------------------------------ edge to edge
 
     /**
@@ -241,8 +357,6 @@ class MainActivity : AppCompatActivity() {
      * field visible while it is being typed into.
      */
     private fun setUpEdgeToEdge() {
-        @Suppress("DEPRECATION")
-        WindowCompat.setDecorFitsSystemWindows(window, false)
         ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { view, insets ->
             val safe = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or
@@ -312,6 +426,14 @@ class MainActivity : AppCompatActivity() {
             textZoom = 100
         }
 
+        // The service keeps this process out of the freezer, but the page runs
+        // in a process of its own, and WebView drops that one's priority the
+        // moment the view stops being visible. Say otherwise, or the renderer
+        // is evicted under memory pressure and takes the alerts with it.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
+        }
+
         installNotificationShim()
 
         webView.webViewClient = object : WebViewClient() {
@@ -320,6 +442,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                pageLoadFailed = false
                 // Puts window.Notification in place before the page looks for it
                 pageStartScript?.let { view?.evaluateJavascript(it, null) }
             }
@@ -327,6 +450,9 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 watchPageBackground()
+                // Only an address that actually answered is worth offering
+                // again, which is what keeps typos out of the list
+                if (!pageLoadFailed) rememberServer(prefs.getString(KEY_URL, null))
             }
 
             // Deprecated, but it is the only one Android 5.x calls
@@ -335,11 +461,14 @@ class MainActivity : AppCompatActivity() {
                 handleUrl(if (url == null) null else Uri.parse(url))
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                if (request?.isForMainFrame == true) showConfig(getString(R.string.error_unreachable))
+                if (request?.isForMainFrame != true) return
+                pageLoadFailed = true
+                showConfig(getString(R.string.error_unreachable))
             }
 
             override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
                 handler?.cancel()
+                pageLoadFailed = true
                 showConfig(getString(R.string.error_ssl))
             }
 
@@ -569,6 +698,35 @@ class MainActivity : AppCompatActivity() {
         fun close(tag: String) = runOnUiThread {
             NotificationManagerCompat.from(this@MainActivity).cancel(tag, NOTIFICATION_ID)
         }
+
+        /**
+         * mc-webui's own notification switch, reported by the shim on every
+         * page load and again whenever it is flipped. It decides whether this
+         * app is worth keeping alive in the background at all.
+         */
+        @JavascriptInterface
+        fun setNotificationsEnabled(enabled: Boolean, changed: Boolean) = runOnUiThread {
+            // Turning alerts on by hand is a clear enough answer to lift a Stop
+            // tapped earlier; a page merely reloading is not
+            if (enabled && changed) MeshWatchService.stoppedByUser = false
+            notificationsWanted = enabled
+            updateWatchService()
+        }
+    }
+
+    /**
+     * Brings the background service in line with what the page asked for. Safe
+     * to call from anywhere and as often as convenient: both directions are
+     * no-ops once the service is already in the state being asked for.
+     */
+    private fun updateWatchService() {
+        // Android's own switches have the last word: a revoked permission or a
+        // channel turned off there leaves nothing for the service to show, and
+        // holding a process open to raise notifications nobody will see is the
+        // one thing worse than not raising them
+        val allowed = notificationsWanted &&
+            NotificationManagerCompat.from(this).areNotificationsEnabled()
+        if (allowed) MeshWatchService.start(this) else MeshWatchService.stop(this)
     }
 
     /**
@@ -704,6 +862,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val PREFS = "MC_PREFS"
         private const val KEY_URL = "SERVER_URL"
+        private const val KEY_HISTORY = "SERVER_HISTORY"
         private const val KEY_ASKED_NOTIFICATIONS = "ASKED_NOTIFICATIONS"
         // Suffixed with the host, so each server keeps its own login
         private const val KEY_AUTH_USER = "AUTH_USER_"
@@ -711,6 +870,10 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_CAMERA = 1
         private const val REQ_STORAGE = 2
         private const val REQ_NOTIFICATIONS = 3
+
+        // Enough to cover a home server, a demo and a couple of experiments,
+        // without the form turning into a page of its own
+        private const val HISTORY_LIMIT = 6
 
         private const val BRIDGE_NAME = "__mcNotifyBridge"
         private const val CHROME_BRIDGE_NAME = "__mcChromeBridge"

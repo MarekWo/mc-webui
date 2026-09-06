@@ -27,7 +27,9 @@ src/
     └── src/main/
         ├── AndroidManifest.xml
         ├── assets/notification_shim.js                    ← window.Notification
-        ├── java/it/wojtaszek/mc/wrapper/MainActivity.kt   ← the whole app
+        ├── java/it/wojtaszek/mc/wrapper/
+        │   ├── MainActivity.kt                            ← the whole app
+        │   └── MeshWatchService.kt                        ← background delivery
         └── res/                                            layout, strings, icons
 ```
 
@@ -61,10 +63,25 @@ out as "Unavailable". Native code has to supply the missing piece:
   (`default`) from "blocked for good" (`denied`)
 - The notification channel is created at startup, which is also what puts the
   app in Android's notification settings list at all
-- **Limitation:** notifications only arrive while the app's process is alive —
-  open, or recently backgrounded. Android eventually suspends it and they stop.
-  This is the same limit the PWA has; real background delivery would need a
-  foreground service or push from the server
+- **Background delivery** (from `versionCode 6`) is `MeshWatchService`, a
+  foreground service of type `remoteMessaging`. It does no work: it exists so
+  Android leaves the process out of the cached-process freezer, which is what
+  used to silence alerts minutes after backgrounding. The page keeps producing
+  every notification, so mutes, blocked senders, channel names, translations and
+  deep links stay in one place
+- The service follows mc-webui's own notification toggle. The shim reads
+  `mc_notifications_enabled` from `localStorage` and reports it over the bridge —
+  read rather than asked of the page, because the wrapper connects to whichever
+  server its user typed in, very often an older mc-webui. It also wraps
+  `Storage.prototype.setItem`, since localStorage fires no event in the document
+  that wrote it
+- `setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)` goes with it.
+  The page renders in a process of its own, and WebView waives that process's
+  priority once the view stops being visible — a service that saves only the
+  host process would still lose the renderer under memory pressure
+- Android 12 forbids starting a foreground service from the background, so the
+  service is only ever started while the activity is on screen: from the shim's
+  report and again from `onResume`
 
 ## Building
 
