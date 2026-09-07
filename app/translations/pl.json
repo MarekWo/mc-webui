@@ -150,8 +150,16 @@
   "chat.region_title": "Kliknij, aby zmienić region dla tego kanału",
   "chat.route": "Trasa: {route}",
   "chat.route_analyzer_title": "Pokaż tę trasę na mapie Analizatora ścieżek",
+  "chat.route_hash_bytes": {
+    "one": "{count} bajt",
+    "few": "{count} bajty",
+    "many": "{count} bajtów",
+    "other": "{count} bajtu"
+  },
+  "chat.route_hash_title": "Rozmiar hasha na hop w trasie. Dotknij, aby zobaczyć wszystkie trasy, którymi dotarła ta wiadomość",
   "chat.route_hops": "Hopy: {count}",
   "chat.route_multi": "Trasa ({count}): {route}",
+  "chat.route_region": "Region: {name}",
   "chat.scroll_bottom_title": "Przewiń na dół",
   "chat.title": "Czat",
   "chat.toast.load_error": "Błąd wczytywania wiadomości: {error}",

@@ -1500,22 +1500,46 @@ async function refreshMessagesMeta(forceIds = []) {
 }
 
 /**
+ * Build the "SNR | Hops | Route | Region" line shown under an incoming
+ * channel message. `src` is a /api/messages row or a /api/messages/meta
+ * entry (same field names); `paths` is the echo-derived paths array.
+ *
+ * The route part names only the per-hop hash size ("2 bytes"): the routes
+ * themselves live in the popup, since a 3-byte, 5-hop route no longer fits
+ * next to SNR and hops on a phone. Region shows only when the packet was
+ * flood-scoped to a region this instance knows (Settings \u2192 Channels).
+ */
+function buildMessageMetaInfo(src, paths) {
+    const metaParts = [];
+    // Use message SNR, or fall back to first echo path SNR
+    const displaySnr = (src.snr !== undefined && src.snr !== null) ? src.snr
+        : (src.echo_snrs && src.echo_snrs.length > 0) ? src.echo_snrs[0] : null;
+    if (displaySnr !== null) {
+        metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
+    }
+    const hopCount = src.hop_count ?? (src.path_len !== null && src.path_len !== undefined ? (src.path_len & 0x3F) : null);
+    if (hopCount !== null) {
+        metaParts.push(tHtml('chat.route_hops', { count: hopCount }));
+    }
+    if (paths && paths.length > 0) {
+        const sizeLabel = tn('chat.route_hash_bytes', paths[0].hash_size || 1);
+        const pathsData = encodeURIComponent(JSON.stringify(paths));
+        const routeText = paths.length > 1
+            ? tHtml('chat.route_multi', { count: paths.length, route: sizeLabel })
+            : tHtml('chat.route', { route: sizeLabel });
+        metaParts.push(`<span class="path-info" title="${tHtml('chat.route_hash_title')}" onclick="showPathsPopup(this, '${pathsData}', '${src.packet_hash || ''}')">${routeText}</span>`);
+    }
+    if (src.region) {
+        metaParts.push(tHtml('chat.route_region', { name: src.region }));
+    }
+    return metaParts.join(' | ');
+}
+
+/**
  * Update metadata and action buttons in-place for a single message wrapper.
  */
 function updateMessageMetaDOM(wrapper, meta) {
     const isOwn = wrapper.classList.contains('own');
-
-    // Build meta info string
-    let metaParts = [];
-    const displaySnr = (meta.snr !== undefined && meta.snr !== null) ? meta.snr
-        : (meta.echo_snrs && meta.echo_snrs.length > 0) ? meta.echo_snrs[0] : null;
-    if (displaySnr !== null) {
-        metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
-    }
-    const hopCount = meta.hop_count ?? (meta.path_len !== null && meta.path_len !== undefined ? (meta.path_len & 0x3F) : null);
-    if (hopCount !== null) {
-        metaParts.push(tHtml('chat.route_hops', { count: hopCount }));
-    }
 
     // Build paths from echo data
     let paths = null;
@@ -1526,25 +1550,7 @@ function updateMessageMetaDOM(wrapper, meta) {
             hash_size: meta.echo_hash_sizes ? meta.echo_hash_sizes[i] : (meta.path_hash_size || 1),
         }));
     }
-    if (paths && paths.length > 0) {
-        const firstPath = paths[0];
-        const chunkLen = (firstPath.hash_size || 1) * 2;
-        const segments = [];
-        if (firstPath.path) {
-            for (let i = 0; i < firstPath.path.length; i += chunkLen) {
-                segments.push(firstPath.path.substring(i, i + chunkLen).toUpperCase());
-            }
-        }
-        const shortPath = segments.length > 4
-            ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
-            : segments.join('\u2192');
-        const pathsData = encodeURIComponent(JSON.stringify(paths));
-        const routeText = paths.length > 1
-            ? tHtml('chat.route_multi', { count: paths.length, route: shortPath })
-            : tHtml('chat.route', { route: shortPath });
-        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${meta.packet_hash || ''}')">${routeText}</span>`);
-    }
-    const metaInfo = metaParts.join(' | ');
+    const metaInfo = buildMessageMetaInfo(meta, paths);
 
     if (!isOwn) {
         // Update or insert .message-meta div
@@ -1659,37 +1665,7 @@ function createMessageElement(msg) {
         }));
     }
 
-    let metaParts = [];
-    // Use message SNR, or fall back to first echo path SNR
-    const displaySnr = (msg.snr !== undefined && msg.snr !== null) ? msg.snr
-        : (msg.echo_snrs && msg.echo_snrs.length > 0) ? msg.echo_snrs[0] : null;
-    if (displaySnr !== null) {
-        metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
-    }
-    const msgHopCount = msg.hop_count ?? (msg.path_len !== null && msg.path_len !== undefined ? (msg.path_len & 0x3F) : null);
-    if (msgHopCount !== null) {
-        metaParts.push(tHtml('chat.route_hops', { count: msgHopCount }));
-    }
-    if (msg.paths && msg.paths.length > 0) {
-        // Show first path inline (shortest/first arrival)
-        const firstPath = msg.paths[0];
-        const chunkLen = (firstPath.hash_size || 1) * 2;
-        const segments = [];
-        if (firstPath.path) {
-            for (let i = 0; i < firstPath.path.length; i += chunkLen) {
-                segments.push(firstPath.path.substring(i, i + chunkLen).toUpperCase());
-            }
-        }
-        const shortPath = segments.length > 4
-            ? `${segments[0]}\u2192...\u2192${segments[segments.length - 1]}`
-            : segments.join('\u2192');
-        const pathsData = encodeURIComponent(JSON.stringify(msg.paths));
-        const routeText = msg.paths.length > 1
-            ? tHtml('chat.route_multi', { count: msg.paths.length, route: shortPath })
-            : tHtml('chat.route', { route: shortPath });
-        metaParts.push(`<span class="path-info" onclick="showPathsPopup(this, '${pathsData}', '${msg.packet_hash || ''}')">${routeText}</span>`);
-    }
-    const metaInfo = metaParts.join(' | ');
+    const metaInfo = buildMessageMetaInfo(msg, msg.paths);
 
     if (msg.is_own) {
         // Own messages: right-aligned, no avatar

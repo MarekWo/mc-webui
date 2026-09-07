@@ -18,6 +18,8 @@ from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Optional, Any, Dict, List, Tuple
 from urllib.parse import urlparse, parse_qs
 
+from app.meshcore.regions import PAYLOAD_TYPE_GRP_TXT, calc_transport_code
+
 from Crypto.Cipher import AES
 
 GRP_TXT_TYPE_BYTE = 0x05
@@ -101,17 +103,18 @@ def _compute_pkt_payload(channel_secret_hex, sender_timestamp, txt_type, text, a
 #   header(1) [transport_codes(4) if TRANSPORT_FLOOD] path_len(1) payload(N)
 # Packet hash (SHA256 over payload_type||payload) depends only on payload, so
 # resending identical bytes lets repeaters dedupe via Mesh::hasSeen.
-_PAYLOAD_TYPE_GRP_TXT = 0x05
+_PAYLOAD_TYPE_GRP_TXT = PAYLOAD_TYPE_GRP_TXT
 _ROUTE_TYPE_FLOOD = 0x01
 _ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
+_ROUTE_TYPE_TRANSPORT_DIRECT = 0x03
 
 
 def _build_grp_txt_raw_packet(pkt_payload_hex, scope_key_hex=None, path_hash_size=1):
     """Build raw wire bytes for a GRP_TXT packet, suitable for CMD_SEND_RAW_PACKET.
 
-    Replicates the firmware's TransportKey::calcTransportCode when a region
-    scope key is provided (HMAC-SHA256 over payload_type||payload, first 2
-    bytes, with 0x0000 and 0xFFFF reserved per TransportKeyStore.cpp).
+    With a region scope key the packet goes out as TRANSPORT_FLOOD, stamped
+    with the transport code the firmware would compute for that key (see
+    calc_transport_code in app.meshcore.regions).
 
     Returns hex string for storage in channel_messages.raw_packet, or None if
     pkt_payload_hex is missing.
@@ -126,17 +129,32 @@ def _build_grp_txt_raw_packet(pkt_payload_hex, scope_key_hex=None, path_hash_siz
 
     out = bytes([header])
     if use_transport:
-        mac_input = bytes([_PAYLOAD_TYPE_GRP_TXT]) + payload
-        digest = hmac_mod.new(bytes.fromhex(scope_key_hex), mac_input, hashlib.sha256).digest()
-        code = digest[:2]
-        if code == b'\x00\x00':
-            code = b'\x01\x00'
-        elif code == b'\xff\xff':
-            code = b'\xfe\xff'
+        code = calc_transport_code(bytes.fromhex(scope_key_hex), _PAYLOAD_TYPE_GRP_TXT, payload)
         out += code + b'\x00\x00'  # transport_codes[1] is always 0 (set by sendFloodScoped)
     out += bytes([path_len_byte])
     out += payload
     return out.hex()
+
+
+def transport_codes_from_raw_packet(raw_packet_hex) -> Optional[str]:
+    """The 4 transport-code bytes (8 hex chars) of a raw packet snapshot.
+
+    None when the packet carries none (plain FLOOD / DIRECT) or cannot be
+    parsed. Lets an own message resolve its region without waiting for an
+    echo: the snapshot taken at send time already holds the stamp its scope
+    key produced.
+    """
+    if not raw_packet_hex:
+        return None
+    try:
+        raw = raw_packet_hex if isinstance(raw_packet_hex, bytes) else bytes.fromhex(raw_packet_hex)
+    except ValueError:
+        return None
+    if len(raw) < 5:
+        return None
+    if (raw[0] & 0x03) not in (_ROUTE_TYPE_TRANSPORT_FLOOD, _ROUTE_TYPE_TRANSPORT_DIRECT):
+        return None
+    return raw[1:5].hex()
 
 
 def _payload_from_raw_packet(raw_packet_hex) -> Optional[str]:
@@ -155,7 +173,7 @@ def _payload_from_raw_packet(raw_packet_hex) -> Optional[str]:
     raw = raw_packet_hex if isinstance(raw_packet_hex, bytes) else bytes.fromhex(raw_packet_hex)
     try:
         route_type = raw[0] & 0x03
-        off = 1 + (4 if route_type in (_ROUTE_TYPE_TRANSPORT_FLOOD, 0x03) else 0)
+        off = 1 + (4 if route_type in (_ROUTE_TYPE_TRANSPORT_FLOOD, _ROUTE_TYPE_TRANSPORT_DIRECT) else 0)
         _, _, path_byte_len = decode_path_len(raw[off])
         payload = raw[off + 1 + path_byte_len:]
     except IndexError:
@@ -1347,9 +1365,14 @@ class DeviceManager:
             route_type = header & 0x03
             payload_type = (header & 0x3C) >> 2
 
-            # Skip transport code for route_type 0 (flood) and 3
-            if route_type == 0x00 or route_type == 0x03:
-                pbuf.read(4)  # discard transport code
+            # TRANSPORT_FLOOD (0) and TRANSPORT_DIRECT (3) carry 4 bytes of
+            # transport codes: the sender's region-scope stamp, then a reply
+            # code the companion firmware leaves at zero. Kept with the echo so
+            # the message can be attributed to a region later (the name itself
+            # is not in the packet — see api._resolve_message_region).
+            transport_codes = None
+            if route_type in (_ROUTE_TYPE_TRANSPORT_FLOOD, _ROUTE_TYPE_TRANSPORT_DIRECT):
+                transport_codes = pbuf.read(4).hex()
 
             path_len_raw = pbuf.read(1)[0]
             hop_count, hash_size, path_byte_len = decode_path_len(path_len_raw)
@@ -1357,14 +1380,15 @@ class DeviceManager:
             pkt_payload = pbuf.read().hex()
 
             # Only process GRP_TXT channel message echoes
-            if payload_type != 0x05:
+            if payload_type != _PAYLOAD_TYPE_GRP_TXT:
                 return
 
             if not pkt_payload:
                 return
 
             snr = data.get('snr')
-            self._process_echo(pkt_payload, path, snr, hash_size=hash_size)
+            self._process_echo(pkt_payload, path, snr, hash_size=hash_size,
+                               transport_codes=transport_codes)
 
         except Exception as e:
             logger.error(f"Error handling RX_LOG_DATA: {e}")
@@ -1442,11 +1466,13 @@ class DeviceManager:
                 del self._pending_echoes[:-self._MAX_PENDING_ECHOES]
 
     def _process_echo(self, pkt_payload: str, path: str, snr: float = None,
-                       hash_size: int = 1):
+                       hash_size: int = 1, transport_codes: str = None):
         """Classify and store an echo: sent echo or incoming echo.
 
         For sent messages: correlate with a pending send to get pkt_payload.
         For incoming: store as echo keyed by pkt_payload for route display.
+        `transport_codes` is the packet's 4-byte region-scope stamp (hex), or
+        None for an unscoped packet; stored as-is for region attribution.
         """
         with self._echo_lock:
             current_time = time.time()
@@ -1521,7 +1547,8 @@ class DeviceManager:
 
             if diag_on:
                 diag.record('echo', direction=direction, path=path, snr=snr,
-                            hash_size=hash_size, pkt=pkt_payload,
+                            hash_size=hash_size, codes=transport_codes,
+                            pkt=pkt_payload,
                             match=match_stage,
                             msg_id=matched['msg_id'] if matched else None,
                             pending=pending_snapshot)
@@ -1533,9 +1560,11 @@ class DeviceManager:
                 snr=snr,
                 direction=direction,
                 hash_size=hash_size,
+                transport_codes=transport_codes,
             )
 
-            logger.debug(f"Echo ({direction}): path={path} snr={snr} hash_size={hash_size} pkt={pkt_payload[:16]}...")
+            logger.debug(f"Echo ({direction}): path={path} snr={snr} hash_size={hash_size} "
+                         f"codes={transport_codes} pkt={pkt_payload[:16]}...")
 
             # Carry msg_id when the echo was correlated to a sent message —
             # the UI uses it to force-refresh that specific badge, bypassing

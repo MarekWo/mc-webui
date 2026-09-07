@@ -70,6 +70,11 @@ class Database:
             conn.execute("ALTER TABLE echoes ADD COLUMN hash_size INTEGER NOT NULL DEFAULT 1")
             logger.info("Migration: added echoes.hash_size column")
 
+        # Add transport_codes column to echoes (the packet's region-scope stamp)
+        if 'transport_codes' not in echo_columns:
+            conn.execute("ALTER TABLE echoes ADD COLUMN transport_codes TEXT")
+            logger.info("Migration: added echoes.transport_codes column")
+
         # Add is_favorite column to read_status (channel favorites)
         rs_columns = {r[1] for r in conn.execute("PRAGMA table_info(read_status)").fetchall()}
         if 'is_favorite' not in rs_columns:
@@ -1209,14 +1214,16 @@ class Database:
     def insert_echo(self, pkt_payload: str, **kwargs) -> None:
         with self._connect() as conn:
             conn.execute(
-                """INSERT INTO echoes (pkt_payload, path, snr, direction, cm_id, hash_size)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO echoes (pkt_payload, path, snr, direction, cm_id, hash_size,
+                                       transport_codes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (pkt_payload,
                  kwargs.get('path'),
                  kwargs.get('snr'),
                  kwargs.get('direction', 'incoming'),
                  kwargs.get('cm_id'),
-                 kwargs.get('hash_size', 1))
+                 kwargs.get('hash_size', 1),
+                 kwargs.get('transport_codes'))
             )
 
     def get_echoes_for_message(self, pkt_payload: str) -> List[Dict]:

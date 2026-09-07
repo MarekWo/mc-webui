@@ -148,8 +148,14 @@
   "chat.region_title": "Click to change region for this channel",
   "chat.route": "Route: {route}",
   "chat.route_analyzer_title": "Show this route on the Path Analyzer map",
+  "chat.route_hash_bytes": {
+    "one": "{count} byte",
+    "other": "{count} bytes"
+  },
+  "chat.route_hash_title": "Per-hop hash size of the route. Tap to list every route this message was heard on",
   "chat.route_hops": "Hops: {count}",
   "chat.route_multi": "Route ({count}): {route}",
+  "chat.route_region": "Region: {name}",
   "chat.scroll_bottom_title": "Scroll to bottom",
   "chat.title": "Chat",
   "chat.toast.load_error": "Error loading messages: {error}",

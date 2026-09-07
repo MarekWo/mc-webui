@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Features
+
+- **The line under an incoming channel message now names the region it was sent in, and no longer spells out the route.** A MeshCore sender can stamp a packet with a *region* — a flood scope such as `pl` that only repeaters allowing it pass on (see the previous release). The stamp is not the name but a 16-bit code derived from the region's key, so the interface can recognise it only for regions you have added under **Settings → Channels**: a message stamped with one of them now ends its `SNR | Hops | Route` line with **Region: pl**, while an unstamped message, or one from a region you have not configured, shows nothing extra. The route part changed too. It used to print the first route inline (`Route (3): 142C→1122→271C→EE6C`), which with 2- or 3-byte hashes and a few hops crowded everything else off a phone screen. It now only says how wide the per-hop hashes are — `Route (3): 2 bytes` — and tapping it opens the same popup as before, listing every route the message arrived by, each one openable in the Path Analyzer or copied to the clipboard. The region stamp is kept from this version on, so messages received before the update have no region to show.
+
 ---
 
 ## 2.17.0 — 2026-09-07

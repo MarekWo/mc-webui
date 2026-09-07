@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS echoes (
     direction       TEXT DEFAULT 'incoming', -- 'sent' or 'incoming'
     cm_id           INTEGER,                -- FK to channel_messages (nullable)
     hash_size       INTEGER NOT NULL DEFAULT 1,  -- bytes per hop hash: 1, 2, or 3
+    transport_codes TEXT,                   -- 4 header bytes (8 hex) of a TRANSPORT_FLOOD/_DIRECT packet: the sender's region-scope stamp; NULL when unscoped
     FOREIGN KEY (cm_id) REFERENCES channel_messages(id) ON DELETE SET NULL
 );
 

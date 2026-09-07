@@ -13,12 +13,17 @@ import pytest
 
 pytest.importorskip('meshcore', reason='app.device_manager needs the meshcore lib')
 
+import asyncio  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
 from app.device_manager import (  # noqa: E402
     DeviceManager,
     _build_grp_txt_raw_packet,
     _compute_pkt_payload,
     _payload_from_raw_packet,
+    transport_codes_from_raw_packet,
 )
+from app.meshcore.regions import PAYLOAD_TYPE_GRP_TXT, calc_transport_code  # noqa: E402
 
 SECRET = '5c' * 32
 SCOPE_KEY = 'a7' * 32
@@ -237,3 +242,66 @@ class TestPayloadFromRawPacket:
 
         assert dm.db.payloads == {71179: payload}
         assert dm.db.echoes[-1]['direction'] == 'sent'
+
+
+# ================================================================
+# Transport codes — the packet's region stamp, kept with the echo
+# ================================================================
+
+class TestTransportCodesFromRawPacket:
+    def test_scoped_packet_yields_its_codes(self):
+        payload = payload_for(1000, 'MarWoj: region-scoped')
+        raw = _build_grp_txt_raw_packet(payload, scope_key_hex=SCOPE_KEY, path_hash_size=2)
+        codes = transport_codes_from_raw_packet(raw)
+        assert codes == raw[2:10]
+        expected = calc_transport_code(bytes.fromhex(SCOPE_KEY), PAYLOAD_TYPE_GRP_TXT,
+                                       bytes.fromhex(payload)).hex()
+        assert codes == expected + '0000'   # transport_codes[1] is always 0
+
+    def test_unscoped_packet_has_none(self):
+        payload = payload_for(1000, 'MarWoj: plain flood')
+        raw = _build_grp_txt_raw_packet(payload, scope_key_hex=None, path_hash_size=1)
+        assert transport_codes_from_raw_packet(raw) is None
+
+    @pytest.mark.parametrize('bad', [None, '', '14', '14aabb', 'zz'])
+    def test_returns_none_when_unparsable(self, bad):
+        assert transport_codes_from_raw_packet(bad) is None
+
+
+class TestEchoKeepsTransportCodes:
+    def test_stored_on_the_echo_row(self, dm):
+        payload = payload_for(1000, 'MarWoj: stamped')
+        dm._process_echo(payload, path='d103df', hash_size=3, transport_codes='1a2b0000')
+        assert dm.db.echoes[-1]['transport_codes'] == '1a2b0000'
+
+    def test_unscoped_echo_stores_none(self, dm):
+        payload = payload_for(1000, 'MarWoj: unstamped')
+        dm._process_echo(payload, path='d103df', hash_size=3)
+        assert dm.db.echoes[-1]['transport_codes'] is None
+
+    def test_rx_log_frame_codes_reach_the_echo(self, dm):
+        """The RX-log frame is the packet as heard on air: header, 4 bytes of
+        transport codes, path_len, the path a repeater appended, payload."""
+        payload = payload_for(1000, 'MarWoj: over the air')
+        raw = _build_grp_txt_raw_packet(payload, scope_key_hex=SCOPE_KEY, path_hash_size=1)
+        # one 1-byte hop (0xAB) added by the repeater that relayed it to us
+        heard = raw[:10] + '01' + 'ab' + raw[12:]
+        event = SimpleNamespace(payload={'payload': heard, 'snr': 7.5, 'rssi': -90})
+
+        asyncio.run(dm._on_rx_log_data(event))
+
+        echo = dm.db.echoes[-1]
+        assert echo['pkt_payload'] == payload
+        assert echo['path'] == 'ab'
+        assert echo['hash_size'] == 1
+        assert echo['transport_codes'] == raw[2:10]
+        assert echo['snr'] == 7.5
+
+    def test_rx_log_unscoped_frame_has_no_codes(self, dm):
+        payload = payload_for(1000, 'MarWoj: plain on air')
+        raw = _build_grp_txt_raw_packet(payload, scope_key_hex=None, path_hash_size=1)
+        event = SimpleNamespace(payload={'payload': raw, 'snr': 1.0, 'rssi': -100})
+
+        asyncio.run(dm._on_rx_log_data(event))
+
+        assert dm.db.echoes[-1]['transport_codes'] is None

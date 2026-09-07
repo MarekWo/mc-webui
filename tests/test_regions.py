@@ -13,9 +13,12 @@ import pytest
 from app.database import Database
 from app.meshcore.regions import (
     MAX_NAME_LEN,
+    PAYLOAD_TYPE_GRP_TXT,
+    calc_transport_code,
     derive_scope_key,
     derive_scope_key_hex,
     is_valid_region_name,
+    match_region_by_transport_code,
 )
 
 
@@ -244,3 +247,72 @@ class TestSchema:
             ).fetchall()}
         assert 'regions' in tables
         assert 'channel_scopes' in tables
+
+
+# ================================================================
+# Transport code — the region stamp in a packet header
+# ================================================================
+
+class TestTransportCode:
+    KEY = derive_scope_key('pl')
+
+    def test_known_vector(self):
+        # HMAC-SHA256(key('pl'), 0x05 || b'hello')[:2], computed offline
+        assert calc_transport_code(self.KEY, PAYLOAD_TYPE_GRP_TXT, b'hello') == bytes.fromhex('9414')
+
+    def test_payload_type_is_part_of_the_mac(self):
+        assert (calc_transport_code(self.KEY, PAYLOAD_TYPE_GRP_TXT, b'hello')
+                != calc_transport_code(self.KEY, 0x04, b'hello'))
+
+    def test_key_is_part_of_the_mac(self):
+        assert (calc_transport_code(self.KEY, PAYLOAD_TYPE_GRP_TXT, b'hello')
+                != calc_transport_code(derive_scope_key('pl-ma'), PAYLOAD_TYPE_GRP_TXT, b'hello'))
+
+    # Payloads whose raw HMAC prefix lands on a reserved code (found by search).
+    # The firmware bumps 0x0000 to 0x0001 and 0xFFFF to 0xFFFE, little-endian.
+    def test_reserved_zero_becomes_one(self):
+        assert calc_transport_code(self.KEY, PAYLOAD_TYPE_GRP_TXT, bytes.fromhex('ca620100')) == b'\x01\x00'
+
+    def test_reserved_ffff_becomes_fffe(self):
+        assert calc_transport_code(self.KEY, PAYLOAD_TYPE_GRP_TXT, bytes.fromhex('2d560100')) == b'\xfe\xff'
+
+
+class TestMatchRegionByTransportCode:
+    REGIONS = [
+        {'name': 'pl', 'key_hex': derive_scope_key_hex('pl')},
+        {'name': 'pl-ma', 'key_hex': derive_scope_key_hex('pl-ma')},
+    ]
+    PAYLOAD = bytes.fromhex('5c' * 24)
+
+    def stamp(self, name):
+        """The header field as a receiver sees it: scope code, then the zero reply code."""
+        return calc_transport_code(derive_scope_key(name), PAYLOAD_TYPE_GRP_TXT, self.PAYLOAD).hex() + '0000'
+
+    def test_finds_the_stamping_region(self):
+        assert match_region_by_transport_code(self.stamp('pl-ma'), PAYLOAD_TYPE_GRP_TXT,
+                                              self.PAYLOAD, self.REGIONS) == 'pl-ma'
+        assert match_region_by_transport_code(self.stamp('pl'), PAYLOAD_TYPE_GRP_TXT,
+                                              self.PAYLOAD, self.REGIONS) == 'pl'
+
+    def test_unknown_region_is_none(self):
+        assert match_region_by_transport_code(self.stamp('de'), PAYLOAD_TYPE_GRP_TXT,
+                                              self.PAYLOAD, self.REGIONS) is None
+
+    def test_same_key_different_payload_does_not_match(self):
+        other = bytes.fromhex('a1' * 24)
+        assert match_region_by_transport_code(self.stamp('pl'), PAYLOAD_TYPE_GRP_TXT,
+                                              other, self.REGIONS) is None
+
+    def test_no_regions_is_none(self):
+        assert match_region_by_transport_code(self.stamp('pl'), PAYLOAD_TYPE_GRP_TXT,
+                                              self.PAYLOAD, []) is None
+
+    @pytest.mark.parametrize('codes', [None, '', 'ab', 'zzzz0000'])
+    def test_garbage_codes_are_none(self, codes):
+        assert match_region_by_transport_code(codes, PAYLOAD_TYPE_GRP_TXT,
+                                              self.PAYLOAD, self.REGIONS) is None
+
+    def test_tolerates_a_region_without_a_key(self):
+        regions = [{'name': 'broken', 'key_hex': None}] + self.REGIONS
+        assert match_region_by_transport_code(self.stamp('pl'), PAYLOAD_TYPE_GRP_TXT,
+                                              self.PAYLOAD, regions) == 'pl'

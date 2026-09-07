@@ -19,9 +19,14 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file, current_app
 from app import i18n
 from app.meshcore import cli, parser
-from app.meshcore.regions import derive_scope_key_hex, is_valid_region_name
+from app.meshcore.regions import (
+    PAYLOAD_TYPE_GRP_TXT,
+    derive_scope_key_hex,
+    is_valid_region_name,
+    match_region_by_transport_code,
+)
 from app.config import config, runtime_config
-from app.device_manager import decode_path_len
+from app.device_manager import decode_path_len, transport_codes_from_raw_packet
 from app.archiver import manager as archive_manager
 from app.contacts_cache import get_all_names, get_all_contacts
 from app.geo import sanitize_latlon, scrub_geo
@@ -609,13 +614,20 @@ def get_messages():
             # prohibitively slow on connection-per-call over bind mounts)
             payloads = [m['pkt_payload'] for m in messages if m.get('pkt_payload')]
             echoes_by_payload = db.get_echoes_for_payloads(payloads)
-            for msg in messages:
-                echoes = echoes_by_payload.get(msg.get('pkt_payload'))
+            regions = db.list_regions()
+            # messages and db_messages are still aligned 1:1 here (blocked
+            # senders are filtered out below); the row is needed for the
+            # raw_packet fallback of own messages.
+            for msg, row in zip(messages, db_messages):
+                echoes = echoes_by_payload.get(msg.get('pkt_payload')) or []
                 if echoes:
                     msg['echo_count'] = len(echoes)
                     msg['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
                     msg['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
                     msg['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
+                region = _resolve_message_region(row, msg.get('pkt_payload'), echoes, regions)
+                if region:
+                    msg['region'] = region
 
             # Filter out blocked contacts' messages
             blocked_names = db.get_blocked_contact_names()
@@ -744,11 +756,33 @@ def get_path_analyzer_messages():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-def _build_message_meta(row: dict, pkt_payload, echoes: list) -> dict:
-    """Assemble the meta payload (SNR, hops, route, analyzer hash) for one row.
+def _resolve_message_region(row: dict, pkt_payload, echoes: list, regions):
+    """Name of the region this packet was flood-scoped to, or None.
 
-    Pure: takes the already-resolved pkt_payload and its echoes so callers can
-    batch the DB work."""
+    The packet carries only a 16-bit transport code, never the name, so this
+    recomputes the code for every region the instance knows (Settings →
+    Channels) and picks the one that reproduces it. The code comes from the
+    first echo that recorded one; an own message falls back to the raw_packet
+    snapshot taken at send time, so it resolves before any echo comes back.
+    Unscoped packets, and scoped ones from a region not configured here,
+    yield None.
+    """
+    if not regions or not pkt_payload:
+        return None
+    codes = next((e.get('transport_codes') for e in echoes if e.get('transport_codes')), None)
+    if not codes:
+        codes = transport_codes_from_raw_packet(row.get('raw_packet'))
+    if not codes:
+        return None
+    return match_region_by_transport_code(codes, PAYLOAD_TYPE_GRP_TXT,
+                                          bytes.fromhex(pkt_payload), regions)
+
+
+def _build_message_meta(row: dict, pkt_payload, echoes: list, regions=None) -> dict:
+    """Assemble the meta payload (SNR, hops, route, region, analyzer hash) for one row.
+
+    Pure: takes the already-resolved pkt_payload, its echoes and the region
+    table so callers can batch the DB work."""
     path_len_raw = row.get('path_len')
     hop_count = None
     path_hash_size = 1
@@ -771,6 +805,9 @@ def _build_message_meta(row: dict, pkt_payload, echoes: list) -> dict:
             meta['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
             meta['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
             meta['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
+        region = _resolve_message_region(row, pkt_payload, echoes, regions)
+        if region:
+            meta['region'] = region
 
     return meta
 
@@ -810,12 +847,14 @@ def get_messages_meta_batch():
         echoes_by_payload = db.get_echoes_for_payloads(
             list({p for p in payload_by_id.values() if p})
         )
+        regions = db.list_regions()
 
         metas = {
             str(mid): _build_message_meta(
                 row,
                 payload_by_id[mid],
                 echoes_by_payload.get(payload_by_id[mid], []),
+                regions,
             )
             for mid, row in rows.items()
         }
@@ -840,7 +879,7 @@ def get_message_meta(msg_id):
 
         pkt_payload = _get_row_pkt_payload(row, _build_channel_secrets(db))
         echoes = db.get_echoes_for_message(pkt_payload) if pkt_payload else []
-        return jsonify(_build_message_meta(row, pkt_payload, echoes))
+        return jsonify(_build_message_meta(row, pkt_payload, echoes, db.list_regions()))
 
     except Exception as e:
         logger.error(f"Error fetching message meta: {e}")

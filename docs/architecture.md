@@ -219,7 +219,7 @@ Key tables:
 - `messages` - All channel and direct messages (with FTS5 index for full-text search)
 - `contacts` - Contact list with sync status, types, block/ignore flags, `no_auto_flood` flag
 - `channels` - Channel configuration and keys
-- `echoes` - Sent message tracking and repeater paths, `hash_size` for path_hash_mode
+- `echoes` - Sent message tracking and repeater paths, `hash_size` for path_hash_mode, `transport_codes` (the packet's region-scope stamp, NULL when unscoped)
 - `direct_messages` - DM messages with delivery tracking (`delivery_status`, `delivery_attempt`, `delivery_max_attempts`, `delivery_path`)
 - `acks` - DM delivery status
 - `settings` - Application settings (migrated from .webui_settings.json)
@@ -232,6 +232,8 @@ Key tables:
 - `repeaters` - Repeaters saved in the My Repeaters panel (`public_key` PK, `password` — stored plaintext per the observer_brokers precedent, `added_at`, `last_login_at`, `last_login_role`). Everything else about a repeater (name, path, position) comes from the device contact at read time
 
 `direct_messages` gained a `delivery_path_hash_size` column (auto-migrated, defaults to 1) so reloaded DM bubbles render multi-byte routes correctly. The `path_len` column on `channel_messages`, `direct_messages`, and `paths` now stores the raw firmware byte (masked hop count plus path_hash_mode in the upper bits), recombined at write time via `pack_path_len()`; the API endpoints decode it back into `path_hash_size` on read. `channel_messages` also gained a `raw_packet` column (the full hex wire snapshot captured at send time, indexed by `idx_cm_pkt` on `pkt_payload` for fast self-echo lookups) that powers raw resend; it is `NULL` for received and pre-migration rows, so the resend button stays disabled there.
+
+`echoes` gained a `transport_codes` column (auto-migrated, `NULL` for pre-migration rows): the 4 header bytes a `TRANSPORT_FLOOD` / `TRANSPORT_DIRECT` packet carries after the header byte, which `_on_rx_log_data` used to discard. The first two are the sender's region-scope stamp — `TransportKey::calcTransportCode`, the first 2 bytes of `HMAC-SHA256(scope_key, payload_type || payload)` with `0x0000`/`0xFFFF` bumped to `0x0001`/`0xFFFE` — and the second pair is a reply code the companion firmware leaves at zero. The region *name* never travels, so `_resolve_message_region()` in `api.py` recomputes the code for every row of the `regions` table (`calc_transport_code()` / `match_region_by_transport_code()` in `app/meshcore/regions.py`, shared with the raw-resend packet builder) and reports the one that reproduces it as `region` on `/api/messages` and `/api/messages/meta`. The code is read from the first echo that recorded one; own rows fall back to the `raw_packet` snapshot, so they resolve before any echo. A message stamped with a region the instance has not configured, or a private `$name` region whose key is not derivable, simply gets no `region`.
 
 The use of SQLite allows for fast queries, reliable data storage, full-text search, and complex filtering (such as contact ignoring/blocking) without the risk of file corruption inherent to flat JSON files.
 
