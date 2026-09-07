@@ -16,6 +16,8 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
   Changes behave the way the firmware does, and the screen is explicit about it: adding, deleting or switching a region takes effect at once but lives only in the repeater's memory, so an orange banner appears until you press **Save**, and leaving with unsaved changes asks first. Without that save the repeater forgets them at its next reboot. The Default scope card is the exception — the firmware stores that one by itself, and the card says so.
 
+- **The Path Analyzer's map can be maximized to the whole screen.** On a phone the map view splits the screen between the message list and the map, leaving the map about 45% of the height — enough to know a route was drawn, not enough to read it. The ⛶ button in the map's top-right corner now expands the map over everything else, the panel header included, so a five-hop route across half of Poland is legible without pinching. The button turns into **✕ Close** while maximized, Escape does the same, and either way the route you had drawn and the area you had panned to are still there when the normal layout comes back.
+
 ---
 
 ## 2.16.0 — 2026-09-07

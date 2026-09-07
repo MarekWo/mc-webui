@@ -807,6 +807,8 @@ Two checkboxes in the map's top-right corner add context when you want it. Both 
 
 The eraser button clears the drawn path. On phones the map takes a fixed share of the screen (about 45%) and the message list gets the rest, so scrolling through routes is comfortable.
 
+When that share is too small to read a long route on, the ⛶ button in the map's top-right corner maximizes the map: it takes over the whole screen, the panel header included, and the checkboxes stay reachable underneath. The same button then reads **✕ Close** and puts the map back where it was — as does the Escape key. Maximizing keeps the drawn route and the part of the map you had panned to, and switching to another view drops back to the normal layout on its own.
+
 Everything in the Path Analyzer is based on what **your node** overheard — it's a local view of the mesh, not a global one. A route you don't see here may still exist; it just never reached your radio.
 
 ---

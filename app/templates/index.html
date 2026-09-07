@@ -362,6 +362,23 @@
                         ? `/path-analyzer?hash=${encodeURIComponent(dl.hash)}&path=${encodeURIComponent(dl.path)}`
                         : '/path-analyzer';
                 }
+                // A reopened modal always starts with its header back
+                paSetHeaderHidden(false);
+            });
+
+            // The analyzer's map view can maximize itself; the header lives
+            // out here, so hide it on request to give the map the screen
+            function paSetHeaderHidden(hidden) {
+                const header = pathAnalyzerModal.querySelector('.modal-header');
+                if (header) header.classList.toggle('d-none', hidden);
+            }
+            window.addEventListener('message', function (ev) {
+                if (ev.origin !== window.location.origin) return;
+                if (!ev.data || ev.data.type !== 'paMapFullscreen') return;
+                paSetHeaderHidden(!!ev.data.on);
+            });
+            pathAnalyzerModal.addEventListener('hidden.bs.modal', function () {
+                paSetHeaderHidden(false);
             });
         }
 

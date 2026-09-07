@@ -143,6 +143,47 @@
             }
         }
 
+        /* Maximized map. A CSS overlay rather than the Fullscreen API: the
+           panel runs inside an iframe (and inside the Android WebView),
+           where requestFullscreen on a plain element is unreliable. The
+           parent hides the modal header on the same toggle, so the map
+           really does get the whole screen. Specificity beats the
+           media-query rules above regardless of order. */
+        body.pa-map-full {
+            overflow: hidden !important;
+        }
+
+        body.pa-map-full #paMap {
+            /* !important: Leaflet writes position:relative on the container
+               as an inline style, which no stylesheet rule can outrank */
+            position: fixed !important;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 1080;
+            flex: none;
+            min-height: 0;
+            border: none;
+            border-radius: 0;
+        }
+
+        /* Maximize / close control, top-right above the overlay toggles */
+        .pa-map-fs-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            background-color: var(--bg-surface);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.35rem;
+            padding: 0.4rem 0.55rem;
+            font-size: 0.85rem;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+        }
+
         .pa-map-msg {
             border: 1px solid var(--border-color);
             border-radius: 0.4rem;

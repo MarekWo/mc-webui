@@ -387,6 +387,7 @@ function paRenderTable() {
 }
 
 function paSetView(state) {
+    if (state !== 'map') paSetMapFullscreen(false);
     document.getElementById('paLoading').classList.toggle('d-none', state !== 'loading');
     document.getElementById('paEmpty').classList.toggle('d-none', state !== 'empty');
     document.getElementById('paTableWrap').classList.toggle('d-none', state !== 'table');
@@ -631,6 +632,11 @@ let paPathLayer = null;   // drawn path for the selected echo
 let paShowAllRepeaters = false;
 let paShowAltPaths = false;
 
+// Maximized map: on a phone the map is a ~45vh strip under the message
+// list, which is too small to read a route on. This lets it take over the
+// frame (and, via the parent, the modal header too).
+let paMapFullscreen = false;
+
 // Path drawing color - distinct from the purple base markers so the
 // route stands out (origin stays green, ambiguous candidates amber).
 const PA_PATH_COLOR = '#dc3545';
@@ -663,6 +669,54 @@ let paPicks = {};         // token -> public_key chosen by the user (collision d
 
 function paGeoContact(c) {
     return hasValidGps(c);
+}
+
+// Maximize control, top-right. Added before the overlay toggles so it
+// renders above them. Doubles as the way out: in maximized mode it turns
+// into a labelled Close button, mirroring the modal's own header button.
+function paAddFullscreenControl() {
+    const ctl = L.control({ position: 'topright' });
+    ctl.onAdd = () => {
+        const btn = L.DomUtil.create('button', 'pa-map-fs-btn');
+        btn.id = 'paMapFsBtn';
+        btn.type = 'button';
+        L.DomEvent.disableClickPropagation(btn);
+        L.DomEvent.on(btn, 'click', L.DomEvent.stop);
+        L.DomEvent.on(btn, 'click', () => paSetMapFullscreen(!paMapFullscreen));
+        return btn;
+    };
+    ctl.addTo(paMap);
+    paSyncFullscreenBtn();
+}
+
+function paSyncFullscreenBtn() {
+    const btn = document.getElementById('paMapFsBtn');
+    if (!btn) return;
+    btn.innerHTML = paMapFullscreen
+        ? `<i class="bi bi-x-lg"></i> ${tHtml('common.close')}`
+        : '<i class="bi bi-arrows-fullscreen"></i>';
+    btn.title = paMapFullscreen ? t('pa.map.exit_fullscreen') : t('pa.map.fullscreen');
+}
+
+function paSetMapFullscreen(on) {
+    if (paMapFullscreen === on) return;
+    paMapFullscreen = on;
+    document.body.classList.toggle('pa-map-full', on);
+    paSyncFullscreenBtn();
+
+    // The modal header sits in the parent document, outside this iframe
+    if (window.parent !== window) {
+        try {
+            window.parent.postMessage({ type: 'paMapFullscreen', on: on }, window.location.origin);
+        } catch (e) {
+            // Cross-origin embed - the in-frame maximize still works
+        }
+    }
+
+    // Same reason as in paRenderMapView: Leaflet must be told its box changed
+    setTimeout(() => {
+        if (paMap) paMap.invalidateSize();
+    }, 60);
 }
 
 // Overlay toggles live on the map itself, not in the shared filter bar -
@@ -702,6 +756,7 @@ function paInitMap() {
     paBaseLayer = L.layerGroup().addTo(paMap);
     paAltLayer = L.layerGroup().addTo(paMap);
     paPathLayer = L.layerGroup().addTo(paMap);
+    paAddFullscreenControl();
     paAddMapToggles();
 }
 
@@ -1271,6 +1326,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('paViewRoutesBtn').addEventListener('click', () => paSwitchView('routes'));
     document.getElementById('paViewMapBtn').addEventListener('click', () => paSwitchView('map'));
     document.getElementById('paMapClearBtn').addEventListener('click', paClearMapSelection);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && paMapFullscreen) paSetMapFullscreen(false);
+    });
     document.getElementById('paSegLenSelect').addEventListener('change', paApplyAndSaveFilters);
     document.querySelectorAll('#paStatsWrap .pa-sortable').forEach(th => {
         th.addEventListener('click', () => {
