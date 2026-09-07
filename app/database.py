@@ -1229,7 +1229,7 @@ class Database:
     def get_echoes_for_message(self, pkt_payload: str) -> List[Dict]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM echoes WHERE pkt_payload = ? ORDER BY received_at ASC",
+                "SELECT * FROM echoes WHERE pkt_payload = ? ORDER BY received_at ASC, id ASC",
                 (pkt_payload,)
             ).fetchall()
             return [dict(r) for r in rows]
@@ -1237,7 +1237,10 @@ class Database:
     def get_echoes_for_payloads(self, payloads: List[str]) -> Dict[str, List[Dict]]:
         """Batch-fetch echoes for many pkt_payloads with chunked IN queries.
 
-        Returns {pkt_payload: [echo dicts ordered by received_at]}.
+        Returns {pkt_payload: [echo dicts ordered by received_at]}. The
+        received_at column has one-second resolution, so ties are broken by
+        id to keep the order the copies were actually heard in — the first
+        one is the copy the firmware delivered.
         Chunked at 500 to stay under SQLite's host-parameter limit."""
         result: Dict[str, List[Dict]] = {}
         if not payloads:
@@ -1248,7 +1251,7 @@ class Database:
                 placeholders = ",".join("?" * len(chunk))
                 rows = conn.execute(
                     f"""SELECT * FROM echoes WHERE pkt_payload IN ({placeholders})
-                        ORDER BY received_at ASC""",
+                        ORDER BY received_at ASC, id ASC""",
                     chunk
                 ).fetchall()
                 for r in rows:

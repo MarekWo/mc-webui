@@ -1499,34 +1499,65 @@ async function refreshMessagesMeta(forceIds = []) {
     }
 }
 
+// Colour class per per-hop hash size: 1 byte is the least desirable (hashes
+// collide on a big mesh), 3 bytes the best.
+const PATH_HASH_CLASS = { 1: 'path-hash-1', 2: 'path-hash-2', 3: 'path-hash-3' };
+
 /**
- * Build the "SNR | Hops | Route | Region" line shown under an incoming
- * channel message. `src` is a /api/messages row or a /api/messages/meta
- * entry (same field names); `paths` is the echo-derived paths array.
+ * Turn a message's echo arrays (index-aligned, in the order the copies were
+ * heard) into popup entries. A copy heard straight from the sender has an
+ * empty path; the popup lists it as "Direct". `delivered` marks the copy the
+ * firmware actually decoded \u2014 matched on hop count and SNR against the
+ * message itself, since later copies were dropped as duplicates but still
+ * RX-logged. Own messages have no delivered copy (no hop count on the row).
+ * Returns null when nothing was heard.
+ */
+function buildEchoPaths(src) {
+    if (!src.echo_paths || src.echo_paths.length === 0) return null;
+    const paths = src.echo_paths.map((p, i) => {
+        const hashSize = (src.echo_hash_sizes ? src.echo_hash_sizes[i] : src.path_hash_size) || 1;
+        return {
+            path: p || '',
+            snr: src.echo_snrs ? src.echo_snrs[i] : null,
+            hash_size: hashSize,
+            hops: p ? Math.ceil(p.length / (hashSize * 2)) : 0,
+            delivered: false,
+        };
+    });
+    const msgHops = src.hop_count ?? (src.path_len !== null && src.path_len !== undefined ? (src.path_len & 0x3F) : null);
+    if (msgHops !== null) {
+        const msgSnr = (src.snr !== undefined && src.snr !== null) ? src.snr : null;
+        // Both SNRs are the same radio reading quantised to 0.25 dB; allow one quantum.
+        const hit = paths.find(p => p.hops === msgHops
+            && (msgSnr === null || p.snr === null || p.snr === undefined || Math.abs(p.snr - msgSnr) <= 0.26));
+        if (hit) hit.delivered = true;
+    }
+    return paths;
+}
+
+/**
+ * Build the "Route | Region" line shown under an incoming channel message.
+ * `src` is a /api/messages row or a /api/messages/meta entry (same field
+ * names); `paths` comes from buildEchoPaths().
  *
- * The route part names only the per-hop hash size ("2 bytes"): the routes
- * themselves live in the popup, since a 3-byte, 5-hop route no longer fits
- * next to SNR and hops on a phone. Region shows only when the packet was
+ * The route part names only the per-hop hash size ("2 bytes"), coloured by
+ * how good that size is: the routes themselves, with their SNR and hop
+ * counts, live in the popup, since even one 3-byte, 5-hop route no longer
+ * fits under a message on a phone. Region shows only when the packet was
  * flood-scoped to a region this instance knows (Settings \u2192 Channels).
  */
 function buildMessageMetaInfo(src, paths) {
     const metaParts = [];
-    // Use message SNR, or fall back to first echo path SNR
-    const displaySnr = (src.snr !== undefined && src.snr !== null) ? src.snr
-        : (src.echo_snrs && src.echo_snrs.length > 0) ? src.echo_snrs[0] : null;
-    if (displaySnr !== null) {
-        metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
-    }
-    const hopCount = src.hop_count ?? (src.path_len !== null && src.path_len !== undefined ? (src.path_len & 0x3F) : null);
-    if (hopCount !== null) {
-        metaParts.push(tHtml('chat.route_hops', { count: hopCount }));
-    }
     if (paths && paths.length > 0) {
-        const sizeLabel = tn('chat.route_hash_bytes', paths[0].hash_size || 1);
+        const hashSize = paths[0].hash_size || 1;
+        // The translated string is escaped as a whole, so the coloured span is
+        // spliced in afterwards through a placeholder the catalog never contains.
+        const TOKEN = '%%ROUTE%%';
+        const sizeHtml = `<span class="path-hash ${PATH_HASH_CLASS[hashSize] || ''}">${escapeHtml(tn('chat.route_hash_bytes', hashSize))}</span>`;
+        const routeText = (paths.length > 1
+            ? tHtml('chat.route_multi', { count: paths.length, route: TOKEN })
+            : tHtml('chat.route', { route: TOKEN })).replace(TOKEN, sizeHtml);
         const pathsData = encodeURIComponent(JSON.stringify(paths));
-        const routeText = paths.length > 1
-            ? tHtml('chat.route_multi', { count: paths.length, route: sizeLabel })
-            : tHtml('chat.route', { route: sizeLabel });
         metaParts.push(`<span class="path-info" title="${tHtml('chat.route_hash_title')}" onclick="showPathsPopup(this, '${pathsData}', '${src.packet_hash || ''}')">${routeText}</span>`);
     }
     if (src.region) {
@@ -1541,16 +1572,7 @@ function buildMessageMetaInfo(src, paths) {
 function updateMessageMetaDOM(wrapper, meta) {
     const isOwn = wrapper.classList.contains('own');
 
-    // Build paths from echo data
-    let paths = null;
-    if (meta.echo_paths && meta.echo_paths.length > 0) {
-        paths = meta.echo_paths.map((p, i) => ({
-            path: p,
-            snr: meta.echo_snrs ? meta.echo_snrs[i] : null,
-            hash_size: meta.echo_hash_sizes ? meta.echo_hash_sizes[i] : (meta.path_hash_size || 1),
-        }));
-    }
-    const metaInfo = buildMessageMetaInfo(meta, paths);
+    const metaInfo = buildMessageMetaInfo(meta, buildEchoPaths(meta));
 
     if (!isOwn) {
         // Update or insert .message-meta div
@@ -1591,7 +1613,7 @@ function updateMessageMetaDOM(wrapper, meta) {
             const echoHashSize = (meta.echo_hash_sizes && meta.echo_hash_sizes.length > 0)
                 ? meta.echo_hash_sizes[0] : (meta.path_hash_size || 1);
             const echoPrefixLen = echoHashSize * 2;
-            const echoPaths = [...new Set(meta.echo_paths.map(p => p.substring(0, echoPrefixLen).toUpperCase()))];
+            const echoPaths = [...new Set(meta.echo_paths.filter(Boolean).map(p => p.substring(0, echoPrefixLen).toUpperCase()))];
             const echoCount = echoPaths.length;
             const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
             const actionsEl = msgDiv.querySelector('.message-actions');
@@ -1657,13 +1679,7 @@ function createMessageElement(msg) {
     const time = formatTime(msg.timestamp);
 
     // Build paths from echo data if not already present
-    if (!msg.paths && msg.echo_paths && msg.echo_paths.length > 0) {
-        msg.paths = msg.echo_paths.map((p, i) => ({
-            path: p,
-            snr: msg.echo_snrs ? msg.echo_snrs[i] : null,
-            hash_size: msg.echo_hash_sizes ? msg.echo_hash_sizes[i] : (msg.path_hash_size || 1),
-        }));
-    }
+    if (!msg.paths) msg.paths = buildEchoPaths(msg);
 
     const metaInfo = buildMessageMetaInfo(msg, msg.paths);
 
@@ -1674,7 +1690,7 @@ function createMessageElement(msg) {
         const echoHS = (msg.echo_hash_sizes && msg.echo_hash_sizes.length > 0)
             ? msg.echo_hash_sizes[0] : (msg.path_hash_size || 1);
         const echoPrefixLen2 = echoHS * 2;
-        const echoPaths = [...new Set((msg.echo_paths || []).map(p => p.substring(0, echoPrefixLen2).toUpperCase()))];
+        const echoPaths = [...new Set((msg.echo_paths || []).filter(Boolean).map(p => p.substring(0, echoPrefixLen2).toUpperCase()))];
         const echoCount = echoPaths.length;
         const pathDisplay = echoPaths.length > 0 ? ` (${echoPaths.join(', ')})` : '';
         const echoDisplay = echoCount > 0
@@ -2070,17 +2086,29 @@ function showPathsPopup(element, encodedPaths, packetHash) {
                 segments.push(p.path.substring(j, j + pChunkLen).toUpperCase());
             }
         }
-        const fullRoute = segments.join(' \u2192 ');
+        // No path at all: the copy came straight from the sender (0 hops)
+        const isDirect = segments.length === 0;
+        const fullRoute = isDirect ? tHtml('chat.route_direct') : segments.join(' \u2192 ');
         const commaRoute = segments.join(',');
         const snr = p.snr !== null && p.snr !== undefined ? `${p.snr.toFixed(1)} dB` : '?';
         const hops = segments.length;
         const entry = document.createElement('div');
-        entry.className = 'path-entry';
+        entry.className = 'path-entry' + (isDirect ? ' direct' : '');
 
         const body = document.createElement('span');
         body.className = 'path-route';
-        body.innerHTML = `${fullRoute}<span class="path-detail">SNR: ${snr} | ${tHtml('chat.route_hops', { count: hops })}</span>`;
+        // The copy the node actually decoded; the others were heard later and dropped as duplicates
+        const delivered = p.delivered
+            ? ` \u00b7 <span class="path-delivered" title="${tHtml('chat.route_delivered_title')}"><i class="bi bi-check2"></i> ${tHtml('chat.route_delivered')}</span>`
+            : '';
+        body.innerHTML = `${fullRoute}<span class="path-detail">SNR: ${snr} | ${tHtml('chat.route_hops', { count: hops })}${delivered}</span>`;
         entry.appendChild(body);
+
+        if (isDirect) {
+            // Nothing to copy and nothing to draw on the Analyzer map
+            popup.appendChild(entry);
+            return;
+        }
 
         const copyBtn = document.createElement('i');
         copyBtn.className = 'bi bi-clipboard path-copy';
@@ -2118,11 +2146,19 @@ function showPathsPopup(element, encodedPaths, packetHash) {
     element.style.position = 'relative';
     element.appendChild(popup);
 
-    // Adjust if popup overflows viewport
-    const rect = popup.getBoundingClientRect();
-    if (rect.left < 4) {
-        popup.style.right = 'auto';
-        popup.style.left = '0';
+    // Open to the right of the tap target. It sits at the start of the line
+    // under a channel message, so a right-anchored popup would run under the
+    // channel sidebar on a desktop; flip only when the viewport's right edge
+    // is in the way (own DMs, where the target sits on the right).
+    popup.style.right = 'auto';
+    popup.style.left = '0';
+    if (popup.getBoundingClientRect().right > window.innerWidth - 4) {
+        popup.style.left = 'auto';
+        popup.style.right = '0';
+        if (popup.getBoundingClientRect().left < 4) {
+            popup.style.right = 'auto';
+            popup.style.left = '0';
+        }
     }
 
     // Auto-dismiss after configured timeout (unless disabled) or on outside tap

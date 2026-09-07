@@ -22,7 +22,10 @@
     --text-primary: #212529;
     --text-secondary: #495057;
     --text-muted: #6c757d;
-    --text-meta: #adb5bd;
+    --text-meta: #6c757d;           /* 4.5:1 on --msg-other-bg; the old #adb5bd was 2:1 */
+    --path-hash-1: #b8433a;         /* 1-byte hashes: softened red, 5.1:1 on the bubble */
+    --path-hash-2: #9c5811;         /* 2-byte: burnt orange, 5.2:1 */
+    --path-hash-3: #207a45;         /* 3-byte: muted green, 5.1:1 */
     --dm-meta-color: #8b939b;
 
     /* Borders */
@@ -179,7 +182,10 @@
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
-    --text-meta: #475569;
+    --text-meta: #8593a8;           /* 4.7:1 on --msg-other-bg; the old #475569 was 1.9:1 */
+    --path-hash-1: #f08a80;
+    --path-hash-2: #f0b061;
+    --path-hash-3: #7dd39a;
     --dm-meta-color: #5c6d82;
 
     /* Borders */

@@ -621,10 +621,7 @@ def get_messages():
             for msg, row in zip(messages, db_messages):
                 echoes = echoes_by_payload.get(msg.get('pkt_payload')) or []
                 if echoes:
-                    msg['echo_count'] = len(echoes)
-                    msg['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
-                    msg['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
-                    msg['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
+                    msg.update(_echo_fields(echoes))
                 region = _resolve_message_region(row, msg.get('pkt_payload'), echoes, regions)
                 if region:
                     msg['region'] = region
@@ -756,6 +753,24 @@ def get_path_analyzer_messages():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _echo_fields(echoes: list) -> dict:
+    """The echo arrays a message carries to the frontend, index-aligned.
+
+    One entry per copy of the packet the node heard, in the order it heard
+    them, so the first entry is normally the copy the firmware delivered
+    (later copies are dropped as duplicates but still RX-logged). A copy
+    heard straight from the sender has an empty path; it is kept, since it
+    is the delivered copy whenever the sender was in direct range, and the
+    routes popup lists it as "Direct".
+    """
+    return {
+        'echo_count': len(echoes),
+        'echo_paths': [e.get('path') or '' for e in echoes],
+        'echo_snrs': [e.get('snr') for e in echoes],
+        'echo_hash_sizes': [e.get('hash_size') or 1 for e in echoes],
+    }
+
+
 def _resolve_message_region(row: dict, pkt_payload, echoes: list, regions):
     """Name of the region this packet was flood-scoped to, or None.
 
@@ -801,10 +816,7 @@ def _build_message_meta(row: dict, pkt_payload, echoes: list, regions=None) -> d
     if pkt_payload:
         meta['packet_hash'] = compute_packet_hash(pkt_payload)
         if echoes:
-            meta['echo_count'] = len(echoes)
-            meta['echo_paths'] = [e.get('path', '') for e in echoes if e.get('path')]
-            meta['echo_snrs'] = [e.get('snr') for e in echoes if e.get('snr') is not None]
-            meta['echo_hash_sizes'] = [e.get('hash_size', 1) for e in echoes if e.get('path')]
+            meta.update(_echo_fields(echoes))
         region = _resolve_message_region(row, pkt_payload, echoes, regions)
         if region:
             meta['region'] = region

@@ -213,8 +213,9 @@ Your own messages carry a small row of action buttons:
 
 ### Group Chat Message Routes
 
-When your node overheard how a channel message travelled, a **Route** line appears under the message, saying how many routes were heard and how wide their per-hop hashes are (e.g. `Route (3): 2 bytes`). Tap it to open a popup listing every route the message arrived by, each with its SNR and hop count:
+When your node heard a channel message, a **Route** line appears under it, saying how many copies of the message were heard and how wide their per-hop hashes are, e.g. `Route (3): 2 bytes`. The hash size is coloured: **red** for 1 byte (such hashes collide easily on a big mesh), **orange** for 2 bytes and **green** for 3 bytes. Tap the line to open a popup listing every copy in the order they were heard, each with its route, SNR and hop count:
 
+- The copy your node actually decoded is marked **✓ received**; the others arrived later and were dropped as duplicates, but they still show where else the message travelled. A copy heard straight from the sender, with no repeater in between, is listed as **Direct** with 0 hops.
 - Tap a route to open the **[Path Analyzer](#path-analyzer)** on the Map view, with that message selected and that exact route drawn — the quickest way to see where a message physically travelled.
 - Each route also has a small clipboard icon to copy it in comma-separated form (e.g. `92,AD,40,D1`) for use in the console `change_path` command.
 
@@ -946,7 +947,7 @@ The app automatically picks one of four retry strategies depending on the contac
 - **Live view days** - Number of days of messages shown in the live view (older messages are archived)
 
 **Route popup** (applies to both channel messages and DMs):
-- **Auto-close after (s)** - Seconds before the route popup (shown when tapping "SNR | Hops" under a message) closes automatically (default: 8)
+- **Auto-close after (s)** - Seconds before the route popup (shown when tapping the Route line under a message) closes automatically (default: 8)
 - **Don't close automatically** - Popup stays open until you tap outside it
 
 ### Interface Tab

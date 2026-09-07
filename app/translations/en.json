@@ -148,6 +148,9 @@
   "chat.region_title": "Click to change region for this channel",
   "chat.route": "Route: {route}",
   "chat.route_analyzer_title": "Show this route on the Path Analyzer map",
+  "chat.route_delivered": "received",
+  "chat.route_delivered_title": "The copy your node received and decoded. The other copies arrived later and were dropped as duplicates",
+  "chat.route_direct": "Direct",
   "chat.route_hash_bytes": {
     "one": "{count} byte",
     "other": "{count} bytes"
@@ -1248,7 +1251,7 @@
   "settings.chat.quote_len": "Quote length (bytes)",
   "settings.chat.quote_len_help": "Default max UTF-8 bytes for truncated quotes",
   "settings.chat.route_popup": "Route popup",
-  "settings.chat.route_popup_desc": "The popup shown when tapping \"SNR | Hops\" under a message. Also applies to DMs.",
+  "settings.chat.route_popup_desc": "The popup shown when tapping the Route line under a message. Also applies to DMs.",
   "settings.contacts.auto_ignore": "Automatically add new contacts to \"Ignored\"",
   "settings.contacts.auto_ignore_help": "Every new advert is automatically marked as Ignored — no notifications, no badge. Contacts still appear under Existing Contacts (Cache) and can be promoted with 'To Device'. Requires Manual approval ON.",
   "settings.contacts.manual_approval": "Manual approval enabled",

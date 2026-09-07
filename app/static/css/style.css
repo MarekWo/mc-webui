@@ -465,10 +465,17 @@ main {
 
 /* Message Metadata */
 .message-meta {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: var(--text-meta);
     margin-top: 0.25rem;
 }
+
+/* Per-hop hash size in the route line: 1 byte collides easily on a big mesh
+   (least desirable), 3 bytes is the best. Tokens per theme in theme.css. */
+.path-hash { font-weight: 600; }   /* colour alone was too faint at this size on the light theme */
+.path-hash-1 { color: var(--path-hash-1); }
+.path-hash-2 { color: var(--path-hash-2); }
+.path-hash-3 { color: var(--path-hash-3); }
 
 /* Reply Button */
 .btn-reply {
@@ -1613,6 +1620,21 @@ main {
 
 .path-popup .path-entry:active {
     opacity: 0.6;
+}
+
+/* A copy heard straight from the sender: no route to copy or to draw */
+.path-popup .path-entry.direct {
+    cursor: default;
+}
+
+.path-popup .path-entry.direct:active {
+    opacity: 1;
+}
+
+/* The copy the node actually decoded (popup is dark in both themes) */
+.path-popup .path-delivered {
+    color: #7dd39a;
+    white-space: nowrap;
 }
 
 .path-popup .path-entry:last-child {

@@ -150,6 +150,9 @@
   "chat.region_title": "Kliknij, aby zmienić region dla tego kanału",
   "chat.route": "Trasa: {route}",
   "chat.route_analyzer_title": "Pokaż tę trasę na mapie Analizatora ścieżek",
+  "chat.route_delivered": "odebrana",
+  "chat.route_delivered_title": "Kopia, którą Twoje urządzenie odebrało i odkodowało. Pozostałe kopie dotarły później i zostały odrzucone jako duplikaty",
+  "chat.route_direct": "Bezpośrednio",
   "chat.route_hash_bytes": {
     "one": "{count} bajt",
     "few": "{count} bajty",
@@ -1322,7 +1325,7 @@
   "settings.chat.quote_len": "Długość cytatu (bajty)",
   "settings.chat.quote_len_help": "Domyślna maks. liczba bajtów UTF-8 dla skróconych cytatów",
   "settings.chat.route_popup": "Popup trasy",
-  "settings.chat.route_popup_desc": "Popup pokazywany po dotknięciu \"SNR | Hops\" pod wiadomością. Dotyczy także DM-ów.",
+  "settings.chat.route_popup_desc": "Popup pokazywany po dotknięciu linii Trasa pod wiadomością. Dotyczy także DM-ów.",
   "settings.contacts.auto_ignore": "Automatycznie dodawaj nowe kontakty do \"Ignorowanych\"",
   "settings.contacts.auto_ignore_help": "Każdy nowy advert jest automatycznie oznaczany jako ignorowany — bez powiadomień, bez plakietki. Kontakty nadal pojawiają się w Istniejących kontaktach (pamięć) i można je przenieść przyciskiem \"Na urządzenie\". Wymaga włączonego zatwierdzania ręcznego.",
   "settings.contacts.manual_approval": "Zatwierdzanie ręczne włączone",
