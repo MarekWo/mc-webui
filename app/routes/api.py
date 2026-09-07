@@ -7010,15 +7010,17 @@ def repeater_regions_post(public_key):
                 _repeater_result_status(result)
         reply = (result.get('reply') or '').strip()
         # The firmware answers `OK`, `OK - (flood allowed)`, ` home is now x` or
-        # ` default scope is now x`. Anything starting with `Err` is a failure,
-        # and an empty reply means the command never ran.
-        if reply.lower().startswith('err') or not reply:
-            return jsonify({'success': False, 'action': action, 'command': cmd,
-                            'reply': reply,
-                            'error': reply or 'Empty reply'}), 502
-        return jsonify({'success': True, 'action': action, 'command': cmd,
+        # ` default scope is now x`. Anything starting with `Err` is a refusal
+        # (`Err - not empty` for a region that still has children, `Err - unknown
+        # region`), and an empty reply means the command never ran. A refusal is
+        # the repeater enforcing its own rule, not a transport failure, so it
+        # comes back 200 with ok=false like the sibling action endpoints — the
+        # caller reads `ok`, and `dirty` stays false because nothing changed.
+        ok = not (reply.lower().startswith('err') or not reply)
+        return jsonify({'success': True, 'ok': ok, 'action': action, 'command': cmd,
                         'reply': reply,
-                        'dirty': action in _REGION_DIRTYING,
+                        'error': None if ok else (reply or 'Empty reply'),
+                        'dirty': ok and action in _REGION_DIRTYING,
                         'elapsed_ms': result.get('elapsed_ms')}), 200
     except Exception as e:
         logger.error(f"Error running repeater region action: {e}")

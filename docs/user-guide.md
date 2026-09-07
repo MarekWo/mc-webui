@@ -707,7 +707,9 @@ The screen lists what the repeater currently knows:
 - Each region below it shows **Flood allowed** or **Flood denied**. Regions can be nested, and a nested one is indented under its parent
 - The region marked **home** is the repeater's own place in that hierarchy
 
-The ⋮ menu on a row offers **Allow flood** / **Deny flood**, **Set as home region**, and **Delete region**. A region that still has regions nested under it cannot be deleted — remove the children first. **Add region** takes a name of up to 30 characters; letters, digits and `-`, `$`, `#` are accepted, spaces are not.
+The ⋮ menu on a row offers **Allow flood** / **Deny flood**, **Set as home region**, and **Delete region**. A region that still has regions nested under it cannot be deleted — remove the children first.
+
+**Add region** takes a name of up to 30 characters; letters, digits and `-`, `$`, `#` are accepted, spaces are not. The **Inside** picker next to it chooses where the new region goes: leave it on *top level* for an ordinary region, or pick an existing one to nest the new region inside it.
 
 - **Changes are not permanent until you save them.** Adding, deleting or changing a region takes effect on the repeater immediately, but lives only in its memory: an orange banner appears and the change is forgotten at the next reboot until you press **Save**. This mirrors the firmware, which keeps the region table in RAM and writes it to flash only when told to. Leaving the screen with unsaved changes asks for confirmation first
 - The **Default scope** card below the list is a separate setting: the region this repeater stamps on flood packets *it* sends itself, as opposed to which ones it forwards for others. Leave it on *none* and its own packets go out unscoped. This one the firmware saves by itself, so it does not need the Save button — the card says so

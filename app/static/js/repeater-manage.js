@@ -2170,10 +2170,14 @@ function renderRegionsPane(body) {
             <i class="bi bi-scissors me-1"></i>${tHtml('rptmgmt.reg.truncated')}
         </div>
         <div class="d-none mb-3" id="regAddForm">
-            <div class="input-group input-group-sm">
+            <div class="input-group input-group-sm mb-1">
                 <span class="input-group-text"><i class="bi bi-signpost"></i></span>
                 <input type="text" class="form-control" id="regNewName" maxlength="30"
                        placeholder="${tHtml('rptmgmt.reg.name_placeholder')}" autocomplete="off">
+            </div>
+            <div class="input-group input-group-sm">
+                <label class="input-group-text" for="regNewParent">${tHtml('rptmgmt.reg.parent')}</label>
+                <select class="form-select" id="regNewParent"></select>
                 <button type="button" class="btn btn-primary" id="regAddConfirm">
                     ${tHtml('rptmgmt.reg.add')}
                 </button>
@@ -2182,6 +2186,7 @@ function renderRegionsPane(body) {
                 </button>
             </div>
             <div class="form-text">${tHtml('rptmgmt.reg.name_help')}</div>
+            <div class="form-text">${tHtml('rptmgmt.reg.parent_help')}</div>
             <div class="small text-danger d-none" id="regAddError"></div>
         </div>
         <div id="regList"></div>
@@ -2222,6 +2227,8 @@ function toggleRegionAddForm(show) {
     if (open) {
         const input = document.getElementById('regNewName');
         input.value = '';
+        const parent = document.getElementById('regNewParent');
+        if (parent) parent.value = '';   // a new region goes to the top level unless asked
         input.focus();
     }
 }
@@ -2230,7 +2237,8 @@ function setRegionsBusy(busy) {
     _regionsBusy = busy;
     const pane = document.getElementById('paneBody');
     if (!pane) return;
-    pane.querySelectorAll('#regRefreshBtn, #regAddBtn, #regAddConfirm, #regDefaultApply, .reg-action')
+    pane.querySelectorAll('#regRefreshBtn, #regAddBtn, #regAddConfirm, #regDefaultApply, ' +
+                          '#regNewName, #regNewParent, #regDefaultSelect, .reg-action')
         .forEach(el => { el.disabled = busy; });
     const save = document.getElementById('regSaveBtn');
     if (save) save.disabled = busy || !_regionsDirty;
@@ -2281,6 +2289,19 @@ function renderRegionsList() {
         list.querySelectorAll('.reg-action').forEach(btn => {
             btn.addEventListener('click', () => runRegionAction(btn.dataset.action, btn.dataset.name));
         });
+    }
+
+    // The Add form's parent picker: any known region can hold children, and the
+    // root entry means "top level". Indented to mirror the list above it.
+    const parentSel = document.getElementById('regNewParent');
+    if (parentSel) {
+        const keep = parentSel.value;
+        parentSel.innerHTML = `<option value="">${esc(t('rptmgmt.reg.parent_root'))}</option>` +
+            entries.filter(e => !e.is_root)
+                   .map(e => `<option value="${esc(e.name)}">${' '.repeat((e.depth - 1) * 2)}${esc(e.name)}</option>`)
+                   .join('');
+        // Survive the refresh that follows every action, unless it is now gone.
+        if (keep && parentSel.querySelector(`option[value="${CSS.escape(keep)}"]`)) parentSel.value = keep;
     }
 
     // Default scope: the picker offers the regions this repeater knows about,
@@ -2355,6 +2376,14 @@ function regionRowHtml(e) {
         </div>`;
 }
 
+// A region action can fail two ways: the request never got through (success
+// false), or the repeater answered and refused (ok false — `Err - not empty`
+// when a region still has children). Both are failures to the caller, and
+// neither should mark the map dirty.
+function regionActionFailed(data) {
+    return !data.success || data.ok === false;
+}
+
 // Every region action is one mesh round-trip, so they are serialised behind
 // _regionsBusy and each one refreshes the tree it just changed.
 async function postRegionAction(payload) {
@@ -2377,7 +2406,7 @@ async function runRegionAction(action, name) {
     if (_regionsBusy) return;
     if (action === 'remove' && !window.confirm(t('rptmgmt.reg.confirm_remove', { name }))) return;
     const data = await postRegionAction({ action, name });
-    if (!data.success) {
+    if (regionActionFailed(data)) {
         showNotification(data.error || t('rptmgmt.reg.action_failed'), 'error');
         return;
     }
@@ -2398,15 +2427,18 @@ async function submitNewRegion() {
         return;
     }
     errEl.classList.add('d-none');
-    const data = await postRegionAction({ action: 'add', name });
-    if (!data.success) {
+    const parentEl = document.getElementById('regNewParent');
+    const parent = parentEl ? (parentEl.value || '') : '';
+    const data = await postRegionAction({ action: 'add', name, parent });
+    if (regionActionFailed(data)) {
         errEl.textContent = data.error || t('rptmgmt.reg.action_failed');
         errEl.classList.remove('d-none');
         return;
     }
     setRegionsDirty(true);
     toggleRegionAddForm(false);
-    showNotification(t('rptmgmt.reg.added', { name }), 'success');
+    showNotification(parent ? t('rptmgmt.reg.added_under', { name, parent })
+                            : t('rptmgmt.reg.added', { name }), 'success');
     await loadRegions();
 }
 
@@ -2423,7 +2455,7 @@ async function applyDefaultRegion() {
     }
     const data = await postRegionAction(name ? { action: 'set_default', name }
                                              : { action: 'clear_default' });
-    if (!data.success) {
+    if (regionActionFailed(data)) {
         showNotification(data.error || t('rptmgmt.reg.action_failed'), 'error');
         return;
     }
@@ -2434,7 +2466,7 @@ async function applyDefaultRegion() {
 async function saveRegions() {
     if (_regionsBusy) return;
     const data = await postRegionAction({ action: 'save' });
-    if (!data.success) {
+    if (regionActionFailed(data)) {
         showNotification(data.error || t('rptmgmt.reg.save_failed'), 'error');
         return;
     }
