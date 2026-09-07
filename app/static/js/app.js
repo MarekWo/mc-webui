@@ -1536,18 +1536,31 @@ function buildEchoPaths(src) {
 }
 
 /**
- * Build the "Route | Region" line shown under an incoming channel message.
- * `src` is a /api/messages row or a /api/messages/meta entry (same field
- * names); `paths` comes from buildEchoPaths().
+ * Build the "SNR | Hops | Route | Region" line shown under an incoming
+ * channel message. `src` is a /api/messages row or a /api/messages/meta
+ * entry (same field names); `paths` comes from buildEchoPaths().
  *
- * The route part names only the per-hop hash size ("2 bytes"), coloured by
- * how good that size is: the routes themselves, with their SNR and hop
- * counts, live in the popup, since even one 3-byte, 5-hop route no longer
- * fits under a message on a phone. Region shows only when the packet was
- * flood-scoped to a region this instance knows (Settings \u2192 Channels).
+ * SNR and hops describe the copy the node decoded and arrive with the
+ * message itself, so they show even when no echo was heard \u2014 a hop count
+ * at a glance says whether the popup is worth opening. The route part names
+ * only the per-hop hash size ("2 bytes"), coloured by how good that size
+ * is: the routes themselves live in the popup, since even one 3-byte,
+ * 5-hop route no longer fits under a message on a phone. Region shows only
+ * when the packet was flood-scoped to a region this instance knows
+ * (Settings \u2192 Channels).
  */
 function buildMessageMetaInfo(src, paths) {
     const metaParts = [];
+    // Message SNR, or the first heard copy's when the row has none
+    const displaySnr = (src.snr !== undefined && src.snr !== null) ? src.snr
+        : (src.echo_snrs && src.echo_snrs.length > 0) ? src.echo_snrs[0] : null;
+    if (typeof displaySnr === 'number') {
+        metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
+    }
+    const hopCount = src.hop_count ?? (src.path_len !== null && src.path_len !== undefined ? (src.path_len & 0x3F) : null);
+    if (hopCount !== null && hopCount !== undefined) {
+        metaParts.push(tHtml('chat.route_hops', { count: hopCount }));
+    }
     if (paths && paths.length > 0) {
         const hashSize = paths[0].hash_size || 1;
         // The translated string is escaped as a whole, so the coloured span is
@@ -2146,10 +2159,11 @@ function showPathsPopup(element, encodedPaths, packetHash) {
     element.style.position = 'relative';
     element.appendChild(popup);
 
-    // Open to the right of the tap target. It sits at the start of the line
-    // under a channel message, so a right-anchored popup would run under the
-    // channel sidebar on a desktop; flip only when the viewport's right edge
-    // is in the way (own DMs, where the target sits on the right).
+    // Open to the right of the tap target: a right-anchored popup ran under
+    // the channel sidebar on a desktop. Flip when the viewport's right edge is
+    // in the way (own DMs, where the target sits on the right), and when
+    // neither edge of the target works — a wide popup on a phone — pin it to
+    // the viewport's left margin instead.
     popup.style.right = 'auto';
     popup.style.left = '0';
     if (popup.getBoundingClientRect().right > window.innerWidth - 4) {
@@ -2157,7 +2171,7 @@ function showPathsPopup(element, encodedPaths, packetHash) {
         popup.style.right = '0';
         if (popup.getBoundingClientRect().left < 4) {
             popup.style.right = 'auto';
-            popup.style.left = '0';
+            popup.style.left = `${4 - element.getBoundingClientRect().left}px`;
         }
     }
 

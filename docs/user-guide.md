@@ -213,7 +213,7 @@ Your own messages carry a small row of action buttons:
 
 ### Group Chat Message Routes
 
-When your node heard a channel message, a **Route** line appears under it, saying how many copies of the message were heard and how wide their per-hop hashes are, e.g. `Route (3): 2 bytes`. The hash size is coloured: **red** for 1 byte (such hashes collide easily on a big mesh), **orange** for 2 bytes and **green** for 3 bytes. Tap the line to open a popup listing every copy in the order they were heard, each with its route, SNR and hop count:
+Under every incoming channel message a line shows the **SNR** and **hop count** of the copy your node decoded — they arrive with the message itself, so they are there even when nothing else was heard. When your node also heard the message being repeated, a **Route** part follows, saying how many copies were heard and how wide their per-hop hashes are, e.g. `SNR: 9.3 dB | Hops: 5 | Route (3): 2 bytes`. The hash size is coloured: **red** for 1 byte (such hashes collide easily on a big mesh), **orange** for 2 bytes and **green** for 3 bytes. Tap the Route part to open a popup listing every copy in the order they were heard, each with its route, SNR and hop count:
 
 - The copy your node actually decoded is marked **✓ received**; the others arrived later and were dropped as duplicates, but they still show where else the message travelled. A copy heard straight from the sender, with no repeater in between, is listed as **Direct** with 0 hops.
 - Tap a route to open the **[Path Analyzer](#path-analyzer)** on the Map view, with that message selected and that exact route drawn — the quickest way to see where a message physically travelled.
