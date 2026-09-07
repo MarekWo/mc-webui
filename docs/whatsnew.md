@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.16.0 — 2026-09-07
+
 ### Features
 
 - **Notification profiles — a channel can now alert you only about the messages that matter.** Until now a channel had two settings: everything or nothing. A busy regional channel therefore either buzzed all day or went silent, and the one message that named you got lost among the rest. Under **Settings → Notifications** you can now define **profiles**: a named set of rules such as *mentions my name*, *message contains "webui"* or *sender name contains "Kosu"*, with a choice of whether *any* rule or *all* of them must match. Then, in **Manage Channels**, the bell next to a channel opens a small menu instead of flipping a switch — **Off**, **Every message** (what you had before) or one of your profiles by name. A channel on a profile counts only matching messages: the red unread badge next to its name shows just those, the bell in the navbar and the app-icon badge add up just those, and the browser or Android notification is posted just for those. Everything else still arrives in the chat as before, it simply no longer asks for your attention. Matching ignores letter case and diacritics, so `krakow` finds *Kraków*, and a mention is your device name anywhere in the text, whether typed as `@[name]` or plainly. Direct messages are untouched: a message addressed to you personally always notifies. Deleting a profile puts the channels that used it back on *Every message* — louder, never quieter, is the safe direction to fail in.
