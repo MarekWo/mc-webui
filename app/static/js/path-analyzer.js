@@ -671,9 +671,10 @@ function paGeoContact(c) {
     return hasValidGps(c);
 }
 
-// Maximize control, top-right. Added before the overlay toggles so it
-// renders above them. Doubles as the way out: in maximized mode it turns
-// into a labelled Close button, mirroring the modal's own header button.
+// Maximize control, top-right - the one free corner (zoom sits top-left,
+// the overlay toggles bottom-left, attribution bottom-right). Doubles as
+// the way out: in maximized mode it turns into a labelled Close button,
+// mirroring the modal's own header button.
 function paAddFullscreenControl() {
     const ctl = L.control({ position: 'topright' });
     ctl.onAdd = () => {
@@ -720,9 +721,10 @@ function paSetMapFullscreen(on) {
 }
 
 // Overlay toggles live on the map itself, not in the shared filter bar -
-// they only make sense for this view
+// they only make sense for this view. Bottom-left keeps them clear of the
+// hop labels, which cluster around the drawn route in the middle.
 function paAddMapToggles() {
-    const ctl = L.control({ position: 'topright' });
+    const ctl = L.control({ position: 'bottomleft' });
     ctl.onAdd = () => {
         const box = L.DomUtil.create('div', 'pa-map-toggles');
         box.innerHTML =

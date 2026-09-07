@@ -800,14 +800,14 @@ Pick a message in the side list — each tile shows the sender, the channel it c
 - Unknown hops (no matching contact, or no position) are listed in the legend and the line is drawn dashed across the gap, so you can see which parts of the route are certain
 - If the sender is in your contacts with a position, it is added as a green origin point
 
-Two checkboxes in the map's top-right corner add context when you want it. Both start switched off, and switching them does not move or re-zoom the map, so you keep the view you panned to:
+Two checkboxes in the map's bottom-left corner add context when you want it. Both start switched off, and switching them does not move or re-zoom the map, so you keep the view you panned to:
 
 - **All repeaters** — plots every repeater from your contact list that has a position, as purple dots. Useful for judging which repeaters a route passed by but didn't use; leave it off to keep the route itself uncluttered
 - **Alternative paths** — draws the *other* routes your node overheard for the same message, each in its own light colour (blue, teal, orange, …). The matching coloured dot next to each route in the side list tells you which line is which, and tapping a line names the route and its SNR. Copies of one message usually share most of their route, so only the parts where an alternative actually **differs** are drawn — plus a dot where it ends, since often the last hop is the only difference
 
 The eraser button clears the drawn path. On phones the map takes a fixed share of the screen (about 45%) and the message list gets the rest, so scrolling through routes is comfortable.
 
-When that share is too small to read a long route on, the ⛶ button in the map's top-right corner maximizes the map: it takes over the whole screen, the panel header included, and the checkboxes stay reachable underneath. The same button then reads **✕ Close** and puts the map back where it was — as does the Escape key. Maximizing keeps the drawn route and the part of the map you had panned to, and switching to another view drops back to the normal layout on its own.
+When that share is too small to read a long route on, the ⛶ button in the map's top-right corner maximizes the map: it takes over the whole screen, the panel header included, and the two overlay checkboxes stay reachable in the bottom-left corner. The same button then reads **✕ Close** and puts the map back where it was — as does the Escape key. Maximizing keeps the drawn route and the part of the map you had panned to, and switching to another view drops back to the normal layout on its own.
 
 Everything in the Path Analyzer is based on what **your node** overheard — it's a local view of the mesh, not a global one. A route you don't see here may still exist; it just never reached your radio.
 
