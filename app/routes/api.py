@@ -6781,6 +6781,250 @@ def repeater_settings_post(public_key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+
+# =============================================================================
+# Repeater region management (Settings → Regions)
+# =============================================================================
+#
+# A repeater decides which flood-scoped packets it forwards from its own region
+# map, edited over text CLI (`region ...`, helpers/CommonCLI.cpp). Two firmware
+# details shape everything below.
+#
+# 1. Edits are RAM-only. `put`, `remove`, `allowf` and `denyf` mutate the map in
+#    memory and are lost on reboot until `region save` writes it to flash, so
+#    the UI stages edits behind an explicit Save. `region default` is the one
+#    exception: the firmware calls saveRegions() itself, so it persists alone.
+#
+# 2. The bare `region` reply is an indented tree capped at 160 bytes by the
+#    firmware (`exportTo(reply, 160)`), one line per region:
+#
+#        *^ F        <- wildcard root, `^` = home region, ` F` = flood allowed
+#         pl F       <- one space of indent per level of nesting
+#         kra        <- no ` F` suffix means flood denied
+#
+#    With enough regions that tree does not fit and the firmware truncates it
+#    silently, so the parser reports truncation rather than pretending the tail
+#    was never there.
+#
+# The binary AnonReqType.REGIONS request (device_manager.repeater_req_regions)
+# is deliberately not used here: it answers with exportNamesTo(), a flat
+# comma-separated list of *allowed* names only — no hierarchy, no deny flags and
+# no home marker, which is most of what this screen shows.
+
+_REGION_TREE_MAX = 160  # firmware's exportTo() buffer; see note above
+
+# Actions that only touch the in-RAM map, so the UI must follow them with
+# `save`. `set_default` and `clear_default` are absent: the firmware persists
+# those itself.
+_REGION_DIRTYING = frozenset({'add', 'remove', 'allow_flood', 'deny_flood', 'set_home'})
+
+
+def _parse_region_line(line):
+    """One line of the `region` tree → (depth, name, flood_allowed, is_home).
+
+    Returns None for a blank line. Suffixes are stripped right-to-left because a
+    region may legitimately be named `F` or end in `^`; the firmware has the
+    same ambiguity and resolves it the same way.
+    """
+    stripped = line.lstrip(' ')
+    if not stripped.strip():
+        return None
+    depth = len(line) - len(stripped)
+    body = stripped.strip()
+    flood_allowed = body.endswith(' F')
+    if flood_allowed:
+        body = body[:-2].rstrip()
+    is_home = body.endswith('^')
+    if is_home:
+        body = body[:-1]
+    if not body:
+        return None
+    # Stored names may carry the `#` that marks an auto-derived scope key. The
+    # tree export strips it but `region get` does not, so strip it either way
+    # and a name read here is the same string the user typed.
+    return depth, body.lstrip('#'), flood_allowed, is_home
+
+
+def _parse_region_tree(raw):
+    """Parse a bare `region` reply into a flat list of entries with parents.
+
+    Entries keep tree order and carry `depth` plus `parent` (the enclosing
+    region's name, None at the root) so the UI can indent without re-deriving
+    the hierarchy.
+    """
+    entries = []
+    stack = []  # (depth, name) of the currently open ancestors
+    for line in (raw or '').split('\n'):
+        parsed = _parse_region_line(line)
+        if not parsed:
+            continue
+        depth, name, flood_allowed, is_home = parsed
+        while stack and stack[-1][0] >= depth:
+            stack.pop()
+        entries.append({
+            'name': name,
+            'depth': depth,
+            'parent': stack[-1][1] if stack else None,
+            'flood_allowed': flood_allowed,
+            'is_home': is_home,
+            'is_root': name == '*',
+        })
+        stack.append((depth, name))
+    return entries
+
+
+def _region_tree_truncated(raw):
+    """True when the firmware's 160-byte export buffer clipped the tree.
+
+    A complete export always ends with the newline printChildRegions() writes
+    after the last region, so a full-length reply without one lost its tail.
+    """
+    text = raw or ''
+    return len(text) >= _REGION_TREE_MAX - 2 and not text.endswith('\n')
+
+
+@api_bp.route('/repeaters/<public_key>/regions', methods=['GET'])
+def repeater_regions_get(public_key):
+    """Read a repeater's region map: the tree plus its default flood scope.
+
+    Two mesh round-trips (`region`, `region default`), reported independently so
+    a lost reply for one still returns the other. Like every settings read it
+    happens only when asked for. Admin-gated, as all text CLI traffic is.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    try:
+        tree = dm.repeater_cmd_wait(pk, 'region', timeout=_SETTINGS_FIELD_TIMEOUT)
+        if not tree.get('success'):
+            return jsonify({'success': False,
+                            'error': tree.get('error', 'Could not read regions')}), \
+                _repeater_result_status(tree)
+        raw = tree.get('reply') or ''
+        if raw.strip().lower().startswith('err'):
+            return jsonify({'success': False, 'error': raw.strip()}), 502
+
+        payload = {
+            'success': True,
+            'entries': _parse_region_tree(raw),
+            'truncated': _region_tree_truncated(raw),
+            'raw': raw,
+        }
+
+        # The default scope is a separate command, and a failure there is not
+        # fatal to the read: it is reported alongside the tree, not over it.
+        default = dm.repeater_cmd_wait(pk, 'region default',
+                                       timeout=_SETTINGS_FIELD_TIMEOUT)
+        if default.get('success'):
+            reply = (default.get('reply') or '').strip()
+            marker = 'default scope is'   # ` default scope is <name>` / `<null>`
+            if marker in reply:
+                name = reply.split(marker, 1)[1].strip()
+                payload['default_scope'] = None if name in ('<null>', '') else name.lstrip('#')
+            else:
+                payload['default_error'] = reply or 'Empty reply'
+        else:
+            payload['default_error'] = default.get('error') or 'Request failed'
+        return jsonify(payload), 200
+    except Exception as e:
+        logger.error(f"Error reading repeater regions: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _region_command(action, name, parent):
+    """Region action → (CLI command text, None), or (None, error message)."""
+    if action == 'save':
+        return 'region save', None
+    if action == 'clear_default':
+        return 'region default <null>', None
+    if not name:
+        return None, 'Missing region name'
+    # `*` is the wildcard root: it always exists, cannot be created or deleted,
+    # and only its flood flag and home marker are editable.
+    if name == '*':
+        if action not in ('allow_flood', 'deny_flood', 'set_home'):
+            return None, 'The wildcard region cannot be added, removed or made default'
+    else:
+        ok, err = is_valid_region_name(name)
+        if not ok:
+            return None, err
+    if action == 'add':
+        if parent and parent != '*':
+            ok, err = is_valid_region_name(parent)
+            if not ok:
+                return None, f'Invalid parent: {err}'
+            return f'region put {name} {parent}', None
+        return f'region put {name}', None
+    commands = {
+        'remove':      f'region remove {name}',
+        'allow_flood': f'region allowf {name}',
+        'deny_flood':  f'region denyf {name}',
+        'set_home':    f'region home {name}',
+        'set_default': f'region default {name}',
+    }
+    cmd = commands.get(action)
+    return (cmd, None) if cmd else (None, f'Unknown action: {action}')
+
+
+@api_bp.route('/repeaters/<public_key>/regions', methods=['POST'])
+def repeater_regions_post(public_key):
+    """Run one region action on a repeater.
+
+    Body: {'action': ..., 'name': ..., 'parent': ...}. One CLI command per
+    request rather than a batch, so the UI can report each step as it happens:
+    a mesh round-trip is over a second, and a batch failing halfway would leave
+    the caller unsure what landed. `dirty` in the reply says the change is in
+    RAM only and still needs a `save`.
+    """
+    dm = _get_dm()
+    if not dm:
+        return jsonify({'success': False, 'error': 'Device not connected'}), 503
+    pk = _normalize_repeater_key(public_key)
+    if not pk:
+        return jsonify({'success': False, 'error': 'Invalid public_key'}), 400
+    auth_error = _require_repeater_admin(dm, pk)
+    if auth_error:
+        return auth_error
+    data = request.get_json(silent=True) or {}
+    action = (data.get('action') or '').strip()
+    name = (data.get('name') or '').strip()
+    parent = (data.get('parent') or '').strip()
+    # A newline would split the CLI text into a second command, and a space
+    # would shift the remainder into the next positional argument.
+    if any(c in (name + parent) for c in '\r\n '):
+        return jsonify({'success': False, 'error': 'Invalid region name'}), 400
+    cmd, error = _region_command(action, name, parent)
+    if error:
+        return jsonify({'success': False, 'error': error}), 400
+    try:
+        result = dm.repeater_cmd_wait(pk, cmd, timeout=_SETTINGS_FIELD_TIMEOUT)
+        if not result.get('success'):
+            return jsonify({'success': False,
+                            'error': result.get('error', 'Region command failed')}), \
+                _repeater_result_status(result)
+        reply = (result.get('reply') or '').strip()
+        # The firmware answers `OK`, `OK - (flood allowed)`, ` home is now x` or
+        # ` default scope is now x`. Anything starting with `Err` is a failure,
+        # and an empty reply means the command never ran.
+        if reply.lower().startswith('err') or not reply:
+            return jsonify({'success': False, 'action': action, 'command': cmd,
+                            'reply': reply,
+                            'error': reply or 'Empty reply'}), 502
+        return jsonify({'success': True, 'action': action, 'command': cmd,
+                        'reply': reply,
+                        'dirty': action in _REGION_DIRTYING,
+                        'elapsed_ms': result.get('elapsed_ms')}), 200
+    except Exception as e:
+        logger.error(f"Error running repeater region action: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # Action key → CLI command. `advert` alone floods the whole mesh;
 # `advert.zerohop` reaches direct neighbours only. `reboot` and `poweroff`
 # never reply: the firmware acts immediately without building one.

@@ -695,6 +695,25 @@ Repeater configuration organized into collapsible sections: **Basic** (name, adm
 - The **Location** section has a **Pick from map** button (enabled once latitude and longitude have values): it opens a map, and clicking a point fills the latitude and longitude fields for you and marks the section changed, ready to Apply — handy when you know where the repeater is but not its exact coordinates
 - The admin password is write-only (the current one is never displayed). After a successful change, the password saved in mc-webui is updated automatically so one-click login keeps working. Changing it does **not** log out sessions that are already active
 
+#### Regions (admin only)
+
+At the foot of the Settings page is a **Regions** row, opening a screen of its own. It controls which *flood-scoped* packets the repeater passes on — until now this was only reachable through the CLI (`region ...`).
+
+A region is just a name, like `pl`. A sender can stamp that name on a flood packet, and only repeaters that allow the region will forward it; everyone else drops it. That is how a busy mesh keeps regional traffic regional instead of flooding the whole network.
+
+The screen lists what the repeater currently knows:
+
+- The first row, **Packets without a region scope** (`*`), is the rule for unstamped packets — the ordinary case. It always exists and cannot be deleted, but its flood setting can be changed like any other
+- Each region below it shows **Flood allowed** or **Flood denied**. Regions can be nested, and a nested one is indented under its parent
+- The region marked **home** is the repeater's own place in that hierarchy
+
+The ⋮ menu on a row offers **Allow flood** / **Deny flood**, **Set as home region**, and **Delete region**. A region that still has regions nested under it cannot be deleted — remove the children first. **Add region** takes a name of up to 30 characters; letters, digits and `-`, `$`, `#` are accepted, spaces are not.
+
+- **Changes are not permanent until you save them.** Adding, deleting or changing a region takes effect on the repeater immediately, but lives only in its memory: an orange banner appears and the change is forgotten at the next reboot until you press **Save**. This mirrors the firmware, which keeps the region table in RAM and writes it to flash only when told to. Leaving the screen with unsaved changes asks for confirmation first
+- The **Default scope** card below the list is a separate setting: the region this repeater stamps on flood packets *it* sends itself, as opposed to which ones it forwards for others. Leave it on *none* and its own packets go out unscoped. This one the firmware saves by itself, so it does not need the Save button — the card says so
+- Each action is one round-trip through the mesh, so an occasional timeout is normal; press the refresh button and try again
+- Very large region tables can exceed what the repeater fits into a single reply. If that happens the list says so — use the CLI (`region list allowed`) to see the rest
+
 #### Actions (admin only)
 
 One-click operations:

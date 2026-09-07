@@ -10,6 +10,12 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Features
+
+- **Repeater regions can now be managed from the interface, not just the CLI.** A repeater decides which *flood-scoped* packets it passes on from its own list of regions — a name like `pl` that a sender stamps on a packet, which only repeaters allowing that region will forward. Setting that up meant typing `region` commands into the console and reading back an indented text tree. **My Repeaters → Settings → Regions** now shows that tree as a list: each region with its **Flood allowed** / **Flood denied** state, nested regions indented under their parent, and the **home** region marked. A ⋮ menu on each row allows or denies flood, sets the home region, or deletes it, and **Add region** takes a name directly. The wildcard row at the top — *Packets without a region scope* — is the rule for ordinary unstamped packets, and can be switched like any other. Below the list, **Default scope** sets the region this repeater stamps on packets it sends itself.
+
+  Changes behave the way the firmware does, and the screen is explicit about it: adding, deleting or switching a region takes effect at once but lives only in the repeater's memory, so an orange banner appears until you press **Save**, and leaving with unsaved changes asks first. Without that save the repeater forgets them at its next reboot. The Default scope card is the exception — the firmware stores that one by itself, and the card says so.
+
 ---
 
 ## 2.16.0 — 2026-09-07

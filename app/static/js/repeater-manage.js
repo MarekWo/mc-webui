@@ -113,6 +113,8 @@ let _repeater = null;   // merged entry from GET /api/repeaters/<pk>
 let _session = null;    // {logged_in, is_admin, ...}
 let _passwordModal = null;
 let _powerOffModal = null;
+let _paneCurrent = null;   // key of the open tool pane, null on the grid
+let _paneParent = null;    // pane to return to, for panes opened from a pane
 
 // ================================================================
 // State screens
@@ -143,6 +145,8 @@ function showPanel() {
 }
 
 function goBackToList() {
+    // Leaving the page entirely also abandons unsaved region edits.
+    if (_paneCurrent === 'regions' && !confirmLeavingRegions()) return;
     window.location.href = '/repeaters';
 }
 
@@ -217,11 +221,28 @@ function renderTools() {
 // ================================================================
 
 function showToolsGrid() {
+    _paneCurrent = null;
+    _paneParent = null;
     document.getElementById('toolsGrid').style.display = '';
     document.getElementById('toolPane').style.display = 'none';
 }
 
+// A pane opened from inside another one (Settings → Regions) remembers where it
+// came from, so the pane back arrow returns there instead of jumping to the
+// grid two levels up.
+function closeToolPane() {
+    if (_paneCurrent === 'regions' && !confirmLeavingRegions()) return;
+    const parent = _paneParent ? TOOLS.find(x => x.key === _paneParent) : null;
+    if (parent) {
+        openToolPane(parent);
+        return;
+    }
+    showToolsGrid();
+}
+
 function openToolPane(tool) {
+    _paneCurrent = tool.key;
+    _paneParent = tool.parent || null;
     document.getElementById('toolsGrid').style.display = 'none';
     const pane = document.getElementById('toolPane');
     pane.style.display = '';
@@ -257,6 +278,10 @@ function openToolPane(tool) {
     }
     if (tool.key === 'actions') {
         renderActionsPane(body);
+        return;
+    }
+    if (tool.key === 'regions') {
+        renderRegionsPane(body);
         return;
     }
     body.innerHTML = `
@@ -1458,10 +1483,26 @@ function renderSettingsPane(body) {
         </div>`;
     }).join('');
 
+    // Regions is not a list of scalar fields like the sections above — it is a
+    // list with its own add/remove and an explicit save — so it gets a screen of
+    // its own rather than a ninth accordion, reached from this row.
     body.innerHTML = `
         <p class="text-muted small mb-2">${tHtml('rptmgmt.set.intro')}</p>
         <div class="accordion" id="settingsAccordion">${items}</div>
+        <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2 mt-3 rounded border"
+                id="settingsRegionsRow">
+            <span class="tool-icon regions" style="width: 32px; height: 32px; font-size: 1rem;">
+                <i class="bi ${REGIONS_TOOL.icon}"></i>
+            </span>
+            <span class="flex-grow-1 text-start">
+                <span class="d-block fw-semibold">${tHtml('rptmgmt.reg.title')}</span>
+                <span class="d-block small text-muted">${tHtml('rptmgmt.reg.row_desc')}</span>
+            </span>
+            <i class="bi bi-chevron-right text-muted"></i>
+        </button>
     `;
+    body.querySelector('#settingsRegionsRow')
+        .addEventListener('click', () => openToolPane(REGIONS_TOOL));
 
     const cache = loadSettingsCache();
     SETTINGS_SECTIONS.forEach(sec => {
@@ -2069,6 +2110,347 @@ function applyLocationFromMap() {
 }
 
 // ================================================================
+// Regions (Settings → Regions)
+// ================================================================
+
+// Reached from a row at the foot of the Settings pane rather than from a tile
+// of its own, so it is not in TOOLS — openToolPane() takes any descriptor.
+const REGIONS_TOOL = { key: 'regions', icon: 'bi-signpost-split',
+                       title: 'rptmgmt.reg.title', parent: 'settings' };
+
+let _regionsData = null;    // last GET /regions payload
+let _regionsDirty = false;  // edits sent to RAM but not yet `region save`d
+let _regionsBusy = false;   // one region command in flight
+
+// Placeholder value for the default-scope picker when that read failed. Not a
+// region name: `?` is not a legal one (RegionMap::is_name_char rejects 0x3f).
+const REGION_DEFAULT_UNKNOWN = '?';
+
+// Mirrors RegionMap::is_name_char in the firmware (and is_valid_region_name in
+// app/meshcore/regions.py): '-', '$', '#', digits, or any byte >= 'A'. The
+// server validates too — this only spares the user a mesh round-trip to learn
+// the name was never going to be accepted.
+function isValidRepeaterRegionName(name) {
+    if (!name) return t('rptmgmt.reg.err_empty');
+    const bytes = new TextEncoder().encode(name);
+    if (bytes.length > 30) return t('rptmgmt.reg.err_long', { max: 30 });
+    for (const b of bytes) {
+        if (b === 0x2d || b === 0x24 || b === 0x23) continue;   // - $ #
+        if (b >= 0x30 && b <= 0x39) continue;                   // digits
+        if (b >= 0x41) continue;                                // 'A' and up
+        return t('rptmgmt.reg.err_char');
+    }
+    return null;
+}
+
+function renderRegionsPane(body) {
+    _regionsData = null;
+    _regionsDirty = false;
+    _regionsBusy = false;
+    body.innerHTML = `
+        <p class="text-muted small mb-2">${tHtml('rptmgmt.reg.intro')}</p>
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="regRefreshBtn"
+                    title="${tHtml('rptmgmt.reg.refresh_title')}">
+                <i class="bi bi-arrow-clockwise"></i>
+                <span class="d-none d-sm-inline">${tHtml('common.refresh')}</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="regAddBtn">
+                <i class="bi bi-plus-lg"></i> ${tHtml('rptmgmt.reg.add')}
+            </button>
+            <button type="button" class="btn btn-sm btn-success ms-auto" id="regSaveBtn" disabled
+                    title="${tHtml('rptmgmt.reg.save_title')}">
+                <i class="bi bi-hdd"></i> ${tHtml('rptmgmt.reg.save')}
+            </button>
+        </div>
+        <div class="alert alert-warning py-2 px-2 small d-none" id="regDirtyBanner">
+            <i class="bi bi-exclamation-triangle me-1"></i>${tHtml('rptmgmt.reg.dirty_note')}
+        </div>
+        <div class="alert alert-warning py-2 px-2 small d-none" id="regTruncBanner">
+            <i class="bi bi-scissors me-1"></i>${tHtml('rptmgmt.reg.truncated')}
+        </div>
+        <div class="d-none mb-3" id="regAddForm">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="bi bi-signpost"></i></span>
+                <input type="text" class="form-control" id="regNewName" maxlength="30"
+                       placeholder="${tHtml('rptmgmt.reg.name_placeholder')}" autocomplete="off">
+                <button type="button" class="btn btn-primary" id="regAddConfirm">
+                    ${tHtml('rptmgmt.reg.add')}
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="regAddCancel">
+                    ${tHtml('common.cancel')}
+                </button>
+            </div>
+            <div class="form-text">${tHtml('rptmgmt.reg.name_help')}</div>
+            <div class="small text-danger d-none" id="regAddError"></div>
+        </div>
+        <div id="regList"></div>
+        <div class="card mt-3" id="regDefaultCard">
+            <div class="card-body py-2 px-3">
+                <div class="small fw-semibold mb-1">
+                    <i class="bi bi-broadcast-pin me-1"></i>${tHtml('rptmgmt.reg.default_title')}
+                </div>
+                <div class="small text-muted mb-2">${tHtml('rptmgmt.reg.default_help')}</div>
+                <div class="input-group input-group-sm">
+                    <select class="form-select" id="regDefaultSelect"></select>
+                    <button type="button" class="btn btn-outline-primary" id="regDefaultApply">
+                        ${tHtml('common.apply')}
+                    </button>
+                </div>
+                <div class="small text-muted mt-1" id="regDefaultNote"></div>
+            </div>
+        </div>
+    `;
+    body.querySelector('#regRefreshBtn').addEventListener('click', () => loadRegions());
+    body.querySelector('#regSaveBtn').addEventListener('click', saveRegions);
+    body.querySelector('#regAddBtn').addEventListener('click', toggleRegionAddForm);
+    body.querySelector('#regAddCancel').addEventListener('click', () => toggleRegionAddForm(false));
+    body.querySelector('#regAddConfirm').addEventListener('click', submitNewRegion);
+    body.querySelector('#regNewName').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); submitNewRegion(); }
+    });
+    body.querySelector('#regDefaultApply').addEventListener('click', applyDefaultRegion);
+    loadRegions();
+}
+
+function toggleRegionAddForm(show) {
+    const form = document.getElementById('regAddForm');
+    if (!form) return;
+    const open = (show === undefined) ? form.classList.contains('d-none') : !!show;
+    form.classList.toggle('d-none', !open);
+    document.getElementById('regAddError').classList.add('d-none');
+    if (open) {
+        const input = document.getElementById('regNewName');
+        input.value = '';
+        input.focus();
+    }
+}
+
+function setRegionsBusy(busy) {
+    _regionsBusy = busy;
+    const pane = document.getElementById('paneBody');
+    if (!pane) return;
+    pane.querySelectorAll('#regRefreshBtn, #regAddBtn, #regAddConfirm, #regDefaultApply, .reg-action')
+        .forEach(el => { el.disabled = busy; });
+    const save = document.getElementById('regSaveBtn');
+    if (save) save.disabled = busy || !_regionsDirty;
+}
+
+function setRegionsDirty(dirty) {
+    _regionsDirty = dirty;
+    const banner = document.getElementById('regDirtyBanner');
+    if (banner) banner.classList.toggle('d-none', !dirty);
+    const save = document.getElementById('regSaveBtn');
+    if (save) save.disabled = _regionsBusy || !dirty;
+}
+
+async function loadRegions() {
+    const list = document.getElementById('regList');
+    if (!list) return;
+    list.innerHTML = `<div class="text-muted text-center py-4">
+        <span class="spinner-border spinner-border-sm me-2"></span>${tHtml('rptmgmt.reg.reading')}</div>`;
+    setRegionsBusy(true);
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/regions`);
+        const data = await resp.json();
+        if (!data.success) {
+            list.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${esc(data.error || t('rptmgmt.reg.read_failed'))}</div>`;
+            return;
+        }
+        _regionsData = data;
+        renderRegionsList();
+    } catch (e) {
+        list.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${esc(String(e))}</div>`;
+    } finally {
+        setRegionsBusy(false);
+    }
+}
+
+function renderRegionsList() {
+    const list = document.getElementById('regList');
+    const data = _regionsData;
+    if (!list || !data) return;
+
+    document.getElementById('regTruncBanner').classList.toggle('d-none', !data.truncated);
+
+    const entries = data.entries || [];
+    if (!entries.length) {
+        list.innerHTML = `<div class="text-muted text-center py-4">${tHtml('rptmgmt.reg.none')}</div>`;
+    } else {
+        list.innerHTML = `<div class="list-group">${entries.map(regionRowHtml).join('')}</div>`;
+        list.querySelectorAll('.reg-action').forEach(btn => {
+            btn.addEventListener('click', () => runRegionAction(btn.dataset.action, btn.dataset.name));
+        });
+    }
+
+    // Default scope: the picker offers the regions this repeater knows about,
+    // plus the unscoped option the firmware spells `<null>`. When that read is
+    // the one that got lost, the picker says so instead of resting on "none" —
+    // an unanswered command must not read as an answer of no scope.
+    const select = document.getElementById('regDefaultSelect');
+    const unread = !!data.default_error;
+    const current = data.default_scope || '';
+    const options = entries.filter(e => !e.is_root)
+        .map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`);
+    options.unshift(`<option value="">${esc(t('rptmgmt.reg.default_none'))}</option>`);
+    if (unread) options.unshift(`<option value="${REGION_DEFAULT_UNKNOWN}">${esc(t('rptmgmt.reg.default_unknown'))}</option>`);
+    select.innerHTML = options.join('');
+    select.value = unread ? REGION_DEFAULT_UNKNOWN : current;
+    const note = document.getElementById('regDefaultNote');
+    if (unread) {
+        note.className = 'small text-danger mt-1';
+        note.textContent = t('rptmgmt.reg.default_unread', { error: data.default_error });
+    } else {
+        note.className = 'small text-muted mt-1';
+        note.textContent = current
+            ? t('rptmgmt.reg.default_current', { name: current })
+            : t('rptmgmt.reg.default_current_none');
+    }
+}
+
+function regionRowHtml(e) {
+    // The wildcard row is the repeater's rule for packets that carry no scope
+    // at all. It always exists in the firmware, so it has no Delete.
+    const label = e.is_root ? t('rptmgmt.reg.wildcard') : e.name;
+    const flood = e.flood_allowed ? t('rptmgmt.reg.flood_allowed') : t('rptmgmt.reg.flood_denied');
+    const icon = e.flood_allowed
+        ? '<i class="bi bi-check-circle-fill text-success"></i>'
+        : '<i class="bi bi-slash-circle-fill text-secondary"></i>';
+    const indent = Math.min(e.depth, 4) * 16;
+    return `
+        <div class="list-group-item d-flex align-items-center gap-2 py-2">
+            <span style="padding-left: ${indent}px;">${icon}</span>
+            <div class="flex-grow-1" style="min-width: 0;">
+                <div class="d-flex align-items-center gap-1">
+                    ${e.is_root ? '<span class="font-monospace flex-shrink-0">*</span>' : ''}
+                    <span class="text-truncate">${esc(label)}</span>
+                    ${e.is_home ? `<span class="badge bg-primary-subtle text-primary-emphasis flex-shrink-0">${esc(t('rptmgmt.reg.home'))}</span>` : ''}
+                </div>
+                <div class="small text-muted">${esc(flood)}</div>
+            </div>
+            <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-outline-secondary reg-menu"
+                        data-bs-toggle="dropdown" aria-expanded="false"
+                        title="${tHtml('rptmgmt.reg.menu_title')}">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><button type="button" class="dropdown-item reg-action"
+                            data-action="${e.flood_allowed ? 'deny_flood' : 'allow_flood'}" data-name="${esc(e.name)}">
+                        <i class="bi ${e.flood_allowed ? 'bi-slash-circle' : 'bi-check-circle'} me-2"></i>${e.flood_allowed ? tHtml('rptmgmt.reg.deny_flood') : tHtml('rptmgmt.reg.allow_flood')}
+                    </button></li>
+                    ${e.is_home ? '' : `
+                    <li><button type="button" class="dropdown-item reg-action"
+                            data-action="set_home" data-name="${esc(e.name)}">
+                        <i class="bi bi-house me-2"></i>${tHtml('rptmgmt.reg.set_home')}
+                    </button></li>`}
+                    ${e.is_root ? '' : `
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button type="button" class="dropdown-item text-danger reg-action"
+                            data-action="remove" data-name="${esc(e.name)}">
+                        <i class="bi bi-trash me-2"></i>${tHtml('rptmgmt.reg.remove')}
+                    </button></li>`}
+                </ul>
+            </div>
+        </div>`;
+}
+
+// Every region action is one mesh round-trip, so they are serialised behind
+// _regionsBusy and each one refreshes the tree it just changed.
+async function postRegionAction(payload) {
+    setRegionsBusy(true);
+    try {
+        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/regions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        return await resp.json();
+    } catch (e) {
+        return { success: false, error: String(e) };
+    } finally {
+        setRegionsBusy(false);
+    }
+}
+
+async function runRegionAction(action, name) {
+    if (_regionsBusy) return;
+    if (action === 'remove' && !window.confirm(t('rptmgmt.reg.confirm_remove', { name }))) return;
+    const data = await postRegionAction({ action, name });
+    if (!data.success) {
+        showNotification(data.error || t('rptmgmt.reg.action_failed'), 'error');
+        return;
+    }
+    if (data.dirty) setRegionsDirty(true);
+    showNotification(t('rptmgmt.reg.action_ok'), 'success');
+    await loadRegions();
+}
+
+async function submitNewRegion() {
+    if (_regionsBusy) return;
+    const input = document.getElementById('regNewName');
+    const errEl = document.getElementById('regAddError');
+    const name = (input.value || '').trim();
+    const problem = isValidRepeaterRegionName(name);
+    if (problem) {
+        errEl.textContent = problem;
+        errEl.classList.remove('d-none');
+        return;
+    }
+    errEl.classList.add('d-none');
+    const data = await postRegionAction({ action: 'add', name });
+    if (!data.success) {
+        errEl.textContent = data.error || t('rptmgmt.reg.action_failed');
+        errEl.classList.remove('d-none');
+        return;
+    }
+    setRegionsDirty(true);
+    toggleRegionAddForm(false);
+    showNotification(t('rptmgmt.reg.added', { name }), 'success');
+    await loadRegions();
+}
+
+// `region default` is the one region command the firmware persists by itself
+// (it calls saveRegions()), so it never sets the unsaved-changes flag.
+async function applyDefaultRegion() {
+    if (_regionsBusy) return;
+    const select = document.getElementById('regDefaultSelect');
+    const name = select.value || '';
+    // Still on the "could not read" placeholder: nothing was chosen to apply.
+    if (name === REGION_DEFAULT_UNKNOWN) {
+        showNotification(t('rptmgmt.reg.default_pick_first'), 'warning');
+        return;
+    }
+    const data = await postRegionAction(name ? { action: 'set_default', name }
+                                             : { action: 'clear_default' });
+    if (!data.success) {
+        showNotification(data.error || t('rptmgmt.reg.action_failed'), 'error');
+        return;
+    }
+    showNotification(t('rptmgmt.reg.default_saved'), 'success');
+    await loadRegions();
+}
+
+async function saveRegions() {
+    if (_regionsBusy) return;
+    const data = await postRegionAction({ action: 'save' });
+    if (!data.success) {
+        showNotification(data.error || t('rptmgmt.reg.save_failed'), 'error');
+        return;
+    }
+    setRegionsDirty(false);
+    showNotification(t('rptmgmt.reg.saved'), 'success');
+}
+
+// Leaving the pane throws away nothing on the repeater — the edits are already
+// in its RAM — but they die at the next reboot, which is not what someone who
+// just made them expects. Ask before walking away from that.
+function confirmLeavingRegions() {
+    if (!_regionsDirty) return true;
+    return window.confirm(t('rptmgmt.reg.confirm_leave'));
+}
+
+// ================================================================
 // Actions tool
 // ================================================================
 
@@ -2376,7 +2758,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('errorBackBtn').addEventListener('click', goBackToList);
     document.getElementById('errorRetryBtn').addEventListener('click', init);
     document.getElementById('logoutBtn').addEventListener('click', logout);
-    document.getElementById('paneBackBtn').addEventListener('click', showToolsGrid);
+    document.getElementById('paneBackBtn').addEventListener('click', closeToolPane);
 
     document.getElementById('passwordSubmitBtn').addEventListener('click', submitPasswordModal);
     document.getElementById('passwordCancelBtn').addEventListener('click', () => {
