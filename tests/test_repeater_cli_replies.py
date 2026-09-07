@@ -14,6 +14,7 @@ import pytest
 from app.routes.api import (
     _parse_region_tree,
     _region_command,
+    _region_descendants,
     _region_tree_truncated,
     _reply_is_unsupported,
 )
@@ -172,3 +173,53 @@ def test_region_command_rejects(action, name):
     cmd, err = _region_command(action, name, '')
     assert cmd is None
     assert err
+
+
+# ================================================================
+# Descendants — the cycle guard behind Settings → Regions → Move
+# ================================================================
+#
+# `region put <name> <parent>` re-parents an existing region, and the firmware
+# refuses only the direct self-parent case. Moving a region into one of its own
+# descendants is accepted and detaches that branch from the wildcard root, so it
+# disappears from the `region` listing entirely (printChildRegions recurses down
+# from the root) while still occupying table slots. The UI can then no longer
+# show it, let alone fix it — hence this guard, on both sides.
+
+# The hierarchy captured from MarWoj Mobile Observer:
+#   * / pl / pl-ma / {pl-krk, pl-kra}, pl / pl-sk
+_LIVE_TREE = '*^ F\n pl F\n  pl-ma F\n   pl-krk F\n   pl-kra F\n  pl-sk F\n'
+
+
+@pytest.mark.parametrize('name, expected', [
+    ('pl',     {'pl-ma', 'pl-krk', 'pl-kra', 'pl-sk'}),
+    ('pl-ma',  {'pl-krk', 'pl-kra'}),   # grandchildren count, not just children
+    ('pl-krk', set()),                  # a leaf has none
+    ('pl-sk',  set()),
+    ('*',      {'pl', 'pl-ma', 'pl-krk', 'pl-kra', 'pl-sk'}),
+    ('nope',   set()),                  # unknown name is simply childless
+])
+def test_region_descendants(name, expected):
+    assert _region_descendants(_parse_region_tree(_LIVE_TREE), name) == expected
+
+
+def test_descendants_terminates_on_a_pre_existing_cycle():
+    """A map already holding a cycle must not spin the walk forever.
+
+    Reachable in practice: a cycle made through the CLI survives in the table
+    even though the tree stops showing it, so a later read can hand us one.
+    """
+    cyclic = [
+        {'name': 'a', 'parent': 'b'},
+        {'name': 'b', 'parent': 'a'},
+        {'name': 'c', 'parent': None},
+    ]
+    assert _region_descendants(cyclic, 'a') == {'a', 'b'}
+
+
+def test_moving_into_a_descendant_is_what_the_guard_catches():
+    entries = _parse_region_tree(_LIVE_TREE)
+    # pl-krk sits under pl-ma, so pl-ma must not be movable into it.
+    assert 'pl-krk' in _region_descendants(entries, 'pl-ma')
+    # Sideways between branches is fine.
+    assert 'pl-sk' not in _region_descendants(entries, 'pl-ma')

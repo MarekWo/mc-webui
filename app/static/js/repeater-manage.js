@@ -2147,6 +2147,7 @@ function renderRegionsPane(body) {
     _regionsData = null;
     _regionsDirty = false;
     _regionsBusy = false;
+    _regionMoveName = null;
     body.innerHTML = `
         <p class="text-muted small mb-2">${tHtml('rptmgmt.reg.intro')}</p>
         <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
@@ -2189,6 +2190,20 @@ function renderRegionsPane(body) {
             <div class="form-text">${tHtml('rptmgmt.reg.parent_help')}</div>
             <div class="small text-danger d-none" id="regAddError"></div>
         </div>
+        <div class="d-none mb-3" id="regMoveForm">
+            <div class="input-group input-group-sm">
+                <label class="input-group-text" for="regMoveParent" id="regMoveLabel"></label>
+                <select class="form-select" id="regMoveParent"></select>
+                <button type="button" class="btn btn-primary" id="regMoveConfirm">
+                    ${tHtml('rptmgmt.reg.move_confirm')}
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="regMoveCancel">
+                    ${tHtml('common.cancel')}
+                </button>
+            </div>
+            <div class="form-text">${tHtml('rptmgmt.reg.move_help')}</div>
+            <div class="small text-danger d-none" id="regMoveError"></div>
+        </div>
         <div id="regList"></div>
         <div class="card mt-3" id="regDefaultCard">
             <div class="card-body py-2 px-3">
@@ -2215,6 +2230,8 @@ function renderRegionsPane(body) {
         if (e.key === 'Enter') { e.preventDefault(); submitNewRegion(); }
     });
     body.querySelector('#regDefaultApply').addEventListener('click', applyDefaultRegion);
+    body.querySelector('#regMoveCancel').addEventListener('click', () => closeRegionMove());
+    body.querySelector('#regMoveConfirm').addEventListener('click', submitRegionMove);
     loadRegions();
 }
 
@@ -2225,6 +2242,7 @@ function toggleRegionAddForm(show) {
     form.classList.toggle('d-none', !open);
     document.getElementById('regAddError').classList.add('d-none');
     if (open) {
+        closeRegionMove();
         const input = document.getElementById('regNewName');
         input.value = '';
         const parent = document.getElementById('regNewParent');
@@ -2238,7 +2256,8 @@ function setRegionsBusy(busy) {
     const pane = document.getElementById('paneBody');
     if (!pane) return;
     pane.querySelectorAll('#regRefreshBtn, #regAddBtn, #regAddConfirm, #regDefaultApply, ' +
-                          '#regNewName, #regNewParent, #regDefaultSelect, .reg-action')
+                          '#regNewName, #regNewParent, #regDefaultSelect, ' +
+                          '#regMoveParent, #regMoveConfirm, .reg-action, .reg-move')
         .forEach(el => { el.disabled = busy; });
     const save = document.getElementById('regSaveBtn');
     if (save) save.disabled = busy || !_regionsDirty;
@@ -2288,6 +2307,9 @@ function renderRegionsList() {
         list.innerHTML = `<div class="list-group">${entries.map(regionRowHtml).join('')}</div>`;
         list.querySelectorAll('.reg-action').forEach(btn => {
             btn.addEventListener('click', () => runRegionAction(btn.dataset.action, btn.dataset.name));
+        });
+        list.querySelectorAll('.reg-move').forEach(btn => {
+            btn.addEventListener('click', () => openRegionMove(btn.dataset.name));
         });
     }
 
@@ -2366,6 +2388,10 @@ function regionRowHtml(e) {
                         <i class="bi bi-house me-2"></i>${tHtml('rptmgmt.reg.set_home')}
                     </button></li>`}
                     ${e.is_root ? '' : `
+                    <li><button type="button" class="dropdown-item reg-move"
+                            data-name="${esc(e.name)}">
+                        <i class="bi bi-diagram-3 me-2"></i>${tHtml('rptmgmt.reg.move')}
+                    </button></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><button type="button" class="dropdown-item text-danger reg-action"
                             data-action="remove" data-name="${esc(e.name)}">
@@ -2374,6 +2400,94 @@ function regionRowHtml(e) {
                 </ul>
             </div>
         </div>`;
+}
+
+// ---------------- Moving a region in the hierarchy ----------------
+// `region put <name> <parent>` re-parents an existing region, which beats
+// deleting and recreating it. The picker offers every region except the one
+// being moved and everything already nested under it: the firmware accepts
+// such a move and the whole branch then disappears from the listing, leaving
+// nothing in this UI to fix it with. The backend refuses those too.
+
+let _regionMoveName = null;   // region currently being moved, null when closed
+
+function regionDescendants(name) {
+    const entries = (_regionsData && _regionsData.entries) || [];
+    const children = new Map();
+    entries.forEach(e => {
+        if (!children.has(e.parent)) children.set(e.parent, []);
+        children.get(e.parent).push(e.name);
+    });
+    const found = new Set();
+    const stack = [...(children.get(name) || [])];
+    while (stack.length) {
+        const current = stack.pop();
+        if (found.has(current)) continue;   // never spin on an existing cycle
+        found.add(current);
+        stack.push(...(children.get(current) || []));
+    }
+    return found;
+}
+
+function openRegionMove(name) {
+    const entries = (_regionsData && _regionsData.entries) || [];
+    const self = entries.find(e => e.name === name);
+    if (!self) return;
+    const blocked = regionDescendants(name);
+    const targets = entries.filter(e => !e.is_root && e.name !== name && !blocked.has(e.name));
+
+    const select = document.getElementById('regMoveParent');
+    select.innerHTML = `<option value="">${esc(t('rptmgmt.reg.parent_root'))}</option>` +
+        targets.map(e => `<option value="${esc(e.name)}">${' '.repeat((e.depth - 1) * 2)}${esc(e.name)}</option>`)
+               .join('');
+    // Start on where it already is, so the picker shows the current position.
+    select.value = (self.parent && self.parent !== '*') ? self.parent : '';
+
+    _regionMoveName = name;
+    document.getElementById('regMoveLabel').textContent = t('rptmgmt.reg.move_label', { name });
+    document.getElementById('regMoveError').classList.add('d-none');
+    document.getElementById('regMoveForm').classList.remove('d-none');
+    toggleRegionAddForm(false);
+    select.focus();
+}
+
+function closeRegionMove() {
+    _regionMoveName = null;
+    const form = document.getElementById('regMoveForm');
+    if (form) form.classList.add('d-none');
+}
+
+async function submitRegionMove() {
+    if (_regionsBusy || !_regionMoveName) return;
+    const name = _regionMoveName;
+    const select = document.getElementById('regMoveParent');
+    const parent = select.value || '';
+    const entry = ((_regionsData && _regionsData.entries) || []).find(e => e.name === name);
+    const currentParent = (entry && entry.parent && entry.parent !== '*') ? entry.parent : '';
+    if (parent === currentParent) {   // already there — don't spend a round-trip
+        closeRegionMove();
+        return;
+    }
+    const errEl = document.getElementById('regMoveError');
+    errEl.classList.add('d-none');
+    const data = await postRegionAction({ action: 'move', name, parent });
+    if (regionActionFailed(data)) {
+        errEl.textContent = data.error || t('rptmgmt.reg.action_failed');
+        errEl.classList.remove('d-none');
+        return;
+    }
+    setRegionsDirty(true);
+    closeRegionMove();
+    // A move clears the firmware's flood flag, so the backend puts a deny back.
+    // If that follow-up is the part that got lost, say so — the region moved but
+    // is now forwarding traffic it was set to drop.
+    if (data.flood_restore_failed) {
+        showNotification(t('rptmgmt.reg.moved_flood_lost', { name }), 'warning');
+    } else {
+        showNotification(parent ? t('rptmgmt.reg.moved', { name, parent })
+                                : t('rptmgmt.reg.moved_root', { name }), 'success');
+    }
+    await loadRegions();
 }
 
 // A region action can fail two ways: the request never got through (success

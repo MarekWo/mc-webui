@@ -707,7 +707,9 @@ The screen lists what the repeater currently knows:
 - Each region below it shows **Flood allowed** or **Flood denied**. Regions can be nested, and a nested one is indented under its parent
 - The region marked **home** is the repeater's own place in that hierarchy
 
-The ⋮ menu on a row offers **Allow flood** / **Deny flood**, **Set as home region**, and **Delete region**. A region that still has regions nested under it cannot be deleted — remove the children first.
+The ⋮ menu on a row offers **Allow flood** / **Deny flood**, **Set as home region**, **Move to another region**, and **Delete region**. A region that still has regions nested under it cannot be deleted — remove the children first.
+
+**Move to another region** changes where a region sits in the hierarchy without deleting and re-adding it. Pick the region it should sit inside, or *top level*, and press Move. Anything nested under it moves along with it. The picker leaves out the region itself and everything already nested under it: the repeater would accept such a move, but the whole branch would then drop out of the listing and there would be no way left in this screen to get it back. One detail the firmware hides is handled for you — a move resets the region's flood setting, so a region marked **Flood denied** has that put back straight afterwards; in the rare case that second step is the one that gets lost over the mesh, the app says so rather than leaving it quietly forwarding.
 
 **Add region** takes a name of up to 30 characters; letters, digits and `-`, `$`, `#` are accepted, spaces are not. The **Inside** picker next to it chooses where the new region goes: leave it on *top level* for an ordinary region, or pick an existing one to nest the new region inside it.
 

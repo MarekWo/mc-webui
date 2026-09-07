@@ -6816,7 +6816,7 @@ _REGION_TREE_MAX = 160  # firmware's exportTo() buffer; see note above
 # Actions that only touch the in-RAM map, so the UI must follow them with
 # `save`. `set_default` and `clear_default` are absent: the firmware persists
 # those itself.
-_REGION_DIRTYING = frozenset({'add', 'remove', 'allow_flood', 'deny_flood', 'set_home'})
+_REGION_DIRTYING = frozenset({'add', 'remove', 'allow_flood', 'deny_flood', 'set_home', 'move'})
 
 
 def _parse_region_line(line):
@@ -6937,6 +6937,91 @@ def repeater_regions_get(public_key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _region_descendants(entries, name):
+    """Every region nested under `name`, at any depth."""
+    children = {}
+    for e in entries:
+        children.setdefault(e.get('parent'), []).append(e['name'])
+    found = set()
+    stack = list(children.get(name, ()))
+    while stack:
+        current = stack.pop()
+        if current in found:
+            continue            # a pre-existing cycle must not spin here
+        found.add(current)
+        stack.extend(children.get(current, ()))
+    return found
+
+
+def _repeater_region_move(dm, pk, name, parent):
+    """Re-parent a region, reading the tree first to do it safely.
+
+    `region put <name> <parent>` on a name that already exists re-parents it
+    (RegionMap::putRegion), which is the only way to move a region without
+    deleting and recreating it. Two firmware behaviours make a blind `put`
+    unsafe, and both are settled by the one tree read this does up front:
+
+    1. **Cycles are not checked.** The firmware refuses only to make a region
+       its own parent (`region->id == parent_id`); moving a region into one of
+       its own descendants is accepted and detaches that whole branch from the
+       root. `printChildRegions()` recurses down from the wildcard, so the
+       branch vanishes from the `region` listing while still occupying table
+       slots and still matching packets (`findMatch()` scans the flat array).
+       It is invisible in the UI and therefore unrecoverable from it, so the
+       descendant set is computed here and the move refused.
+    2. **`put` resets the flags.** The CLI branch sets `region->flags = 0`
+       after every put, so moving a flood-denied region silently re-allows
+       flood. The reply says `OK - (flood allowed)` without mentioning that it
+       changed anything. The pre-move flag is captured from the same read and
+       re-applied with `denyf` afterwards, so a move moves and nothing else.
+
+    Returns the same shape as the other region actions, plus `flood_restored`
+    when the deny had to be re-applied.
+    """
+    tree = dm.repeater_cmd_wait(pk, 'region', timeout=_SETTINGS_FIELD_TIMEOUT)
+    if not tree.get('success'):
+        return None, tree
+
+    entries = _parse_region_tree(tree.get('reply') or '')
+    by_name = {e['name']: e for e in entries}
+    if name not in by_name:
+        return {'error': f'Unknown region: {name}'}, None
+    if parent and parent not in by_name:
+        return {'error': f'Unknown parent: {parent}'}, None
+    if parent == name:
+        return {'error': 'A region cannot be moved into itself'}, None
+    if parent and parent in _region_descendants(entries, name):
+        return {'error': f'{name} cannot be moved into {parent}, '
+                         f'which is already nested under it'}, None
+
+    was_denied = not by_name[name]['flood_allowed']
+    cmd = f'region put {name} {parent}' if parent else f'region put {name}'
+    result = dm.repeater_cmd_wait(pk, cmd, timeout=_SETTINGS_FIELD_TIMEOUT)
+    if not result.get('success'):
+        return None, result
+
+    reply = (result.get('reply') or '').strip()
+    ok = not (reply.lower().startswith('err') or not reply)
+    payload = {'success': True, 'ok': ok, 'action': 'move', 'command': cmd,
+               'reply': reply, 'error': None if ok else (reply or 'Empty reply'),
+               'dirty': ok, 'elapsed_ms': result.get('elapsed_ms')}
+    if not (ok and was_denied):
+        return payload, None
+
+    # Put cleared the deny flag; put it back so the move changed only the
+    # position. A failure here is reported rather than swallowed — the region
+    # has moved but is now forwarding flood traffic it was set to drop.
+    restore = dm.repeater_cmd_wait(pk, f'region denyf {name}',
+                                   timeout=_SETTINGS_FIELD_TIMEOUT)
+    restore_reply = (restore.get('reply') or '').strip()
+    if restore.get('success') and restore_reply.lower().startswith('ok'):
+        payload['flood_restored'] = True
+    else:
+        payload['flood_restore_failed'] = True
+        payload['flood_restore_error'] = restore_reply or restore.get('error') or 'Request failed'
+    return payload, None
+
+
 def _region_command(action, name, parent):
     """Region action → (CLI command text, None), or (None, error message)."""
     if action == 'save':
@@ -6981,6 +7066,9 @@ def repeater_regions_post(public_key):
     a mesh round-trip is over a second, and a batch failing halfway would leave
     the caller unsure what landed. `dirty` in the reply says the change is in
     RAM only and still needs a `save`.
+
+    `move` is the exception and costs two or three round-trips: it has to read
+    the tree before it can move anything safely — see _repeater_region_move().
     """
     dm = _get_dm()
     if not dm:
@@ -6999,6 +7087,34 @@ def repeater_regions_post(public_key):
     # would shift the remainder into the next positional argument.
     if any(c in (name + parent) for c in '\r\n '):
         return jsonify({'success': False, 'error': 'Invalid region name'}), 400
+
+    if action == 'move':
+        if name == '*':
+            return jsonify({'success': False,
+                            'error': 'The wildcard region cannot be moved'}), 400
+        ok_name, err = is_valid_region_name(name)
+        if not ok_name:
+            return jsonify({'success': False, 'error': err}), 400
+        if parent and parent != '*':
+            ok_parent, err = is_valid_region_name(parent)
+            if not ok_parent:
+                return jsonify({'success': False, 'error': f'Invalid parent: {err}'}), 400
+        else:
+            parent = ''   # '*' and '' both mean the wildcard root
+        try:
+            payload, failure = _repeater_region_move(dm, pk, name, parent)
+            if failure is not None:
+                return jsonify({'success': False,
+                                'error': failure.get('error', 'Region move failed')}), \
+                    _repeater_result_status(failure)
+            # A validation refusal comes back without a 'success' key.
+            if 'success' not in payload:
+                return jsonify({'success': False, 'error': payload['error']}), 400
+            return jsonify(payload), 200
+        except Exception as e:
+            logger.error(f"Error moving repeater region: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     cmd, error = _region_command(action, name, parent)
     if error:
         return jsonify({'success': False, 'error': error}), 400
