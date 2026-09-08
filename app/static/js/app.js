@@ -1535,10 +1535,21 @@ function buildEchoPaths(src) {
     return paths;
 }
 
+/** One "icon + value" fact of the meta line, with the label it replaces as tooltip. */
+function metaFact(iconClass, valueHtml, titleHtml) {
+    return `<span class="meta-fact" title="${titleHtml}"><i class="bi ${iconClass}"></i>${valueHtml}</span>`;
+}
+
 /**
- * Build the "SNR | Hops | Route | Region" line shown under an incoming
+ * Build the "SNR | hops | route | region" line shown under an incoming
  * channel message. `src` is a /api/messages row or a /api/messages/meta
  * entry (same field names); `paths` comes from buildEchoPaths().
+ *
+ * Everything but the SNR is labelled by an icon rather than a word: spelled
+ * out, the line wrapped onto a second row on a phone. The icons follow the
+ * rest of the UI \u2014 bi-signpost-split is the project's path icon and
+ * bi-pin-map the status bar's region indicator \u2014 and each carries the word
+ * it replaces in its tooltip.
  *
  * SNR and hops describe the copy the node decoded and arrive with the
  * message itself, so they show even when no echo was heard \u2014 a hop count
@@ -1555,26 +1566,32 @@ function buildMessageMetaInfo(src, paths) {
     const displaySnr = (src.snr !== undefined && src.snr !== null) ? src.snr
         : (src.echo_snrs && src.echo_snrs.length > 0) ? src.echo_snrs[0] : null;
     if (typeof displaySnr === 'number') {
-        metaParts.push(`SNR: ${displaySnr.toFixed(1)} dB`);
+        metaParts.push(`<span class="meta-fact">SNR: ${displaySnr.toFixed(1)} dB</span>`);
     }
     const hopCount = src.hop_count ?? (src.path_len !== null && src.path_len !== undefined ? (src.path_len & 0x3F) : null);
     if (hopCount !== null && hopCount !== undefined) {
-        metaParts.push(tHtml('chat.route_hops', { count: hopCount }));
+        metaParts.push(metaFact('bi-broadcast-pin', hopCount,
+                                tHtml('chat.route_hops', { count: hopCount })));
     }
     if (paths && paths.length > 0) {
         const hashSize = paths[0].hash_size || 1;
-        // The translated string is escaped as a whole, so the coloured span is
-        // spliced in afterwards through a placeholder the catalog never contains.
-        const TOKEN = '%%ROUTE%%';
-        const sizeHtml = `<span class="path-hash ${PATH_HASH_CLASS[hashSize] || ''}">${escapeHtml(tn('chat.route_hash_bytes', hashSize))}</span>`;
-        const routeText = (paths.length > 1
-            ? tHtml('chat.route_multi', { count: paths.length, route: TOKEN })
-            : tHtml('chat.route', { route: TOKEN })).replace(TOKEN, sizeHtml);
+        // Shown as "2B" — the SI/IEC symbol, upper case for byte (lower case
+        // is bit). The words stay in the tooltip, where there is room.
+        const sizeShort = tHtml('chat.route_hash_bytes_short', { count: hashSize });
+        const sizeLabel = tn('chat.route_hash_bytes', hashSize);
+        // Copies heard, shown only when there is more than one \u2014 as before,
+        // no count means the message was heard once.
+        const countHtml = paths.length > 1 ? `(${paths.length}) ` : '';
+        const title = (paths.length > 1
+            ? tHtml('chat.route_multi', { count: paths.length, route: sizeLabel })
+            : tHtml('chat.route', { route: sizeLabel })) + ' \u2014 ' + tHtml('chat.route_hash_title');
+        const value = `${countHtml}<span class="path-hash ${PATH_HASH_CLASS[hashSize] || ''}">${sizeShort}</span>`;
         const pathsData = encodeURIComponent(JSON.stringify(paths));
-        metaParts.push(`<span class="path-info" title="${tHtml('chat.route_hash_title')}" onclick="showPathsPopup(this, '${pathsData}', '${src.packet_hash || ''}')">${routeText}</span>`);
+        metaParts.push(`<span class="meta-fact path-info" title="${title}" onclick="showPathsPopup(this, '${pathsData}', '${src.packet_hash || ''}')"><i class="bi bi-signpost-split"></i>${value}</span>`);
     }
     if (src.region) {
-        metaParts.push(tHtml('chat.route_region', { name: src.region }));
+        metaParts.push(metaFact('bi-pin-map', escapeHtml(src.region),
+                                tHtml('chat.route_region', { name: src.region })));
     }
     return metaParts.join(' | ');
 }

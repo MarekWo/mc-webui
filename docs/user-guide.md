@@ -213,7 +213,9 @@ Your own messages carry a small row of action buttons:
 
 ### Group Chat Message Routes
 
-Under every incoming channel message a line shows the **SNR** and **hop count** of the copy your node decoded — they arrive with the message itself, so they are there even when nothing else was heard. When your node also heard the message being repeated, a **Route** part follows, saying how many copies were heard and how wide their per-hop hashes are, e.g. `SNR: 9.3 dB | Hops: 5 | Route (3): 2 bytes`. The hash size is coloured: **red** for 1 byte (such hashes collide easily on a big mesh), **orange** for 2 bytes and **green** for 3 bytes. Tap the Route part to open a popup listing every copy in the order they were heard, each with its route, SNR and hop count:
+Under every incoming channel message a line shows the **SNR** and **hop count** of the copy your node decoded — they arrive with the message itself, so they are there even when nothing else was heard. When your node also heard the message being repeated, a route part follows, saying how many copies were heard and how wide their per-hop hashes are — written as `2B`, meaning 2 bytes per hop. The size is coloured: **red** for 1 byte (such hashes collide easily on a big mesh), **orange** for 2 bytes and **green** for 3 bytes.
+
+Apart from the SNR, each value is labelled by a small icon rather than a word, so the line fits one row on a phone — an antenna 📡 for the hop count, a signpost for the routes and a map pin for the region. Hovering an icon (or a long press on a phone) names it. Tap the signpost part to open a popup listing every copy in the order they were heard, each with its route, SNR and hop count:
 
 - The copy your node actually decoded is marked **✓ received**; the others arrived later and were dropped as duplicates, but they still show where else the message travelled. A copy heard straight from the sender, with no repeater in between, is listed as **Direct** with 0 hops.
 - Tap a route to open the **[Path Analyzer](#path-analyzer)** on the Map view, with that message selected and that exact route drawn — the quickest way to see where a message physically travelled.

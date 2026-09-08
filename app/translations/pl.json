@@ -159,6 +159,7 @@
     "many": "{count} bajtów",
     "other": "{count} bajtu"
   },
+  "chat.route_hash_bytes_short": "{count}B",
   "chat.route_hash_title": "Rozmiar hasha na hop w trasie. Dotknij, aby zobaczyć wszystkie trasy, którymi dotarła ta wiadomość",
   "chat.route_hops": "Hopy: {count}",
   "chat.route_multi": "Trasa ({count}): {route}",

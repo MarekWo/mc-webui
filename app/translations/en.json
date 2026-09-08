@@ -155,6 +155,7 @@
     "one": "{count} byte",
     "other": "{count} bytes"
   },
+  "chat.route_hash_bytes_short": "{count}B",
   "chat.route_hash_title": "Per-hop hash size of the route. Tap to list every route this message was heard on",
   "chat.route_hops": "Hops: {count}",
   "chat.route_multi": "Route ({count}): {route}",

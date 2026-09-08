@@ -472,6 +472,17 @@ main {
 
 /* Per-hop hash size in the route line: 1 byte collides easily on a big mesh
    (least desirable), 3 bytes is the best. Tokens per theme in theme.css. */
+/* One icon-labelled fact: never break between the icon and its value, or
+   inside "(5) 2 bytes" — a mid-fact wrap is what made the line hard to read */
+.message-meta .meta-fact {
+    white-space: nowrap;
+}
+
+.message-meta .meta-fact .bi {
+    margin-right: 0.25rem;
+    opacity: 0.8;
+}
+
 .path-hash { font-weight: 600; }   /* colour alone was too faint at this size on the light theme */
 .path-hash-1 { color: var(--path-hash-1); }
 .path-hash-2 { color: var(--path-hash-2); }
