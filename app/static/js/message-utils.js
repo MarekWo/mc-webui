@@ -736,12 +736,11 @@ async function shareCardPost(url, payload, btn) {
         btn.classList.add('loading');
     }
     try {
-        const response = await fetch(url, {
+        const data = await fetchJson(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        const data = await response.json();
         if (!data.success) {
             showNotification(data.error || t('share.toast.action_failed'), 'danger');
             return null;

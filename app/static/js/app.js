@@ -489,8 +489,7 @@ window.MCShareHooks = {
         const wanted = scope.replace(/^#/, '').toLowerCase();
 
         try {
-            const resp = await fetch('/api/regions');
-            const data = await resp.json();
+            const data = await fetchJson('/api/regions');
             const regions = (data.success && data.regions) || [];
             const region = regions.find(
                 r => (r.name || '').replace(/^#/, '').toLowerCase() === wanted);
@@ -500,12 +499,11 @@ window.MCShareHooks = {
                 return;
             }
 
-            const put = await fetch(`/api/channels/${channel.index}/scope`, {
+            const putData = await fetchJson(`/api/channels/${channel.index}/scope`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ region_id: region.id })
             });
-            const putData = await put.json();
             if (putData.success) {
                 showNotification(t('share.toast.scope_applied', { name: region.name }), 'success');
             } else {
@@ -520,8 +518,7 @@ window.MCShareHooks = {
 
 async function loadBlockedNames() {
     try {
-        const resp = await fetch('/api/contacts/blocked-names');
-        const data = await resp.json();
+        const data = await fetchJson('/api/contacts/blocked-names');
         if (data.success) {
             blockedContactNames = new Set(data.names);
         }
@@ -532,8 +529,7 @@ async function loadBlockedNames() {
 
 async function loadProtectedPubkeys() {
     try {
-        const resp = await fetch('/api/contacts/protected');
-        const data = await resp.json();
+        const data = await fetchJson('/api/contacts/protected');
         if (data.success) {
             protectedContactPubkeys = new Set((data.protected_contacts || []).map(pk => pk.toLowerCase()));
         }
@@ -1485,8 +1481,7 @@ async function refreshMessagesMeta(forceIds = []) {
     for (let i = 0; i < ids.length; i += META_BATCH_SIZE) {
         const chunk = ids.slice(i, i + META_BATCH_SIZE);
         try {
-            const resp = await fetch(`/api/messages/meta?ids=${chunk.join(',')}`);
-            const data = await resp.json();
+            const data = await fetchJson(`/api/messages/meta?ids=${chunk.join(',')}`);
             if (!data.success || !data.metas) continue;
 
             for (const [msgId, meta] of Object.entries(data.metas)) {
@@ -2044,12 +2039,11 @@ async function resendChannelMessageRaw(msgId, btn) {
 
 async function ignoreContactFromChat(pubkey) {
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/ignore`, {
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/ignore`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ignored: true })
         });
-        const data = await response.json();
         if (data.success) {
             showNotification(data.message, 'info');
         } else {
@@ -2226,8 +2220,7 @@ function openPathInAnalyzer(packetHash, pathHex) {
  */
 async function loadStatus() {
     try {
-        const response = await fetch('/api/status');
-        const data = await response.json();
+        const data = await fetchJson('/api/status');
 
         if (data.success) {
             updateStatus(data.connected ? 'connected' : 'disconnected');
@@ -2298,8 +2291,7 @@ async function loadDeviceInfo() {
     container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
-        const response = await fetch('/api/device/info');
-        const data = await response.json();
+        const data = await fetchJson('/api/device/info');
 
         if (!data.success) {
             container.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(data.error)}</div>`;
@@ -2405,8 +2397,7 @@ async function rebootDevice() {
 
     let data = null;
     try {
-        const response = await fetch('/api/device/reboot', { method: 'POST' });
-        data = await response.json();
+        data = await fetchJson('/api/device/reboot', { method: 'POST' });
     } catch (error) {
         console.error('Error rebooting device:', error);
         data = { success: false, error: t('device.reboot.failed') };
@@ -2470,8 +2461,7 @@ async function loadDeviceStats() {
     container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
-        const response = await fetch('/api/device/stats');
-        const data = await response.json();
+        const data = await fetchJson('/api/device/stats');
 
         if (!data.success) {
             container.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(data.error)}</div>`;
@@ -2570,8 +2560,7 @@ async function loadDeviceShare() {
     container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
-        const response = await fetch('/api/device/info');
-        const data = await response.json();
+        const data = await fetchJson('/api/device/info');
 
         if (!data.success) {
             container.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(data.error)}</div>`;
@@ -2718,12 +2707,11 @@ async function saveDevicePublicInfo() {
     }
 
     try {
-        const resp = await fetch('/api/device/config', {
+        const data = await fetchJson('/api/device/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        const data = await resp.json();
         if (data.success) {
             showNotification(t('settings.device.toast.info_saved'), 'success');
             _selfInfo = null;
@@ -2763,7 +2751,7 @@ async function saveDeviceRadioSettings() {
     if (!confirm(t('settings.device.confirm.radio'))) return;
 
     try {
-        const resp = await fetch('/api/device/config', {
+        const data = await fetchJson('/api/device/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2774,7 +2762,6 @@ async function saveDeviceRadioSettings() {
                 tx_power: txPower
             })
         });
-        const data = await resp.json();
         if (data.success) {
             showNotification(t('settings.device.toast.radio_saved'), 'success');
         } else {
@@ -5608,8 +5595,7 @@ async function checkForAppUpdates() {
     icon.className = 'bi bi-arrow-repeat spin';
 
     try {
-        const response = await fetch('/api/check-update');
-        const data = await response.json();
+        const data = await fetchJson('/api/check-update');
 
         if (data.success) {
             if (data.update_available) {
@@ -5719,8 +5705,7 @@ async function performRemoteUpdate() {
 
     try {
         // Trigger update
-        const response = await fetch('/api/updater/trigger', { method: 'POST' });
-        const data = await response.json();
+        const data = await fetchJson('/api/updater/trigger', { method: 'POST' });
 
         if (!data.success) {
             showUpdateResult(false, data.error || t('update.start_failed'));
@@ -5891,8 +5876,7 @@ function updateCharCounter() {
  */
 async function loadArchiveList() {
     try {
-        const response = await fetch('/api/archives');
-        const data = await response.json();
+        const data = await fetchJson('/api/archives');
 
         if (data.success) {
             populateDateSelector(data.archives);
@@ -6039,8 +6023,7 @@ function generateAvatar(name) {
  */
 async function loadLastSeenTimestampsFromServer() {
     try {
-        const response = await fetch('/api/read_status');
-        const data = await response.json();
+        const data = await fetchJson('/api/read_status');
 
         if (data.success && data.channels) {
             // Convert string keys to integers for channel indices
@@ -6962,12 +6945,11 @@ async function toggleChannelFavorite(index) {
     channelStateVersion++;
 
     try {
-        const response = await fetch(`/api/channels/${index}/favorite`, {
+        const data = await fetchJson(`/api/channels/${index}/favorite`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ favorite: newFavorite })
         });
-        const data = await response.json();
 
         if (data.success) {
             if (newFavorite) {
@@ -7030,8 +7012,7 @@ async function deleteChannel(index) {
  */
 async function shareChannel(index) {
     try {
-        const response = await fetch(`/api/channels/${index}/qr`);
-        const data = await response.json();
+        const data = await fetchJson(`/api/channels/${index}/qr`);
 
         if (data.success) {
             // Populate share modal
@@ -7073,8 +7054,7 @@ async function copyChannelKey() {
  */
 async function loadDmLastSeenTimestampsFromServer() {
     try {
-        const response = await fetch('/api/read_status');
-        const data = await response.json();
+        const data = await fetchJson('/api/read_status');
 
         if (data.success && data.dm) {
             dmLastSeenTimestamps = data.dm;
@@ -7520,8 +7500,7 @@ async function loadContactsForMentions() {
     }
 
     try {
-        const response = await fetch('/api/contacts/cached');
-        const data = await response.json();
+        const data = await fetchJson('/api/contacts/cached');
 
         if (data.success && data.contacts) {
             mentionsCache = data.contacts;
@@ -8238,8 +8217,7 @@ async function performSearch(query) {
     container.innerHTML = `<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> ${tHtml('search.searching')}</div>`;
 
     try {
-        const response = await fetch(`/api/messages/search?q=${encodeURIComponent(query)}&limit=50`);
-        const data = await response.json();
+        const data = await fetchJson(`/api/messages/search?q=${encodeURIComponent(query)}&limit=50`);
 
         if (!data.success) {
             container.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.error)}</div>`;
@@ -8346,8 +8324,7 @@ async function loadDatabaseSize() {
     const statusEl = document.getElementById('vacuumDbStatus');
     if (!statusEl) return;
     try {
-        const response = await fetch('/api/db/size');
-        const data = await response.json();
+        const data = await fetchJson('/api/db/size');
         if (data.success) {
             statusEl.textContent = t('backup.size', { size: _formatBytes(data.size) });
         } else {
@@ -8392,8 +8369,7 @@ async function optimizeDatabase() {
             await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
             let status;
             try {
-                const resp = await fetch('/api/db/vacuum/status');
-                status = await resp.json();
+                status = await fetchJson('/api/db/vacuum/status');
             } catch (e) {
                 continue;   // transient — try again
             }
@@ -8440,8 +8416,7 @@ async function loadBackupList() {
     container.innerHTML = `<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div> ${tHtml('common.loading')}</div>`;
 
     try {
-        const response = await fetch('/api/backup/list');
-        const data = await response.json();
+        const data = await fetchJson('/api/backup/list');
 
         if (!data.success) {
             container.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.error)}</div>`;
@@ -8499,8 +8474,7 @@ async function createBackup() {
     btn.innerHTML = `<div class="spinner-border spinner-border-sm"></div> ${tHtml('backup.creating')}`;
 
     try {
-        const response = await fetch('/api/backup/create', { method: 'POST' });
-        const data = await response.json();
+        const data = await fetchJson('/api/backup/create', { method: 'POST' });
 
         if (data.success) {
             showNotification(t('backup.created', { filename: data.filename }), 'success');

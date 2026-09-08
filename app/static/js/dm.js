@@ -536,8 +536,7 @@ function setupEventListeners() {
  */
 async function loadContacts() {
     try {
-        const response = await fetch('/api/contacts/detailed');
-        const data = await response.json();
+        const data = await fetchJson('/api/contacts/detailed');
 
         if (data.success) {
             contactsList = (data.contacts || []).sort((a, b) =>
@@ -1254,7 +1253,7 @@ function populateContactInfoModal() {
                         importBtn.addEventListener('click', async () => {
                             const pubkey = getCurrentContactPubkey();
                             try {
-                                const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`, {
+                                const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/paths`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
@@ -1267,7 +1266,6 @@ function populateContactInfoModal() {
                                         is_primary: true
                                     })
                                 });
-                                const data = await response.json();
                                 if (data.success) {
                                     await renderPathList(pubkey);
                                     showNotification(t('dm.toast.device_path_imported'), 'info');
@@ -1302,8 +1300,7 @@ function populateContactInfoModal() {
  */
 async function refreshContactInfoPath() {
     try {
-        const response = await fetch('/api/contacts/detailed?refresh=true');
-        const data = await response.json();
+        const data = await fetchJson('/api/contacts/detailed?refresh=true');
         if (data.success) {
             contactsList = (data.contacts || []).sort((a, b) =>
                 (a.name || '').localeCompare(b.name || ''));
@@ -1336,8 +1333,7 @@ async function loadMessages() {
     container.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div></div>';
 
     try {
-        const response = await fetch(`/api/dm/messages?conversation_id=${encodeURIComponent(currentConversationId)}&limit=100`);
-        const data = await response.json();
+        const data = await fetchJson(`/api/dm/messages?conversation_id=${encodeURIComponent(currentConversationId)}&limit=100`);
 
         if (data.success) {
             displayMessages(data.messages);
@@ -1666,8 +1662,7 @@ async function checkForNewMessages() {
 
     try {
         // Fetch only to check for updates
-        const response = await fetch(`/api/dm/messages?conversation_id=${encodeURIComponent(currentConversationId)}&limit=1`);
-        const data = await response.json();
+        const data = await fetchJson(`/api/dm/messages?conversation_id=${encodeURIComponent(currentConversationId)}&limit=1`);
 
         if (data.success && data.messages && data.messages.length > 0) {
             const latestTs = data.messages[data.messages.length - 1].timestamp;
@@ -1898,8 +1893,7 @@ function setupEmojiPicker() {
  */
 async function loadDmLastSeenTimestampsFromServer() {
     try {
-        const response = await fetch('/api/read_status');
-        const data = await response.json();
+        const data = await fetchJson('/api/read_status');
 
         if (data.success && data.dm) {
             dmLastSeenTimestamps = data.dm;
@@ -1957,8 +1951,7 @@ async function markAsRead(conversationId, timestamp) {
  */
 async function loadStatus() {
     try {
-        const response = await fetch('/api/status');
-        const data = await response.json();
+        const data = await fetchJson('/api/status');
 
         if (data.success) {
             updateStatus(data.connected ? 'connected' : 'disconnected');
@@ -2311,12 +2304,11 @@ async function loadAutoRetryConfig() {
     // Setup change handler
     toggle.addEventListener('change', async function() {
         try {
-            const response = await fetch('/api/dm/auto_retry', {
+            const data = await fetchJson('/api/dm/auto_retry', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ enabled: this.checked })
             });
-            const data = await response.json();
             if (data.success) {
                 showNotification(
                     data.enabled ? t('dm.toast.auto_retry_on') : t('dm.toast.auto_retry_off'),
@@ -2372,8 +2364,7 @@ async function renderPathList(pubkey) {
     listEl.innerHTML = `<div class="text-muted small">${tHtml('common.loading')}</div>`;
 
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`);
-        const data = await response.json();
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/paths`);
         if (!data.success || !data.paths.length) {
             listEl.innerHTML = `<div class="text-muted small mb-2">${tHtml('repeaters.paths.none')}</div>`;
             return;
@@ -2457,11 +2448,10 @@ async function setPathPrimary(pubkey, pathId) {
 
 async function applyPathToDevice(pubkey, pathId) {
     try {
-        const response = await fetch(
+        const data = await fetchJson(
             `/api/contacts/${encodeURIComponent(pubkey)}/paths/${pathId}/apply`,
             { method: 'POST' }
         );
-        const data = await response.json();
         if (data.success) {
             showNotification(t('repeaters.toast.path_updated'), 'info');
             await refreshContactInfoPath();
@@ -2694,10 +2684,9 @@ function setupPathFormHandlers(pubkey) {
                 return;
             }
             try {
-                const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/clear`, {
+                const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/paths/clear`, {
                     method: 'POST'
                 });
-                const data = await response.json();
                 if (data.success) {
                     await renderPathList(pubkey);
                     showNotification(tn('repeaters.toast.paths_cleared', data.paths_deleted || 0), 'info');
@@ -2720,8 +2709,7 @@ async function loadRepeaterPicker(pubkey) {
 
     if (!_repeatersCache) {
         try {
-            const response = await fetch('/api/contacts/repeaters');
-            const data = await response.json();
+            const data = await fetchJson('/api/contacts/repeaters');
             if (data.success) {
                 _repeatersCache = data.repeaters;
             }
@@ -2989,8 +2977,7 @@ async function loadRepeaterMapMarkers() {
         // Non-cached: only repeaters that are on the device (have recent advert)
         // Use detailed contacts to check which are on device
         try {
-            const response = await fetch('/api/contacts/detailed');
-            const data = await response.json();
+            const data = await fetchJson('/api/contacts/detailed');
             if (data.success && data.contacts) {
                 const deviceKeys = new Set(data.contacts
                     .filter(c => c.type === 2)
@@ -3046,8 +3033,7 @@ async function loadNoAutoFloodToggle(pubkey) {
     if (!toggle || !pubkey) return;
 
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/no_auto_flood`);
-        const data = await response.json();
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/no_auto_flood`);
         if (data.success) {
             toggle.checked = data.no_auto_flood;
         }
@@ -3062,12 +3048,11 @@ async function loadNoAutoFloodToggle(pubkey) {
 
     newToggle.addEventListener('change', async function () {
         try {
-            const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/no_auto_flood`, {
+            const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/no_auto_flood`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ no_auto_flood: this.checked })
             });
-            const data = await response.json();
             if (data.success) {
                 showNotification(
                     data.no_auto_flood ? t('dm.toast.keep_path_on') : t('dm.toast.keep_path_off'),

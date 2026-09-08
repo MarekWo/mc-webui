@@ -10,6 +10,8 @@
 <script src="{{ url_for('static', filename='js/i18n-runtime.js') }}"></script>
 <script src="{{ url_for('static', filename='js/datetime-utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/clipboard-utils.js') }}"></script>
+{# fetchJson() needs window.t, which the two scripts above have already set up. #}
+<script src="{{ url_for('static', filename='js/fetch-utils.js') }}"></script>
 
 {# Demo mode. Injected here rather than through MC_CONFIG because only index.html
    and dm.html define that object, and the console — the page most in need of

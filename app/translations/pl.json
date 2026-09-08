@@ -210,6 +210,8 @@
   "common.disconnected": "Rozłączono",
   "common.edit": "Edytuj",
   "common.enabled": "Włączone",
+  "common.error.not_json": "Odpowiedziała nie aplikacja, tylko coś przed nią (HTTP {status}). Odśwież stronę, a jeśli to się powtarza — sprawdź połączenie.",
+  "common.error.not_json_auth": "Sesja wygasła — zamiast aplikacji odpowiedziała strona logowania przed nią (HTTP {status}). Odśwież stronę i zaloguj się ponownie.",
   "common.failed_with": "Niepowodzenie: {error}",
   "common.hours_ago": "{count} godz. temu",
   "common.hours_ago_long": {

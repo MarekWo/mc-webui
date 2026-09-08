@@ -426,8 +426,7 @@
         // cases stay one action rather than two menu entries.
         let self = null;
         try {
-            const resp = await fetch('/api/device/config');
-            const data = await resp.json();
+            const data = await fetchJson('/api/device/config');
             const cfg = (data.success && data.config) || {};
             if (MCShare.isValidLatLon(cfg.lat, cfg.lon)) self = { lat: cfg.lat, lon: cfg.lon };
         } catch (e) {

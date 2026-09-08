@@ -1135,10 +1135,9 @@ async function paLoadMessages() {
     document.getElementById('paCounter').textContent = '';
 
     try {
-        const resp = await fetch(`/api/path-analyzer/messages?days=${encodeURIComponent(days)}`);
-        const data = await resp.json();
-        if (!resp.ok || !data.success) {
-            throw new Error(data.error || `HTTP ${resp.status}`);
+        const data = await fetchJson(`/api/path-analyzer/messages?days=${encodeURIComponent(days)}`);
+        if (!data.success) {
+            throw new Error(data.error || t('common.load_failed'));
         }
         // Newest first for the analysis table (API returns ascending)
         paMessages = (data.messages || []).slice().reverse();

@@ -301,8 +301,7 @@ window.addEventListener('beforeunload', () => {
  */
 async function loadServerHistory() {
     try {
-        const response = await fetch('/api/console/history');
-        const data = await response.json();
+        const data = await fetchJson('/api/console/history');
         if (data.success && data.commands) {
             serverHistory = data.commands;
             // Also populate local history for arrow key navigation
@@ -321,12 +320,11 @@ async function loadServerHistory() {
  */
 async function saveToServerHistory(command) {
     try {
-        const response = await fetch('/api/console/history', {
+        const data = await fetchJson('/api/console/history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ command: command })
         });
-        const data = await response.json();
         if (data.success && data.commands) {
             serverHistory = data.commands;
         }
@@ -442,8 +440,7 @@ function selectHistoryItem(command) {
  */
 async function loadOutputHistory() {
     try {
-        const response = await fetch('/api/console/output');
-        const data = await response.json();
+        const data = await fetchJson('/api/console/output');
         if (!data.success || !Array.isArray(data.entries) || data.entries.length === 0) {
             return;
         }

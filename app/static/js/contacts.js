@@ -281,8 +281,7 @@ async function loadContactCounts() {
         savedTypes.forEach(type => params.append('types', type));
 
         // Fetch pending count (with type filter)
-        const pendingResp = await fetch(`/api/contacts/pending?${params.toString()}`);
-        const pendingData = await pendingResp.json();
+        const pendingData = await fetchJson(`/api/contacts/pending?${params.toString()}`);
 
         const pendingBadge = document.getElementById('pendingBadge');
         if (pendingBadge && pendingData.success) {
@@ -334,8 +333,7 @@ async function loadCleanupSettings() {
     if (statusText) statusText.textContent = t('common.loading');
 
     try {
-        const response = await fetch('/api/contacts/cleanup-settings');
-        const data = await response.json();
+        const data = await fetchJson('/api/contacts/cleanup-settings');
 
         if (data.success) {
             autoCleanupSettings = data.settings;
@@ -945,8 +943,7 @@ function attachExistingEventListeners() {
  */
 async function loadProtectedContacts() {
     try {
-        const response = await fetch('/api/contacts/protected');
-        const data = await response.json();
+        const data = await fetchJson('/api/contacts/protected');
 
         if (data.success) {
             protectedContacts = data.protected_contacts || [];
@@ -1057,12 +1054,11 @@ function updateProtectionUI(publicKey, isProtected, buttonEl) {
 
 async function toggleContactIgnore(publicKey, ignored) {
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(publicKey)}/ignore`, {
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(publicKey)}/ignore`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ignored })
         });
-        const data = await response.json();
         if (data.success) {
             showToast(data.message, 'info');
             loadExistingContacts();
@@ -1079,12 +1075,11 @@ async function toggleContactIgnore(publicKey, ignored) {
 async function toggleContactBlock(publicKey, blocked) {
     if (blocked && !confirm(t('contacts.confirm.block'))) return;
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(publicKey)}/block`, {
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(publicKey)}/block`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ blocked })
         });
-        const data = await response.json();
         if (data.success) {
             showToast(data.message, blocked ? 'warning' : 'info');
             loadExistingContacts();
@@ -1213,8 +1208,7 @@ async function loadPendingContacts() {
         const params = new URLSearchParams();
         selectedTypes.forEach(type => params.append('types', type));
 
-        const response = await fetch(`/api/contacts/pending?${params.toString()}`);
-        const data = await response.json();
+        const data = await fetchJson(`/api/contacts/pending?${params.toString()}`);
 
         if (loadingEl) loadingEl.style.display = 'none';
 
@@ -1962,8 +1956,7 @@ async function loadBlockedNamesList() {
     if (!listEl) return;
 
     try {
-        const response = await fetch('/api/contacts/blocked-names-list');
-        const data = await response.json();
+        const data = await fetchJson('/api/contacts/blocked-names-list');
         if (!data.success || !data.blocked_names || data.blocked_names.length === 0) return;
 
         // Add a separator header
@@ -1999,12 +1992,11 @@ async function loadBlockedNamesList() {
             unblockBtn.innerHTML = `<i class="bi bi-slash-circle"></i> <span class="btn-label">${tHtml('contacts.btn.unblock')}</span>`;
             unblockBtn.onclick = async () => {
                 try {
-                    const resp = await fetch('/api/contacts/block-name', {
+                    const result = await fetchJson('/api/contacts/block-name', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ name: entry.name, blocked: false })
                     });
-                    const result = await resp.json();
                     if (result.success) {
                         showToast(result.message, 'info');
                         loadExistingContacts();
@@ -2421,11 +2413,10 @@ async function pushContactToDevice(contact) {
     if (!confirm(t('contacts.confirm.push', { name: contact.name }))) return;
 
     try {
-        const response = await fetch(`/api/contacts/${contact.public_key}/push-to-device`, {
+        const data = await fetchJson(`/api/contacts/${contact.public_key}/push-to-device`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
-        const data = await response.json();
         if (data.success) {
             showToast(data.message || t('contacts.toast.pushed', { name: contact.name }), 'success');
             setTimeout(() => loadExistingContacts(), 500);
@@ -2441,11 +2432,10 @@ async function moveContactToCache(contact) {
     if (!confirm(t('contacts.confirm.to_cache', { name: contact.name }))) return;
 
     try {
-        const response = await fetch(`/api/contacts/${contact.public_key}/move-to-cache`, {
+        const data = await fetchJson(`/api/contacts/${contact.public_key}/move-to-cache`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
-        const data = await response.json();
         if (data.success) {
             showToast(data.message || t('contacts.toast.to_cache', { name: contact.name }), 'success');
             setTimeout(() => loadExistingContacts(), 500);
@@ -2667,12 +2657,11 @@ async function submitContact(mode) {
     statusDiv.classList.remove('d-none');
 
     try {
-        const response = await fetch('/api/contacts/manual-add', {
+        const data = await fetchJson('/api/contacts/manual-add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        const data = await response.json();
 
         if (data.success) {
             statusDiv.className = 'mt-3 alert alert-success';

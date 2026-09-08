@@ -202,6 +202,8 @@
   "common.disconnected": "Disconnected",
   "common.edit": "Edit",
   "common.enabled": "Enabled",
+  "common.error.not_json": "The app did not answer — something in front of it did (HTTP {status}). Reload the page, and check the connection if it keeps happening.",
+  "common.error.not_json_auth": "Your session has expired — a login page in front of the app answered instead of the app (HTTP {status}). Reload the page and sign in again.",
   "common.failed_with": "Failed: {error}",
   "common.hours_ago": "{count}h ago",
   "common.hours_ago_long": {

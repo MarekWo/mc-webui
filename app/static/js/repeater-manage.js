@@ -375,8 +375,7 @@ async function loadStatus() {
 
     let data = null;
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/status`);
-        data = await resp.json();
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/status`);
     } catch (e) {
         data = { success: false, error: t('rptmgmt.request_failed') };
     }
@@ -556,8 +555,7 @@ async function loadTelemetry() {
 
     let data = null;
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/telemetry`);
-        data = await resp.json();
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/telemetry`);
     } catch (e) {
         data = { success: false, error: t('rptmgmt.request_failed') };
     }
@@ -754,12 +752,11 @@ async function sendCliCommand(raw) {
 
     let data = null;
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/cli`, {
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/cli`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ command })
         });
-        data = await resp.json();
     } catch (e) {
         data = { success: false, error: t('rptmgmt.request_failed') };
     }
@@ -885,12 +882,11 @@ async function runNeighborDiscover() {
     showNeighborsNote(t('rptmgmt.neigh.discover_sending'), 'info');
     let data = null;
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/action`, {
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/action`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'discover_neighbours' })
         });
-        data = await resp.json();
     } catch (e) {
         data = { success: false, error: t('rptmgmt.request_failed') };
     }
@@ -924,12 +920,11 @@ async function removeNeighbors(prefix, successMsg) {
     showNeighborsNote(t('rptmgmt.neigh.removing'), 'info');
     let data = null;
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/neighbours/remove`, {
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/neighbours/remove`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prefix })
         });
-        data = await resp.json();
     } catch (e) {
         data = { success: false, error: t('rptmgmt.request_failed') };
     }
@@ -962,8 +957,7 @@ async function loadNeighbors() {
 
     let data = null;
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/neighbours`);
-        data = await resp.json();
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/neighbours`);
     } catch (e) {
         data = { success: false, error: t('rptmgmt.request_failed') };
     }
@@ -1214,8 +1208,7 @@ async function loadClock() {
     if (!el) return;
     el.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/clock`);
-        const data = await resp.json();
+        const data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/clock`);
         if (data.success && data.timestamp) {
             const d = new Date(data.timestamp * 1000);
             el.classList.remove('text-muted');
@@ -1746,8 +1739,7 @@ function queueSettingsRead(fn) {
 async function fetchSettingsFields(secKey, fieldKeys) {
     const params = new URLSearchParams({ section: secKey, fields: fieldKeys.join(',') });
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/settings?${params.toString()}`);
-        return await resp.json();
+        return await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/settings?${params.toString()}`);
     } catch (e) {
         return { success: false, error: t('rptmgmt.request_failed') };
     }
@@ -1914,12 +1906,11 @@ async function applySettingsSection(secKey) {
 
     let data = null;
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/settings`, {
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/settings`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ values: dirty })
         });
-        data = await resp.json();
     } catch (e) {
         data = { success: false, error: t('rptmgmt.request_failed') };
     }
@@ -2009,12 +2000,11 @@ async function syncSavedPassword(newPassword) {
     // replace it with the one just set on the repeater itself.
     if (!_repeater || !_repeater.password_set) return;
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}`, {
+        const data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: newPassword })
         });
-        const data = await resp.json();
         if (data && data.success) {
             showNotification(t('rptmgmt.toast.password_synced'), 'success');
         }
@@ -2278,8 +2268,7 @@ async function loadRegions() {
         <span class="spinner-border spinner-border-sm me-2"></span>${tHtml('rptmgmt.reg.reading')}</div>`;
     setRegionsBusy(true);
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/regions`);
-        const data = await resp.json();
+        const data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/regions`);
         if (!data.success) {
             list.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${esc(data.error || t('rptmgmt.reg.read_failed'))}</div>`;
             return;
@@ -2287,7 +2276,11 @@ async function loadRegions() {
         _regionsData = data;
         renderRegionsList();
     } catch (e) {
-        list.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${esc(String(e))}</div>`;
+        // fetchJson already turns a gateway/login page into a readable error,
+        // so anything landing here is a bug in the rendering below — say so in
+        // words rather than printing the exception at the user.
+        console.error('Regions pane failed to render:', e);
+        list.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${esc(t('rptmgmt.reg.read_failed'))}</div>`;
     } finally {
         setRegionsBusy(false);
     }
@@ -2503,14 +2496,14 @@ function regionActionFailed(data) {
 async function postRegionAction(payload) {
     setRegionsBusy(true);
     try {
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/regions`, {
+        return await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/regions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
-        return await resp.json();
     } catch (e) {
-        return { success: false, error: String(e) };
+        console.error('Region action failed:', e);
+        return { success: false, error: t('rptmgmt.reg.action_failed') };
     } finally {
         setRegionsBusy(false);
     }
@@ -2729,12 +2722,11 @@ async function runRepeaterAction(action, confirmName) {
     try {
         const body = { action };
         if (confirmName) body.confirm_name = confirmName;
-        const resp = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/action`, {
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/action`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        data = await resp.json();
     } catch (e) {
         data = { success: false, error: t('rptmgmt.request_failed') };
     }
@@ -2764,8 +2756,7 @@ async function runRepeaterAction(action, confirmName) {
 // ================================================================
 
 async function fetchRepeater() {
-    const response = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}`);
-    const data = await response.json();
+    const data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}`);
     if (!data.success) {
         throw new Error(data.error || t('rptmgmt.load_failed'));
     }
@@ -2784,12 +2775,11 @@ async function doLogin(password, save) {
             body.password = password;
             body.save = !!save;
         }
-        const response = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/login`, {
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        data = await response.json();
     } catch (e) {
         console.error('Login request failed:', e);
         data = { success: false, error: t('rptmgmt.login_request_failed') };
@@ -2845,8 +2835,7 @@ async function logout() {
     const logoutBtn = document.getElementById('logoutBtn');
     logoutBtn.disabled = true;
     try {
-        const response = await fetch(`/api/repeaters/${encodeURIComponent(_pubkey)}/logout`, { method: 'POST' });
-        const data = await response.json();
+        const data = await fetchJson(`/api/repeaters/${encodeURIComponent(_pubkey)}/logout`, { method: 'POST' });
         if (!data.success) {
             showNotification(data.error || t('rptmgmt.logout_failed'), 'danger');
             logoutBtn.disabled = false;

@@ -134,8 +134,7 @@ async function loadRepeaters(forceRefresh = false) {
     const listEl = document.getElementById('repeaterList');
     try {
         const url = forceRefresh ? '/api/repeaters?refresh=true' : '/api/repeaters';
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await fetchJson(url);
         if (!data.success) {
             listEl.innerHTML = `<div class="text-danger small">${esc(data.error || t('repeaters.load_failed'))}</div>`;
             return;
@@ -265,12 +264,11 @@ async function doLogin(pubkey, password, save) {
             body.password = password;
             body.save = !!save;
         }
-        const response = await fetch(`/api/repeaters/${encodeURIComponent(pubkey)}/login`, {
+        data = await fetchJson(`/api/repeaters/${encodeURIComponent(pubkey)}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        data = await response.json();
     } catch (e) {
         console.error('Login request failed:', e);
         data = { success: false, error: t('rptmgmt.login_request_failed') };
@@ -366,12 +364,11 @@ async function submitPasswordModal() {
 
     if (mode === 'set') {
         try {
-            const response = await fetch(`/api/repeaters/${encodeURIComponent(pubkey)}`, {
+            const data = await fetchJson(`/api/repeaters/${encodeURIComponent(pubkey)}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password })
             });
-            const data = await response.json();
             if (data.success) {
                 showNotification(t('repeaters.toast.password_saved'), 'success');
                 await loadRepeaters();
@@ -405,8 +402,7 @@ async function confirmRemoveRepeater() {
     const { pubkey } = _removeCtx;
     _removeModal.hide();
     try {
-        const response = await fetch(`/api/repeaters/${encodeURIComponent(pubkey)}`, { method: 'DELETE' });
-        const data = await response.json();
+        const data = await fetchJson(`/api/repeaters/${encodeURIComponent(pubkey)}`, { method: 'DELETE' });
         if (data.success) {
             showNotification(t('repeaters.toast.removed'), 'info');
             await loadRepeaters();
@@ -429,8 +425,7 @@ async function openAddRepeaterModal() {
     document.getElementById('deviceRptSearch').value = '';
 
     try {
-        const response = await fetch('/api/contacts/detailed');
-        const data = await response.json();
+        const data = await fetchJson('/api/contacts/detailed');
         if (!data.success) {
             listEl.innerHTML = `<div class="text-danger small p-3">${esc(data.error || t('repeaters.toast.contacts_load_failed'))}</div>`;
             return;
@@ -487,12 +482,11 @@ function renderDeviceRepeaterList() {
 
 async function addRepeater(contact) {
     try {
-        const response = await fetch('/api/repeaters', {
+        const data = await fetchJson('/api/repeaters', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ public_key: contact.public_key })
         });
-        const data = await response.json();
         if (data.success) {
             showNotification(t('repeaters.toast.added', { name: contact.name || t('repeaters.term') }), 'success');
             await loadRepeaters();
@@ -535,8 +529,7 @@ async function renderPathList(pubkey) {
     listEl.innerHTML = `<div class="text-muted small">${tHtml('common.loading')}</div>`;
 
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`);
-        const data = await response.json();
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/paths`);
         if (!data.success || !data.paths.length) {
             listEl.innerHTML = `<div class="text-muted small mb-2">${tHtml('repeaters.paths.none')}</div>`;
             return;
@@ -618,11 +611,10 @@ async function setPathPrimary(pubkey, pathId) {
 
 async function applyPathToDevice(pubkey, pathId) {
     try {
-        const response = await fetch(
+        const data = await fetchJson(
             `/api/contacts/${encodeURIComponent(pubkey)}/paths/${pathId}/apply`,
             { method: 'POST' }
         );
-        const data = await response.json();
         if (data.success) {
             showNotification(t('repeaters.toast.path_updated'), 'info');
             await refreshDevicePathDisplay();
@@ -709,12 +701,11 @@ async function saveNewPath() {
     }
 
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths`, {
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/paths`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ path_hex: pathHex, hash_size: hashSize, label: label })
         });
-        const data = await response.json();
         if (data.success) {
             _addPathModal.hide();
             await renderPathList(pubkey);
@@ -737,10 +728,9 @@ async function resetPathToFlood() {
         return;
     }
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/reset_flood`, {
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/paths/reset_flood`, {
             method: 'POST'
         });
-        const data = await response.json();
         if (data.success) {
             showNotification(t('repeaters.toast.reset_flood_done'), 'info');
             await refreshDevicePathDisplay();
@@ -759,10 +749,9 @@ async function setPathDirect() {
         return;
     }
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/set_direct`, {
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/paths/set_direct`, {
             method: 'POST'
         });
-        const data = await response.json();
         if (data.success) {
             showNotification(t('repeaters.toast.set_direct_done'), 'info');
             await refreshDevicePathDisplay();
@@ -781,10 +770,9 @@ async function clearAllPaths() {
         return;
     }
     try {
-        const response = await fetch(`/api/contacts/${encodeURIComponent(pubkey)}/paths/clear`, {
+        const data = await fetchJson(`/api/contacts/${encodeURIComponent(pubkey)}/paths/clear`, {
             method: 'POST'
         });
-        const data = await response.json();
         if (data.success) {
             await renderPathList(pubkey);
             showNotification(tn('repeaters.toast.paths_cleared', data.paths_deleted || 0), 'info');
@@ -814,8 +802,7 @@ async function loadHopPicker() {
 
     if (!_repeatersCache) {
         try {
-            const response = await fetch('/api/contacts/repeaters');
-            const data = await response.json();
+            const data = await fetchJson('/api/contacts/repeaters');
             if (data.success) {
                 _repeatersCache = data.repeaters;
             }
@@ -1021,8 +1008,7 @@ async function loadRepeaterMapMarkers() {
 
     if (!_repeatersCache) {
         try {
-            const response = await fetch('/api/contacts/repeaters');
-            const data = await response.json();
+            const data = await fetchJson('/api/contacts/repeaters');
             if (data.success) _repeatersCache = data.repeaters;
         } catch (e) {
             if (countEl) countEl.textContent = t('common.load_failed');
@@ -1035,8 +1021,7 @@ async function loadRepeaterMapMarkers() {
     if (!showCached) {
         // Non-cached: only repeaters that are on the device
         try {
-            const response = await fetch('/api/contacts/detailed');
-            const data = await response.json();
+            const data = await fetchJson('/api/contacts/detailed');
             if (data.success && data.contacts) {
                 const deviceKeys = new Set(data.contacts
                     .filter(c => c.type === 2)
