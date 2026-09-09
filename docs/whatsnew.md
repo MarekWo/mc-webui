@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.18.0 — 2026-09-09
+
 ### Features
 
 - **One-click updates now work without cloning the repository.** mc-webui can be installed two ways: by pulling the ready-made Docker image, or by cloning this repository and building it. The ↻ button next to the version in the menu has always told both kinds whether a newer version exists — but **Update now** only ever appeared for a repository installation, because the small service behind it was installed from the `scripts/` folder, which an image installation does not have. That folder is no longer needed: one command installs the service and downloads what it needs, and the whole thing can be removed the same way.
@@ -28,6 +32,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 - **An update that had nothing to install no longer claims it timed out.** Pressing **Update now** watched for the version to change and gave up after two minutes if it did not — so an update run that legitimately found nothing new ended in *"Update timed out. Please check server manually."* That was the normal outcome shortly after a release, while the Docker image for the newest commit was still being built. The update now reports what it did, and the screen says so plainly: that the change is on GitHub but its image is still being built, or, for an installation built from source, that it was already on the newest commit. It appears the moment the run finishes, instead of two minutes later, and no longer wears a red cross.
 
 - **A failed request no longer shows a programmer's error message.** When something in front of the app answered instead of the app — the login page of a reverse proxy or a service like Cloudflare Access after the session had expired, or a gateway error page — the interface tried to read that web page as data and showed what the attempt threw: `SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON`. It now says what actually happened, and what to do about it: that a login page answered and the page needs reloading and signing in again, or that something in front of the app answered, with the HTTP status quoted for anyone diagnosing it. Requests are read the same way everywhere now, so a genuine error from the app itself keeps its own message — a repeater that did not answer in time still says exactly that.
+
+---
+
+## 2.17.0 — 2026-09-07
 
 ### Features
 
