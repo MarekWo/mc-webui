@@ -1563,6 +1563,8 @@
   "update.link_now_title": "Kliknij, aby zaktualizować",
   "update.network_error": "Błąd sieci podczas aktualizacji",
   "update.new_version": "Dostępna nowa wersja: {version}",
+  "update.no_new_commit": "Jesteś już na najnowszym commicie - nie było czego pobrać.",
+  "update.no_new_image": "Zmiana jest już na GitHubie, ale jej obraz Dockera wciąż się buduje. Spróbuj ponownie za kilka minut.",
   "update.now": "Aktualizuj teraz",
   "update.rebuilding": "Przebudowa kontenerów... ({attempt}/{max})",
   "update.reload": "Przeładuj stronę",

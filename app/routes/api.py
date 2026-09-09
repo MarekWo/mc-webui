@@ -5581,8 +5581,16 @@ def updater_status():
             "success": true,
             "available": true,
             "url": "http://172.17.0.1:5050",
-            "update_in_progress": false
+            "update_in_progress": false,
+            "mode": "image",
+            "last_update_result": {"success": true, "changed": false},
+            "last_update_time": "2026-09-09 11:20:03"
         }
+
+    'mode' is how the host installation updates itself - 'source' for a git
+    checkout, 'image' for a docker-compose.yml running the published image.
+    'last_update_result' lets the caller tell "the update ran and there was
+    nothing newer" from "the update never finished".
     """
     try:
         url = get_updater_url()
@@ -5598,12 +5606,26 @@ def updater_status():
         response = requests.get(f"{url}/health", timeout=5)
         data = response.json()
 
+        # Only the fields the UI acts on: the webhook also carries up to 2 KB
+        # of script output, which has no business in a poll that runs every
+        # two seconds. The full output stays in journalctl on the host.
+        last_result = data.get('last_update_result') or None
+        if isinstance(last_result, dict):
+            last_result = {
+                k: last_result.get(k)
+                for k in ('success', 'changed', 'mode', 'error', 'returncode')
+                if k in last_result
+            }
+
         return jsonify({
             'success': True,
             'available': True,
             'url': url,
             'update_in_progress': data.get('update_in_progress', False),
-            'mcwebui_dir': data.get('mcwebui_dir', '')
+            'mcwebui_dir': data.get('mcwebui_dir', ''),
+            'mode': data.get('mode', 'unknown'),
+            'last_update_result': last_result,
+            'last_update_time': data.get('last_update_time')
         }), 200
 
     except Exception as e:
@@ -5648,6 +5670,7 @@ def updater_trigger():
         if response.status_code == 200 and data.get('success'):
             return jsonify({
                 'success': True,
+                'mode': data.get('mode', 'unknown'),
                 'message': 'Update started. Server will restart shortly.'
             }), 200
         else:

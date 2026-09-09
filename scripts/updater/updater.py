@@ -5,9 +5,17 @@ mc-webui Update Webhook Server
 A simple HTTP server that listens for update requests and executes
 the update script. Designed to run as a systemd service on the host.
 
+Two kinds of installation are supported, told apart at request time:
+- source - a git checkout: runs scripts/update.sh (git pull + rebuild)
+- image  - a bare docker-compose.yml using the published Docker Hub image:
+           runs update-image.sh (docker compose pull + up -d)
+
 Security:
-- Listens only on localhost (127.0.0.1)
-- Simple token-based authentication (optional)
+- Listens on all interfaces: the mc-webui container reaches this over the
+  Docker bridge, so binding to loopback would put it out of reach
+- Token authentication is available via UPDATER_TOKEN but off by default,
+  and the web UI does not send one - anyone who can reach port 5050 can
+  trigger an update, so keep the port off untrusted networks
 
 Endpoints:
 - GET  /health  - Check if webhook is running
@@ -28,13 +36,45 @@ from urllib.parse import urlparse, parse_qs
 HOST = '0.0.0.0'  # Listen on all interfaces (Docker needs this)
 PORT = 5050
 MCWEBUI_DIR = os.environ.get('MCWEBUI_DIR', os.path.expanduser('~/mc-webui'))
-UPDATE_SCRIPT = os.path.join(MCWEBUI_DIR, 'scripts', 'update.sh')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SOURCE_UPDATE_SCRIPT = os.path.join(MCWEBUI_DIR, 'scripts', 'update.sh')
+IMAGE_UPDATE_SCRIPT = os.path.join(SCRIPT_DIR, 'update-image.sh')
 AUTH_TOKEN = os.environ.get('UPDATER_TOKEN', '')  # Optional token
 
 # Global state
 update_in_progress = False
 last_update_result = None
 last_update_time = None
+
+
+def detect_mode():
+    """Decide how this installation updates itself.
+
+    Resolved per request rather than cached at startup, so cloning the
+    repository into what was an image-only installation flips the mode
+    without anyone remembering to restart this service.
+
+    Returns 'source', 'image', or 'unknown'.
+    """
+    if (os.path.isdir(os.path.join(MCWEBUI_DIR, '.git'))
+            and os.path.exists(SOURCE_UPDATE_SCRIPT)):
+        return 'source'
+
+    for name in ('docker-compose.yml', 'docker-compose.yaml'):
+        if os.path.exists(os.path.join(MCWEBUI_DIR, name)):
+            return 'image'
+
+    return 'unknown'
+
+
+def resolve_update_script():
+    """Return (mode, script_path); script_path is None when there is none."""
+    mode = detect_mode()
+    if mode == 'source':
+        return mode, SOURCE_UPDATE_SCRIPT
+    if mode == 'image':
+        return mode, IMAGE_UPDATE_SCRIPT
+    return mode, None
 
 
 class UpdateHandler(BaseHTTPRequestHandler):
@@ -100,11 +140,19 @@ class UpdateHandler(BaseHTTPRequestHandler):
 
     def handle_health(self):
         """Health check endpoint."""
+        mode, script = resolve_update_script()
         self.send_json({
             'status': 'ok',
             'service': 'mc-webui-updater',
             'update_in_progress': update_in_progress,
-            'mcwebui_dir': MCWEBUI_DIR
+            'mcwebui_dir': MCWEBUI_DIR,
+            'mode': mode,
+            'update_script': script,
+            'update_script_present': bool(script and os.path.exists(script)),
+            # Carried here as well so the web UI can read the outcome of the
+            # run it just triggered without a second round trip.
+            'last_update_result': last_update_result,
+            'last_update_time': last_update_time
         })
 
     def handle_status(self):
@@ -130,43 +178,76 @@ class UpdateHandler(BaseHTTPRequestHandler):
             }, 409)
             return
 
-        if not os.path.exists(UPDATE_SCRIPT):
+        mode, script = resolve_update_script()
+
+        if mode == 'unknown':
             self.send_json({
                 'success': False,
-                'error': f'Update script not found: {UPDATE_SCRIPT}'
+                'error': (f'No mc-webui installation found in {MCWEBUI_DIR}: '
+                          'neither a git checkout nor a docker-compose.yml.')
+            }, 500)
+            return
+
+        if not script or not os.path.exists(script):
+            self.send_json({
+                'success': False,
+                'error': f'Update script not found: {script}'
             }, 500)
             return
 
         # Start update in background thread
         update_in_progress = True
-        thread = threading.Thread(target=run_update, daemon=True)
+        thread = threading.Thread(
+            target=run_update, args=(mode, script), daemon=True
+        )
         thread.start()
 
         self.send_json({
             'success': True,
+            'mode': mode,
             'message': 'Update started',
             'note': 'Server will restart. Poll /health to detect completion.'
         })
 
 
-def run_update():
+def parse_result_marker(stdout):
+    """Read the MC_UPDATE_RESULT=... line the update scripts print last.
+
+    It separates "something new was installed" from "the remote had nothing
+    newer". Without it the web UI can only watch for the version to change,
+    and then sits through its whole timeout whenever there was legitimately
+    nothing to change - which is the normal case while a pushed commit is
+    still being built into an image. None means a script older than the
+    marker, and the caller should fall back to watching the version.
+    """
+    for line in reversed((stdout or '').strip().splitlines()):
+        line = line.strip()
+        if line.startswith('MC_UPDATE_RESULT='):
+            return line.split('=', 1)[1].strip()
+    return None
+
+
+def run_update(mode, script):
     """Run update script in background."""
     global update_in_progress, last_update_result, last_update_time
 
     try:
-        print(f"[UPDATE] Starting update from {UPDATE_SCRIPT}")
+        print(f"[UPDATE] Starting {mode} update from {script}")
 
         # Run the update script
         result = subprocess.run(
-            ['/bin/bash', UPDATE_SCRIPT],
+            ['/bin/bash', script],
             cwd=MCWEBUI_DIR,
             capture_output=True,
             text=True,
             timeout=300  # 5 minute timeout
         )
 
+        marker = parse_result_marker(result.stdout)
         last_update_result = {
             'success': result.returncode == 0,
+            'mode': mode,
+            'changed': None if marker is None else marker == 'updated',
             'returncode': result.returncode,
             'stdout': result.stdout[-2000:] if result.stdout else '',  # Last 2000 chars
             'stderr': result.stderr[-500:] if result.stderr else ''
@@ -182,6 +263,7 @@ def run_update():
     except subprocess.TimeoutExpired:
         last_update_result = {
             'success': False,
+            'mode': mode,
             'error': 'Update timed out after 5 minutes'
         }
         last_update_time = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -190,6 +272,7 @@ def run_update():
     except Exception as e:
         last_update_result = {
             'success': False,
+            'mode': mode,
             'error': str(e)
         }
         last_update_time = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -201,18 +284,24 @@ def run_update():
 
 def main():
     """Main entry point."""
+    mode, script = resolve_update_script()
+
     print(f"mc-webui Update Webhook Server")
     print(f"  Listening on: {HOST}:{PORT}")
     print(f"  mc-webui dir: {MCWEBUI_DIR}")
-    print(f"  Update script: {UPDATE_SCRIPT}")
+    print(f"  Install mode: {mode}")
+    print(f"  Update script: {script or '(none)'}")
     print(f"  Auth token: {'configured' if AUTH_TOKEN else 'disabled'}")
     print()
 
     if not os.path.exists(MCWEBUI_DIR):
         print(f"WARNING: mc-webui directory not found: {MCWEBUI_DIR}")
 
-    if not os.path.exists(UPDATE_SCRIPT):
-        print(f"WARNING: Update script not found: {UPDATE_SCRIPT}")
+    if mode == 'unknown':
+        print(f"WARNING: {MCWEBUI_DIR} holds neither a git checkout nor a "
+              "docker-compose.yml - nothing to update")
+    elif not script or not os.path.exists(script):
+        print(f"WARNING: Update script not found: {script}")
 
     server = HTTPServer((HOST, PORT), UpdateHandler)
 

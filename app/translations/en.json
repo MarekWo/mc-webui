@@ -1487,6 +1487,8 @@
   "update.link_now_title": "Click to update",
   "update.network_error": "Network error during update",
   "update.new_version": "New version available: {version}",
+  "update.no_new_commit": "Already on the newest commit - nothing was pulled.",
+  "update.no_new_image": "The change is already on GitHub, but its Docker image is still being built. Try again in a few minutes.",
   "update.now": "Update Now",
   "update.rebuilding": "Rebuilding containers... ({attempt}/{max})",
   "update.reload": "Reload Page",

@@ -5704,6 +5704,20 @@ async function performRemoteUpdate() {
     document.getElementById('updateProgressMessage').textContent = t('update.starting');
 
     try {
+        // Baseline before triggering: last_update_time is what tells this run
+        // apart from an earlier one, and the mode decides how "nothing to do"
+        // gets worded - a stale image and an unchanged commit are not the
+        // same story to tell.
+        let mode = 'unknown';
+        let previousResultTime = null;
+        try {
+            const before = await fetch('/api/updater/status').then(r => r.json());
+            mode = before.mode || 'unknown';
+            previousResultTime = before.last_update_time || null;
+        } catch (e) {
+            // Not fatal - watching the version still works on its own
+        }
+
         // Trigger update
         const data = await fetchJson('/api/updater/trigger', { method: 'POST' });
 
@@ -5711,6 +5725,7 @@ async function performRemoteUpdate() {
             showUpdateResult(false, data.error || t('update.start_failed'));
             return;
         }
+        if (data.mode && data.mode !== 'unknown') mode = data.mode;
 
         document.getElementById('updateProgressMessage').textContent = t('update.waiting');
 
@@ -5738,6 +5753,39 @@ async function performRemoteUpdate() {
                         return;
                     }
                 }
+
+                // The app answered, so it is up: the update run has either
+                // finished or never restarted anything. Ask the webhook which
+                // - otherwise a run that had nothing to install sits out the
+                // full two minutes and then claims it timed out. That is the
+                // normal case right after a push, while the image for that
+                // commit is still being built.
+                const status = await fetch('/api/updater/status')
+                    .then(r => r.json())
+                    .catch(() => null);
+
+                const finished = status && status.available
+                    && !status.update_in_progress
+                    && status.last_update_time
+                    && status.last_update_time !== previousResultTime;
+
+                if (finished) {
+                    const result = status.last_update_result || {};
+                    if (result.success === false) {
+                        showUpdateResult(false, result.error || t('update.start_failed'));
+                        return;
+                    }
+                    // changed === null means an update script older than the
+                    // result marker: fall through and keep watching the version.
+                    if (result.changed === false) {
+                        showUpdateResult(
+                            false,
+                            mode === 'image' ? t('update.no_new_image') : t('update.no_new_commit'),
+                            { neutral: true }
+                        );
+                        return;
+                    }
+                }
             } catch (e) {
                 // Server not responding yet - this is expected during restart
                 document.getElementById('updateProgressMessage').textContent =
@@ -5761,9 +5809,12 @@ async function performRemoteUpdate() {
 }
 
 /**
- * Show update result in modal
+ * Show update result in modal.
+ *
+ * options.neutral marks an outcome that is neither: the update ran fine and
+ * found nothing to install. A red cross would read as a failure it isn't.
  */
-function showUpdateResult(success, message) {
+function showUpdateResult(success, message, options = {}) {
     document.getElementById('updateProgress').classList.add('d-none');
     document.getElementById('updateResult').classList.remove('d-none');
 
@@ -5775,10 +5826,15 @@ function showUpdateResult(success, message) {
         msg.className = 'mb-0 text-success';
         document.getElementById('updateReloadBtn').classList.remove('d-none');
     } else {
-        icon.className = 'bi bi-x-circle-fill text-danger fs-1 mb-3 d-block';
-        msg.className = 'mb-0 text-danger';
+        if (options.neutral) {
+            icon.className = 'bi bi-info-circle-fill text-secondary fs-1 mb-3 d-block';
+            msg.className = 'mb-0 text-secondary';
+        } else {
+            icon.className = 'bi bi-x-circle-fill text-danger fs-1 mb-3 d-block';
+            msg.className = 'mb-0 text-danger';
+        }
         document.getElementById('updateCancelBtn').classList.remove('d-none');
-        document.getElementById('updateCancelBtn').textContent = 'Close';
+        document.getElementById('updateCancelBtn').textContent = t('common.close');
     }
 
     msg.textContent = message;

@@ -208,9 +208,12 @@ mc-webui/
 ├── docs/                           # Documentation
 ├── scripts/
 │   ├── diag_report.py              # Offline analyser for a diagnostic capture
-│   ├── update.sh                   # Automated update script
+│   ├── update.sh                   # Update a git checkout (pull + rebuild)
 │   ├── docker-entrypoint.sh        # Container startup (BLE cleanup)
 │   ├── updater/                    # Remote update webhook service
+│   │   ├── updater.py              # Host webhook; picks the update path per install
+│   │   ├── update-image.sh         # Update a Docker Hub install (pull + recreate)
+│   │   └── install.sh              # systemd installer; also runs from curl | sudo bash
 │   └── watchdog/                   # Container health monitor
 └── README.md
 ```

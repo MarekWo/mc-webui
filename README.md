@@ -338,6 +338,9 @@ To switch between stable and dev, change the image tag in `docker-compose.yml`:
 - Stable: `image: mawoj/mc-webui:latest`
 - Development: `image: mawoj/mc-webui:dev`
 
+You can also update from the web interface instead of the terminal — see
+[Remote updates from web GUI](#remote-updates-from-web-gui-optional) below.
+
 ### From Source: Using the update script (recommended)
 
 The easiest way to update mc-webui:
@@ -398,19 +401,41 @@ git checkout main
 
 ### Remote updates from web GUI (optional)
 
-You can enable one-click updates directly from the mc-webui menu. This requires installing a small webhook service on the host machine.
+You can enable one-click updates directly from the mc-webui menu. This requires installing a small webhook service on the host machine. It works with either installation option.
 
-**Install the updater service:**
+**Docker Hub installation** (no repository) — run this from the folder holding your `docker-compose.yml`:
+
+```bash
+cd ~/mc-webui
+curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/scripts/updater/install.sh | sudo bash
+```
+
+It downloads what it needs into `/opt/mc-webui-updater`. Add `MCWEBUI_DIR=/path/to/mc-webui` in front of `sudo` if your instance lives somewhere it cannot guess.
+
+**From Source installation:**
 
 ```bash
 cd ~/mc-webui
 sudo ./scripts/updater/install.sh
 ```
 
-The installer will:
+Either way the installer will:
 - Create a systemd service `mc-webui-updater`
-- Start a webhook server on port 5050 (localhost only)
+- Start a webhook server on port 5050
 - Enable automatic startup on boot
+
+The update it performs matches the installation it finds, and it decides that at
+the moment you press the button:
+
+| Installation | What "Update" runs |
+|---|---|
+| Docker Hub image | `docker compose pull` + `docker compose up -d` |
+| Git checkout | `git pull`, freeze version, `docker compose up -d --build` |
+
+An image is published a few minutes after the commit it is built from, so
+shortly after a release the button can report that the change is on GitHub but
+its image is still being built. That is not an error — try again in a few
+minutes.
 
 **Usage:**
 1. Click the refresh button (↻) next to the version in the menu
@@ -427,11 +452,18 @@ systemctl status mc-webui-updater
 # View logs
 journalctl -u mc-webui-updater -f
 
-# Uninstall
+# Uninstall (From Source)
 sudo ~/mc-webui/scripts/updater/install.sh --uninstall
+
+# Uninstall (Docker Hub installation)
+curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/scripts/updater/install.sh | sudo bash -s -- --uninstall
 ```
 
-**Security note:** The webhook listens only on localhost. The Docker container connects to it via the Docker bridge network.
+**Security note:** The webhook listens on port 5050 on all interfaces — the
+Docker container reaches it over the Docker bridge, which rules out binding to
+localhost only — and it has no authentication. Anyone who can reach port 5050
+can trigger a rebuild. Install it only on a trusted network, or block the port
+at your firewall.
 
 ---
 

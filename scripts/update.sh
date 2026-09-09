@@ -40,6 +40,7 @@ echo ""
 
 # Step 1: Git pull
 info "Pulling latest changes from Git..."
+BEFORE_HEAD="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 # Force HTTP/1.1 for the pull. GitHub's HTTP/2 edge rejects the anonymous
 # git-upload-pack POST sent by older git/libcurl (e.g. Debian bookworm's
 # git 2.39 + libcurl 7.88) with a 401, which git reports as a credential
@@ -50,6 +51,13 @@ if GIT_TERMINAL_PROMPT=0 git -c http.version=HTTP/1.1 pull; then
     success "Git pull completed"
 else
     error "Git pull failed"
+fi
+AFTER_HEAD="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+if [ "$BEFORE_HEAD" == "$AFTER_HEAD" ]; then
+    CHANGED=false
+    warn "Already on the newest commit - rebuilding anyway to be sure."
+else
+    CHANGED=true
 fi
 echo ""
 
@@ -88,4 +96,20 @@ if command -v curl &> /dev/null; then
 fi
 
 echo ""
-echo -e "${GREEN}Update complete!${NC}"
+if [ "$CHANGED" == "true" ]; then
+    echo -e "${GREEN}Update complete!${NC}"
+else
+    echo -e "${YELLOW}Nothing new was pulled - already on the newest commit.${NC}"
+fi
+
+# Machine-readable result for the updater webhook - keep this the last line.
+# Only when stdout is not a terminal: the webhook captures output through a
+# pipe, while a human running this by hand has already read the same thing in
+# plain words just above and does not need the marker in their terminal.
+if [ ! -t 1 ]; then
+    if [ "$CHANGED" == "true" ]; then
+        echo "MC_UPDATE_RESULT=updated"
+    else
+        echo "MC_UPDATE_RESULT=no_change"
+    fi
+fi

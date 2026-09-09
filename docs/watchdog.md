@@ -29,12 +29,26 @@ In parallel, the app exposes [`/health/strict`](architecture.md#health-endpoints
 
 ## Installation
 
+**From Source installation** (a git checkout):
+
 ```bash
 cd ~/mc-webui
 sudo ./scripts/watchdog/install.sh
 ```
 
-The installer will:
+**Docker Hub installation** (no repository) — run this from the folder holding
+your `docker-compose.yml`; it downloads what it needs into
+`/opt/mc-webui-watchdog`:
+
+```bash
+cd ~/mc-webui
+curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/scripts/watchdog/install.sh | sudo bash
+```
+
+Add `MCWEBUI_DIR=/path/to/mc-webui` in front of `sudo` if your instance lives
+somewhere the installer cannot guess.
+
+Either way the installer will:
 - Create a systemd service `mc-webui-watchdog`
 - Start monitoring the container immediately
 - Enable automatic startup on boot
@@ -115,7 +129,11 @@ Environment=AUTO_START=false
 ## Uninstall
 
 ```bash
+# From Source installation
 sudo ~/mc-webui/scripts/watchdog/install.sh --uninstall
+
+# Docker Hub installation
+curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/scripts/watchdog/install.sh | sudo bash -s -- --uninstall
 ```
 
 Note: The log file is preserved after uninstall. Remove manually if needed:
