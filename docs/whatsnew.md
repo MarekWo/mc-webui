@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.18.1 — 2026-09-11
+
 ### Fixes
 
 - **A renamed device now shows its new name straight away, and Resend no longer repeats a message under the old one.** Saving a new name under **Settings → Device** renamed the radio at once, so everyone else saw your messages under the new name, but the interface kept using the old one until the container restarted — and a page left open kept it even then, until it was reloaded. It showed in the navbar and above every message you sent, and, worse, in the copy the interface keeps of each sent message so that **Resend** can put exactly the same packet back on air: that copy was built with the old name, so resending a message broadcast a second packet, which everyone else received as a duplicate from your old name. The same mismatch kept the repeater list from appearing under messages sent after the rename. The interface now reads the name back from the radio the moment it is saved, and every page you have open, in any browser, switches the navbar and your next messages to it without a reload; `set name` in the console behaves the same. Messages sent between a rename and this update keep the name they were stored with, so resending one of those still repeats it under the old name. A name can also be at most 31 bytes long, which is all the radio keeps: a letter such as *ł* takes two bytes and an emoji four, so a longer name is shortened on a whole character, and the Settings field shows the name as it was kept.
