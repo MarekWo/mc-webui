@@ -223,8 +223,12 @@ class ObserverManager:
     def set_identity(self, name, public_key, self_info=None, device_info=None):
         """Record device identity; called from DeviceManager after connect."""
         new_origin_id = (public_key or '').upper()
-        identity_changed = self._started and new_origin_id != self._origin_id
-        self._origin = name or 'MeshCore Device'
+        new_origin = name or 'MeshCore Device'
+        # A rename counts too: the retained status and the last will carry the
+        # name, and both are only built when a client connects
+        identity_changed = self._started and (
+            new_origin_id != self._origin_id or new_origin != self._origin)
+        self._origin = new_origin
         self._origin_id = new_origin_id
         if self_info:
             self._status_extras['radio'] = ",".join(

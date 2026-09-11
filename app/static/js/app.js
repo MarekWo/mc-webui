@@ -747,6 +747,12 @@ function connectChatSocket() {
         updateStatus(data.connected ? 'connected' : 'disconnected');
     });
 
+    // The device was renamed (here, in another tab, from the console) or
+    // connected under a different name
+    chatSocket.on('device_name', (data) => {
+        applyDeviceName(data?.name);
+    });
+
     // Observer live status (Settings > Observer tab badges + counters)
     chatSocket.on('observer_status', (data) => {
         applyObserverLiveStatus(data || {});
@@ -2216,6 +2222,21 @@ function openPathInAnalyzer(packetHash, pathHex) {
 }
 
 /**
+ * Show the device's current name wherever this page holds a copy of it. All of
+ * them were read once at page load, so after a rename the navbar, the label on
+ * each message sent next and the "mentions my name" rule kept the old name
+ * until a reload.
+ */
+function applyDeviceName(name) {
+    if (!name) return;
+    window.MC_CONFIG = window.MC_CONFIG || {};
+    window.MC_CONFIG.deviceName = name;
+    notifyProfileDeviceName = name;
+    const navName = document.getElementById('navDeviceName');
+    if (navName) navName.textContent = `- ${name}`;
+}
+
+/**
  * Load connection status
  */
 async function loadStatus() {
@@ -2224,6 +2245,10 @@ async function loadStatus() {
 
         if (data.success) {
             updateStatus(data.connected ? 'connected' : 'disconnected');
+            // Catches a rename this page was not listening for, e.g. across a
+            // container restart. Until the device connects the server only has
+            // its configured fallback, which must not replace a real name.
+            if (data.device_name_source === 'device') applyDeviceName(data.device_name);
             // Cache device capabilities so the message renderer can decide
             // whether to expose the raw-resend button (firmware ≥1.16 only).
             window.deviceCaps = {
@@ -2646,7 +2671,10 @@ async function loadDeviceConfig() {
         const c = data.config;
 
         // Public Info
-        document.getElementById('settDeviceName').value = c.name || '';
+        const nameInput = document.getElementById('settDeviceName');
+        nameInput.value = c.name || '';
+        // Saving sends the name only when it changed (see saveDevicePublicInfo)
+        nameInput.dataset.initial = nameInput.value;
         document.getElementById('settDeviceLat').value = c.lat || '';
         document.getElementById('settDeviceLon').value = c.lon || '';
         document.getElementById('settDeviceAdvertLoc').checked = !!c.advert_loc_policy;
@@ -2684,10 +2712,11 @@ async function loadDeviceConfig() {
 }
 
 async function saveDevicePublicInfo() {
-    const name = document.getElementById('settDeviceName').value.trim();
+    const nameInput = document.getElementById('settDeviceName');
+    const name = nameInput.value.trim();
     if (!name) {
         showNotification(t('settings.device.toast.name_empty'), 'danger');
-        document.getElementById('settDeviceName').focus();
+        nameInput.focus();
         return;
     }
 
@@ -2697,11 +2726,15 @@ async function saveDevicePublicInfo() {
 
     const phmSel = document.getElementById('settDevicePathHashMode');
     const payload = {
-        name: name,
         lat: lat,
         lon: lon,
         advert_loc_policy: advertLoc
     };
+    // A rename is a flash write on the device and a re-read of its identity,
+    // so an unchanged name is left out
+    if (name !== nameInput.dataset.initial) {
+        payload.name = name;
+    }
     if (phmSel && phmSel.value !== phmSel.dataset.initial) {
         payload.path_hash_mode = parseInt(phmSel.value, 10);
     }
@@ -2716,6 +2749,12 @@ async function saveDevicePublicInfo() {
             showNotification(t('settings.device.toast.info_saved'), 'success');
             _selfInfo = null;
             if (phmSel) phmSel.dataset.initial = phmSel.value;
+            // The device may have shortened the name; show what it kept
+            if (data.name) {
+                nameInput.value = data.name;
+                nameInput.dataset.initial = data.name;
+                applyDeviceName(data.name);
+            }
         } else {
             showNotification(data.error || t('common.save_failed'), 'danger');
         }

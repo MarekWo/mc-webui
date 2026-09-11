@@ -181,6 +181,20 @@ def _payload_from_raw_packet(raw_packet_hex) -> Optional[str]:
     return payload.hex() or None
 
 
+def _event_error_text(event) -> str:
+    """Why a meshcore command failed, from the ERROR event it came back with.
+
+    reader.py wraps a device ERROR frame as {error_code, code_string} (the
+    string only for codes it knows, nothing at all for a bare one-byte frame);
+    commands.py wraps client-side failures as {reason} or {error}.
+    """
+    payload = getattr(event, 'payload', None) or {}
+    err = payload.get('code_string') or payload.get('reason') or payload.get('error')
+    if not err and payload.get('error_code') is not None:
+        err = f"error_code={payload['error_code']}"
+    return err or 'unknown error'
+
+
 def parse_meshcore_uri(uri: str) -> Optional[Dict]:
     """Parse meshcore://contact/add?name=...&public_key=...&type=... URI.
 
@@ -293,6 +307,25 @@ class DeviceManager:
     @property
     def self_info(self) -> Optional[dict]:
         return self._self_info
+
+    def _set_device_name(self, name: str) -> None:
+        """Adopt the name the device reports, wherever we keep a copy of it.
+
+        The firmware writes its own name in front of every channel message it
+        sends, and our copy is what own messages are stored under and what
+        their raw_packet snapshot and echo candidates are built from. A copy
+        left stale by a rename made Resend broadcast a second packet under the
+        old name. Open pages read the name once at load, so they are told too.
+        """
+        from app.config import runtime_config
+        self._device_name = name
+        runtime_config.set_device_name(name, "device")
+        if self.socketio:
+            try:
+                self.socketio.emit('device_name', {'name': name}, namespace='/chat')
+            except Exception as e:
+                # _connect calls this and must not fail over a page update
+                logger.warning(f"Could not announce the device name: {e}")
 
     # ================================================================
     # Lifecycle
@@ -432,13 +465,11 @@ class DeviceManager:
                 logger.error("Device connected but self_info is empty — device may not be responding")
                 self.mc = None
                 return
-            self._device_name = self._self_info.get('name', self.config.MC_DEVICE_NAME)
+            # Before _connected: main.py's startup thread reads the name as soon
+            # as it sees the connection. Also keeps the navbar/templates right
+            # when connecting took longer than the startup wait timeout.
+            self._set_device_name(self._self_info.get('name', self.config.MC_DEVICE_NAME))
             self._connected = True
-
-            # Update runtime config so navbar/templates show correct device name
-            # (even if connection took longer than the startup wait timeout)
-            from app.config import runtime_config
-            runtime_config.set_device_name(self._device_name, "device")
 
             # Store device info in database
             self.db.set_device_info(
@@ -811,9 +842,11 @@ class DeviceManager:
             #
             # Compute the same pkt_payload we would have stored for the original
             # send and ask the DB if we already have an own row with that hash.
+            # The sender's name is not compared: a message sent before a rename
+            # carries the old one, and only our own packet can match anyway.
             sender_ts = data.get('sender_timestamp')
             txt_type = data.get('txt_type', 0)
-            if sender_ts and sender == self.device_name:
+            if sender_ts:
                 try:
                     secret = self._channel_secrets.get(channel_idx)
                     if secret:
@@ -1990,12 +2023,15 @@ class DeviceManager:
                         'error': f"Could not set region scope ({scope_name}): {scope_res.get('error')}",
                     }
                 event = self.execute(self.mc.commands.send_chan_msg(channel_idx, text))
+                # The name the firmware just put in front of the text. A rename
+                # waits for this lock, so it cannot change before it is read.
+                sender = self.device_name
 
             # Store the sent message in database
             ts = int(time.time())
             msg_id = self.db.insert_channel_message(
                 channel_idx=channel_idx,
-                sender=self.device_name,
+                sender=sender,
                 content=text,
                 timestamp=ts,
                 is_own=True,
@@ -2010,8 +2046,8 @@ class DeviceManager:
             secret = self._refresh_channel_secret(channel_idx)
             expected_payloads = set()
             guess_pkt_payload = None
-            if secret and self.device_name:
-                full_text = f"{self.device_name}: {text}"
+            if secret and sender:
+                full_text = f"{sender}: {text}"
                 for dt in range(-3, 4):
                     try:
                         candidate = _compute_pkt_payload(secret, ts + dt, 0, full_text)
@@ -2050,7 +2086,7 @@ class DeviceManager:
             diag = self.diagnostics
             if diag is not None and diag.recording:
                 diag.record('send', msg_id=msg_id, channel_idx=channel_idx, ts=ts,
-                            sender=self.device_name, text=text,
+                            sender=sender, text=text,
                             scope=scope['name'] if scope else None,
                             has_secret=bool(secret),
                             guess=guess_pkt_payload,
@@ -2062,7 +2098,7 @@ class DeviceManager:
                 self.socketio.emit('new_message', {
                     'type': 'channel',
                     'channel_idx': channel_idx,
-                    'sender': self.device_name,
+                    'sender': sender,
                     'content': text,
                     'timestamp': ts,
                     'is_own': True,
@@ -2140,17 +2176,8 @@ class DeviceManager:
             if event is None:
                 return {'success': False, 'error': 'No response from device'}
             if event.type == EventType.ERROR:
-                payload = getattr(event, 'payload', {}) or {}
-                # meshcore lib's reader.py wraps device ERROR frames as
-                # {error_code: int, code_string: str}; commands.py wraps
-                # client-side failures as {reason: str} or {error: str}.
-                err = payload.get('code_string') or payload.get('reason') or payload.get('error')
-                if not err and payload.get('error_code') is not None:
-                    err = f"error_code={payload['error_code']}"
-                if not err:
-                    err = 'unknown error'
-                logger.warning(f"Resend msg #{msg_id} failed: payload={payload}")
-                return {'success': False, 'error': f'Device rejected resend: {err}'}
+                logger.warning(f"Resend msg #{msg_id} failed: payload={getattr(event, 'payload', None)}")
+                return {'success': False, 'error': f'Device rejected resend: {_event_error_text(event)}'}
             logger.info(f"Resent channel msg #{msg_id} via CMD_SEND_RAW_PACKET ({len(raw_packet)} bytes)")
 
             # Re-arm echo correlation so incoming echoes for this packet hash
@@ -2850,14 +2877,23 @@ class DeviceManager:
         if not self.is_connected:
             return {}
 
+        return self._read_self_info()
+
+    def _read_self_info(self, timeout: float = 30) -> Dict:
+        """Ask the device for SELF_INFO and cache it. Returns {} without an answer."""
         try:
-            event = self.execute(self.mc.commands.send_appstart())
-            if event and hasattr(event, 'payload'):
-                self._self_info = event.payload
-                return dict(self._self_info)
+            event = self.execute(self.mc.commands.send_appstart(), timeout=timeout)
         except Exception as e:
-            logger.error(f"Failed to get device info: {e}")
-        return {}
+            logger.error(f"Failed to get device info: {str(e) or type(e).__name__}")
+            return {}
+        payload = getattr(event, 'payload', None)
+        # An ERROR event carries a payload too ({'reason': 'no_event_received'}
+        # when the reply was lost). Cached, it blanked the name and position in
+        # Settings until the next set_param.
+        if not isinstance(payload, dict) or not payload.get('public_key'):
+            return {}
+        self._self_info = payload
+        return dict(payload)
 
     def get_channel_info(self, idx: int, timeout: float = 3) -> Optional[Dict]:
         """Get info for a specific channel.
@@ -3965,6 +4001,53 @@ class DeviceManager:
             logger.error(f"get_param failed: {e}")
             return {'success': False, 'error': str(e)}
 
+    def _rename_device(self, value: str) -> Dict:
+        """Rename the device and adopt the name it reports back.
+
+        Our copy has to match the device's name byte for byte (see
+        _set_device_name), so it is read back rather than assumed. That goes
+        for a refused or unanswered command too: a lost reply says nothing
+        about whether the device took the name.
+        """
+        from meshcore.events import EventType
+
+        # The firmware keeps 31 bytes of a name and cuts wherever that lands,
+        # inside a character too, which the lib then drops on read-back. Cut
+        # on a character boundary first, so the device holds what we sent.
+        name = value.strip().encode('utf-8')[:31].decode('utf-8', 'ignore')
+        if not name:
+            return {'success': False, 'error': 'Name cannot be empty'}
+
+        error = None
+        # A message in flight finishes under the name it went out with:
+        # send_channel_message reads the name under the same lock
+        with self._send_lock:
+            try:
+                event = self.execute(self.mc.commands.set_name(name), timeout=5)
+                if event is None or getattr(event, 'type', None) == EventType.ERROR:
+                    error = _event_error_text(event)
+            except FuturesTimeoutError:
+                error = 'no response from device'
+            info = self._read_self_info(timeout=5)
+
+        # Without a read-back, a name the device accepted is the one it holds
+        adopted = info.get('name') or (name if error is None else None)
+        if adopted:
+            self._set_device_name(adopted)
+            if info.get('public_key'):
+                try:
+                    self.db.set_device_info(public_key=info['public_key'], name=adopted,
+                                            self_info=json.dumps(info, default=str))
+                    if self.observer:
+                        self.observer.set_identity(adopted, info['public_key'])
+                except Exception as e:
+                    logger.warning(f"Could not record the new device name: {e}")
+
+        if error:
+            logger.warning(f"set name {name!r} failed: {error}")
+            return {'success': False, 'error': f'Name not set: {error}'}
+        return {'success': True, 'message': f'Name set to: {adopted}', 'name': adopted}
+
     def set_param(self, param: str, value: str) -> Dict:
         """Set a device parameter."""
         if not self.is_connected:
@@ -3973,8 +4056,7 @@ class DeviceManager:
         self._self_info = None
         try:
             if param == 'name':
-                self.execute(self.mc.commands.set_name(value), timeout=5)
-                return {'success': True, 'message': f'Name set to: {value}'}
+                return self._rename_device(value)
             elif param == 'tx':
                 self.execute(self.mc.commands.set_tx_power(value), timeout=5)
                 return {'success': True, 'message': f'TX power set to: {value}'}

@@ -504,15 +504,13 @@ def _get_row_pkt_payload(row: dict, channel_secrets: dict):
             raw_text = json.loads(raw_json_str).get('text')
         except (json.JSONDecodeError, TypeError):
             pass
-    # Fallback: reconstruct from sender + content
+    # Fallback: reconstruct from sender + content. An own row is stored under
+    # the name it went on air with, which after a rename is not the current one.
     if not raw_text:
-        is_own = bool(row.get('is_own', 0))
-        if is_own:
-            device_name = runtime_config.get_device_name() or ''
-            raw_text = f"{device_name}: {row.get('content', '')}" if device_name else row.get('content', '')
-        else:
-            sender = row.get('sender', '')
-            raw_text = f"{sender}: {row.get('content', '')}" if sender else row.get('content', '')
+        sender = row.get('sender', '')
+        if not sender and row.get('is_own'):
+            sender = runtime_config.get_device_name() or ''
+        raw_text = f"{sender}: {row.get('content', '')}" if sender else row.get('content', '')
 
     return compute_pkt_payload(
         channel_secrets[ch_idx], sender_ts, txt_type, raw_text
@@ -1569,11 +1567,14 @@ def update_device_config():
             return jsonify({'success': False, 'error': 'No data provided'}), 400
 
         errors = []
+        name = None
 
-        # Name
+        # Name. The device may shorten it, so the page is told what it kept.
         if 'name' in data:
             result = dm.set_param('name', str(data['name']))
-            if not result.get('success'):
+            if result.get('success'):
+                name = result.get('name')
+            else:
                 errors.append(f"name: {result.get('error')}")
 
         # Coordinates
@@ -1623,7 +1624,7 @@ def update_device_config():
         if errors:
             return jsonify({'success': False, 'error': '; '.join(errors)}), 500
 
-        return jsonify({'success': True, 'message': 'Device config updated'}), 200
+        return jsonify({'success': True, 'message': 'Device config updated', 'name': name}), 200
     except Exception as e:
         logger.error(f"Error updating device config: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -907,7 +907,7 @@ The modal is organized into tabs: **Device**, **Messages**, **Group Chat**, **In
 Configure your MeshCore device directly from the web UI. Split into two sub-tabs:
 
 **Public Info:**
-- **Name** - Device name (up to 32 characters)
+- **Name** - Device name, up to 31 bytes: a letter such as *ł* takes two and an emoji four, and a longer name is shortened on a whole character. The navbar and the messages you send next switch to it as soon as it is saved
 - **Latitude / Longitude** - GPS coordinates. Click the map pin button to open a map picker and click anywhere on the map to select coordinates
 - **Share position in advert** - Toggle whether GPS coordinates are broadcast in advertisement frames (maps to `advert_loc_policy`)
 - **Path hash mode** - Bytes per hop in routing paths (1 byte / 2 bytes / 3 bytes). 1 byte produces the shortest paths but more hash collisions; 3 bytes produces the longest paths with the fewest collisions. Default is 1 byte. Requires firmware v1.14 or newer for 2/3 byte modes.

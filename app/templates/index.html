@@ -270,7 +270,7 @@
 <script>
     // Pass configuration from Flask to JavaScript
     window.MC_CONFIG = {
-        deviceName: "{{ device_name }}"
+        deviceName: {{ device_name|tojson }}
     };
 
     // Reload iframe content when modals are opened to ensure fresh data
