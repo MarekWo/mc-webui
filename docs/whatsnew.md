@@ -10,6 +10,20 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Fixes
+
+- **Optional HTTPS now works on installations made from the Docker image, not only on those built from source.** mc-webui can be installed two ways, and they differ in one detail that turned out to matter: an installation built from the repository uses the `docker-compose.yml` that comes with it, while an installation from the published Docker image uses a `docker-compose.yml` that the README told you to write yourself. The optional HTTPS proxy ([HTTPS Setup](https-setup.md)) is defined in the project's file behind a Compose *profile*, so adding `COMPOSE_PROFILES=https` to `.env` starts it — but a hand-written file never had that definition, so the same line did nothing at all: the app started as before and no proxy was mentioned, with no error to explain why. Pasting the proxy into the file by hand worked, and then had to be redone by hand every time anything else was added to it. The same gap silently swallowed `MC_TRUST_PROXY` and `MC_BIND_ADDRESS` — the two settings that let the app see the real client address and close the plain-HTTP port — because those are passed to the app by the compose file too.
+
+    The compose file for image installations is now maintained in the repository as `docker-compose.image.yml` and downloaded rather than typed, so it contains the proxy, both proxy-related settings, and demo mode, exactly like the one used when building from source:
+
+    ```bash
+    cd ~/mc-webui   # the folder with your docker-compose.yml
+    curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/docker-compose.image.yml -o docker-compose.yml
+    docker compose up -d
+    ```
+
+    If you installed from the image, that command is also the upgrade path: it replaces your compose file with the current one, which is safe because none of your settings live there — they are all in `.env`, which the download does not touch. Keep the file unedited from now on and the next addition to it is one download away again. The image tag moved into `.env` for the same reason: `MC_IMAGE=mawoj/mc-webui:dev` selects development builds, where previously you edited the tag inside the compose file — so if you had edited it to follow `dev`, add that line to `.env` when you replace the file, or the next pull brings the stable image back. Installations built from source are unaffected.
+
 ---
 
 ## 2.18.1 — 2026-09-11

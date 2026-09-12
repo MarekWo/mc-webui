@@ -176,7 +176,8 @@ The `/path-analyzer` panel (standalone iframe page, `path-analyzer.js`) is a rea
 ```text
 mc-webui/
 ├── Dockerfile                      # Main app Docker image
-├── docker-compose.yml              # Single-container orchestration
+├── docker-compose.yml              # Single-container orchestration (builds from source)
+├── docker-compose.image.yml        # Same, for Docker Hub/GHCR installs (published image)
 ├── app/
 │   ├── __init__.py
 │   ├── main.py                     # Flask entry point + Socket.IO handlers

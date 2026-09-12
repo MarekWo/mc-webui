@@ -99,51 +99,21 @@ Images are also mirrored to GitHub Container Registry: `ghcr.io/marekwo/mc-webui
     mkdir ~/mc-webui && cd ~/mc-webui
     ```
 
-2. **Create `docker-compose.yml`**
+2. **Download `docker-compose.yml`**
     ```bash
-    cat > docker-compose.yml << 'EOF'
-    services:
-      mc-webui:
-        image: mawoj/mc-webui:latest
-        container_name: mc-webui
-        restart: unless-stopped
-        ports:
-          - "${FLASK_PORT:-5000}:${FLASK_PORT:-5000}"
-        device_cgroup_rules:
-          - 'c 188:* rmw'
-          - 'c 166:* rmw'
-        cap_add:
-          - NET_ADMIN
-          - NET_RAW
-        volumes:
-          - "${MC_CONFIG_DIR:-./data}:/data:rw"
-          - "/dev:/dev"
-          - "/var/run/dbus:/var/run/dbus"
-        environment:
-          - MC_SERIAL_PORT=${MC_SERIAL_PORT:-auto}
-          - MC_DEVICE_NAME=${MC_DEVICE_NAME:-MeshCore}
-          - MC_CONFIG_DIR=/data
-          - MC_TCP_HOST=${MC_TCP_HOST:-}
-          - MC_TCP_PORT=${MC_TCP_PORT:-5555}
-          - MC_BLE_ADDRESS=${MC_BLE_ADDRESS:-}
-          - MC_BACKUP_ENABLED=${MC_BACKUP_ENABLED:-true}
-          - MC_BACKUP_HOUR=${MC_BACKUP_HOUR:-2}
-          - MC_BACKUP_RETENTION_DAYS=${MC_BACKUP_RETENTION_DAYS:-7}
-          - FLASK_HOST=${FLASK_HOST:-0.0.0.0}
-          - FLASK_PORT=${FLASK_PORT:-5000}
-          - FLASK_DEBUG=${FLASK_DEBUG:-false}
-          - TZ=${TZ:-UTC}
-        env_file:
-          - path: .env
-            required: false
-        healthcheck:
-          test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-          interval: 30s
-          timeout: 10s
-          retries: 3
-          start_period: 15s
-    EOF
+    curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/docker-compose.image.yml -o docker-compose.yml
     ```
+
+    This is [`docker-compose.image.yml`](docker-compose.image.yml) from this repository — the
+    image-based counterpart of the compose file used by Option B. Downloading it instead of
+    writing your own keeps the optional extras working: the HTTPS proxy
+    ([docs/https-setup.md](docs/https-setup.md)) is defined in it behind a Compose *profile*,
+    and options such as `MC_BIND_ADDRESS`, `MC_TRUST_PROXY` or demo mode are read from it too.
+    A hand-written file that lacks those lines simply ignores the matching `.env` settings.
+
+    **Leave the file unedited.** Everything configurable is a variable read from `.env`
+    (including the image tag — `MC_IMAGE`), so you can download the file again at any time to
+    pick up services added in later versions, without touching your own settings.
 
 3. **Create `.env` file (optional)**
 
@@ -154,6 +124,12 @@ Images are also mirrored to GitHub Container Registry: `ghcr.io/marekwo/mc-webui
     If you want to set your timezone or override defaults:
     ```bash
     echo "TZ=Europe/Warsaw" > .env
+    ```
+
+    Every available option is documented in [`.env.example`](.env.example). You can keep a copy
+    next to your `.env` for reference — no clone needed:
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/.env.example -o .env.example
     ```
 
     <details>
@@ -334,9 +310,23 @@ docker compose pull
 docker compose up -d
 ```
 
-To switch between stable and dev, change the image tag in `docker-compose.yml`:
-- Stable: `image: mawoj/mc-webui:latest`
-- Development: `image: mawoj/mc-webui:dev`
+To switch between stable and dev, set the image in `.env` (not in `docker-compose.yml`):
+- Stable: `MC_IMAGE=mawoj/mc-webui:latest` — the default when unset
+- Development: `MC_IMAGE=mawoj/mc-webui:dev`
+
+Then `docker compose pull && docker compose up -d`.
+
+New optional services occasionally land in the compose file — the HTTPS proxy is one. Pulling a
+new image does not bring them, since the file is yours; download the current one over it when you
+need one of them:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/docker-compose.image.yml -o docker-compose.yml
+docker compose up -d
+```
+
+That file holds no settings of yours — those all live in `.env` — so overwriting it is safe.
+One exception: if you had edited the image tag inside the old file to follow `dev`, the downloaded file resets it to the stable one. Put `MC_IMAGE=mawoj/mc-webui:dev` in `.env` to stay on development builds.
 
 You can also update from the web interface instead of the terminal — see
 [Remote updates from web GUI](#remote-updates-from-web-gui-optional) below.

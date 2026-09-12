@@ -44,7 +44,13 @@ and add:
 COMPOSE_PROFILES=https
 ```
 
-Then start it the usual way:
+What comes next depends on how mc-webui was installed — the two options in the
+[README](../README.md#installation) differ in who owns `docker-compose.yml`, and the profile
+line can only start a service that is actually defined in that file.
+
+### Installed from source (README Option B — git clone)
+
+Nothing else to do:
 
 ```bash
 docker compose up -d --build
@@ -55,6 +61,33 @@ behind a Compose *profile*, so it stays completely inert until that line exists 
 `mcupdate` picks it up automatically from then on. **Do not edit `docker-compose.yml`
 yourself**: it is tracked in git, and a local edit will make the next update fail with a
 merge conflict.
+
+### Installed from the Docker image (README Option A — Docker Hub / GHCR)
+
+Here `docker-compose.yml` is *your* file — no update ever rewrites it — and versions of it
+written by hand, or copied from an older README, contain the app service only. With no `npm`
+service to activate, `COMPOSE_PROFILES=https` does exactly nothing: `docker compose up -d`
+starts the app as before and says nothing about a proxy. Nothing is broken and nothing is
+misconfigured — there is simply no proxy in the file.
+
+So replace the file with the current one, which has the proxy in it, and start:
+
+```bash
+cd ~/mc-webui
+curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/docker-compose.image.yml -o docker-compose.yml
+docker compose up -d
+```
+
+Overwriting is safe: that file holds no settings of yours — every option is a variable it
+reads from `.env`, which the download does not touch. Keep it unedited from now on, so the
+next feature that arrives this way is one download away again. One thing to carry over: if you
+had changed the image tag inside the old file to follow `dev`, add `MC_IMAGE=mawoj/mc-webui:dev`
+to `.env` — the downloaded file follows the stable tag by default.
+
+> The same applies to `MC_TRUST_PROXY` and `MC_BIND_ADDRESS` in Step 5. They too are passed
+> to the app by `docker-compose.yml`, so in a hand-written file that predates them the `.env`
+> lines are read by nobody — the app keeps seeing the proxy as the client, and port 5000 stays
+> open to the network. The download above fixes those at the same time.
 
 Check that both containers are up:
 
@@ -279,8 +312,15 @@ file. Everything then works as described above, and this is worth doing anyway.
 **The direct one: let the proxy answer unnamed requests.** This project ships a
 replacement for that default server at [`docker/npm-default-site.conf`](../docker/npm-default-site.conf)
 — same file with the refusing block removed, so your proxy host answers instead and
-presents its certificate. Enable it by creating `docker-compose.override.yml` next to
-`docker-compose.yml`:
+presents its certificate. A Docker Hub installation has no `docker/` folder, so fetch the
+file first (a git checkout already has it):
+
+```bash
+mkdir -p docker
+curl -fsSL https://raw.githubusercontent.com/MarekWo/mc-webui/main/docker/npm-default-site.conf -o docker/npm-default-site.conf
+```
+
+Enable it by creating `docker-compose.override.yml` next to `docker-compose.yml`:
 
 ```yaml
 services:
@@ -411,8 +451,11 @@ In practice:
 ## Updating and removing
 
 **Updating** needs nothing special — `mcupdate` (or `docker compose up -d --build`) pulls
-both containers as usual. The proxy's configuration and certificates live in
-`./data/npm` and `./data/letsencrypt` and survive rebuilds.
+both containers as usual, and so does `docker compose pull && docker compose up -d` on a
+Docker Hub installation. The proxy's configuration and certificates live in `./data/npm` and
+`./data/letsencrypt` and survive rebuilds. On a Docker Hub installation, remember that
+`docker-compose.yml` is yours and is never updated for you: download it again (Step 1) when
+a release adds something to it.
 
 **Removing HTTPS:** delete or comment out `COMPOSE_PROFILES=https` in `.env`, then:
 
@@ -430,6 +473,7 @@ unreachable from the network. The proxy's data directories are left in place; de
 | Symptom | Cause and fix |
 |---|---|
 | The interface crawls with 2–3 tabs open; clicks take 10–20 s | **Websockets Support** is off on the proxy host. Turn it on (Step 3). |
+| `docker compose up -d` starts only `mc-webui` — no proxy, and no error either | Your `docker-compose.yml` has no `npm` service, so the `https` profile has nothing to activate. A Docker Hub installation with a hand-written compose file: download the current one (Step 1). |
 | `502 Bad Gateway` | The app container is down or still starting — `docker compose ps`, then `docker compose logs mc-webui`. Also check Forward Hostname is `mc-webui` (the container name), not `localhost`: inside the proxy container, `localhost` is the proxy itself. |
 | `address already in use` on startup | Something else on the host holds port 80 or 443. Stop it, or set `NPM_HTTP_PORT` / `NPM_HTTPS_PORT`. |
 | Let's Encrypt fails with a connection or timeout error | HTTP-01 validation could not reach port 80 from the internet. Check the router forward, or switch to a DNS challenge (Option B). |
