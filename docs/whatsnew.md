@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.18.2 — 2026-09-12
+
 ### Fixes
 
 - **Optional HTTPS now works on installations made from the Docker image, not only on those built from source.** mc-webui can be installed two ways, and they differ in one detail that turned out to matter: an installation built from the repository uses the `docker-compose.yml` that comes with it, while an installation from the published Docker image uses a `docker-compose.yml` that the README told you to write yourself. The optional HTTPS proxy ([HTTPS Setup](https-setup.md)) is defined in the project's file behind a Compose *profile*, so adding `COMPOSE_PROFILES=https` to `.env` starts it — but a hand-written file never had that definition, so the same line did nothing at all: the app started as before and no proxy was mentioned, with no error to explain why. Pasting the proxy into the file by hand worked, and then had to be redone by hand every time anything else was added to it. The same gap silently swallowed `MC_TRUST_PROXY` and `MC_BIND_ADDRESS` — the two settings that let the app see the real client address and close the plain-HTTP port — because those are passed to the app by the compose file too.
