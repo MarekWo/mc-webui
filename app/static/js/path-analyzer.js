@@ -752,6 +752,7 @@ function paInitMap() {
     if (paMap) return;
     paMap = L.map('paMap').setView([52.0, 19.0], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        referrerPolicy: 'strict-origin-when-cross-origin',
         attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(paMap);
     // Added in draw order: base markers at the bottom, the selected path on top

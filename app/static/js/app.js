@@ -111,6 +111,7 @@ function initLeafletMap() {
     leafletMap = L.map('leafletMap').setView([52.0, 19.0], 6);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        referrerPolicy: 'strict-origin-when-cross-origin',
         attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(leafletMap);
 
@@ -2860,6 +2861,7 @@ function openCoordPicker() {
         if (!_coordPickerMap) {
             _coordPickerMap = L.map('coordPickerMap').setView([52.0, 19.0], 6);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                referrerPolicy: 'strict-origin-when-cross-origin',
                 attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
             }).addTo(_coordPickerMap);
 

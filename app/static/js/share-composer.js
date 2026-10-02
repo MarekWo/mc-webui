@@ -469,6 +469,7 @@
 
             _pickerMap = L.map('sharePickMap');
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                referrerPolicy: 'strict-origin-when-cross-origin',
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 19
             }).addTo(_pickerMap);

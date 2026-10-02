@@ -1114,6 +1114,7 @@ function renderNeighborsMap() {
     if (!_nbMap) {
         _nbMap = L.map('nbLeafletMap').setView([52.0, 19.0], 6);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            referrerPolicy: 'strict-origin-when-cross-origin',
             attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
         }).addTo(_nbMap);
         _nbMapLayers = L.layerGroup().addTo(_nbMap);
@@ -2054,6 +2055,7 @@ function openLocationMapPicker() {
         if (!_locMap) {
             _locMap = L.map('locLeafletMap').setView(center, zoom);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                referrerPolicy: 'strict-origin-when-cross-origin',
                 attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'
             }).addTo(_locMap);
             _locMap.on('click', (e) => setLocMapMarker(e.latlng.lat, e.latlng.lng));

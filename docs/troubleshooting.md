@@ -160,6 +160,21 @@ They can be removed under **Contacts → Manage** like any other cached contact,
 
 ---
 
+### Map shows "403 Access blocked" instead of the map
+
+If every map in the app is covered with tiles reading **Access blocked — App is not following the tile usage policy of OpenStreetMap's volunteer-run servers**, the markers are still drawn but the background is not: OpenStreetMap is refusing the map images.
+
+Your browser downloads those images straight from OpenStreetMap, and OpenStreetMap refuses requests that do not say which site they come from (the `Referer` header). Something between the page and OpenStreetMap is removing it. It usually affects one browser or one way of reaching the app, while the same installation works elsewhere — a phone, for example.
+
+The usual causes, most likely first:
+
+- **A reverse proxy in front of mc-webui** (Traefik, Nginx, Cloudflare, …) that adds a `Referrer-Policy: no-referrer` header, often as part of a "security headers" preset. From 2.18.3 the app asks for the referrer on map images explicitly, which overrides that header, so **updating is usually enough**. Otherwise change the policy in the proxy to `strict-origin-when-cross-origin`.
+- **A privacy extension or browser setting** that strips the referrer (uBlock Origin in advanced mode, Referer Control, Brave shields, Firefox's `network.http.sendRefererHeader`), or antivirus software that filters HTTPS. The app cannot override these. Try a private window with extensions disabled; if the map appears, allow the referrer for `tile.openstreetmap.org`.
+
+To see which it is, open the browser's developer tools (F12) → **Network**, reload, and click a request to `tile.openstreetmap.org`: a working one has a `Referer` line under **Request Headers**.
+
+---
+
 ### Contact Management Issues
 
 **Check logs:**

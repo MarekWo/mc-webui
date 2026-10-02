@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Fixes
+
+- **Maps no longer turn into "403 Access blocked" tiles behind a reverse proxy with a strict referrer policy.** OpenStreetMap refuses map images to requests that do not say which site they come from. Some reverse proxies (Traefik, Nginx or Cloudflare with a "security headers" preset) tell the browser to withhold exactly that, and every map in the app then showed *Access blocked — App is not following the tile usage policy* instead of the map — typically on one device only, while the same installation worked on another. The app now asks for the referrer on map images explicitly, which takes precedence over the proxy's setting. A browser extension or antivirus that strips the referrer still cannot be overridden from the page; [Troubleshooting](troubleshooting.md#map-shows-403-access-blocked-instead-of-the-map) explains how to tell the two apart.
+
 ---
 
 ## 2.18.2 — 2026-09-12
