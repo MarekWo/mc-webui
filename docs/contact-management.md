@@ -287,6 +287,7 @@ Contact Management pages use a consistent set of badges and icons so you can tel
 
 - **Type badge** — `COM` (blue), `REP` (green), `ROOM` (cyan), `SENS` (yellow).
 - **Cache badge** — grey pill saying `Cache`, present only on contacts that live in the database but not on the device.
+- **Remote CLI badge** — red pill with a terminal icon. The contact holds the *remote CLI* permission (contact flag 16): on firmware 1.18 it can run any command on your radio over the mesh, and the interface never sees those commands. The badge also appears in the contact's info window in Direct Messages. To revoke it, use `change_flags` in the console.
 - **Ignored / Blocked sections** — selectable via the type filter in Existing Contacts. Contacts with these flags are hidden from the default view and appear only under their respective filter.
 - **Activity dot** on the Last Seen field:
   - 🟢 active (< 5 minutes ago)

@@ -1191,6 +1191,15 @@ function populateContactInfoModal() {
         badge.textContent = contact.type_label;
         nameRow.appendChild(badge);
     }
+    // Remote CLI permission (flag 0x10, firmware 1.18): this contact may run
+    // any CLI command on our node over the mesh, unseen by the app.
+    if (contact.flags & 0x10) {
+        const cliBadge = document.createElement('span');
+        cliBadge.className = 'badge bg-danger';
+        cliBadge.innerHTML = `<i class="bi bi-terminal"></i> ${tHtml('contacts.remote_cli_badge')}`;
+        cliBadge.title = t('contacts.remote_cli_badge_title');
+        nameRow.appendChild(cliBadge);
+    }
     body.appendChild(nameRow);
 
     // Public key
@@ -1507,11 +1516,19 @@ function displayMessages(messages) {
         timeRow.innerHTML = `<span>${formatTime(msg.timestamp)}</span>${statusIcon}`;
         wrapper.appendChild(timeRow);
 
+        // A remote CLI command (txt_type 3) reaches us only when the companion
+        // refused to run it (sender lacks the remote CLI permission), so it is
+        // shown as such and verbatim, never as conversation text.
+        const contentHtml = msg.txt_type === 3
+            ? `<div class="dm-cli-label" title="${tHtml('dm.remote_cli_title')}"><i class="bi bi-terminal"></i> ${tHtml('dm.remote_cli_label')}</div>`
+              + `<code class="dm-cli-command">${escapeHtml(msg.content)}</code>`
+            : processMessageContent(msg.content, { isOwn: !!msg.is_own });
+
         // Message bubble
         const bubble = document.createElement('div');
         bubble.className = `dm-message ${side}`;
         bubble.innerHTML = `
-            <div class="dm-content">${processMessageContent(msg.content, { isOwn: !!msg.is_own })}</div>
+            <div class="dm-content">${contentHtml}</div>
             ${deliveryMeta}
             ${retryInfo}
             ${meta}

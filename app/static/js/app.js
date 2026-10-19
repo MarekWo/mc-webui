@@ -5109,7 +5109,10 @@ function notifyDmMessage(data) {
     notifyIncomingMessage({
         tag: `mc-dm-${pubkey || data.sender}`,
         title: data.sender,
-        body: makeChannelPreview(data.content, NOTIFICATION_BODY_MAX),
+        // txt_type 3: a remote CLI command the companion refused to run
+        body: data.txt_type === 3
+            ? t('dm.remote_cli_notify', { cmd: makeChannelPreview(data.content, NOTIFICATION_BODY_MAX) })
+            : makeChannelPreview(data.content, NOTIFICATION_BODY_MAX),
         url: pubkey ? `/?dm=pk_${encodeURIComponent(pubkey)}` : '/'
     });
 }

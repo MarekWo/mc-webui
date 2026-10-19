@@ -195,6 +195,71 @@ def _event_error_text(event) -> str:
     return err or 'unknown error'
 
 
+# Contact flag bits (firmware ContactInfo.h). 0x10 is new in firmware 1.18: a
+# contact holding it may run ANY companion CLI command on our node over the
+# mesh (reboot, radio settings, `get wifi.pwd`), and the app never sees them.
+CONTACT_FLAG_REMOTE_CLI = 0x10
+CONTACT_FLAG_BITS = (
+    (0x01, 'favourite'),
+    (0x02, 'telemetry: base'),
+    (0x04, 'telemetry: location'),
+    (0x08, 'telemetry: environment'),
+    (CONTACT_FLAG_REMOTE_CLI, 'remote CLI'),
+)
+
+# txt_type of a contact message carrying a CLI command (firmware 1.18,
+# TXT_TYPE_CLI_COMMAND). The companion runs it itself for a contact holding
+# CONTACT_FLAG_REMOTE_CLI; for anyone else it hands the text to us instead.
+TXT_TYPE_CLI_COMMAND = 3
+
+# Companion CLI over the app link (CMD_RUN_CLI_COMMAND) needs firmware 1.18.
+_MIN_FW_VER_DEVICE_CLI = 14
+
+
+def describe_contact_flags(flags: int) -> str:
+    """Name the set bits of a contact flags byte, e.g. 'favourite, remote CLI'."""
+    names = [name for bit, name in CONTACT_FLAG_BITS if flags & bit]
+    known = 0
+    for bit, _ in CONTACT_FLAG_BITS:
+        known |= bit
+    if flags & ~known & 0xFF:
+        names.append(f'unknown 0x{flags & ~known & 0xFF:02x}')
+    return ', '.join(names) or 'none'
+
+
+def _device_contact_record(contact: Dict) -> Dict:
+    """Complete a contact dict for meshcore's add_contact()/update_contact().
+
+    The library builds CMD_ADD_UPDATE_CONTACT from fixed keys and reads every
+    one of them unconditionally, and the firmware overwrites the stored
+    contact with whatever arrives. A dict assembled from an advert or from the
+    DB has no out_path*/flags, keeps last_advert as text and may carry None
+    coordinates, each of which raised before anything reached the device.
+    Missing values become those of a freshly added contact: no flags (above
+    all no remote CLI permission) and flood routing.
+    """
+    def num(value, cast, default):
+        try:
+            return cast(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    record = dict(contact)
+    record.update({
+        'public_key': contact['public_key'].lower(),
+        'adv_name': contact.get('adv_name') or contact.get('name') or '',
+        'type': num(contact.get('type', contact.get('adv_type')), int, 0),
+        'flags': num(contact.get('flags'), int, 0) & 0xFF,
+        'out_path': contact.get('out_path') or '',
+        'out_path_len': num(contact.get('out_path_len'), int, -1),
+        'out_path_hash_mode': num(contact.get('out_path_hash_mode'), int, 0),
+        'last_advert': int(num(contact.get('last_advert'), float, 0)),
+        'adv_lat': num(contact.get('adv_lat'), float, 0.0),
+        'adv_lon': num(contact.get('adv_lon'), float, 0.0),
+    })
+    return record
+
+
 def parse_meshcore_uri(uri: str) -> Optional[Dict]:
     """Parse meshcore://contact/add?name=...&public_key=...&type=... URI.
 
@@ -993,19 +1058,27 @@ class DeviceManager:
                     source='message',
                 )
 
+            txt_type = data.get('txt_type') or 0
             dm_id = self.db.insert_direct_message(
                 contact_pubkey=sender_key,
                 direction='in',
                 content=content,
                 timestamp=ts,
                 sender_timestamp=data.get('sender_timestamp'),
+                txt_type=txt_type,
                 snr=data.get('SNR', data.get('snr')),
                 path_len=pack_path_len(data),
                 pkt_payload=data.get('pkt_payload'),
                 raw_json=json.dumps(data, default=str),
             )
 
-            logger.info(f"DM #{dm_id} from {sender_name or sender_key[:12]}")
+            if txt_type == TXT_TYPE_CLI_COMMAND:
+                # The companion hands these over only when it refused to run
+                # them, so this is someone trying to drive our node remotely.
+                logger.warning(f"DM #{dm_id}: remote CLI command from "
+                               f"{sender_name or sender_key[:12]} (not executed): {content!r}")
+            else:
+                logger.info(f"DM #{dm_id} from {sender_name or sender_key[:12]}")
 
             if is_blocked:
                 logger.debug(f"Blocked DM from {sender_key[:12]}, stored but not emitted")
@@ -1019,6 +1092,7 @@ class DeviceManager:
                     'content': content,
                     'timestamp': ts,
                     'id': dm_id,
+                    'txt_type': txt_type,
                 }, namespace='/chat')
 
         except Exception as e:
@@ -2931,6 +3005,12 @@ class DeviceManager:
         """Set/create a channel on the device."""
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
+        # A named slot with an all-zero key catches every foreign packet sent
+        # with a null key and shows it as this channel's traffic (firmware
+        # 1.18 protocol docs: never write one). With secret=None the library
+        # derives sha256(name) instead, so only an explicit key can do this.
+        if name and secret is not None and not any(secret):
+            return {'success': False, 'error': 'An all-zero channel key is not allowed'}
 
         try:
             self.execute(self.mc.commands.set_channel(idx, name, secret))
@@ -3043,7 +3123,14 @@ class DeviceManager:
             if not contact:
                 return {'success': False, 'error': 'Contact not in pending list'}
 
-            self.execute(self.mc.commands.add_contact(contact))
+            # Only a NEW_CONTACT event yields a complete record; the advert
+            # and DB shapes above lack the keys add_contact() requires.
+            contact = _device_contact_record(contact)
+            from meshcore.events import EventType
+            event = self.execute(self.mc.commands.add_contact(contact))
+            if event is None or getattr(event, 'type', None) == EventType.ERROR:
+                return {'success': False,
+                        'error': f'Device refused the contact: {_event_error_text(event)}'}
 
             # Refresh mc.contacts so send_dm can find the new contact
             self.execute(self.mc.ensure_contacts(follow=True))
@@ -3106,20 +3193,22 @@ class DeviceManager:
             return {'success': False, 'error': 'Type must be 1 (COM), 2 (REP), 3 (ROOM), or 4 (SENS)'}
 
         try:
-            contact = {
-                'public_key': public_key,
-                'type': contact_type,
-                'flags': 0,
-                'out_path_len': -1,
-                'out_path': '',
-                'out_path_hash_mode': 0,
+            # Re-adding a key the device already holds is a rename. The
+            # firmware overwrites the whole stored contact, so start from the
+            # device's own record: a rebuilt one would silently drop its flags
+            # (favourite, telemetry and remote-CLI permissions) and its path.
+            existing = (self.mc.contacts or {}).get(public_key)
+            contact = _device_contact_record({
+                **(existing or {'public_key': public_key}),
                 'adv_name': name,
-                'last_advert': 0,
-                'adv_lat': 0.0,
-                'adv_lon': 0.0,
-            }
+                'type': contact_type,
+            })
 
-            self.execute(self.mc.commands.add_contact(contact))
+            from meshcore.events import EventType
+            event = self.execute(self.mc.commands.add_contact(contact))
+            if event is None or getattr(event, 'type', None) == EventType.ERROR:
+                return {'success': False,
+                        'error': f'Device refused the contact: {_event_error_text(event)}'}
 
             # Refresh mc.contacts from device
             self.execute(self.mc.ensure_contacts(follow=True))
@@ -3130,14 +3219,19 @@ class DeviceManager:
                     self.mc.contacts = {}
                 self.mc.contacts[public_key] = contact
                 logger.info(f"Manually added {public_key[:12]}... to mc.contacts")
+            else:
+                # ensure_contacts() only refetches after an advert, so the
+                # in-memory record would keep the old name until then
+                self.mc.contacts[public_key].update(contact)
 
             self.db.upsert_contact(
                 public_key=public_key,
                 name=name,
                 type=contact_type,
-                adv_lat=0.0,
-                adv_lon=0.0,
-                last_advert=str(int(time.time())),
+                flags=contact['flags'],
+                adv_lat=contact['adv_lat'],
+                adv_lon=contact['adv_lon'],
+                last_advert=str(contact['last_advert'] or int(time.time())),
                 source='device',
             )
             # Re-link orphaned DMs
@@ -3791,18 +3885,40 @@ class DeviceManager:
             return {'success': False, 'error': str(e)}
 
     def change_contact_flags(self, name_or_key: str, flags: int) -> Dict:
-        """Change flags for a contact."""
+        """Replace a contact's whole flags byte (bits: CONTACT_FLAG_BITS)."""
         if not self.is_connected:
             return {'success': False, 'error': 'Device not connected'}
+        if not 0 <= flags <= 0xFF:
+            return {'success': False, 'error': 'Flags must be 0-255'}
         contact = self.resolve_contact(name_or_key)
         if not contact:
             return {'success': False, 'error': f"Contact not found: {name_or_key}"}
+        name = contact.get('adv_name', name_or_key)
+        old_flags = int(contact.get('flags') or 0)
         try:
-            self.execute(self.mc.commands.change_contact_flags(contact, flags), timeout=10)
-            return {'success': True, 'message': f'Flags changed for {contact.get("adv_name", name_or_key)}'}
+            from meshcore.events import EventType
+            event = self.execute(self.mc.commands.change_contact_flags(contact, flags), timeout=10)
+            if event is None or getattr(event, 'type', None) == EventType.ERROR:
+                # the library writes the new value into the record before sending
+                contact['flags'] = old_flags
+                return {'success': False, 'error': _event_error_text(event)}
         except Exception as e:
+            contact['flags'] = old_flags
             logger.error(f"change_flags failed: {e}")
             return {'success': False, 'error': str(e)}
+
+        if flags & CONTACT_FLAG_REMOTE_CLI and not old_flags & CONTACT_FLAG_REMOTE_CLI:
+            logger.warning(f"Remote CLI permission GRANTED to {name} "
+                           f"({contact.get('public_key', '')[:12]}...)")
+        elif old_flags & CONTACT_FLAG_REMOTE_CLI and not flags & CONTACT_FLAG_REMOTE_CLI:
+            logger.info(f"Remote CLI permission revoked from {name}")
+        try:
+            from app.routes.api import invalidate_contacts_cache
+            invalidate_contacts_cache()
+        except ImportError:
+            pass
+        return {'success': True, 'message': f'Flags changed for {name}',
+                'old_flags': old_flags, 'flags': flags}
 
     # ── Device Management ────────────────────────────────────────
 
@@ -3853,6 +3969,54 @@ class DeviceManager:
         except Exception as e:
             logger.error(f"reboot failed: {e}")
             return {'success': False, 'error': str(e)}
+
+    # CLI settings mc-webui also caches go through set_param so the cache
+    # follows; a bare CLI `set name` would bring back the stale-sender-name
+    # bug fixed in 2.18.1.
+    _DEVICE_CLI_SET_VIA_PARAM = {'name': 'name', 'path.hash.mode': 'path_hash_mode'}
+
+    def run_device_cli(self, command: str) -> Dict:
+        """Run a CLI command on the connected companion (CMD_RUN_CLI_COMMAND).
+
+        Firmware 1.18 serves its own CLI over the app link, which reaches
+        settings that had no protocol command before (cad, int.thresh,
+        txdelay, af, tz.offset, Wi-Fi on Wi-Fi builds).
+        """
+        if not self.is_connected:
+            return {'success': False, 'error': 'Device not connected'}
+        if (self._fw_ver_code or 0) < _MIN_FW_VER_DEVICE_CLI:
+            return {'success': False,
+                    'error': 'Needs companion firmware 1.18 or newer '
+                             f'(device reports fw_ver_code={self._fw_ver_code})'}
+        if not hasattr(self.mc.commands, 'run_cli_command'):
+            return {'success': False,
+                    'error': 'The installed meshcore library is too old (needs 2.3.9 or newer)'}
+
+        command = command.strip()
+        parts = command.split(None, 2)
+        if len(command) < 2:  # the firmware rejects shorter frames as an unknown command code
+            return {'success': False, 'error': 'Command too short'}
+        verb = parts[0].lower()
+        if verb in ('poweroff', 'shutdown'):
+            return {'success': False,
+                    'error': f"'{verb}' is refused here: it switches the radio off "
+                             "and only physical access brings it back"}
+        if verb == 'reboot':
+            return self.reboot_device()  # the CLI reboot never replies
+        if verb == 'set' and len(parts) == 3 and parts[1].lower() in self._DEVICE_CLI_SET_VIA_PARAM:
+            return self.set_param(self._DEVICE_CLI_SET_VIA_PARAM[parts[1].lower()], parts[2])
+
+        from meshcore.events import EventType
+        try:
+            event = self.execute(self.mc.commands.run_cli_command(command), timeout=20)
+        except Exception as e:
+            logger.error(f"device CLI '{command}' failed: {e}")
+            return {'success': False, 'error': str(e)}
+        if event is None or getattr(event, 'type', None) == EventType.ERROR:
+            return {'success': False, 'error': _event_error_text(event)}
+        if verb == 'set':
+            self._self_info = None  # cached device settings may have changed
+        return {'success': True, 'reply': (event.payload or {}).get('text', '')}
 
     def set_flood_scope(self, scope: str) -> Dict:
         """Set flood message scope."""

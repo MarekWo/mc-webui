@@ -2650,6 +2650,7 @@ def get_dm_messages():
                     'timestamp': row.get('timestamp', 0),
                     'datetime': datetime.fromtimestamp(row['timestamp']).isoformat() if row.get('timestamp') else None,
                     'is_own': row['direction'] == 'out',
+                    'txt_type': row.get('txt_type') or 0,
                     'snr': row.get('snr'),
                     'path_len': dm_path_len_raw,
                     'hop_count': dm_hop_count,

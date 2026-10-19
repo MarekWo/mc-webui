@@ -884,6 +884,23 @@ main {
     margin-top: 0.25rem;
 }
 
+/* Remote CLI command a contact sent us (txt_type 3, not executed) */
+.dm-cli-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--bs-danger-text-emphasis);
+    margin-bottom: 0.25rem;
+}
+
+.dm-cli-command {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.25rem;
+    background-color: var(--bs-danger-bg-subtle);
+    color: var(--bs-danger-text-emphasis);
+    word-break: break-all;
+}
+
 /* DM Status Indicators */
 .dm-status {
     font-size: 0.7rem;

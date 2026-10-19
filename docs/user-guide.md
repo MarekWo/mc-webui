@@ -597,6 +597,7 @@ For a graphical alternative to these commands, see [My Repeaters](#my-repeaters-
 - `remove_contact <name>` - Remove contact
 - `change_path <name> <path>` - Change contact's routing path. Accepts comma-, whitespace-, or arrow-separated hex chunks (`D1,90,05`, `D103 5E34`, `D1->90->05`) or continuous hex (`D19005`). For multi-byte paths all chunks must have a consistent length — that length determines the hash-size mode (1, 2, or 3 bytes per hop). Use the keyword `direct` to set a Direct (0-hop) path; use `reset_path <name>` to switch back to Flood
 - `path <name>` - Show the current path for a contact (e.g. `D103,5E34 (2 hops, 2B)` — hop count and byte size)
+- `change_flags <name> [flags]` - Without a value, show the contact's flags in plain words; with one (decimal or `0x..`), replace the whole flags byte. The bits are 1 favourite, 2/4/8 telemetry (base/location/environment) and 16 **remote CLI**: on firmware 1.18 a contact with that bit can run any command on your radio over the mesh, unseen by the interface. Run `change_flags` alone for the full list
 
 **Device & Channel Management:**
 - `infos` / `ver` - Device info / firmware version
@@ -604,6 +605,7 @@ For a graphical alternative to these commands, see [My Repeaters](#my-repeaters-
 - `self_telemetry` - Own device telemetry
 - `get_channels` - List channels
 - `get <param>` / `set <param> <value>` - Get/set device parameters
+- `cli <command>` - Run a command on the radio's own command line (companion firmware 1.18+), e.g. `cli get cad`, `cli set txdelay 0.5`, `cli get tz.offset`. `poweroff` is refused; `reboot` and `set name` run the regular commands
 - `trace <name>` - Trace route to contact
 - `neighbours` - Request neighbor list from device
 

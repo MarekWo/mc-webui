@@ -2113,6 +2113,16 @@ function createExistingContactCard(contact, index) {
         typeBadge.title = t('contacts.cache_badge_title');
     }
 
+    // Remote CLI permission (flag 0x10, firmware 1.18): this contact may run
+    // any CLI command on our node over the mesh, unseen by the app.
+    let remoteCliBadge = null;
+    if (contact.on_device !== false && (contact.flags & 0x10)) {
+        remoteCliBadge = document.createElement('span');
+        remoteCliBadge.className = 'badge type-badge bg-danger';
+        remoteCliBadge.innerHTML = `<i class="bi bi-terminal"></i> ${tHtml('contacts.remote_cli_badge')}`;
+        remoteCliBadge.title = t('contacts.remote_cli_badge_title');
+    }
+
     // Source icon (device vs cache)
     const sourceIcon = document.createElement('span');
     sourceIcon.className = 'ms-1';
@@ -2139,6 +2149,7 @@ function createExistingContactCard(contact, index) {
 
     infoRow.appendChild(nameDiv);
     infoRow.appendChild(typeBadge);
+    if (remoteCliBadge) infoRow.appendChild(remoteCliBadge);
     infoRow.appendChild(sourceIcon);
     if (statusIcon) infoRow.appendChild(statusIcon);
 

@@ -20,7 +20,10 @@ from app import i18n
 from app.config import config, runtime_config
 from app import demo_guard
 from app.database import Database
-from app.device_manager import DeviceManager, parse_meshcore_uri
+from app.device_manager import (
+    CONTACT_FLAG_BITS, CONTACT_FLAG_REMOTE_CLI, DeviceManager, describe_contact_flags,
+    parse_meshcore_uri,
+)
 from app.diagnostics import DiagnosticsManager
 from app.log_handler import MemoryLogHandler
 from app.observer import ObserverManager
@@ -1036,19 +1039,64 @@ def _execute_console_command(args: list) -> str:
             return f"Contact removed: {contact.get('adv_name', name)}"
         return f"Error: {result.get('error')}"
 
+    elif cmd == 'change_flags' and len(args) == 2:
+        contact = device_manager.resolve_contact(args[1])
+        if not contact:
+            return f"Error: Contact not found: {args[1]}"
+        flags = int(contact.get('flags') or 0)
+        return (f"{contact.get('adv_name', args[1])}: flags {flags} (0x{flags:02x}) — "
+                f"{describe_contact_flags(flags)}")
+
     elif cmd == 'change_flags' and len(args) >= 3:
         name = args[1]
         try:
-            flags = int(args[2])
+            flags = int(args[2], 0)
         except ValueError:
-            return "Error: flags must be an integer"
+            return "Error: flags must be an integer (decimal or 0x..)"
         result = device_manager.change_contact_flags(name, flags)
-        if result.get('success'):
-            return result.get('message', 'OK')
-        return f"Error: {result.get('error')}"
+        if not result.get('success'):
+            return f"Error: {result.get('error')}"
+        old = result.get('old_flags', 0)
+        lines = [
+            result.get('message', 'OK'),
+            f"  was: {old} (0x{old:02x}) — {describe_contact_flags(old)}",
+            f"  now: {flags} (0x{flags:02x}) — {describe_contact_flags(flags)}",
+        ]
+        if flags & CONTACT_FLAG_REMOTE_CLI and not old & CONTACT_FLAG_REMOTE_CLI:
+            lines.append("WARNING: this contact can now run ANY CLI command on your node over "
+                         "the mesh (reboot, radio settings, Wi-Fi password), and you will not "
+                         "see those commands.")
+        elif old & CONTACT_FLAG_REMOTE_CLI and not flags & CONTACT_FLAG_REMOTE_CLI:
+            lines.append("Remote CLI permission revoked.")
+        return "\n".join(lines)
 
     elif cmd == 'change_flags':
-        return "Usage: change_flags <name> <flags>\n  Flags: integer (tel_l|tel_a|star)"
+        bits = "\n".join(f"  {bit:<3} (0x{bit:02x}) {name}" for bit, name in CONTACT_FLAG_BITS)
+        return (
+            "Usage:\n"
+            "  change_flags <name>          — show the contact's flags\n"
+            "  change_flags <name> <flags>  — replace the whole flags byte (decimal or 0x..)\n\n"
+            f"Bits (add them up):\n{bits}\n\n"
+            "Remote CLI (16) lets the contact run ANY command on your node over the mesh\n"
+            "(firmware 1.18+). The new value replaces every bit, so read the current one\n"
+            "first: e.g. 19 -> 3 revokes remote CLI and keeps favourite + base telemetry."
+        )
+
+    elif cmd == 'cli' and len(args) >= 2:
+        result = device_manager.run_device_cli(' '.join(args[1:]))
+        if not result.get('success'):
+            return f"Error: {result.get('error')}"
+        return result.get('reply') or result.get('message') or 'OK'
+
+    elif cmd == 'cli':
+        return (
+            "Usage: cli <command> — run a command on the companion's own CLI\n"
+            "(companion firmware 1.18+). Examples:\n"
+            "  cli get radio            cli get cad\n"
+            "  cli set txdelay 0.5      cli get tz.offset\n"
+            "  cli get wifi.status      (Wi-Fi builds only)\n"
+            "'poweroff' is refused; 'reboot' and 'set name' run the regular commands."
+        )
 
     elif cmd == 'pending_contacts':
         result = device_manager.get_pending_contacts()
@@ -1395,7 +1443,7 @@ def _execute_console_command(args: list) -> str:
             "  import_contact <URI>    — Import contact from hex blob URI\n"
             "  manual_add <URI|params> — Add contact from mobile app URI or params\n"
             "  remove_contact <name>   — Remove contact from device\n"
-            "  change_flags <n> <f>    — Change contact flags\n"
+            "  change_flags <n> [f]    — Show/change contact flags (incl. remote CLI)\n"
             "  pending_contacts        — Show pending contacts\n"
             "  add_pending <name>      — Add pending contact\n"
             "  flush_pending           — Flush pending list\n\n"
@@ -1417,6 +1465,7 @@ def _execute_console_command(args: list) -> str:
             "  clock sync           — Sync device clock to now\n"
             "  time <epoch>         — Set device time\n"
             "  reboot               — Reboot device\n"
+            "  cli <command>        — Companion's own CLI (firmware 1.18+)\n"
             "  ver                  — Firmware version\n"
             "  scope <scope>        — Set flood scope\n"
             "  self_telemetry       — Own telemetry data\n"

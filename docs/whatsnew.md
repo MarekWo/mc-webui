@@ -10,6 +10,22 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+### Features
+
+- **Ready for MeshCore firmware 1.18, including its new remote control permission.** Firmware 1.18 lets a contact you mark with the new *remote CLI* flag run any command on your radio over the mesh — reboot it, change its radio settings, even read the Wi-Fi password on Wi-Fi builds — and your radio carries those commands out without the interface ever seeing them. Such a contact now wears a red **Remote CLI** badge on its card under **Contact Management** and in the contact's info window in Direct Messages, so the permission is never invisible. It can only be granted or taken away in the console: `change_flags <name>` now shows a contact's flags in plain words, `change_flags <name> <flags>` prints what changed, warns when it grants remote control, and `change_flags` alone lists what each bit means. Nothing changes for radios still on 1.17, where the flag has no effect.
+
+- **Commands someone tried to run on your radio are labelled as such.** When a contact *without* that permission sends your radio a command, firmware 1.18 refuses to run it and passes the text on as an ordinary direct message. Until now it would have appeared in the conversation as if the person had typed it. It now shows as **Remote CLI command — not executed**, with the command itself set apart, and the notification says the same.
+
+- **The console reaches your radio's own command line (`cli <command>`, firmware 1.18).** Firmware 1.18 can run its command line over the connection the interface already uses, which opens settings that had no other way in: channel-activity detection (`cli get cad`), transmit delays (`cli set txdelay 0.5`), the time-zone offset (`cli get tz.offset`) and, on Wi-Fi builds, the Wi-Fi settings. `poweroff` is refused there, because only someone standing next to the radio could switch it back on, and `cli reboot` and `cli set name` run the regular `reboot` and `set name`, so the interface keeps up with the change. On older firmware the command explains what it needs instead.
+
+### Fixes
+
+- **Every contact in the pending list can now be approved.** With manual contact approval on, a contact can reach the pending list two ways: from the radio's own new-contact notice, or — for example after a restart — from an ordinary advert or the interface's contact cache. Only the first kind could be approved; the others failed with the cryptic error `'out_path'` and stayed pending. Approval now works for every contact in the list, and if the radio itself refuses one, for example because its contact table is full, that reason is shown instead of a false "Contact approved".
+
+- **Adding a contact you already have no longer wipes its settings.** Adding a contact again by key, URI or QR code — the way to rename one — rebuilt it from scratch on the radio, which silently dropped its favourite mark, its telemetry permissions and its known route. The contact now keeps all of them, and only the name and type change.
+
+- **A channel key of all zeros is refused.** A named channel whose key is sixteen zero bytes would collect every stray message sent without a key and show it as that channel's traffic, which the firmware documentation now warns against. Joining or setting such a channel, in the interface or the console, now fails with a clear message.
+
 ---
 
 ## 2.18.3 — 2026-10-02
