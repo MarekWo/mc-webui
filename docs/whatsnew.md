@@ -10,6 +10,10 @@ For deep technical notes, see [architecture.md](architecture.md). For the full g
 
 ## Unreleased
 
+---
+
+## 2.19.0 — 2026-10-31
+
 ### Features
 
 - **Ready for MeshCore firmware 1.18, including its new remote control permission.** Firmware 1.18 lets a contact you mark with the new *remote CLI* flag run any command on your radio over the mesh — reboot it, change its radio settings, even read the Wi-Fi password on Wi-Fi builds — and your radio carries those commands out without the interface ever seeing them. Such a contact now wears a red **Remote CLI** badge on its card under **Contact Management** and in the contact's info window in Direct Messages, so the permission is never invisible. It can only be granted or taken away in the console: `change_flags <name>` now shows a contact's flags in plain words, `change_flags <name> <flags>` prints what changed, warns when it grants remote control, and `change_flags` alone lists what each bit means. Nothing changes for radios still on 1.17, where the flag has no effect.
